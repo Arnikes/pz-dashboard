@@ -15,22 +15,30 @@ jobs:
   publish:
     name: Публикация образа в реестр Gitea
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: https://gitea.com/actions/checkout@v4
 
-      - name: Логин, сборка и push
-        env:
-          REGISTRY_USER: ${{ secrets.REGISTRY_USER }}
-          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+      - name: Log in to Gitea Container Registry
         run: |
-          # реестр Gitea = адрес самого Gitea
-          REGISTRY="${{ github.server_url }}"
+          if [ -z "${{ secrets.REGISTRY_TOKEN }}" ]; then
+            echo "::error::REGISTRY_TOKEN не задан. Добавьте секрет с токеном (scope: write:package)."
+            exit 1
+          fi
+          # логин от имени того, кто запушил (github.actor), токен — как пароль
+          echo "${{ secrets.REGISTRY_TOKEN }}" | docker login "${GITHUB_SERVER_URL#https://}" -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push
+        run: |
+          REGISTRY="${GITHUB_SERVER_URL}"
           REGISTRY="${REGISTRY#http://}"; REGISTRY="${REGISTRY#https://}"
-          # в реестре имена только в нижнем регистре
-          IMAGE=$(echo "$REGISTRY/${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          SHA_TAG="${IMAGE}:sha-$(echo '${{ github.sha }}' | cut -c1-7)"
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE="$REGISTRY/$REPO_LOWER"
+          SHA_TAG="$IMAGE:sha-$(echo "${GITHUB_SHA:0:7}")"
           echo "Публикую: $IMAGE:latest и $SHA_TAG"
-          echo "$REGISTRY_TOKEN" | docker login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin
           docker build -t "$IMAGE:latest" -t "$SHA_TAG" ./dashboard
           docker push "$IMAGE:latest"
           docker push "$SHA_TAG"
