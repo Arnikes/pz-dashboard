@@ -1,9 +1,13 @@
 name: CD
 
-# Публикация образа в реестр Gitea — на тег v* или вручную.
+# Публикация образа в реестр Gitea:
+#   - на каждый push в main (теги latest + sha-<хеш>);
+#   - на тег v* (дополнительно тег с версией);
+#   - вручную (workflow_dispatch).
 # Опциональный SSH-деплой включается переменной DEPLOY_ENABLED=true.
 on:
   push:
+    branches: [main]
     tags: ["v*"]
   workflow_dispatch:
 
@@ -24,11 +28,16 @@ jobs:
           REGISTRY="${REGISTRY#http://}"; REGISTRY="${REGISTRY#https://}"
           # в реестре имена только в нижнем регистре
           IMAGE=$(echo "$REGISTRY/${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          echo "Публикую образ: $IMAGE"
+          SHA_TAG="${IMAGE}:sha-$(echo '${{ github.sha }}' | cut -c1-7)"
+          echo "Публикую: $IMAGE:latest и $SHA_TAG"
           echo "$REGISTRY_TOKEN" | docker login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin
-          docker build -t "$IMAGE:latest" -t "$IMAGE:${{ github.ref_name }}" ./dashboard
+          docker build -t "$IMAGE:latest" -t "$SHA_TAG" ./dashboard
           docker push "$IMAGE:latest"
-          docker push "$IMAGE:${{ github.ref_name }}"
+          docker push "$SHA_TAG"
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            docker tag "$IMAGE:latest" "$IMAGE:${{ github.ref_name }}"
+            docker push "$IMAGE:${{ github.ref_name }}"
+          fi
 
   deploy:
     name: SSH-деплой на сервер (опционально)
