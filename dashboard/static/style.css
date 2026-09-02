@@ -143,28 +143,32 @@ a { color: var(--blood-text); }
   display: grid;
   grid-template-columns: repeat(12, 1fr);
   gap: 16px;
-  align-items: start;
   padding: 18px 22px 30px;
   max-width: 1500px;
   margin: 0 auto;
 }
 
-.c-status   { grid-column: span 5; }
-.c-updates  { grid-column: span 4; }
-.c-players  { grid-column: span 3; }
+/* Десктоп: карточки выровнены по нижней кромке ряда, пары по смыслу:
+   управление → мониторинг → история → живые стримы */
+.c-status   { grid-column: span 6; }
+.c-updates  { grid-column: span 6; }
+.c-players  { grid-column: span 4; }
 .c-metrics  { grid-column: span 4; }
 .c-backups  { grid-column: span 4; }
-.c-events   { grid-column: span 4; }
-.c-console  { grid-column: 1 / -1; }
-.c-logs     { grid-column: 1 / -1; }
+.c-events   { grid-column: 1 / -1; }
+.c-console  { grid-column: span 7; }
+.c-logs     { grid-column: span 5; }
 
+/* Планшет: статус во всю ширину, остальное парами */
 @media (max-width: 1180px) {
-  .c-status   { grid-column: span 12; }
+  .c-status   { grid-column: 1 / -1; }
   .c-updates  { grid-column: span 6; }
   .c-players  { grid-column: span 6; }
   .c-metrics  { grid-column: span 6; }
   .c-backups  { grid-column: span 6; }
-  .c-events   { grid-column: span 12; }
+  .c-events   { grid-column: 1 / -1; }
+  .c-console  { grid-column: 1 / -1; }
+  .c-logs     { grid-column: 1 / -1; }
 }
 
 @media (max-width: 740px) {
@@ -275,7 +279,7 @@ a { color: var(--blood-text); }
 
 .meta {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 10px 18px;
   margin: 0 0 14px;
 }
@@ -613,10 +617,15 @@ select {
 
 .net-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   gap: 10px;
   margin-top: 4px;
 }
+
+/* списки не раздувают карточки — внутри скролл */
+.c-players .list { max-height: 230px; overflow: auto; }
+.c-backups .list { max-height: 310px; overflow: auto; }
+.c-events .list  { max-height: 330px; overflow: auto; }
 
 .net-row dt { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); margin-bottom: 2px; }
 .net-row dd { margin: 0; font-size: 12.5px; color: var(--muted); }
