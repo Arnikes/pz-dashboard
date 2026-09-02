@@ -1,0 +1,14 @@
+# python
+__pycache__/
+*.pyc
+.venv/
+
+# секреты и локальные данные
+.env
+dashboard-data/
+backups/
+*.tar.gz
+
+# временные файлы
+.tmp-*/
+.DS_Store

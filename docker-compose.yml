@@ -1,0 +1,59 @@
+# ─────────────────────────────────────────────────────────────────
+# ПОЛНЫЙ ПРИМЕР: сервер Project Zomboid + пульт управления.
+# Если сервер уже работает — НЕ заменяйте свой compose. Просто
+# добавьте в свой файл сервис pz-dashboard (см. docker-compose.dashboard.yml).
+#
+# Параметры образа indifferentbrokkoli/pzserver сверьте с официальным
+# README образа: имена переменных и путь к данным могут отличаться
+# в вашей версии.
+# ─────────────────────────────────────────────────────────────────
+
+services:
+  pzserver:
+    image: indifferentbrokkoli/pzserver:latest
+    container_name: pzserver
+    restart: unless-stopped
+    stop_grace_period: 240s        # даём миру сохраниться
+    environment:
+      - RCON_PASSWORD=${RCON_PASSWORD:?Задайте RCON_PASSWORD в .env}
+      - TZ=${TZ:-Europe/Moscow}
+      # ← остальные переменные (имя сервера, пароли, админы и т.д.)
+      #   скопируйте из вашего рабочего compose-файла
+    ports:
+      - "16261:16261/udp"          # игровой порт
+      - "16262:16262/udp"
+      - "27015:27015/tcp"          # RCON — нужен пульту
+    volumes:
+      - pz-data:/home/steam/Zomboid   # путь сверьте с README образа
+
+  pz-dashboard:
+    build: ./dashboard
+    # Либо образ из реестра Gitea (см. раздел CI/CD в README):
+    # image: git.example.com/owner/pz-pult:latest
+    container_name: pz-dashboard
+    restart: unless-stopped
+    depends_on:
+      - pzserver
+    ports:
+      - "8081:8080"                # веб-интерфейс: http://IP:8081
+    environment:
+      - RCON_PASSWORD=${RCON_PASSWORD:?Задайте RCON_PASSWORD в .env}
+      - RCON_HOST=pzserver         # имя сервиса в сети compose
+      - RCON_PORT=27015
+      - PZ_CONTAINER=pzserver
+      - PZ_SERVICE=pzserver
+      - PZ_IMAGE=indifferentbrokkoli/pzserver:latest
+      - PZ_SERVER_NAME=${PZ_SERVER_NAME:-Project Zomboid}
+      - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-pz}
+      - COMPOSE_FILE=/compose/docker-compose.yml
+      - TZ=${TZ:-Europe/Moscow}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock   # управление docker
+      - .:/compose:ro                               # compose-файл проекта
+      - pz-data:/data                               # данные PZ для бэкапов
+      - ./backups:/backups                          # куда складывать бэкапы
+      - dashboard-data:/dashboard-data              # события и настройки пульта
+
+volumes:
+  pz-data:
+  dashboard-data:

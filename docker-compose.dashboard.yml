@@ -1,0 +1,49 @@
+# ─────────────────────────────────────────────────────────────────
+# ТОЛЬКО ПУЛЬТ — для добавления в СУЩЕСТВУЮЩИЙ compose проекта.
+#
+# Использование (из каталога, где лежит ваш docker-compose.yml):
+#   cp pz-dashboard/docker-compose.dashboard.yml .
+#   cp pz-dashboard/.env.example .env   # заполнить
+#   docker compose -f docker-compose.yml -f docker-compose.dashboard.yml up -d
+#
+# ВАЖНО: пропишите тот же volume, где PZ хранит данные.
+#   • если у вас named volume  → external: true и имя вашего volume
+#   • если bind-каталог        → замените pz-data:/data на путь хоста:
+#                                ./ZomboidConfig:/data
+# ─────────────────────────────────────────────────────────────────
+
+services:
+  pz-dashboard:
+    build: ./dashboard            # каталог с Dockerfile и кодом пульта
+    # Вместо локальной сборки можно брать образ из реестра Gitea (его собирает CD):
+    # image: git.example.com/owner/pz-pult:latest
+    container_name: pz-dashboard
+    restart: unless-stopped
+    ports:
+      - "8081:8080"               # веб-интерфейс: http://IP:8081
+    environment:
+      - RCON_PASSWORD=${RCON_PASSWORD:?Задайте RCON_PASSWORD в .env}
+      - RCON_HOST=pzserver
+      - RCON_PORT=27015
+      - PZ_CONTAINER=pzserver
+      - PZ_SERVICE=pzserver
+      - PZ_IMAGE=indifferentbrokkoli/pzserver:latest
+      - PZ_SERVER_NAME=${PZ_SERVER_NAME:-Project Zomboid}
+      # имя проекта compose = имени каталога; задайте явно, чтобы пульт
+      # управлял именно вашим проектом
+      - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-pz}
+      # склейка двух файлов, чтобы compose видел весь проект целиком
+      - COMPOSE_FILE=/compose/docker-compose.yml:/compose/docker-compose.dashboard.yml
+      - TZ=${TZ:-Europe/Moscow}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/compose:ro
+      - pz-data:/data
+      - ./backups:/backups
+      - dashboard-data:/dashboard-data
+
+volumes:
+  pz-data:
+    external: true
+    name: pz-data                 # ← замените на имя вашего volume
+  dashboard-data:
