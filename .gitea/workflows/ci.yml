@@ -37,19 +37,26 @@ jobs:
 
       - name: Smoke — контейнер стартует и отвечает /api/health
         run: |
-          docker run -d --name pz-pult-smoke -p 18080:8080 \
+          # В act_runner job обычно живёт в контейнере с монтированным docker.sock:
+          # опубликованные порты (-p) привязываются к хосту демона и недоступны
+          # с 127.0.0.1 job-контейнера. Поэтому проверяем здоровье через
+          # внутреннюю docker-сеть по имени контейнера (docker DNS).
+          docker network create pz-smoke
+          docker run -d --name pz-pult-smoke --network pz-smoke \
             -e RCON_PASSWORD=ci-dummy -e PZ_SERVER_NAME=ci pz-pult:ci
-          ok=0
-          for i in $(seq 1 20); do
-            if curl -fsS http://127.0.0.1:18080/api/health; then ok=1; break; fi
+          for i in $(seq 1 30); do
+            if docker run --rm --network pz-smoke pz-pult:ci python3 -c "import urllib.request; urllib.request.urlopen('http://pz-pult-smoke:8080/api/health', timeout=4)" 2>/dev/null; then
+              echo "health OK (попытка $i)"
+              exit 0
+            fi
             sleep 1
           done
-          if [ "$ok" != "1" ]; then
-            echo "--- логи контейнера ---"
-            docker logs pz-pult-smoke
-            exit 1
-          fi
+          echo "health так и не ответил за 30 секунд"
+          exit 1
 
-      - name: Уборка
+      - name: Уборка и диагностика
         if: always()
-        run: docker rm -f pz-pult-smoke || true
+        run: |
+          docker logs pz-pult-smoke || true
+          docker rm -f pz-pult-smoke || true
+          docker network rm pz-smoke || true
