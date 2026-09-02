@@ -1,9 +1,7 @@
 <!doctype html>
 <!--
   PZ Пульт — панель управления dedicated-сервером Project Zomboid
-  Версия: V5 (авто-детект образа, нюджет бэкапа, история консоли, копирование,
-  относительное время, свежесть данных, тултип графика, фильтр и скачивание логов,
-  kick/ban игроков, история CPU/RAM за час, якорная навигация)
+  Версия: V4 (авто-бэкап перед обновлением, watchdog RCON, график онлайна за сутки)
   Discovery:
     deliverable: web-дашборд (desktop-first, адаптив 390–1440)
     audience: админ собственного PZ-сервера (indifferentbrokkoli + docker compose)
@@ -33,24 +31,11 @@
     </div>
     <div class="top-right">
       <span class="badge-demo" id="demoBadge" hidden>ДЕМО-РЕЖИМ</span>
-      <span class="top-lamp" id="topLamp" data-state="unknown" aria-hidden="true"></span>
       <span class="pill" id="pillDocker" data-state="unknown">Docker</span>
       <span class="pill" id="pillRcon" data-state="unknown">RCON</span>
-      <span class="fresh mono" id="freshness"></span>
       <span class="clock mono" id="clock">--:--</span>
     </div>
   </header>
-
-  <nav class="anchors" aria-label="Разделы пульта">
-    <a href="#sec-status">Статус</a>
-    <a href="#sec-updates">Обновления</a>
-    <a href="#sec-players">Игроки</a>
-    <a href="#sec-metrics">Нагрузка</a>
-    <a href="#sec-backups">Бэкапы</a>
-    <a href="#sec-events">События</a>
-    <a href="#sec-console">Консоль</a>
-    <a href="#sec-logs">Логи</a>
-  </nav>
 
   <div class="banner banner-conn" id="connBanner" hidden>
     Нет связи с пультом — повторная попытка идёт автоматически. Проверьте, что контейнер запущен.
@@ -62,7 +47,7 @@
   <main class="main" data-od-id="main">
 
     <!-- СТАТУС + УПРАВЛЕНИЕ -->
-    <section class="card c-status" id="sec-status" data-od-id="status" aria-labelledby="hStatus">
+    <section class="card c-status" data-od-id="status" aria-labelledby="hStatus">
       <header class="card-head">
         <h2 id="hStatus">Состояние сервера</h2>
         <span class="pill" id="pillCompose" data-state="unknown">compose</span>
@@ -81,10 +66,6 @@
       <p class="hint" id="absentHint" hidden>
         Контейнер не найден. Проверьте имя (переменная PZ_CONTAINER) и что compose-проект запущен.
       </p>
-      <div class="nudge" id="backupNudge" hidden>
-        <span class="nudge-text">Мир ещё ни разу не бэкапился — начните с первого архива.</span>
-        <button class="btn small" id="btnNudgeBackup">Создать первый бэкап</button>
-      </div>
       <div class="actions">
         <button class="btn" id="btnStart">Запустить</button>
         <button class="btn danger" id="btnStop">Остановить</button>
@@ -114,16 +95,15 @@
     </section>
 
     <!-- ОБНОВЛЕНИЯ -->
-    <section class="card c-updates" id="sec-updates" data-od-id="updates" aria-labelledby="hUpdates">
+    <section class="card c-updates" data-od-id="updates" aria-labelledby="hUpdates">
       <header class="card-head">
         <h2 id="hUpdates">Обновления</h2>
         <span class="pill" id="updPill" data-state="unknown">—</span>
       </header>
       <p class="upd-note" id="updNote">Сверяется digest локального образа с Docker Hub.</p>
       <dl class="meta">
-        <div><dt>Локальный</dt><dd class="mono" id="updLocal" data-copy>—</dd></div>
-        <div><dt>В Docker Hub</dt><dd class="mono" id="updRemote" data-copy>—</dd></div>
-        <div><dt>Сборка latest</dt><dd id="updHubDate">—</dd></div>
+        <div><dt>Локальный</dt><dd class="mono" id="updLocal">—</dd></div>
+        <div><dt>В Docker Hub</dt><dd class="mono" id="updRemote">—</dd></div>
         <div><dt>Проверено</dt><dd id="updChecked">никогда</dd></div>
       </dl>
       <div class="actions">
@@ -162,7 +142,7 @@
     </section>
 
     <!-- ИГРОКИ -->
-    <section class="card c-players" id="sec-players" data-od-id="players" aria-labelledby="hPlayers">
+    <section class="card c-players" data-od-id="players" aria-labelledby="hPlayers">
       <header class="card-head">
         <h2 id="hPlayers">Игроки онлайн</h2>
         <span class="count mono" id="playersCount">–</span>
@@ -172,28 +152,22 @@
       </div>
       <div class="ph-block">
         <div class="metric-row"><span>Онлайн за сутки</span><span class="mono" id="phPeak"></span></div>
-        <div class="ph-wrap">
-          <svg class="spark ph-spark" id="phSpark" viewBox="0 0 120 30" preserveAspectRatio="none" aria-hidden="true"></svg>
-          <div class="ph-tip mono" id="phTip" hidden></div>
-        </div>
-        <div class="ph-labels mono"><span>сутки назад</span><span>сейчас</span></div>
+        <svg class="spark ph-spark" id="phSpark" viewBox="0 0 120 30" preserveAspectRatio="none" aria-hidden="true"></svg>
         <p class="hint" id="phEmpty" hidden>Данные собираются — точка появляется раз в 4 минуты.</p>
       </div>
     </section>
 
     <!-- МЕТРИКИ -->
-    <section class="card c-metrics" id="sec-metrics" data-od-id="metrics" aria-labelledby="hMetrics">
+    <section class="card c-metrics" data-od-id="metrics" aria-labelledby="hMetrics">
       <header class="card-head"><h2 id="hMetrics">Нагрузка контейнера</h2></header>
       <div class="metric">
         <div class="metric-row"><span>CPU</span><span class="mono" id="cpuVal">—</span></div>
         <div class="bar"><i id="cpuBar" style="width:0%"></i></div>
         <svg class="spark" id="cpuSpark" viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><polyline id="cpuSparkLine" fill="none" stroke="currentColor" stroke-width="1.6" points=""/></svg>
-        <div class="metric-sub">линия — история за час</div>
       </div>
       <div class="metric">
         <div class="metric-row"><span>RAM</span><span class="mono" id="ramVal">—</span></div>
         <div class="bar"><i id="ramBar" style="width:0%"></i></div>
-        <svg class="spark ram" id="ramSpark" viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><polyline id="ramSparkLine" fill="none" stroke="currentColor" stroke-width="1.6" points=""/></svg>
         <div class="metric-sub mono" id="ramSub">—</div>
       </div>
       <div class="net-row">
@@ -204,7 +178,7 @@
     </section>
 
     <!-- БЭКАПЫ -->
-    <section class="card c-backups" id="sec-backups" data-od-id="backups" aria-labelledby="hBackups">
+    <section class="card c-backups" data-od-id="backups" aria-labelledby="hBackups">
       <header class="card-head">
         <h2 id="hBackups">Бэкапы</h2>
         <button class="btn small" id="btnBackup">Создать</button>
@@ -215,7 +189,7 @@
     </section>
 
     <!-- СОБЫТИЯ -->
-    <section class="card c-events" id="sec-events" data-od-id="events" aria-labelledby="hEvents">
+    <section class="card c-events" data-od-id="events" aria-labelledby="hEvents">
       <header class="card-head"><h2 id="hEvents">История событий</h2></header>
       <div id="eventsBody" class="list" data-state="loading">
         <p class="skeleton-line"></p><p class="skeleton-line short"></p><p class="skeleton-line"></p>
@@ -223,7 +197,7 @@
     </section>
 
     <!-- КОНСОЛЬ -->
-    <section class="card c-console" id="sec-console" data-od-id="console" aria-labelledby="hConsole">
+    <section class="card c-console" data-od-id="console" aria-labelledby="hConsole">
       <header class="card-head">
         <h2 id="hConsole">Консоль RCON</h2>
         <div class="chips" id="quickCmds">
@@ -243,21 +217,17 @@
     </section>
 
     <!-- ЛОГИ -->
-    <section class="card c-logs" id="sec-logs" data-od-id="logs" aria-labelledby="hLogs">
+    <section class="card c-logs" data-od-id="logs" aria-labelledby="hLogs">
       <header class="card-head">
         <h2 id="hLogs">Логи контейнера</h2>
-        <div class="logs-tools">
-          <input type="search" id="logsFilter" class="mono" placeholder="фильтр строк…" aria-label="Фильтр логов" />
-          <label class="check"><input type="checkbox" id="logsAuto" checked /> Обновлять</label>
-          <a class="btn small" id="logsDownload" href="/api/logs/full" download title="Полный лог файлом">Скачать лог</a>
-        </div>
+        <label class="check"><input type="checkbox" id="logsAuto" checked /> Обновлять автоматически</label>
       </header>
       <pre class="logs-out mono" id="logsOut">Загрузка логов…</pre>
     </section>
   </main>
 
   <footer class="foot" data-od-id="footer">
-    PZ Пульт · V5 · обновление данных: статус 3 с, игроки и метрики 5 с, логи 5 с
+    PZ Пульт · V4 · обновление данных: статус 3 с, игроки и метрики 5 с, логи 5 с
   </footer>
 
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>

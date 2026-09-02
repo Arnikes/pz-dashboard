@@ -76,7 +76,7 @@ docker compose -f docker-compose.yml -f docker-compose.dashboard.yml up -d --bui
 |---|---|
 | Статус сервера | `docker inspect` контейнера: состояние, время старта, uptime |
 | Игроки | RCON-команда `players`, опрос каждые 5 с |
-| Обновления | Сравнение digest локального образа и Docker Hub; кнопка «Обновить сейчас» скачивает образ заранее и перезапускает контейнер только если версия реально изменилась |
+| Обновления | Имя образа берётся из самого контейнера (авто-детект); сравнение digest локального образа и Docker Hub; кнопка «Обновить сейчас» скачивает образ заранее и перезапускает контейнер только если версия реально изменилась |
 | Авто-бэкап перед обновлением | Перед применением обновления автоматически снимается архив мира (если не удалось — обновление отменяется); отключается галочкой «Бэкап перед обновлением» |
 | Watchdog RCON | Раз в 30 с проба RCON; при тишине дольше порога — событие в истории, а на хосте сервера — опциональный авторестарт зависшего сервера (без предупреждения: предупреждать некому) |
 | График онлайна | Точки раз в 4 минуты (окно 24 ч) — пик и динамика онлайна на карточке игроков |
@@ -85,14 +85,14 @@ docker compose -f docker-compose.yml -f docker-compose.dashboard.yml up -d --bui
 | Бэкап | `RCON save` → `tar -czf` каталога данных (логи исключены). Опционально — с остановкой сервера |
 | Восстановление | Остановка сервера → очистка каталога данных → распаковка архива → запуск. Требует подтверждения флажком |
 | Консоль | Любая RCON-команда; чипы `save` / `players` / `help` и рассылка `servermsg` |
-| Метрики | `docker stats`: CPU (с графиком), RAM, сеть |
+| Метрики | `docker stats`: CPU и RAM с историей за час (семпл раз в минуту), сеть |
 | Логи | `docker logs --tail 250`, автообновление, подсветка ошибок |
 | История | События пишутся в `dashboard-data/events.jsonl` |
 
 ### API (для своих скриптов)
 
-`GET /api/overview` · `GET /api/players` · `GET /api/players/history` · `GET /api/stats` ·
-`GET /api/logs?tail=250` · `GET /api/backups` · `GET /api/events` ·
+`GET /api/overview` · `GET /api/players` · `GET /api/players/history` · `GET /api/stats` · `GET /api/stats/history` ·
+`GET /api/logs?tail=250` · `GET /api/logs/full` (файлом) · `GET /api/backups` · `GET /api/events` ·
 `GET /api/ops` · `GET /api/health`
 
 `POST /api/action` — `{"op":"start|stop|restart|check-update|apply-update|backup|restore", "warnSeconds":300, "stopServer":false, "name":"..."}`

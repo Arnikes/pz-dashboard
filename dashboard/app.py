@@ -5,6 +5,7 @@ import mimetypes
 import os
 import posixpath
 import sys
+import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -59,6 +60,24 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _send_full_logs(self):
+        if not ops.docker_ok_cached():
+            self._send_error_json(400, "Логи доступны только при запуске пульта на хосте сервера")
+            return
+        text = ops.full_logs()
+        if text is None:
+            self._send_error_json(500, "Не удалось получить логи контейнера")
+            return
+        body = text.encode("utf-8", "replace")
+        name = time.strftime("pzserver-%Y%m%d-%H%M%S.log")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Content-Disposition", f'attachment; filename="{name}"')
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
 
@@ -122,6 +141,10 @@ class Handler(BaseHTTPRequestHandler):
                         self._send_json({"ok": False, "error": str(e)})
         elif path == "/api/players/history":
             self._send_json({"ok": True, "points": ops.get_players_history()})
+        elif path == "/api/stats/history":
+            self._send_json({"ok": True, "points": ops.get_stats_history()})
+        elif path == "/api/logs/full":
+            self._send_full_logs()
         elif path == "/api/stats":
             self._send_json({"ok": True, **ops.fetch_stats()})
         elif path == "/api/logs":

@@ -1,4 +1,4 @@
-/* PZ Пульт · V4 — логика интерфейса.
+/* PZ Пульт · V5 — логика интерфейса.
    Данные приходят с бэкенда пульта; при отсутствии API включается демо-режим.
    Режим «remote»: пульт вне хоста сервера — управление только по RCON. */
 "use strict";
@@ -40,6 +40,32 @@ function fmtBytes(n) {
 }
 
 const shortDigest = (d) => (d ? d.replace("sha256:", "").slice(0, 12) : "—");
+
+function relTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  const s = Math.round((Date.now() - d.getTime()) / 1000);
+  if (s < 45) return "только что";
+  if (s < 3600) return `${Math.max(1, Math.round(s / 60))} мин назад`;
+  if (s < 86400) return `${Math.round(s / 3600)} ч назад`;
+  if (s < 172800) return "вчера";
+  return fmtTime(iso);
+}
+
+async function copyText(text, label) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(`Скопировано: ${label || String(text).slice(0, 42)}`, "ok", 2000);
+  } catch (e) {
+    toast("Не удалось скопировать", "error", 2000);
+  }
+}
+
+document.addEventListener("click", (e) => {
+  const t = e.target.closest("[data-copy]");
+  if (t && t.dataset.copy) copyText(t.dataset.copy);
+});
 
 /* ───────────────────────── тосты ───────────────────────── */
 
@@ -103,9 +129,11 @@ const S = {
   stats: null,
   players: null,
   op: null,
-  cpuHistory: [],
   logsAuto: true,
   lastOpActive: false,
+  logsText: "",
+  phPoints: [],
+  lastDataOk: 0,
 };
 
 function demoNow() { return new Date().toISOString(); }
@@ -122,6 +150,14 @@ const DEMO = {
     backupsCount: 2, now: demoNow(),
   }),
   players: () => ({ ok: true, names: ["Дмитрий", "Sledge", "Katya_V"], raw: "Дмитрий\nSledge\nKatya_V", count: 3 }),
+  statsHistory: () => {
+    const pts = [];
+    const now = Date.now();
+    for (let i = 30; i >= 0; i--) {
+      pts.push({ ts: new Date(now - i * 120000).toISOString(), cpu: +(2 + 6 * Math.random()).toFixed(2), mem: +(17 + 4 * Math.random()).toFixed(2) });
+    }
+    return { ok: true, points: pts };
+  },
   history: () => {
     const pts = [];
     const now = Date.now();
@@ -165,6 +201,7 @@ async function api(path, opts = {}) {
     await new Promise((r) => setTimeout(r, 120));
     if (path.startsWith("/api/overview")) return DEMO.overview();
     if (path.startsWith("/api/players/history")) return DEMO.history();
+    if (path.startsWith("/api/stats/history")) return DEMO.statsHistory();
     if (path.startsWith("/api/players")) return DEMO.players();
     if (path.startsWith("/api/stats")) return DEMO.stats();
     if (path.startsWith("/api/logs")) return DEMO.logs();
@@ -267,6 +304,10 @@ function renderOverview(o) {
   $("mContainer").textContent = o.container || "—";
   $("mImage").textContent = o.image || "—";
   $("mDigest").textContent = shortDigest(o.update?.local);
+  $("mContainer").dataset.copy = o.container || "";
+  $("mImage").dataset.copy = o.image || "";
+  if (o.update?.local) $("mDigest").dataset.copy = o.update.local; else $("mDigest").removeAttribute("data-copy");
+  $("topLamp").dataset.state = lamp.dataset.state;
 
   // блок обновлений
   const u = o.update || {};
@@ -294,12 +335,16 @@ function renderOverview(o) {
   $("updLocal").textContent = shortDigest(u.local);
   $("updRemote").textContent = shortDigest(u.remote);
   $("updChecked").textContent = u.at ? fmtTime(u.at) : "никогда";
+  $("updHubDate").textContent = u.hubUpdated ? "собрана " + fmtTime(u.hubUpdated) : "—";
+  if (u.local) $("updLocal").dataset.copy = u.local; else $("updLocal").removeAttribute("data-copy");
+  if (u.remote) $("updRemote").dataset.copy = u.remote; else $("updRemote").removeAttribute("data-copy");
 
   // автообновление
   const au = o.settings?.autoUpdate || {};
   if (!$("autoSwitch").matches(":focus")) $("autoSwitch").checked = !!au.enabled;
   if (!$("autoInterval").matches(":focus")) $("autoInterval").value = String(au.intervalHours ?? 6);
   if (!$("autoWarn").matches(":focus")) $("autoWarn").value = String(au.warnSeconds ?? 300);
+  $("backupNudge").hidden = remote || o.backupsCount !== 0;
   if (!$("buBackup").matches(":focus")) $("buBackup").checked = au.backupBeforeUpdate !== false;
   const wdCfg = o.settings?.watchdog || {};
   if (!$("wdSwitch").matches(":focus")) $("wdSwitch").checked = !!wdCfg.enabled;
@@ -346,6 +391,9 @@ function updateButtons() {
   $("buBackup").disabled = busy;
   $("wdSwitch").disabled = busy;
   $("wdThreshold").disabled = busy;
+  $("logsDownload").style.display = (remote || S.demo) ? "none" : "";
+  $("logsFilter").disabled = remote || S.demo;
+  document.querySelectorAll("#playersBody .p-actions .icon-btn").forEach((b) => { b.disabled = !consoleLive; });
   document.querySelectorAll("#backupsBody .icon-btn").forEach((b) => { b.disabled = busy || remote; });
   document.querySelectorAll("#quickCmds .chip").forEach((b) => { b.disabled = !consoleLive; });
   $("consoleInput").disabled = !consoleLive;
@@ -390,14 +438,64 @@ function renderPlayers(data) {
     return;
   }
   body.dataset.state = "ok";
-  body.innerHTML = data.names.map((n) => `<div class="player-row"><span class="dot"></span>${esc(n)}</div>`).join("");
+  body.innerHTML = data.names.map((n) => `
+    <div class="player-row">
+      <span class="dot"></span>
+      <span class="p-name" title="${esc(n)}">${esc(n)}</span>
+      <span class="p-actions">
+        <button class="icon-btn" data-p="kick" data-name="${esc(n)}" title="Кикнуть" aria-label="Кикнуть ${esc(n)}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v18h-6M10 17l5-5-5-5M15 12H3"/></svg>
+        </button>
+        <button class="icon-btn danger" data-p="ban" data-name="${esc(n)}" title="Забанить" aria-label="Забанить ${esc(n)}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M5.5 5.5l13 13"/></svg>
+        </button>
+      </span>
+    </div>`).join("");
+
+  body.querySelectorAll(".p-actions .icon-btn").forEach((btn) => {
+    btn.addEventListener("click", () => confirmPlayerAction(btn.dataset.p, btn.dataset.name));
+  });
+  updateButtons();
+}
+
+function confirmPlayerAction(kind, name) {
+  const isKick = kind === "kick";
+  const cmdBase = isKick ? "kickuser" : "banuser";
+  modal.open({
+    title: `${isKick ? "Кикнуть" : "Забанить"} «${name}»?`,
+    danger: true,
+    okLabel: isKick ? "Кикнуть" : "Забанить",
+    bodyHTML: `
+      <p>Игрок будет ${isKick ? "отключён от сервера" : "заблокирован навсегда"} командой
+      <span class="mono">${cmdBase}</span>.</p>
+      <label class="field">Причина (необязательно)
+        <input type="text" id="paReason" maxlength="120" style="height:38px;color:var(--ink);background:var(--bg-deep);border:1px solid var(--line-strong);border-radius:8px;padding:0 12px;" />
+      </label>
+    `,
+    onConfirm: async () => {
+      const reason = ($("paReason")?.value || "").replace(/"/g, "'").trim();
+      const safeName = name.replace(/"/g, "'");
+      const cmd = `${cmdBase} "${safeName}"${reason ? ` "${reason}"` : ""}`;
+      try {
+        const res = await api("/api/rcon", { method: "POST", body: { command: cmd } });
+        if (res.error) throw new Error(res.error);
+        consoleAppend(`> ${cmd}`, "c-dim");
+        consoleAppend(res.output || "(без ответа)");
+        toast(`${isKick ? "Кикнут" : "Забанен"}: ${name}`, "ok");
+        refreshPlayers();
+      } catch (e) {
+        toast(e.message || String(e), "error");
+      }
+    },
+  });
 }
 
 /* ───────────────────────── график онлайна за сутки ───────────────────────── */
 
 function renderPlayersHistory(points) {
+  S.phPoints = points || [];
   const svg = $("phSpark");
-  if (!points || points.length < 2) {
+  if (!S.phPoints || S.phPoints.length < 2) {
     $("phEmpty").hidden = false;
     $("phPeak").textContent = "—";
     svg.innerHTML = "";
@@ -434,17 +532,50 @@ function renderPlayersHistory(points) {
   $("phPeak").textContent = `пик: ${peak}`;
 }
 
+(() => {
+  const spark = $("phSpark");
+  spark.addEventListener("mousemove", (ev) => {
+    const pts = S.phPoints;
+    if (!pts || pts.length < 2) return;
+    const rect = spark.getBoundingClientRect();
+    const frac = Math.min(1, Math.max(0, (ev.clientX - rect.left) / rect.width));
+    const t0 = new Date(pts[0].ts).getTime();
+    const t1 = new Date(pts[pts.length - 1].ts).getTime();
+    const target = t0 + frac * (t1 - t0);
+    let best = pts[0];
+    for (const p of pts) {
+      if (Math.abs(new Date(p.ts).getTime() - target) < Math.abs(new Date(best.ts).getTime() - target)) best = p;
+    }
+    const tip = $("phTip");
+    tip.hidden = false;
+    tip.textContent = `${fmtTime(best.ts)} · ${best.count} игр.`;
+    tip.style.left = Math.max(60, Math.min(rect.width - 10, ev.clientX - rect.left)) + "px";
+  });
+  spark.addEventListener("mouseleave", () => { $("phTip").hidden = true; });
+})();
+
 async function refreshPlayersHistory() {
   try { renderPlayersHistory((await api("/api/players/history")).points || []); } catch (e) { /* тихо */ }
 }
 
 /* ───────────────────────── метрики ───────────────────────── */
 
-function pushCpu(v) {
-  S.cpuHistory.push(v);
-  if (S.cpuHistory.length > 60) S.cpuHistory.shift();
-  const pts = S.cpuHistory.map((val, i) => `${(i / 59) * 120},${28 - Math.max(1, Math.min(28, (val / 100) * 28))}`).join(" ");
-  $("cpuSparkLine").setAttribute("points", pts);
+function drawSpark(id, vals) {
+  const el = $(id);
+  if (!el) return;
+  if (!vals || vals.length < 2) { el.setAttribute("points", ""); return; }
+  const max = Math.max(10, ...vals);
+  const pts = vals.map((v, i) => `${((i / (vals.length - 1)) * 120).toFixed(1)},${(26 - (Math.min(v, max) / max) * 24).toFixed(1)}`).join(" ");
+  el.setAttribute("points", pts);
+}
+
+function renderStatsHistory(points) {
+  drawSpark("cpuSparkLine", (points || []).map((p) => p.cpu));
+  drawSpark("ramSparkLine", (points || []).map((p) => p.mem));
+}
+
+async function refreshStatsHistory() {
+  try { renderStatsHistory((await api("/api/stats/history")).points || []); } catch (e) { /* тихо */ }
 }
 
 function renderStats(st) {
@@ -465,7 +596,6 @@ function renderStats(st) {
   const cpu = Math.max(0, Math.min(100, st.cpuPct || 0));
   $("cpuVal").textContent = `${cpu.toFixed(1)}%`;
   setBar("cpuBar", cpu);
-  pushCpu(cpu);
   const memPct = Math.max(0, Math.min(100, st.memPct || 0));
   $("ramVal").textContent = `${memPct.toFixed(0)}%`;
   setBar("ramBar", memPct);
@@ -499,8 +629,8 @@ function renderBackups(data) {
   body.dataset.state = "ok";
   body.innerHTML = items.map((b) => `
     <div class="backup-row">
-      <span class="b-name mono" title="${esc(b.name)}">${esc(b.name)}</span>
-      <span class="b-size">${esc(b.sizeText || fmtBytes(b.size))}</span>
+      <span class="b-name mono" title="${esc(b.name)} — создан ${esc(b.mtime)}" data-copy="${esc(b.name)}">${esc(b.name)}</span>
+      <span class="b-size mono" data-mtime="${esc(b.mtime)}" title="создан ${esc(b.mtime)}">${esc(b.sizeText || fmtBytes(b.size))}</span>
       <button class="icon-btn" data-b="dl" data-name="${esc(b.name)}" title="Скачать" aria-label="Скачать ${esc(b.name)}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
       </button>
@@ -524,6 +654,7 @@ function renderBackups(data) {
       }
     });
   });
+  body.querySelectorAll(".b-size").forEach((el) => { el.textContent = relTime(el.dataset.mtime); });
   updateButtons();
 }
 
@@ -561,7 +692,7 @@ function confirmDeleteBackup(name) {
   });
 }
 
-$("btnBackup").addEventListener("click", () => {
+function openBackupModal() {
   modal.open({
     title: "Создать бэкап",
     okLabel: "Создать",
@@ -574,7 +705,10 @@ $("btnBackup").addEventListener("click", () => {
       await action("backup", { stopServer: $("bkStop")?.checked || false });
     },
   });
-});
+}
+
+$("btnBackup").addEventListener("click", openBackupModal);
+$("btnNudgeBackup").addEventListener("click", openBackupModal);
 
 /* ───────────────────────── события ───────────────────────── */
 
@@ -601,7 +735,7 @@ function renderEvents(data) {
   body.dataset.state = "ok";
   body.innerHTML = items.map((ev) => `
     <div class="event-row" data-kind="${esc(ev.type)}">
-      <span class="e-time mono">${esc(fmtTime(ev.ts))}</span>
+      <span class="e-time mono" title="${esc(ev.ts)}">${esc(relTime(ev.ts) || fmtTime(ev.ts))}</span>
       <span class="e-text"><b>${esc(EVENT_LABELS[ev.type] || ev.type)}.</b> ${esc(ev.text)}</span>
     </div>`).join("");
 }
@@ -624,6 +758,8 @@ $("consoleForm").addEventListener("submit", async (e) => {
   const input = $("consoleInput");
   const cmd = input.value.trim();
   if (!cmd) return;
+  if (consoleHistory.items[consoleHistory.items.length - 1] !== cmd) consoleHistory.items.push(cmd);
+  consoleHistory.idx = consoleHistory.items.length;
   input.value = "";
   consoleAppend(`> ${cmd}`, "c-dim");
   try {
@@ -632,6 +768,23 @@ $("consoleForm").addEventListener("submit", async (e) => {
     else consoleAppend(res.output || "(без ответа)");
   } catch (err) {
     consoleAppend(`Ошибка: ${err.message || err}`, "c-err");
+  }
+});
+
+const consoleHistory = { items: [], idx: 0 };
+
+$("consoleInput").addEventListener("keydown", (e) => {
+  if (e.key === "ArrowUp" && consoleHistory.items.length) {
+    e.preventDefault();
+    consoleHistory.idx = consoleHistory.idx === consoleHistory.items.length
+      ? consoleHistory.items.length - 1
+      : Math.max(0, consoleHistory.idx - 1);
+    $("consoleInput").value = consoleHistory.items[consoleHistory.idx] || "";
+  } else if (e.key === "ArrowDown" && consoleHistory.items.length) {
+    e.preventDefault();
+    consoleHistory.idx = Math.min(consoleHistory.items.length, consoleHistory.idx + 1);
+    $("consoleInput").value = consoleHistory.idx === consoleHistory.items.length
+      ? "" : consoleHistory.items[consoleHistory.idx];
   }
 });
 
@@ -673,9 +826,16 @@ function renderLogs(data) {
     $("logsOut").textContent = data.error || "Логи недоступны";
     return;
   }
+  S.logsText = data.text;
+  renderLogsFiltered();
+}
+
+function renderLogsFiltered() {
   const pre = $("logsOut");
   const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 30;
-  pre.innerHTML = data.text.split("\n").map((line) => {
+  const f = ($("logsFilter")?.value || "").trim().toLowerCase();
+  const lines = S.logsText.split("\n").filter((l) => !f || l.toLowerCase().includes(f));
+  pre.innerHTML = lines.map((line) => {
     if (/ERROR|SEVERE|Exception/i.test(line)) return `<span class="l-err">${esc(line)}</span>`;
     if (/WARN/i.test(line)) return `<span class="l-warn">${esc(line)}</span>`;
     return esc(line);
@@ -683,6 +843,7 @@ function renderLogs(data) {
   if (atBottom && S.logsAuto) pre.scrollTop = pre.scrollHeight;
 }
 
+$("logsFilter").addEventListener("input", renderLogsFiltered);
 $("logsAuto").addEventListener("change", () => { S.logsAuto = $("logsAuto").checked; });
 
 /* ───────────────────────── действия и подтверждения ───────────────────────── */
@@ -793,6 +954,7 @@ async function refreshOverview() {
     if (o.error && !o.serverName) throw new Error(o.error);
     connFailStreak = 0;
     $("connBanner").hidden = true;
+    S.lastDataOk = Date.now();
     renderOverview(o);
   } catch (e) {
     connFailStreak++;
@@ -826,7 +988,7 @@ async function refreshOps() {
 }
 
 function refreshAll() {
-  refreshOverview(); refreshPlayers(); refreshStats(); refreshBackups(); refreshEvents(); refreshPlayersHistory();
+  refreshOverview(); refreshPlayers(); refreshStats(); refreshBackups(); refreshEvents(); refreshPlayersHistory(); refreshStatsHistory();
 }
 
 function startPolling() {
@@ -839,6 +1001,7 @@ function startPolling() {
   setInterval(refreshEvents, 12000);
   setInterval(refreshOps, 1500);
   setInterval(refreshPlayersHistory, 60000);
+  setInterval(refreshStatsHistory, 30000);
 }
 
 function startClock() {

@@ -46,6 +46,25 @@ def test_stats_parse(monkeypatch):
     assert s["pids"] == 17
 
 
+def test_effective_image(monkeypatch):
+    """Образ для проверки обновлений берётся из контейнера, тег дописывается."""
+    monkeypatch.setattr(ops, "container_state", lambda: {
+        "status": "running", "running": True, "startedAt": None,
+        "image": "indifferentbroccoli/projectzomboid-server-docker",
+    })
+    assert ops._effective_image() == "indifferentbroccoli/projectzomboid-server-docker:latest"
+    monkeypatch.setattr(ops, "container_state", lambda: None)
+    assert ops._effective_image() == config.CFG["pz_image"]
+
+
+def test_stats_history_throttle():
+    ops._STATS.clear()
+    ops.record_stats_sample({"cpuPct": 1.5, "memPct": 10})
+    ops.record_stats_sample({"cpuPct": 2.5, "memPct": 11})   # троттлинг
+    h = ops.get_stats_history()
+    assert len(h) == 1 and h[0]["cpu"] == 1.5 and h[0]["mem"] == 10
+
+
 # ───────────────────────── фейковый RCON-сервер ─────────────────────────
 
 def _pkt(rid, ptype, body: bytes) -> bytes:

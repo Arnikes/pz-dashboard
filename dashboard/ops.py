@@ -381,33 +381,41 @@ def _do_restart(warn_seconds):
 
 # ─── обновления ───
 
-def _fetch_remote_digest():
-    repo = config.CFG["image_repo"]
-    tag = config.CFG["image_tag"]
-    url = f"https://hub.docker.com/v2/repositories/{repo}/tags/{tag}"
-    req = urllib.request.Request(url, headers={"User-Agent": "pz-dashboard/1.0"})
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-    digest = data.get("digest") or ""
-    return digest if digest.startswith("sha256:") else "sha256:" + digest if digest else None
+def _effective_image():
+    """Фактический образ контейнера (если пульт на хосте) или из конфига.
+    Реальный образ может отличаться от дефолта — проверяем то, что запущено."""
+    st = container_state()
+    img = (st or {}).get("image") or config.CFG["pz_image"]
+    if ":" not in img.rsplit("/", 1)[-1]:
+        img = img + ":latest"
+    return img
 
 
-_LAST_CHECK = {"at": None, "local": None, "remote": None, "available": None, "error": None}
+_LAST_CHECK = {"at": None, "image": None, "local": None, "remote": None,
+               "hubUpdated": None, "available": None, "error": None}
 
 
 def check_update(force_event=False):
-    """Сравнить локальный и актуальный digest образа."""
-    local = dockerlib.image_digests(config.CFG["pz_image"])
-    result = {"at": now_iso(), "local": local, "remote": None, "available": None, "error": None}
+    """Сравнить локальный и актуальный digest образа, который реально запущен."""
+    image = _effective_image()
+    repo, _, tag = image.rpartition(":")
+    local = dockerlib.image_digests(image)
+    result = {"at": now_iso(), "image": image, "local": local, "remote": None,
+              "hubUpdated": None, "available": None, "error": None}
     try:
-        remote = _fetch_remote_digest()
-        result["remote"] = remote
-        if local and remote:
-            result["available"] = local != remote
-        elif remote and not local:
+        url = f"https://hub.docker.com/v2/repositories/{repo}/tags/{tag}"
+        req = urllib.request.Request(url, headers={"User-Agent": "pz-dashboard/1.0"})
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        digest = data.get("digest") or ""
+        result["remote"] = digest if digest.startswith("sha256:") else ("sha256:" + digest if digest else None)
+        result["hubUpdated"] = data.get("last_updated")
+        if local and result["remote"]:
+            result["available"] = local != result["remote"]
+        elif result["remote"] and not local:
             result["available"] = None
             result["note"] = "Локальный digest недоступен (пульт вне хоста сервера) — сравнение версий невозможно"
-        elif not remote:
+        elif not result["remote"]:
             result["error"] = "не удалось получить актуальный образ из Docker Hub"
     except (urllib.error.URLError, urllib.error.HTTPError, OSError, ValueError) as e:
         result["error"] = f"Docker Hub недоступен: {e}"
@@ -427,12 +435,13 @@ def update_state():
 def _do_apply_update(warn_seconds, reason="Обновление сервера"):
     _set_phase("Проверка актуального образа", "Docker Hub")
     try:
-        before = dockerlib.image_digests(config.CFG["pz_image"])
-        _set_phase("Скачивание нового образа", config.CFG["pz_image"])
-        code, out, err = dockerlib.image_pull(config.CFG["pz_image"])
+        image = _effective_image()
+        before = dockerlib.image_digests(image)
+        _set_phase("Скачивание нового образа", image)
+        code, out, err = dockerlib.image_pull(image)
         if code != 0:
             raise OpsError(f"Не удалось скачать образ: {(err or out)[:200]}")
-        after = dockerlib.image_digests(config.CFG["pz_image"])
+        after = dockerlib.image_digests(image)
         if before and after and before == after:
             check_update(force_event=False)
             log_event("update", "Образ уже актуален, обновление не требуется")
@@ -465,7 +474,7 @@ def _do_apply_update(warn_seconds, reason="Обновление сервера")
         if not is_running():
             raise OpsError("Контейнер пересоздан, но не поднялся — проверьте docker logs pzserver")
         check_update(force_event=False)
-        log_event("update", f"Сервер обновлён до {config.CFG['pz_image']}")
+        log_event("update", f"Сервер обновлён до {image}")
         _set_phase("Готово", "Сервер обновлён и запущен")
     except OpsError:
         raise
@@ -669,8 +678,14 @@ def fetch_stats():
     stats = dockerlib.container_stats(config.CFG["pz_container"])
     if not stats:
         return {"error": "docker stats недоступен"}
-    stats.pop("error", None)
+    record_stats_sample(stats)
     return stats
+
+
+def full_logs():
+    """Полный лог контейнера (для скачивания файлом)."""
+    code, out, err = dockerlib.sh(["docker", "logs", config.CFG["pz_container"]], timeout=120)
+    return out if code == 0 else None
 
 
 def overview():
@@ -705,9 +720,35 @@ def overview():
         "update": update_state(),
         "settings": get_settings(),
         "watchdog": watchdog_state(),
+        "image": _effective_image(),
         "backupsCount": len(list_backups()),
         "now": now_iso(),
     }
+
+
+# ─────────────────────────── история метрик (1 ч) ───────────────────────────
+
+_STATS_LOCK = threading.Lock()
+_STATS = []            # [{"ts": iso, "cpu": float, "mem": float}]
+_STATS_INTERVAL = 60
+
+
+def record_stats_sample(stats):
+    """Семплирует CPU/RAM не чаще раза в минуту; отрисовывается последний час."""
+    with _STATS_LOCK:
+        now = time.time()
+        if _STATS and now - _parse_ts(_STATS[-1]["ts"]) < _STATS_INTERVAL:
+            return
+        _STATS.append({"ts": now_iso(),
+                       "cpu": round(float(stats.get("cpuPct") or 0), 2),
+                       "mem": round(float(stats.get("memPct") or 0), 2)})
+        del _STATS[:-120]
+
+
+def get_stats_history():
+    with _STATS_LOCK:
+        cutoff = time.time() - 3600
+        return [p for p in _STATS if _parse_ts(p["ts"]) >= cutoff]
 
 
 # ─────────────────────────── история онлайна (24 ч) ───────────────────────────
