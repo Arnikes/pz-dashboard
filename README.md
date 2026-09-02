@@ -123,8 +123,7 @@ docker compose -f docker-compose.yml -f docker-compose.dashboard.yml up -d --bui
 
 | Имя | Тип | Что положить |
 |---|---|---|
-| `REGISTRY_USER` | secret | Логин Gitea для реестра контейнеров |
-| `REGISTRY_TOKEN` | secret | Токен с правом записи пакетов (Настройки → Приложения → Токены) |
+| `REGISTRY_TOKEN` | secret | Токен доступа со scope **write:package** (Настройки аккаунта → Приложения → Токены). Логин в реестр идёт от имени того, кто запушил (`github.actor`), токен должен принадлежать этому пользователю |
 | `DEPLOY_ENABLED` | variable | `true`, чтобы включить SSH-деплой |
 | `DEPLOY_HOST` | variable | Адрес сервера, например `192.168.1.119` |
 | `DEPLOY_USER` | variable | Пользователь SSH на сервере |
