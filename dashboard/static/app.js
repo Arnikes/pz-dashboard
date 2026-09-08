@@ -1,4 +1,4 @@
-/* PZ Пульт · V5 — логика интерфейса.
+/* PZ Пульт · V8 — логика интерфейса.
    Данные приходят с бэкенда пульта; при отсутствии API включается демо-режим.
    Режим «remote»: пульт вне хоста сервера — управление только по RCON. */
 "use strict";
@@ -13,6 +13,7 @@ const esc = (s) => String(s ?? "")
 
 const timeFmt = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
 const dateFmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+const timeFullFmt = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
 function fmtTime(iso) {
   if (!iso) return "—";
@@ -40,6 +41,7 @@ function fmtBytes(n) {
 }
 
 const shortDigest = (d) => (d ? d.replace("sha256:", "").slice(0, 12) : "—");
+const shortWsId = (id) => (id && String(id).length > 8 ? String(id).slice(0, 7) + "…" : String(id || "—"));
 
 function relTime(iso) {
   if (!iso) return "";
@@ -131,7 +133,8 @@ const S = {
   op: null,
   logsAuto: true,
   lastOpActive: false,
-  logsText: "",
+  logsLevel: "all",
+  logsLines: [],
   phPoints: [],
   lastDataOk: 0,
 };
@@ -719,7 +722,17 @@ function renderMods(data) {
     // Общий случай: один Workshop-элемент может содержать несколько модов
     if (ws.length) {
       html += `<p class="mods-note">Workshop-элементы — ${ws.length}</p>`;
-      html += ws.map((w) => `
+      if (ws.every((w) => !(w.mods || []).length)) {
+        // у элементов нет модов на диске — компактная сетка строк вместо карточек
+        html += `<div class="mods-grid">` + ws.map((w) => `
+          <div class="mod-line">
+            ${w.url
+              ? `<a class="m-t" href="${esc(w.url)}" target="_blank" rel="noopener" title="${esc(w.title || w.workshopId)}">${esc(w.title || w.workshopId)}</a>`
+              : `<span class="m-t">${esc(w.title || w.workshopId)}</span>`}
+            <span class="wid mono" title="Workshop ID: ${esc(w.workshopId)}" data-copy="${esc(w.workshopId)}">${esc(shortWsId(w.workshopId))}</span>
+          </div>`).join("") + `</div>`;
+      } else {
+        html += ws.map((w) => `
         <div class="ws-card">
           <div class="ws-head">
             ${w.url
@@ -734,6 +747,7 @@ function renderMods(data) {
             ? `<div class="ws-mods">${w.mods.map((m) => `<span class="chip mono" data-copy="${esc(m)}" title="нажмите — скопировать">${esc(m)}</span>`).join("")}</div>`
             : ""}
         </div>`).join("");
+      }
     }
     if (mods.length) {
       html += `<p class="mods-note">Моды из конфига (Mods=) — ${mods.length}</p>`;
@@ -783,7 +797,8 @@ function renderBackups(data) {
   body.innerHTML = items.map((b) => `
     <div class="backup-row">
       <span class="b-name mono" title="${esc(b.name)} — создан ${esc(b.mtime)}" data-copy="${esc(b.name)}">${esc(b.name)}</span>
-      <span class="b-size mono" data-mtime="${esc(b.mtime)}" title="создан ${esc(b.mtime)}">${esc(b.sizeText || fmtBytes(b.size))}</span>
+      <span class="b-size mono" title="размер архива">${esc(b.sizeText || fmtBytes(b.size))}</span>
+      <span class="b-age mono" title="создан ${esc(b.mtime)}">${esc(relTime(b.mtime))}</span>
       <button class="icon-btn" data-b="dl" data-name="${esc(b.name)}" title="Скачать" aria-label="Скачать ${esc(b.name)}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
       </button>
@@ -807,7 +822,6 @@ function renderBackups(data) {
       }
     });
   });
-  body.querySelectorAll(".b-size").forEach((el) => { el.textContent = relTime(el.dataset.mtime); });
   updateButtons();
 }
 
@@ -970,6 +984,29 @@ document.querySelectorAll("#quickCmds .chip").forEach((chip) => {
 
 /* ───────────────────────── логи ───────────────────────── */
 
+/* docker-таймстемп «2026-09-08T11:36:05.990769902Z » → локальное «15:36:05 » */
+const LOG_LEVEL_ERR = /ERROR|SEVERE|Exception/i;
+const LOG_LEVEL_WARN = /WARN/i;
+
+function classifyLog(line) {
+  if (LOG_LEVEL_ERR.test(line)) return "err";
+  if (LOG_LEVEL_WARN.test(line)) return "warn";
+  return "";
+}
+
+function parseLogs(text) {
+  return (text || "").split("\n").map((raw) => {
+    const m = raw.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(?:\.(\d+))?Z\s/);
+    let view = raw;
+    if (m) {
+      const ms = (m[3] || "0").slice(0, 3).padEnd(3, "0");
+      const dt = new Date(`${m[1]}T${m[2]}.${ms}Z`);
+      view = (isNaN(dt) ? m[2] : timeFullFmt.format(dt)) + " " + raw.slice(m[0].length);
+    }
+    return { raw, view, level: classifyLog(raw) };
+  });
+}
+
 function renderLogs(data) {
   if (S.overview && S.overview.mode === "remote") {
     $("logsOut").textContent = "Логи контейнера доступны только при запуске пульта на хосте сервера.";
@@ -979,7 +1016,7 @@ function renderLogs(data) {
     $("logsOut").textContent = data.error || "Логи недоступны";
     return;
   }
-  S.logsText = data.text;
+  S.logsLines = parseLogs(data.text);
   renderLogsFiltered();
 }
 
@@ -987,17 +1024,35 @@ function renderLogsFiltered() {
   const pre = $("logsOut");
   const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 30;
   const f = ($("logsFilter")?.value || "").trim().toLowerCase();
-  const lines = S.logsText.split("\n").filter((l) => !f || l.toLowerCase().includes(f));
-  pre.innerHTML = lines.map((line) => {
-    if (/ERROR|SEVERE|Exception/i.test(line)) return `<span class="l-err">${esc(line)}</span>`;
-    if (/WARN/i.test(line)) return `<span class="l-warn">${esc(line)}</span>`;
-    return esc(line);
+  const level = S.logsLevel || "all";
+  const lines = (S.logsLines || []).filter((l) =>
+    (level === "all" || l.level === level) && (!f || l.view.toLowerCase().includes(f)));
+  // подряд идущий спам (WARN с разными счётчиками/секундами) сжимается в одну строку с бейджем ×N:
+  // ключ игнорирует ведущее время и числовые ряды ≥3 цифр
+  const merged = [];
+  for (const l of lines) {
+    const key = l.view.replace(/^\d{2}:\d{2}:\d{2} /, "").replace(/\d{3,}/g, "#");
+    const last = merged[merged.length - 1];
+    if (last && last.key === key) last.n += 1;
+    else merged.push({ view: l.view, level: l.level, key, n: 1 });
+  }
+  pre.innerHTML = merged.map((l) => {
+    const cls = l.level === "err" ? ' class="l-err"' : l.level === "warn" ? ' class="l-warn"' : "";
+    const dup = l.n > 1 ? `<span class="l-dup">× ${l.n}</span>` : "";
+    return `<span${cls}>${esc(l.view)}${dup}</span>`;
   }).join("\n");
   if (atBottom && S.logsAuto) pre.scrollTop = pre.scrollHeight;
 }
 
 $("logsFilter").addEventListener("input", renderLogsFiltered);
 $("logsAuto").addEventListener("change", () => { S.logsAuto = $("logsAuto").checked; });
+$("logLevels").addEventListener("click", (e) => {
+  const btn = e.target.closest(".chip[data-level]");
+  if (!btn) return;
+  S.logsLevel = btn.dataset.level;
+  document.querySelectorAll("#logLevels .chip").forEach((c) => c.setAttribute("aria-pressed", String(c === btn)));
+  renderLogsFiltered();
+});
 
 /* ───────────────────────── действия и подтверждения ───────────────────────── */
 
@@ -1144,6 +1199,7 @@ async function refreshOverview() {
     connFailStreak = 0;
     $("connBanner").hidden = true;
     S.lastDataOk = Date.now();
+    updateFreshness();
     renderOverview(o);
   } catch (e) {
     connFailStreak++;
@@ -1180,8 +1236,27 @@ function refreshAll() {
   refreshOverview(); refreshPlayers(); refreshStats(); refreshBackups(); refreshEvents(); refreshPlayersHistory(); refreshStatsHistory(); refreshMods();
 }
 
+/* свежесть данных в шапке: время последнего успешного опроса, warn при пропаже связи */
+function updateFreshness() {
+  const el = $("freshness");
+  if (!el) return;
+  if (S.demo || !S.lastDataOk) { el.textContent = ""; el.classList.remove("stale"); return; }
+  const age = Date.now() - S.lastDataOk;
+  if (age < 15000) {
+    el.classList.remove("stale");
+    el.textContent = timeFullFmt.format(S.lastDataOk);
+    el.title = "Данные обновлены в " + timeFullFmt.format(S.lastDataOk);
+  } else {
+    el.classList.add("stale");
+    const mins = Math.floor(age / 60000);
+    el.textContent = "нет данных " + (mins >= 1 ? mins + " мин" : Math.floor(age / 1000) + " с");
+    el.title = "Пульт не получает свежие данные от бэкенда";
+  }
+}
+
 function startPolling() {
   refreshAll();
+  setInterval(updateFreshness, 5000);
   setInterval(refreshOverview, 3000);
   setInterval(refreshPlayers, 5000);
   setInterval(refreshStats, 5000);

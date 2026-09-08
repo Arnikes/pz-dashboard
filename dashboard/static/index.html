@@ -1,8 +1,10 @@
 <!doctype html>
 <!--
   PZ Пульт — панель управления dedicated-сервером Project Zomboid
-  Версия: V7 (проверка обновлений модов через RCON checkModsNeedUpdate с разбором лога
-  консоли; автообновление модов по расписанию с предупреждением игроков и рестартом)
+  Версия: V8 (читаемые логи: локальное время вместо docker-таймстемпов, дедупликация
+  подряд идущих строк ×N, фильтры Все/WARN/ERROR; бэкапы: размер и возраст в одной
+  строке; компактная сетка Workshop-элементов без модов на диске; якорная навигация
+  на десктопе; индикатор свежести данных в шапке)
   Discovery:
     deliverable: web-дашборд (desktop-first, адаптив 390–1440)
     audience: админ собственного PZ-сервера (indifferentbrokkoli + docker compose)
@@ -299,6 +301,11 @@
       <header class="card-head">
         <h2 id="hLogs">Логи контейнера</h2>
         <div class="logs-tools">
+          <div class="chips" id="logLevels" role="group" aria-label="Уровень логов">
+            <button class="chip" type="button" data-level="all" aria-pressed="true">Все</button>
+            <button class="chip" type="button" data-level="warn" aria-pressed="false">WARN</button>
+            <button class="chip" type="button" data-level="error" aria-pressed="false">ERROR</button>
+          </div>
           <input type="search" id="logsFilter" class="mono" placeholder="фильтр строк…" aria-label="Фильтр логов" />
           <label class="check"><input type="checkbox" id="logsAuto" checked /> Обновлять</label>
           <a class="btn small" id="logsDownload" href="/api/logs/full" download title="Полный лог файлом">Скачать лог</a>
@@ -309,7 +316,7 @@
   </main>
 
   <footer class="foot" data-od-id="footer">
-    PZ Пульт · V7 · обновление данных: статус 3 с, игроки и метрики 5 с, логи 5 с
+    PZ Пульт · V8 · обновление данных: статус 3 с, игроки и метрики 5 с, логи 5 с
   </footer>
 
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
