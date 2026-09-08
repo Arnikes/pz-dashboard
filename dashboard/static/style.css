@@ -890,11 +890,12 @@ select {
   margin-top: 4px;
 }
 
-/* списки не раздувают карточки — внутри скролл */
+/* списки не раздувают карточки — внутри скролл; на своих страницах списки выше */
 .c-players .list { max-height: 230px; overflow: auto; }
 .c-backups .list { max-height: 310px; overflow: auto; }
 .c-events .list  { max-height: 330px; overflow: auto; }
 .c-mods .list    { max-height: 330px; overflow: auto; }
+#view-events .c-events .list { max-height: 60vh; }
 
 /* моды */
 .mod-row {

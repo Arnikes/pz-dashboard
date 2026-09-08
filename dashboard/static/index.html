@@ -1,8 +1,8 @@
 <!doctype html>
 <!--
   PZ Пульт — панель управления dedicated-сервером Project Zomboid
-  Версия: V12 (страница модов: поиск по названию и ID, фильтры «на диске /
-  только Workshop», сортировка, ленивый рендер длинного реестра)
+  Версия: V13 (страница событий: фильтры по категориям — управление / бэкапы /
+  обновления / проблемы; журнал подгружается глубже — до 200 записей)
   Discovery:
     deliverable: web-дашборд (desktop-first, адаптив 390–1440)
     audience: админ собственного PZ-сервера (indifferentbrokkoli + docker compose)
@@ -383,7 +383,16 @@
     <!-- СОБЫТИЯ -->
     <div class="view" id="view-events" tabindex="-1" hidden>
       <section class="card c-events" id="sec-events" data-od-id="events" aria-labelledby="hEvents">
-        <header class="card-head"><h2 id="hEvents">История событий</h2></header>
+        <header class="card-head">
+          <h2 id="hEvents">История событий</h2>
+          <div class="chips" id="eventFilters" role="group" aria-label="Фильтр событий">
+            <button class="chip" type="button" data-ef="all" aria-pressed="true">Все</button>
+            <button class="chip" type="button" data-ef="ops" aria-pressed="false">Управление</button>
+            <button class="chip" type="button" data-ef="backup" aria-pressed="false">Бэкапы</button>
+            <button class="chip" type="button" data-ef="update" aria-pressed="false">Обновления</button>
+            <button class="chip" type="button" data-ef="problems" aria-pressed="false">Проблемы</button>
+          </div>
+        </header>
         <div id="eventsBody" class="list" data-state="loading">
           <p class="skeleton-line"></p><p class="skeleton-line short"></p><p class="skeleton-line"></p>
         </div>
@@ -431,7 +440,7 @@
   </main>
 
   <footer class="foot" data-od-id="footer">
-    PZ Пульт · V12 · живой поток данных (SSE), шрифты локальные
+    PZ Пульт · V13 · живой поток данных (SSE), шрифты локальные
   </footer>
 
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>

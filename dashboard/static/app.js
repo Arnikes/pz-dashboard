@@ -1,4 +1,4 @@
-/* PZ Пульт · V12 — логика интерфейса.
+/* PZ Пульт · V13 — логика интерфейса.
    Мультистраничный каркас: hash-роутинг (#/overview, #/mods, …), 7 страниц,
    SSE-поток /api/stream живёт между переключениями; при недоступности — опрос.
    При отсутствии API включается демо-режим.
@@ -1125,7 +1125,18 @@ const EVENT_LABELS = {
   "rcon-error": "RCON", error: "Ошибка", docker: "Docker", "backup-delete": "Бэкап",
 };
 
+/* фильтры страницы событий: категории группируют типы журнала */
+const EVENT_GROUPS = {
+  ops: ["start", "stop", "restart", "console", "docker"],
+  backup: ["backup", "backup-delete", "restore"],
+  update: ["update", "update-check", "auto", "mods"],
+  problems: ["error", "rcon-error", "warn", "delete"],
+};
+let eventsFilter = "all";
+let eventsData = null;
+
 function renderEvents(data) {
+  eventsData = data;
   const body = $("eventsBody");
   if (!data.ok) {
     body.dataset.state = "error";
@@ -1134,9 +1145,14 @@ function renderEvents(data) {
   }
   const items = data.items || [];
   renderRecent(items);
-  if (!items.length) {
+  const visible = eventsFilter === "all"
+    ? items
+    : items.filter((ev) => (EVENT_GROUPS[eventsFilter] || []).includes(ev.type));
+  if (!visible.length) {
     body.dataset.state = "empty";
-    body.innerHTML = `<p class="list-empty"><strong>Пока тихо.</strong> Здесь появятся рестарты, бэкапы и обновления.</p>`;
+    body.innerHTML = eventsFilter === "all"
+      ? `<p class="list-empty"><strong>Пока тихо.</strong> Здесь появятся рестарты, бэкапы и обновления.</p>`
+      : `<p class="list-empty"><strong>Пусто.</strong> Событий этой категории пока не было.</p>`;
     return;
   }
   body.dataset.state = "ok";
@@ -1145,7 +1161,7 @@ function renderEvents(data) {
   const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
   let html = "";
   let lastDay = "";
-  for (const ev of items) {
+  for (const ev of visible) {
     const d = new Date(ev.ts);
     const key = isNaN(d) ? "" : d.toDateString();
     if (key && key !== lastDay) {
@@ -1160,6 +1176,14 @@ function renderEvents(data) {
   }
   body.innerHTML = html;
 }
+
+$("eventFilters").addEventListener("click", (e) => {
+  const btn = e.target.closest(".chip[data-ef]");
+  if (!btn) return;
+  eventsFilter = btn.dataset.ef;
+  document.querySelectorAll("#eventFilters .chip").forEach((c) => c.setAttribute("aria-pressed", String(c === btn)));
+  if (eventsData) renderEvents(eventsData);
+});
 
 /* лента последних событий на обзоре: те же данные, только первые 5 строк */
 function renderRecent(items) {
@@ -1517,7 +1541,7 @@ async function refreshBackups() {
 }
 
 async function refreshEvents() {
-  try { applyEvents(await api("/api/events")); } catch (e) { /* тихо */ }
+  try { applyEvents(await api("/api/events?limit=200")); } catch (e) { /* тихо */ }
 }
 
 async function refreshOps() {
