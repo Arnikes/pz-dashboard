@@ -1,4 +1,4 @@
-/* PZ Пульт · V10 — логика интерфейса.
+/* PZ Пульт · V11 — логика интерфейса.
    Мультистраничный каркас: hash-роутинг (#/overview, #/mods, …), 7 страниц,
    SSE-поток /api/stream живёт между переключениями; при недоступности — опрос.
    При отсутствии API включается демо-режим.
@@ -433,6 +433,7 @@ function renderOverview(o) {
   if (mu.enabled && nextM) $("modsAutoNext").textContent = `Следующая проверка: ${new Date(nextM * 1000).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`;
 
   renderHealth();
+  renderSummaries();
   updateButtons();
 }
 
@@ -503,6 +504,63 @@ function renderHealth() {
   else set("hbWatchdog", "unknown", "Watchdog: выкл");
 }
 
+/* KPI-строка обзора: те же данные, что и в карточках, но одним взглядом */
+function renderKpis() {
+  const o = S.overview;
+  const remote = !!(o && o.mode === "remote");
+
+  const p = S.players;
+  const online = p && p.ok ? p.count : null;
+  $("kpiOnline").textContent = online == null ? "–" : String(online);
+  if (remote) $("kpiOnlineSub").textContent = "RCON";
+  else if (S.phPoints && S.phPoints.length) {
+    const peak = S.phPoints.reduce((m, x) => Math.max(m, x.count || 0), 0);
+    $("kpiOnlineSub").textContent = `пик за сутки: ${peak}`;
+  } else $("kpiOnlineSub").textContent = "…";
+
+  const st = S.stats;
+  if (remote || !st || !st.ok) {
+    $("kpiCpu").textContent = "—";
+    $("kpiCpuBar").style.width = "0%";
+    $("kpiRam").textContent = "—";
+    $("kpiRamSub").textContent = remote ? "только с хоста" : "…";
+  } else {
+    const cpu = Math.max(0, Math.min(100, st.cpuPct || 0));
+    $("kpiCpu").textContent = `${cpu.toFixed(0)}%`;
+    $("kpiCpuBar").style.width = `${cpu}%`;
+    $("kpiCpuBar").className = cpu >= 85 ? "hot" : cpu >= 60 ? "warm" : "";
+    const memPct = Math.max(0, Math.min(100, st.memPct || 0));
+    $("kpiRam").textContent = `${memPct.toFixed(0)}%`;
+    $("kpiRamSub").textContent = `${fmtBytes(st.memUsed)} / ${fmtBytes(st.memLimit)}`;
+  }
+
+  const last = S.backupsItems && S.backupsItems[0];
+  if (remote) {
+    $("kpiBackup").textContent = "—";
+    $("kpiBackupSub").textContent = "на хосте";
+  } else if (!last || !last.mtime) {
+    $("kpiBackup").textContent = "0";
+    $("kpiBackupSub").textContent = "архивов ещё нет";
+  } else {
+    $("kpiBackup").textContent = last.sizeText || fmtBytes(last.size);
+    $("kpiBackupSub").textContent = relTime(last.mtime);
+  }
+}
+
+/* сводка обновлений на обзоре: зеркалит пилюли карточек обслуживания и модов */
+function renderSummaries() {
+  const img = $("updPill"), mods = $("modsPill");
+  const si = $("sumImagePill"), sm = $("sumModsPill");
+  si.dataset.state = img.dataset.state;
+  si.textContent = img.textContent;
+  sm.dataset.state = mods.dataset.state;
+  sm.textContent = mods.textContent;
+  const u = (S.overview || {}).update || {};
+  $("sumImageMeta").textContent = u.at ? `проверено ${fmtTime(u.at)}` : "не проверялось";
+  const mc = (S.overview || {}).modsCheck || {};
+  $("sumModsMeta").textContent = mc.at ? `проверено ${fmtTime(mc.at)}` : "не проверялись";
+}
+
 function updateButtons() {
   const o = S.overview;
   const busy = !!(S.op && S.op.active);
@@ -563,6 +621,7 @@ function renderOp(op) {
 /* ───────────────────────── игроки ───────────────────────── */
 
 function renderPlayers(data) {
+  S.players = data;
   const body = $("playersBody");
   if (!data.ok) {
     body.dataset.state = "error";
@@ -720,6 +779,7 @@ async function refreshStatsHistory() {
 }
 
 function renderStats(st) {
+  S.stats = st;
   if (S.overview && S.overview.mode === "remote") {
     $("cpuVal").textContent = "—"; $("ramVal").textContent = "—";
     $("ramSub").textContent = "метрики — только с хоста сервера";
@@ -876,6 +936,7 @@ function renderBackups(data) {
   const items = data.items || [];
   S.backupsItems = items;
   renderHealth();
+  renderKpis();
   if (!items.length) {
     body.dataset.state = "empty";
     body.innerHTML = `<p class="list-empty"><strong>Бэкапов ещё нет.</strong> Нажмите «Создать» — мир и конфиги уйдут в архив.</p>`;
@@ -982,6 +1043,7 @@ function renderEvents(data) {
     return;
   }
   const items = data.items || [];
+  renderRecent(items);
   if (!items.length) {
     body.dataset.state = "empty";
     body.innerHTML = `<p class="list-empty"><strong>Пока тихо.</strong> Здесь появятся рестарты, бэкапы и обновления.</p>`;
@@ -1007,6 +1069,24 @@ function renderEvents(data) {
     </div>`;
   }
   body.innerHTML = html;
+}
+
+/* лента последних событий на обзоре: те же данные, только первые 5 строк */
+function renderRecent(items) {
+  const body = $("recentBody");
+  if (!body) return;
+  const slice = (items || []).slice(0, 5);
+  if (!slice.length) {
+    body.dataset.state = "empty";
+    body.innerHTML = `<p class="list-empty"><strong>Пока тихо.</strong> Здесь появятся рестарты, бэкапы и обновления.</p>`;
+    return;
+  }
+  body.dataset.state = "ok";
+  body.innerHTML = slice.map((ev) => `
+    <div class="event-row" data-kind="${esc(ev.type)}">
+      <span class="e-time mono" title="${esc(ev.ts)}">${esc(relTime(ev.ts) || fmtTime(ev.ts))}</span>
+      <span class="e-text"><b>${esc(EVENT_LABELS[ev.type] || ev.type)}.</b> ${esc(ev.text)}</span>
+    </div>`).join("");
 }
 
 /* ───────────────────────── консоль ───────────────────────── */
@@ -1313,8 +1393,8 @@ function applyOverview(o) {
   renderOverview(o);
 }
 
-const applyPlayers = renderPlayers;
-const applyStats = renderStats;
+function applyPlayers(data) { renderPlayers(data); renderKpis(); }
+function applyStats(data) { renderStats(data); renderKpis(); }
 const applyOps = renderOp;
 const applyBackups = renderBackups;
 const applyEvents = renderEvents;
