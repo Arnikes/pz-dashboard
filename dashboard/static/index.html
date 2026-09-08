@@ -1,8 +1,8 @@
 <!doctype html>
 <!--
   PZ Пульт — панель управления dedicated-сервером Project Zomboid
-  Версия: V11 (обзор-дашборд: KPI-строка онлайн/CPU/RAM/бэкап, сводка обновлений
-  образа и модов со ссылками на свои страницы, лента последних событий)
+  Версия: V12 (страница модов: поиск по названию и ID, фильтры «на диске /
+  только Workshop», сортировка, ленивый рендер длинного реестра)
   Discovery:
     deliverable: web-дашборд (desktop-first, адаптив 390–1440)
     audience: админ собственного PZ-сервера (indifferentbrokkoli + docker compose)
@@ -233,6 +233,20 @@
             <span class="count mono" id="modsCount">–</span>
           </div>
         </header>
+        <div class="mods-toolbar">
+          <input type="search" id="modsSearch" placeholder="поиск по названию или ID…" aria-label="Поиск модов" />
+          <div class="chips" id="modsFilters" role="group" aria-label="Фильтр модов">
+            <button class="chip" type="button" data-mf="all" aria-pressed="true">Все</button>
+            <button class="chip" type="button" data-mf="disk" aria-pressed="false">На диске</button>
+            <button class="chip" type="button" data-mf="wsonly" aria-pressed="false">Только Workshop</button>
+          </div>
+          <select id="modsSort" aria-label="Сортировка модов">
+            <option value="config">как в конфиге</option>
+            <option value="title">по названию</option>
+            <option value="id">по Workshop ID</option>
+          </select>
+        </div>
+        <p class="mods-note" id="modsShown" hidden></p>
         <div id="modsBody" class="list" data-state="loading">
           <p class="skeleton-line"></p><p class="skeleton-line short"></p>
         </div>
@@ -417,7 +431,7 @@
   </main>
 
   <footer class="foot" data-od-id="footer">
-    PZ Пульт · V11 · живой поток данных (SSE), шрифты локальные
+    PZ Пульт · V12 · живой поток данных (SSE), шрифты локальные
   </footer>
 
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>

@@ -1,4 +1,4 @@
-/* PZ Пульт · V11 — логика интерфейса.
+/* PZ Пульт · V12 — логика интерфейса.
    Мультистраничный каркас: hash-роутинг (#/overview, #/mods, …), 7 страниц,
    SSE-поток /api/stream живёт между переключениями; при недоступности — опрос.
    При отсутствии API включается демо-режим.
@@ -814,7 +814,7 @@ function setBar(id, pct) {
 
 /* ───────────────────────── моды сервера ───────────────────────── */
 
-function renderMods(data) {
+function _renderMods(data) {
   const body = $("modsBody");
   const sel = $("modsFile");
   if (!data.ok) {
@@ -910,6 +910,96 @@ function renderMods(data) {
   body.dataset.state = "ok";
   body.innerHTML = html;
 }
+
+/* реестр модов: SSE кладёт данные в кэш, отрисовка — только на активной странице
+   и с учётом активных поиска/фильтра/сортировки */
+let modsData = null;
+let modsPending = false;
+let modsQuery = "";
+let modsFilter = "all";
+let modsSort = "config";
+
+const modsFilterActive = () => !!(modsQuery.trim() || modsFilter !== "all" || modsSort !== "config");
+
+function renderMods(data) {
+  modsData = data;
+  if (!data.ok) { _renderMods(data); return; }
+  const mods = data.mods || [];
+  const ws = data.workshop || [];
+  if (!mods.length && !ws.length) { _renderMods(data); return; }
+  if (activeView !== "mods") { modsPending = true; return; }
+  if (modsFilterActive()) { renderModsFiltered(); return; }
+  _renderMods(data);
+}
+
+function renderModsFiltered() {
+  const data = modsData;
+  if (!data || !data.ok) return;
+  modsPending = false;
+  const q = modsQuery.trim().toLowerCase();
+  const matchQ = (...vals) => !q || vals.some((v) => String(v || "").toLowerCase().includes(q));
+  const cmp = (a, b) => modsSort === "title"
+    ? String(a.title || a.workshopId || "").localeCompare(String(b.title || b.workshopId || ""), "ru")
+    : String(a.workshopId || "").localeCompare(String(b.workshopId || ""));
+  const view = { ...data };
+  let shown = null;
+
+  if (data.paired && (data.pairs || []).length) {
+    let pairs = data.pairs.filter((p) => matchQ(p.mod, p.title, p.workshopId));
+    if (modsSort !== "config") pairs = [...pairs].sort(cmp);
+    shown = [pairs.length, data.pairs.length];
+    view.pairs = pairs;
+  } else {
+    let list = (data.workshop || []).filter((w) =>
+      matchQ(w.title, w.workshopId, ...(w.mods || [])) &&
+      (modsFilter === "all" ||
+        (modsFilter === "disk" ? (w.mods || []).length > 0 : !(w.mods || []).length)));
+    if (modsSort !== "config") list = [...list].sort(cmp);
+    shown = [list.length, (data.workshop || []).length];
+    view.workshop = list;
+    view.mods = (data.mods || []).filter((m) => matchQ(m));
+    view.unbound = (data.unbound || []).filter((m) => matchQ(m));
+  }
+
+  _renderMods(view);
+
+  const totalRaw = data.paired && (data.pairs || []).length
+    ? data.pairs.length
+    : ((data.workshop || []).length || (data.mods || []).length);
+  $("modsCount").textContent = String(totalRaw);
+
+  const note = $("modsShown");
+  if (note) {
+    if (modsFilterActive() && shown && shown[0] !== shown[1]) {
+      note.hidden = false;
+      note.textContent = `Показано ${shown[0]} из ${shown[1]}`;
+    } else {
+      note.hidden = true;
+    }
+  }
+
+  if (shown && shown[0] === 0 && !(view.mods || []).length) {
+    const body = $("modsBody");
+    body.dataset.state = "empty";
+    body.innerHTML = `<p class="list-empty"><strong>Ничего не найдено.</strong> Измените запрос или сбросьте фильтр.</p>`;
+  }
+}
+
+$("modsSearch").addEventListener("input", () => {
+  modsQuery = $("modsSearch").value;
+  renderModsFiltered();
+});
+$("modsFilters").addEventListener("click", (e) => {
+  const btn = e.target.closest(".chip[data-mf]");
+  if (!btn) return;
+  modsFilter = btn.dataset.mf;
+  document.querySelectorAll("#modsFilters .chip").forEach((c) => c.setAttribute("aria-pressed", String(c === btn)));
+  renderModsFiltered();
+});
+$("modsSort").addEventListener("change", () => {
+  modsSort = $("modsSort").value;
+  renderModsFiltered();
+});
 
 async function refreshMods(file) {
   try {
@@ -1512,6 +1602,7 @@ function applyRoute() {
   window.scrollTo(0, 0);
   const view = $("view-" + r);
   if (view) view.focus({ preventScroll: true });
+  if (r === "mods" && modsPending) renderModsFiltered();
 }
 
 window.addEventListener("hashchange", applyRoute);
