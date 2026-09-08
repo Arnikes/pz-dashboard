@@ -407,11 +407,12 @@ a.sum-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .c-events    { grid-column: 1 / -1; }
 .c-console   { grid-column: span 7; }
 .c-logs      { grid-column: span 5; }
+.c-notify    { grid-column: 1 / -1; }
 
 /* Планшет: широкие карточки во всю ширину страницы */
 @media (max-width: 1180px) {
   .c-status, .c-metrics, .c-sumupd, .c-recent, .c-updates, .c-watchdog,
-  .c-mods, .c-mupd, .c-console, .c-logs { grid-column: 1 / -1; }
+  .c-mods, .c-mupd, .c-console, .c-logs, .c-notify { grid-column: 1 / -1; }
 }
 
 @media (max-width: 740px) {
@@ -658,6 +659,21 @@ select:focus-visible,
 .ph-spark { height: 36px; color: var(--ok); }
 
 .auto-block .check { margin: 10px 0 2px; }
+.check-row { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 10px 0 2px; }
+.check-row .check { margin: 0; }
+.field input {
+  font: 400 13px/1.2 var(--font-body);
+  color: var(--ink);
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  height: 36px;
+  padding: 0 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.field input::placeholder { color: var(--faint); }
+.field input:focus-visible { outline: 2px solid var(--blood); outline-offset: 1px; }
 
 /* ───────────────────────── обновления ───────────────────────── */
 

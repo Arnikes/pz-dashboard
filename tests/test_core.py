@@ -426,3 +426,81 @@ def test_graceful_stop_force_stop_when_quit_ignored(monkeypatch):
     monkeypatch.setattr(ops.time, "sleep", lambda s: None)
     assert ops.graceful_stop() == "stopped"
     assert calls == [("stop", "pzserver")]
+
+
+# ─────────────────────── telegram-уведомления ───────────────────────
+
+def test_telegram_settings_mask_and_patch(tmp_path):
+    """Токен сохраняется на сервере, наружу уходит маской; пустое поле не затирает."""
+    config.CFG["settings_file"] = str(tmp_path / "settings.json")
+    config.CFG["events_file"] = str(tmp_path / "events.jsonl")
+    ops._SETTINGS["telegram"].update({"enabled": False, "botToken": "", "chatId": ""})
+    assert ops.patch_settings({"telegram": {
+        "enabled": True, "botToken": "  123456:ABC-DEF1234  ", "chatId": " -100123 ", }}) is None
+    st = ops.get_settings()["telegram"]
+    assert st["enabled"] is True and st["chatId"] == "-100123"
+    assert st["botToken"] == "" and st["botTokenMasked"] == "•••1234"
+    assert "ABC-DEF1234" not in json.dumps(ops.get_settings())
+    # пустое/маскированное значение не затирает сохранённый токен
+    assert ops.patch_settings({"telegram": {"botToken": "", "chatId": "-100123"}}) is None
+    assert ops.get_settings()["telegram"]["botTokenMasked"] == "•••1234"
+    assert ops.patch_settings({"telegram": {"enabled": "yes"}}) == \
+        "telegram.enabled должен быть true/false"
+    assert ops.patch_settings({"telegram": {"groups": {"ops": False, "мусор": True}}}) is None
+    assert ops.get_settings()["telegram"]["groups"] == {"ops": False}
+
+
+def test_telegram_enqueue_filters(monkeypatch):
+    """Группы подписки фильтруют события; сообщение без полного токена."""
+    import notify
+    sent = []
+    monkeypatch.setattr(ops, "get_settings", lambda: {"telegram": {
+        "enabled": True, "botToken": "123456:SECRET", "chatId": "42",
+        "groups": {"ops": True, "backup": False, "update": True, "problems": True}}})
+    monkeypatch.setattr(notify._QUEUE, "put_nowait", lambda m: sent.append(m))
+    notify.enqueue("restart", "Сервер перезапущен")      # ops → в очередь
+    notify.enqueue("backup", "Бэкап создан")             # backup → выключен
+    notify.enqueue("error", "Бэкап не удался")           # problems → в очередь
+    notify.enqueue("console", "команда")                 # без группы → мимо
+    assert len(sent) == 2
+    assert sent[0].startswith("🔄") and sent[0].endswith("Сервер перезапущен")
+    assert sent[1].startswith("❌")
+    # выключено → ничего
+    monkeypatch.setattr(ops, "get_settings", lambda: {"telegram": {"enabled": False}})
+    notify.enqueue("restart", "x")
+    assert len(sent) == 2
+    # формат: значок + имя сервера
+    config.CFG["server_name"] = "TestPZ"
+    assert notify._format("start", "up") == "▶️ [TestPZ] up"
+    config.CFG["server_name"] = "Project Zomboid"
+
+
+def test_telegram_send_and_test(monkeypatch):
+    """sendMessage уходит с токеном из настроек; ответ API уважается; тест-кнопка."""
+    import notify
+    calls = []
+    monkeypatch.setattr(ops, "get_settings", lambda: {"telegram": {
+        "enabled": True, "botToken": "123456:SECRET", "chatId": "42",
+        "groups": {"ops": True, "backup": True, "update": True, "problems": True}}})
+
+    class FakeResp:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self): return json.dumps({"ok": True, "result": {}}).encode()
+
+    def fake_urlopen(req, timeout=10):
+        calls.append((req.full_url, json.loads(req.data.decode())))
+        return FakeResp()
+
+    monkeypatch.setattr(notify.urllib.request, "urlopen", fake_urlopen)
+    ok, err = notify.send_message("привет")
+    assert ok is True and err is None and len(calls) == 1
+    url, body = calls[0]
+    assert url == "https://api.telegram.org/bot123456:SECRET/sendMessage"
+    assert body == {"chat_id": "42", "text": "привет"}
+    ok, err = notify.test_message()
+    assert ok is True and "проверка связи" in calls[-1][1]["text"]
+    # без настроек — честная ошибка, без сетевого вызова
+    monkeypatch.setattr(ops, "get_settings", lambda: {"telegram": {}})
+    ok, err = notify.send_message("x")
+    assert ok is False and err and len(calls) == 2

@@ -163,8 +163,9 @@ const DEMO = {
     containerInfo: { status: "running", running: true, startedAt: new Date(Date.now() - 569000 * 1000).toISOString(), image: "indifferentbrokkoli/pzserver:latest", uptimeSec: 569000 },
     update: { at: new Date(Date.now() - 2 * 3600 * 1000).toISOString(), local: "sha256:9f21a4c0e7b2d8f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d5f7a9c1e3b5d7f9", remote: "sha256:9f21a4c0e7b2d8f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d5f7a9c1e3b5d7f9", available: false, error: null },
     modsCheck: { at: new Date(Date.now() - 30 * 60 * 1000).toISOString(), state: "up-to-date", items: [], error: null, source: "auto" },
-    settings: { autoUpdate: { enabled: true, intervalHours: 6, warnSeconds: 300, backupBeforeUpdate: true }, modsUpdate: { enabled: true, intervalHours: 6, restartOnUpdate: true }, backup: { stopServer: false, maxBackups: 10 }, watchdog: { enabled: true, thresholdMin: 5, autoRestart: false }, nextCheck: Date.now() / 1000 + 3600 * 4, nextModsCheck: Date.now() / 1000 + 3600 * 2 },
+    settings: { autoUpdate: { enabled: true, intervalHours: 6, warnSeconds: 300, backupBeforeUpdate: true }, modsUpdate: { enabled: true, intervalHours: 6, restartOnUpdate: true, warnSeconds: 600 }, backup: { stopServer: false, maxBackups: 10 }, watchdog: { enabled: true, thresholdMin: 5, autoRestart: false }, telegram: { enabled: true, botTokenMasked: "•••A1b2", chatId: "-1001234567890", groups: { ops: true, backup: true, update: true, problems: true } }, nextCheck: Date.now() / 1000 + 3600 * 4, nextModsCheck: Date.now() / 1000 + 3600 * 2 },
     watchdog: { lastProbeAt: demoNow(), lastResult: "ok", lastError: null, consecutiveFailures: 0, alerted: false },
+    notify: { at: demoNow(), ok: true, error: null },
     backupsCount: 2, now: demoNow(),
   }),
   players: () => ({ ok: true, names: ["Дмитрий", "Sledge", "Katya_V"], raw: "Дмитрий\nSledge\nKatya_V", count: 3 }),
@@ -394,6 +395,34 @@ function renderOverview(o) {
     setPill("wdPill", "unknown", "выкл");
     $("wdStatus").hidden = true;
   }
+
+  // уведомления Telegram
+  const tg = o.settings?.telegram || {};
+  const tgEnabled = !!tg.enabled;
+  if (!$("tgSwitch").matches(":focus")) $("tgSwitch").checked = tgEnabled;
+  if (!$("tgChat").matches(":focus")) $("tgChat").value = tg.chatId || "";
+  const groups = tg.groups || {};
+  if (!$("tgOps").matches(":focus")) $("tgOps").checked = groups.ops !== false;
+  if (!$("tgBackup").matches(":focus")) $("tgBackup").checked = groups.backup !== false;
+  if (!$("tgUpdate").matches(":focus")) $("tgUpdate").checked = groups.update !== false;
+  if (!$("tgProblems").matches(":focus")) $("tgProblems").checked = groups.problems !== false;
+  const masked = tg.botTokenMasked || "";
+  $("tgNote").textContent = masked
+    ? `Токен сохранён (${masked}) — наружу не отдаётся. Чтобы заменить, введите новый.`
+    : "Токен хранится на сервере пульта и наружу не отдаётся.";
+  if (tgEnabled) {
+    const ns = o.notify || {};
+    if (ns.ok === false && ns.error) {
+      setPill("tgPill", "bad", "ошибка отправки");
+    } else if (ns.ok) {
+      setPill("tgPill", "ok", "вкл");
+    } else {
+      setPill("tgPill", "ok", "вкл");
+    }
+  } else {
+    setPill("tgPill", "unknown", "выкл");
+  }
+
   const next = o.settings?.nextCheck;
   $("autoNext").hidden = !(au.enabled && next);
   if (au.enabled && next) $("autoNext").textContent = `Следующая проверка: ${new Date(next * 1000).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`;
@@ -1467,6 +1496,17 @@ async function pushSettings() {
       restartOnUpdate: $("modsAutoAction").value === "restart",
       warnSeconds: Number($("modsAutoWarn").value),
     },
+    telegram: {
+      enabled: $("tgSwitch").checked,
+      botToken: $("tgToken").value.trim(),
+      chatId: $("tgChat").value.trim(),
+      groups: {
+        ops: $("tgOps").checked,
+        backup: $("tgBackup").checked,
+        update: $("tgUpdate").checked,
+        problems: $("tgProblems").checked,
+      },
+    },
   };
   try {
     const res = await api("/api/settings", { method: "POST", body });
@@ -1489,6 +1529,25 @@ $("modsAutoSwitch").addEventListener("change", pushSettings);
 $("modsAutoInterval").addEventListener("change", pushSettings);
 $("modsAutoAction").addEventListener("change", pushSettings);
 $("modsAutoWarn").addEventListener("change", pushSettings);
+$("tgSwitch").addEventListener("change", pushSettings);
+$("tgChat").addEventListener("change", pushSettings);
+$("tgToken").addEventListener("change", () => {
+  pushSettings().then(() => { $("tgToken").value = ""; });
+});
+["tgOps", "tgBackup", "tgUpdate", "tgProblems"].forEach((id) => $(id).addEventListener("change", pushSettings));
+$("btnTgTest").addEventListener("click", async () => {
+  const btn = $("btnTgTest");
+  btn.disabled = true;
+  try {
+    const res = await api("/api/notify-test", { method: "POST", body: {} });
+    if (res.error) throw new Error(res.error);
+    toast("Отправлено — проверьте чат Telegram", "ok");
+  } catch (e) {
+    toast(e.message || String(e), "error");
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 /* ───────────────────────── опрос ───────────────────────── */
 

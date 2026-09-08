@@ -12,6 +12,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import config
 import dockerlib
+import notify
 import ops
 import rcon
 
@@ -298,6 +299,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_error_json(400, err)
             else:
                 self._send_json({"ok": True, "settings": ops.get_settings()})
+        elif path == "/api/notify-test":
+            ok, err = notify.test_message()
+            if ok:
+                self._send_json({"ok": True})
+            else:
+                self._send_json({"ok": False, "error": err})
         elif path == "/api/action":
             self._handle_action(data)
         else:
@@ -385,6 +392,7 @@ def main():
 
     ops.start_scheduler()
     ops.start_watchdog()
+    notify.start_worker()
 
     # первая проверка обновлений — сама, без кнопки: карточка заполняется на загрузке
     def _startup_check():

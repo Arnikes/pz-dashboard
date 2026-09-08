@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 
 import config
 import dockerlib
+import notify as notifylib
 import rcon as rconlib
 
 # ─────────────────────────── утилиты времени ───────────────────────────
@@ -49,7 +50,7 @@ _EVENT_TYPES = {"start", "stop", "restart", "backup", "restore", "update",
                 "rcon-error", "error", "docker", "backup-delete", "mods"}
 
 
-def log_event(kind, text, detail=None):
+def log_event(kind, text, detail=None, notify=True):
     kind = kind if kind in _EVENT_TYPES else "error"
     rec = {"ts": now_iso(), "type": kind, "text": text}
     if detail:
@@ -60,8 +61,13 @@ def log_event(kind, text, detail=None):
             os.makedirs(os.path.dirname(config.CFG["events_file"]), exist_ok=True)
             with open(config.CFG["events_file"], "a", encoding="utf-8") as f:
                 f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-        except OSError as e:
+        except OSError:
             pass  # события в памяти всё равно работают
+    if notify:
+        try:
+            notifylib.enqueue(kind, text)
+        except Exception:  # noqa: BLE001 — уведомления не ломают события
+            pass
 
 
 def get_events(limit=100):
@@ -89,6 +95,8 @@ _SET_LOCK = threading.Lock()
 _SETTINGS = {
     "autoUpdate": {"enabled": False, "intervalHours": 6, "warnSeconds": 300, "backupBeforeUpdate": True},
     "modsUpdate": {"enabled": False, "intervalHours": 6, "restartOnUpdate": True, "warnSeconds": 600},
+    "telegram": {"enabled": False, "botToken": "", "chatId": "",
+                 "groups": {"ops": True, "backup": True, "update": True, "problems": True}},
     "backup": {"stopServer": False, "maxBackups": 10},
     "watchdog": {"enabled": False, "thresholdMin": 5, "autoRestart": False},
     "nextCheck": None,
@@ -122,7 +130,14 @@ def _save_settings():
 
 def get_settings():
     with _SET_LOCK:
-        return json.loads(json.dumps(_SETTINGS))
+        data = json.loads(json.dumps(_SETTINGS))
+    # полный токен бота не покидает сервер — наружу только маска
+    tg = data.get("telegram")
+    if tg and tg.get("botToken"):
+        tok = tg["botToken"]
+        tg["botTokenMasked"] = ("•••" + tok[-4:]) if len(tok) >= 8 else "•••"
+        tg["botToken"] = ""
+    return data
 
 
 def patch_settings(patch):
@@ -174,6 +189,37 @@ def patch_settings(patch):
             if "maxBackups" in bk:
                 bk["maxBackups"] = max(0, min(200, int(bk["maxBackups"])))
             _SETTINGS["backup"].update(bk)
+        tg = patch.get("telegram")
+        if tg is not None:
+            if not isinstance(tg, dict):
+                return "неверный формат telegram"
+            if "enabled" in tg and not isinstance(tg["enabled"], bool):
+                return "telegram.enabled должен быть true/false"
+            groups = tg.get("groups")
+            if groups is not None:
+                if not isinstance(groups, dict):
+                    return "неверный формат groups"
+                tg["groups"] = {k: bool(groups[k]) for k in
+                                ("ops", "backup", "update", "problems") if k in groups}
+            tok = tg.get("botToken")
+            if tok is None or (isinstance(tok, str) and not tok.strip()):
+                tg.pop("botToken", None)          # пустое поле — не менять токен
+            elif isinstance(tok, str):
+                tok = tok.strip()
+                if "•" in tok:                     # маска от get_settings — не менять
+                    tg.pop("botToken", None)
+                else:
+                    tg["botToken"] = tok[:80]
+            else:
+                return "botToken должен быть строкой"
+            cid = tg.get("chatId")
+            if cid is None:
+                tg.pop("chatId", None)
+            elif isinstance(cid, str):
+                tg["chatId"] = cid.strip()[:32]
+            else:
+                return "chatId должен быть строкой"
+            _SETTINGS["telegram"].update(tg)
         _save_settings()
         return None
 
@@ -1126,6 +1172,7 @@ def overview():
         "modsCheck": mods_check_state(),
         "settings": get_settings(),
         "watchdog": watchdog_state(),
+        "notify": notifylib.state(),
         "image": _effective_image(),
         "backupsCount": len(list_backups()),
         "now": now_iso(),

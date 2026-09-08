@@ -375,6 +375,42 @@
         </div>
         <p class="hint mono" id="wdStatus" hidden></p>
       </section>
+
+      <!-- УВЕДОМЛЕНИЯ TELEGRAM -->
+      <section class="card c-notify" id="sec-notify" data-od-id="notify" aria-labelledby="hNotify">
+        <header class="card-head">
+          <h2 id="hNotify">Уведомления</h2>
+          <span class="pill" id="tgPill" data-state="unknown">—</span>
+        </header>
+        <p class="upd-note">Telegram-бот присылает события пульта: запуск и остановка сервера, бэкапы, обновления, проблемы. Токен бота задаётся один раз.</p>
+        <div class="auto-block">
+          <div class="auto-row">
+            <label class="switch">
+              <input type="checkbox" id="tgSwitch" role="switch" />
+              <span class="switch-track" aria-hidden="true"></span>
+              <span class="switch-label">Отправлять в Telegram</span>
+            </label>
+          </div>
+          <div class="auto-grid">
+            <label class="field">Bot token
+              <input type="password" id="tgToken" placeholder="123456:ABC-DEF…" autocomplete="off" />
+            </label>
+            <label class="field">Chat ID
+              <input type="text" id="tgChat" inputmode="numeric" placeholder="123456789 или -100…" autocomplete="off" />
+            </label>
+          </div>
+          <div class="check-row">
+            <label class="check"><input type="checkbox" id="tgOps" checked /> Сервер</label>
+            <label class="check"><input type="checkbox" id="tgBackup" checked /> Бэкапы</label>
+            <label class="check"><input type="checkbox" id="tgUpdate" checked /> Обновления</label>
+            <label class="check"><input type="checkbox" id="tgProblems" checked /> Проблемы</label>
+          </div>
+          <p class="hint" id="tgNote">Токен хранится на сервере пульта и наружу не отдаётся — в поле видно только маску.</p>
+          <div class="actions">
+            <button class="btn" id="btnTgTest">Проверить</button>
+          </div>
+        </div>
+      </section>
     </div>
 
     <!-- БЭКАПЫ -->
