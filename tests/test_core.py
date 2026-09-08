@@ -243,6 +243,11 @@ def test_settings_validation(tmp_path):
     assert ops.patch_settings({"autoUpdate": {"backupBeforeUpdate": False}}) is None
     assert ops.get_settings()["autoUpdate"]["backupBeforeUpdate"] is False
     assert ops.patch_settings({"watchdog": {"enabled": "yes"}}) == "watchdog.enabled должен быть true/false"
+    assert ops.patch_settings({"modsUpdate": {"warnSeconds": 99999}}) is None
+    assert ops.get_settings()["modsUpdate"]["warnSeconds"] == 3600
+    assert ops.patch_settings({"modsUpdate": {"warnSeconds": -5}}) is None
+    assert ops.get_settings()["modsUpdate"]["warnSeconds"] == 0
+    assert ops.get_settings()["modsUpdate"].get("intervalHours") == 6
 
 
 # ───────────────────────── история онлайна ─────────────────────────

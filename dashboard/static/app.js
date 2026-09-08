@@ -1,4 +1,4 @@
-/* PZ Пульт · V14 — логика интерфейса.
+/* PZ Пульт · V16 — логика интерфейса.
    Мультистраничный каркас: hash-роутинг (#/overview, #/mods, …), 7 страниц,
    SSE-поток /api/stream живёт между переключениями; при недоступности — опрос.
    При отсутствии API включается демо-режим.
@@ -428,6 +428,7 @@ function renderOverview(o) {
   if (!$("modsAutoSwitch").matches(":focus")) $("modsAutoSwitch").checked = !!mu.enabled;
   if (!$("modsAutoInterval").matches(":focus")) $("modsAutoInterval").value = String(mu.intervalHours ?? 6);
   if (!$("modsAutoAction").matches(":focus")) $("modsAutoAction").value = mu.restartOnUpdate === false ? "notify" : "restart";
+  if (!$("modsAutoWarn").matches(":focus")) $("modsAutoWarn").value = String(mu.warnSeconds ?? 600);
   const nextM = o.settings?.nextModsCheck;
   $("modsAutoNext").hidden = !(mu.enabled && nextM);
   if (mu.enabled && nextM) $("modsAutoNext").textContent = `Следующая проверка: ${new Date(nextM * 1000).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`;
@@ -581,6 +582,7 @@ function updateButtons() {
   $("modsAutoSwitch").disabled = busy;
   $("modsAutoInterval").disabled = busy;
   $("modsAutoAction").disabled = busy;
+  $("modsAutoWarn").disabled = busy;
   for (const id of ["btnStart", "btnStop", "btnRestart", "btnCheckUpd", "btnApplyUpd", "btnBackup", "btnCheckMods", "btnApplyMods"]) {
     $(id).title = remote ? hostHint : (id === "btnApplyUpd" && o && o.compose === false
       ? "Недоступен плагин docker compose в контейнере пульта" : "");
@@ -1463,6 +1465,7 @@ async function pushSettings() {
       enabled: $("modsAutoSwitch").checked,
       intervalHours: Number($("modsAutoInterval").value),
       restartOnUpdate: $("modsAutoAction").value === "restart",
+      warnSeconds: Number($("modsAutoWarn").value),
     },
   };
   try {
@@ -1485,6 +1488,7 @@ $("wdRestart").addEventListener("change", pushSettings);
 $("modsAutoSwitch").addEventListener("change", pushSettings);
 $("modsAutoInterval").addEventListener("change", pushSettings);
 $("modsAutoAction").addEventListener("change", pushSettings);
+$("modsAutoWarn").addEventListener("change", pushSettings);
 
 /* ───────────────────────── опрос ───────────────────────── */
 

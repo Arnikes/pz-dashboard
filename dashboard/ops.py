@@ -88,7 +88,7 @@ def get_events(limit=100):
 _SET_LOCK = threading.Lock()
 _SETTINGS = {
     "autoUpdate": {"enabled": False, "intervalHours": 6, "warnSeconds": 300, "backupBeforeUpdate": True},
-    "modsUpdate": {"enabled": False, "intervalHours": 6, "restartOnUpdate": True},
+    "modsUpdate": {"enabled": False, "intervalHours": 6, "restartOnUpdate": True, "warnSeconds": 600},
     "backup": {"stopServer": False, "maxBackups": 10},
     "watchdog": {"enabled": False, "thresholdMin": 5, "autoRestart": False},
     "nextCheck": None,
@@ -149,6 +149,8 @@ def patch_settings(patch):
                 return "enabled должен быть true/false"
             if "intervalHours" in mu:
                 mu["intervalHours"] = max(1, min(168, int(mu["intervalHours"])))
+            if "warnSeconds" in mu:
+                mu["warnSeconds"] = max(0, min(3600, int(mu["warnSeconds"])))
             if "restartOnUpdate" in mu and not isinstance(mu["restartOnUpdate"], bool):
                 return "restartOnUpdate должен быть true/false"
             _SETTINGS["modsUpdate"].update(mu)
@@ -732,7 +734,7 @@ def _scheduler_loop():
                             if res["state"] == "needs-update":
                                 if mu.get("restartOnUpdate", True):
                                     log_event("auto", "Автообновление модов: рестарт для загрузки обновлений")
-                                    _do_restart(au.get("warnSeconds", 300), reason="Обновление модов")
+                                    _do_restart(mu.get("warnSeconds", 600), reason="Обновление модов")
                                 else:
                                     log_event("auto", "Автопроверка модов: найдены обновления (рестарт отключён)")
                         else:
