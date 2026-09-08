@@ -922,6 +922,13 @@ select {
 .mod-row .m-idx { color: var(--faint); width: 20px; flex: none; text-align: right; }
 .mod-row .m-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
 .mod-row .m-ws { flex: none; display: inline-flex; align-items: center; gap: 6px; max-width: 48%; min-width: 0; }
+.mod-row .switch, .ws-head .switch, .mod-line .switch { margin-left: auto; flex: none; }
+.switch-sm .switch-track { width: 32px; height: 18px; }
+.switch-sm .switch-track::after { width: 12px; height: 12px; }
+.switch-sm input:checked + .switch-track::after { transform: translateX(13px); }
+.disabled-row .m-name, .disabled-row .m-ws { opacity: 0.55; }
+.mods-manage { align-items: center; }
+.mods-manage .hint { flex: 1; margin: 0; }
 .mod-row .m-ws a {
   color: var(--muted); text-decoration: none; display: inline-flex;
   align-items: center; gap: 6px; min-width: 0; font-size: 12px;

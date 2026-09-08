@@ -1,7 +1,11 @@
 <!doctype html>
 <!--
   PZ Пульт — панель управления dedicated-сервером Project Zomboid
-  Версия: V16 (предупреждение игроков при авторестарте модов — отдельный
+  Версия: V17 (Telegram-уведомления о событиях с группами подписки и проверкой связи;
+  Watchdog RCON без ложных сбоев на остановке/операциях, кулдаун авторестарта;
+  управление составом модов из UI: выключение/включение Workshop-элементов с правкой
+  конфига и .bak-копиями; поиск Workshop-контента внутри контейнера через docker exec)
+  Предыдущая: V16 (предупреждение игроков при авторестарте модов — отдельный
   параметр modsUpdate.warnSeconds, по умолчанию 10 минут, настраивается в UI)
   Предыдущая: V14 (мобильный нижний таб-бар с иконками и safe-area, анимация
   смены страниц с учётом prefers-reduced-motion, фокус на заголовке страницы)
@@ -248,6 +252,10 @@
             <option value="id">по Workshop ID</option>
           </select>
         </div>
+        <div class="actions mods-manage" id="modsManageBar" hidden>
+          <span class="hint">Состав модов правится в конфиге и применяется рестартом сервера.</span>
+          <button class="btn" id="btnModsRestart">Перезапустить…</button>
+        </div>
         <p class="mods-note" id="modsShown" hidden></p>
         <div id="modsBody" class="list" data-state="loading">
           <p class="skeleton-line"></p><p class="skeleton-line short"></p>
@@ -486,7 +494,7 @@
   </main>
 
   <footer class="foot" data-od-id="footer">
-    PZ Пульт · V16 · живой поток данных (SSE), шрифты локальные
+    PZ Пульт · V17 · живой поток данных (SSE), шрифты локальные
   </footer>
 
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>

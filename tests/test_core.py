@@ -565,3 +565,92 @@ def test_watchdog_alert_and_autorestart(monkeypatch):
     ops._watchdog_probe(wd)
     assert ops._WD["lastResult"] == "ok" and ops._WD["consecutiveFailures"] == 0
     assert not ops._WD["alerted"]
+
+
+# ─────────────────────── управление модами ───────────────────────
+
+INI = """[General]
+ServerName=test
+
+[Mods]
+Mods=tsarslib;commonpackage
+WorkshopItems=2694464646;2804001857
+
+[Other]
+Key=1
+"""
+
+
+def test_ini_replace_value():
+    """Замена значения с сохранением написания ключа; дописывание отсутствующего."""
+    out = ops._ini_replace_value(INI, "WorkshopItems", ["111"])
+    assert "WorkshopItems=111\n" in out and "[Other]" in out
+    out = ops._ini_replace_value(INI, "mods", ["a", "b"])          # регистр ключа файла
+    assert "Mods=a;b\n" in out and "Mods=" in out
+    out = ops._ini_replace_value(INI, "ClientMods", ["x"])          # нет строки — в конец
+    assert out.rstrip().endswith("ClientMods=x")
+    # многострочное значение (перенос с отступом) глотается целиком
+    text = "Mods=aaa;\n  bbb;\n  ccc\nWorkshopItems=1\n"
+    out = ops._ini_replace_value(text, "Mods", ["one"])
+    assert out == "Mods=one\nWorkshopItems=1\n"
+
+
+def test_mods_toggle_flow(tmp_path, monkeypatch):
+    """Выключение мода: уходит из WorkshopItems и Mods, состав в реестре; включение обратно."""
+    server_dir = tmp_path / "Server"
+    server_dir.mkdir()
+    ini = server_dir / "servertest.ini"
+    ini.write_text(INI, encoding="utf-8")
+    config.CFG["data_dir"] = str(tmp_path)
+    config.CFG["settings_file"] = str(tmp_path / "settings.json")
+    config.CFG["events_file"] = str(tmp_path / "events.jsonl")
+    ops._SETTINGS["modsDisabled"] = {}
+    ops._WS_EXEC["map"] = {}
+    ops._WS_TITLES.clear()
+    monkeypatch.setattr(ops, "log_event", lambda *a, **k: None)
+    # локального тома нет, но контент находим docker exec'ом
+    monkeypatch.setattr(ops, "_workshop_map_local", lambda items: {})
+    monkeypatch.setattr(ops, "_workshop_map_via_exec",
+                        lambda: {"2694464646": ["tsarslib"], "2804001857": ["commonpackage"]})
+
+    res = ops.set_mod_enabled("servertest.ini", "2694464646", enable=False)
+    text = ini.read_text(encoding="utf-8")
+    assert "WorkshopItems=2804001857\n" in text and "Mods=commonpackage\n" in text
+    assert res["canManage"] is True
+    dis = {d["workshopId"]: d for d in res["disabled"]}
+    assert dis["2694464646"]["modIds"] == ["tsarslib"]
+    # бэкап создан
+    assert any(p.name.startswith("servertest.ini.bak-") for p in server_dir.iterdir())
+
+    # включение обратно — состав восстанавливается из реестра
+    res = ops.set_mod_enabled("servertest.ini", "2694464646", enable=True)
+    text = ini.read_text(encoding="utf-8")
+    assert "WorkshopItems=2804001857;2694464646\n" in text
+    assert "Mods=commonpackage;tsarslib\n" in text
+    assert res["disabled"] == []
+
+
+def test_mods_toggle_blocked_without_mapping(tmp_path, monkeypatch):
+    """Без modID выключение запрещено — не теряем состав конфига."""
+    server_dir = tmp_path / "Server"
+    server_dir.mkdir()
+    (server_dir / "servertest.ini").write_text(INI, encoding="utf-8")
+    config.CFG["data_dir"] = str(tmp_path)
+    config.CFG["settings_file"] = str(tmp_path / "settings.json")
+    config.CFG["events_file"] = str(tmp_path / "events.jsonl")
+    ops._SETTINGS["modsDisabled"] = {}
+    ops._WS_EXEC["map"] = {}
+    monkeypatch.setattr(ops, "log_event", lambda *a, **k: None)
+    monkeypatch.setattr(ops, "_workshop_map_local", lambda items: {})
+    monkeypatch.setattr(ops, "_workshop_map_via_exec", lambda: {})
+    with pytest.raises(ops.OpsError):
+        ops.set_mod_enabled("servertest.ini", "2694464646", enable=False)
+    assert (server_dir / "servertest.ini").read_text(encoding="utf-8") == INI
+    # включение неизвестного ID — добавление нового элемента: конфиг пишется, но с предупреждением
+    events = []
+    monkeypatch.setattr(ops, "log_event", lambda kind, text, **k: events.append((kind, text)))
+    res = ops.set_mod_enabled("servertest.ini", "999999", enable=True)
+    text = (server_dir / "servertest.ini").read_text(encoding="utf-8")
+    assert text.count("999999") == 1 and "WorkshopItems=2694464646;2804001857;999999" in text
+    assert any(kind == "warn" and "modID" in t for kind, t in events)
+    assert res["disabled"] == []

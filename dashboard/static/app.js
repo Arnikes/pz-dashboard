@@ -850,6 +850,13 @@ function setBar(id, pct) {
 
 /* ───────────────────────── моды сервера ───────────────────────── */
 
+/* переключатель в строке мода (управление составом) */
+const _wsSwitch = (wsId, checked, title) => `
+  <label class="switch switch-sm" title="${esc(title)}">
+    <input type="checkbox" role="switch" data-ws="${esc(wsId)}"${checked ? " checked" : ""} />
+    <span class="switch-track" aria-hidden="true"></span>
+  </label>`;
+
 function _renderMods(data) {
   const body = $("modsBody");
   const sel = $("modsFile");
@@ -872,6 +879,9 @@ function _renderMods(data) {
   }
   const mods = data.mods || [];
   const ws = data.workshop || [];
+  const canManage = !!data.canManage && !S.demo;
+  const bar = $("modsManageBar");
+  if (bar) bar.hidden = !canManage;
   const total = data.paired && (data.pairs || []).length
     ? data.pairs.length
     : (ws.length || mods.length);
@@ -883,6 +893,13 @@ function _renderMods(data) {
   }
 
   let html = "";
+  const disabledList = (data.disabled || []);
+  if (canManage) {
+    const note = data.mappingSource === "container"
+      ? "Состав модов из конфига; названия модов читаются внутри контейнера."
+      : "Выключатель убирает мод из конфига; изменения применяются рестартом.";
+    html += `<p class="mods-note">${esc(note)}</p>`;
+  }
   if (data.paired && (data.pairs || []).length) {
     // 1:1 — моды соответствуют Workshop-элементам по порядку
     html += `<p class="mods-note">Моды соответствуют Workshop-элементам по порядку.</p>`;
@@ -899,6 +916,7 @@ function _renderMods(data) {
               <span class="wid mono" title="Workshop ID: ${esc(p.workshopId)}" data-copy="${esc(p.workshopId)}">${esc(p.workshopId)}</span>`
             : `<span class="wid mono">${esc(p.workshopId || "—")}</span>`}
         </span>
+        ${canManage ? _wsSwitch(p.workshopId, true, "Выключить мод в конфиге") : ""}
       </div>`).join("");
   } else {
     // Общий случай: один Workshop-элемент может содержать несколько модов
@@ -912,6 +930,7 @@ function _renderMods(data) {
               ? `<a class="m-t" href="${esc(w.url)}" target="_blank" rel="noopener" title="${esc(w.title || w.workshopId)}">${esc(w.title || w.workshopId)}</a>`
               : `<span class="m-t">${esc(w.title || w.workshopId)}</span>`}
             <span class="wid mono" title="Workshop ID: ${esc(w.workshopId)}" data-copy="${esc(w.workshopId)}">${esc(shortWsId(w.workshopId))}</span>
+            ${canManage ? _wsSwitch(w.workshopId, true, "Выключить мод в конфиге") : ""}
           </div>`).join("") + `</div>`;
       } else {
         html += ws.map((w) => `
@@ -924,6 +943,7 @@ function _renderMods(data) {
                 </a>`
               : `<span class="wid mono">${esc(w.workshopId)}</span>`}
             ${w.title ? `<span class="wid mono" title="Workshop ID: ${esc(w.workshopId)}" data-copy="${esc(w.workshopId)}">${esc(w.workshopId)}</span>` : ""}
+            ${canManage ? _wsSwitch(w.workshopId, true, "Выключить мод в конфиге") : ""}
           </div>
           ${(w.mods || []).length
             ? `<div class="ws-mods">${w.mods.map((m) => `<span class="chip mono" data-copy="${esc(m)}" title="нажмите — скопировать">${esc(m)}</span>`).join("")}</div>`
@@ -942,6 +962,17 @@ function _renderMods(data) {
     if (!ws.length) {
       html += `<p class="mods-note">Один Workshop-элемент может содержать несколько модов — сопоставление по конфигу невозможно.</p>`;
     }
+  }
+  if (disabledList.length) {
+    html += `<p class="mods-note">Выключенные — ${disabledList.length}</p>`;
+    html += disabledList.map((d) => `
+      <div class="mod-row disabled-row">
+        <span class="m-name mono" title="${esc((d.modIds || []).join(", "))}" data-copy="${esc((d.modIds || [])[0] || d.workshopId)}">${esc(d.title || d.workshopId)}</span>
+        <span class="m-ws">
+          <span class="wid mono" title="Workshop ID: ${esc(d.workshopId)}" data-copy="${esc(d.workshopId)}">${esc(shortWsId(d.workshopId))}</span>
+        </span>
+        ${canManage ? _wsSwitch(d.workshopId, false, "Включить мод обратно") : ""}
+      </div>`).join("");
   }
   body.dataset.state = "ok";
   body.innerHTML = html;
@@ -1024,6 +1055,28 @@ function renderModsFiltered() {
 $("modsSearch").addEventListener("input", () => {
   modsQuery = $("modsSearch").value;
   renderModsFiltered();
+});
+
+/* переключатель состава модов: выключение/включение Workshop-элемента */
+$("modsBody").addEventListener("change", async (e) => {
+  const sw = e.target.closest("input[data-ws]");
+  if (!sw || sw.disabled) return;
+  const ws = sw.dataset.ws;
+  const enable = sw.checked;
+  const file = (modsData && modsData.file) || "";
+  sw.disabled = true;
+  try {
+    const res = await api("/api/mods-config", { method: "POST", body: { file, workshopId: ws, enable } });
+    if (res.ok === false || res.error) throw new Error(res.error || "не удалось изменить конфиг");
+    toast(enable ? "Мод включён в конфиг — заработает после рестарта"
+                 : "Мод выключен из конфига — заработает после рестарта", "ok");
+    refreshMods(file);
+  } catch (err) {
+    toast(err.message || String(err), "error");
+    sw.checked = !enable;
+  } finally {
+    sw.disabled = false;
+  }
 });
 $("modsFilters").addEventListener("click", (e) => {
   const btn = e.target.closest(".chip[data-mf]");
@@ -1476,6 +1529,20 @@ $("btnApplyMods").addEventListener("click", () => {
       ${WARN_OPTIONS}
     `,
     onConfirm: async () => action("apply-mods-update", { warnSeconds: Number($("warnSel").value) }),
+  });
+});
+
+/* рестарт после правок состава модов */
+$("btnModsRestart").addEventListener("click", () => {
+  modal.open({
+    title: "Перезапустить сервер?",
+    okLabel: "Перезапустить",
+    bodyHTML: `
+      <p>Состав модов, включённый в конфиге, заработает после рестарта: игрокам
+      придёт предупреждение, мир сохранится (RCON <span class="mono">quit</span>).</p>
+      ${WARN_OPTIONS}
+    `,
+    onConfirm: async () => action("restart", { warnSeconds: Number($("warnSel").value) }),
   });
 });
 

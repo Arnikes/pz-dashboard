@@ -134,6 +134,11 @@ def container_stop(name, seconds=180):
     return sh(["docker", "stop", "-t", str(seconds), name], timeout=seconds + 60)
 
 
+def container_exec(name, command, timeout=60):
+    """docker exec sh -c … — чтение данных внутри контейнера (find/sed)."""
+    return sh(["docker", "exec", name, "sh", "-c", command], timeout=timeout)
+
+
 def get_restart_policy(name):
     """Имя политики рестарта ("no", "always", "unless-stopped", "on-failure") или None."""
     code, out, err = sh([

@@ -248,7 +248,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/logs/full":
             self._send_full_logs()
         elif path == "/api/mods":
-            self._send_json(ops.list_mods((qs.get("file", [None])[0])))
+            self._send_json(ops.mods_config_state((qs.get("file", [None])[0])))
         elif path == "/api/stats":
             self._send_json({"ok": True, **ops.fetch_stats()})
         elif path == "/api/logs":
@@ -305,6 +305,14 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({"ok": True})
             else:
                 self._send_json({"ok": False, "error": err})
+        elif path == "/api/mods-config":
+            try:
+                result = ops.set_mod_enabled(
+                    data.get("file"), str(data.get("workshopId") or ""),
+                    bool(data.get("enable")))
+                self._send_json({"ok": True, **result})
+            except ops.OpsError as e:
+                self._send_json({"ok": False, "error": str(e)})
         elif path == "/api/action":
             self._handle_action(data)
         else:
