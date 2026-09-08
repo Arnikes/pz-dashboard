@@ -28,6 +28,81 @@ def _read_json(handler):
         return {}
 
 
+def players_payload():
+    if not ops.docker_ok_cached():
+        # удалённый режим: статус сервера узнаём самим RCON
+        try:
+            data = ops.fetch_players()
+            return {"ok": True, **data}
+        except rcon.RCONError as e:
+            return {"ok": False, "error": str(e)}
+    st = ops.container_state()
+    if not st:
+        return {"ok": False, "error": "Контейнер не найден"}
+    if not st["running"]:
+        return {"ok": False, "error": "Сервер остановлен"}
+    try:
+        data = ops.fetch_players()
+        return {"ok": True, **data}
+    except rcon.RCONError as e:
+        return {"ok": False, "error": str(e)}
+
+
+def logs_payload():
+    text, err = dockerlib.container_logs(config.CFG["pz_container"], config.CFG["log_lines"])
+    if text is None:
+        return {"ok": False, "error": err or "логи недоступны"}
+    return {"ok": True, "text": text}
+
+
+def backups_payload():
+    return {"ok": True, "items": ops.list_backups(),
+            "maxBackups": ops.get_settings()["backup"]["maxBackups"]}
+
+
+def events_payload(limit=100):
+    return {"ok": True, "items": ops.get_events(limit)}
+
+
+# каналы SSE: имя события → интервал отправки, секунды
+STREAM_PLAN = (
+    ("ops", 1.0),
+    ("overview", 3.0),
+    ("players", 5.0),
+    ("stats", 5.0),
+    ("logs", 5.0),
+    ("backups", 10.0),
+    ("events", 12.0),
+    ("stats-history", 30.0),
+    ("players-history", 60.0),
+    ("mods", 60.0),
+)
+
+
+def stream_payload(name):
+    if name == "overview":
+        return {"ok": True, **ops.overview()}
+    if name == "players":
+        return players_payload()
+    if name == "stats":
+        return {"ok": True, **ops.fetch_stats()}
+    if name == "logs":
+        return logs_payload()
+    if name == "backups":
+        return backups_payload()
+    if name == "events":
+        return events_payload()
+    if name == "ops":
+        return {"ok": True, **ops.op_state()}
+    if name == "stats-history":
+        return {"ok": True, "points": ops.get_stats_history()}
+    if name == "players-history":
+        return {"ok": True, "points": ops.get_players_history()}
+    if name == "mods":
+        return ops.list_mods(None)
+    return {"ok": False, "error": "нет такого потока"}
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "PZDashboard/1.0"
     protocol_version = "HTTP/1.1"
@@ -104,6 +179,49 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):  # тише в логах
         sys.stderr.write("[http] %s\n" % (fmt % args))
 
+    # ── SSE-поток: живые данные одним соединением вместо серии опросов ──
+
+    def _sse_write(self, chunk: bytes):
+        # HTTP/1.1 без Content-Length требует chunked-кодирование
+        self.wfile.write(("%x\r\n" % len(chunk)).encode("ascii") + chunk + b"\r\n")
+        self.wfile.flush()
+
+    def _serve_stream(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.connection.settimeout(75)
+        last = {name: 0.0 for name, _ in STREAM_PLAN}
+        last_beat = time.time()
+        try:
+            self._sse_write(b"retry: 3000\n\n")
+            while True:
+                now = time.time()
+                for name, interval in self.STREAM_PLAN:
+                    if now - last[name] < interval:
+                        continue
+                    try:
+                        data = stream_payload(name)
+                    except Exception as e:  # noqa: BLE001
+                        data = {"ok": False, "error": str(e)}
+                    frame = (f"event: {name}\ndata: "
+                             + json.dumps(data, ensure_ascii=False) + "\n\n").encode("utf-8")
+                    self._sse_write(frame)
+                    last[name] = now
+                if now - last_beat >= 15.0:
+                    self._sse_write(b": heartbeat\n\n")
+                    last_beat = now
+                time.sleep(0.4)
+        except OSError:
+            pass  # клиент отключился
+        finally:
+            try:
+                self.wfile.write(b"0\r\n\r\n")
+                self.wfile.flush()
+            except OSError:
+                pass
+
     # ── GET ──
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
@@ -121,25 +239,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/overview":
             self._send_json({"ok": True, **ops.overview()})
         elif path == "/api/players":
-            if not ops.docker_ok_cached():
-                # удалённый режим: статус сервера узнаём самим RCON
-                try:
-                    data = ops.fetch_players()
-                    self._send_json({"ok": True, **data})
-                except rcon.RCONError as e:
-                    self._send_json({"ok": False, "error": str(e)})
-            else:
-                st = ops.container_state()
-                if not st:
-                    self._send_json({"ok": False, "error": "Контейнер не найден"}, 200)
-                elif not st["running"]:
-                    self._send_json({"ok": False, "error": "Сервер остановлен"})
-                else:
-                    try:
-                        data = ops.fetch_players()
-                        self._send_json({"ok": True, **data})
-                    except rcon.RCONError as e:
-                        self._send_json({"ok": False, "error": str(e)})
+            self._send_json(players_payload())
         elif path == "/api/players/history":
             self._send_json({"ok": True, "points": ops.get_players_history()})
         elif path == "/api/stats/history":
@@ -151,24 +251,17 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/stats":
             self._send_json({"ok": True, **ops.fetch_stats()})
         elif path == "/api/logs":
-            try:
-                tail = min(1000, max(10, int(qs.get("tail", [config.CFG["log_lines"]])[0])))
-            except ValueError:
-                tail = config.CFG["log_lines"]
-            text, err = dockerlib.container_logs(config.CFG["pz_container"], tail)
-            if text is None:
-                self._send_json({"ok": False, "error": err or "логи недоступны"})
-            else:
-                self._send_json({"ok": True, "text": text})
+            self._send_json(logs_payload())
         elif path == "/api/backups":
-            self._send_json({"ok": True, "items": ops.list_backups(),
-                             "maxBackups": ops.get_settings()["backup"]["maxBackups"]})
+            self._send_json(backups_payload())
         elif path == "/api/events":
             try:
                 limit = min(200, max(1, int(qs.get("limit", [100])[0])))
             except ValueError:
                 limit = 100
-            self._send_json({"ok": True, "items": ops.get_events(limit)})
+            self._send_json(events_payload(limit))
+        elif path == "/api/stream":
+            self._serve_stream()
         elif path == "/api/ops":
             self._send_json({"ok": True, **ops.op_state()})
         elif path == "/api/backup/download":

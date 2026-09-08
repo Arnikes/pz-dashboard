@@ -1,6 +1,120 @@
 /* PZ Пульт · V1 — «карантинный пункт управления»
    Сажа + кость + кровь. Акцент только на опасных/живых состояниях. */
 
+/* локальные копии Google Fonts: Golos Text / JetBrains Mono / Russo One */
+@font-face {
+  font-family: 'Golos Text';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/golos-text-400-cyrillic.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Golos Text';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/golos-text-400-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Golos Text';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(fonts/golos-text-500-cyrillic.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Golos Text';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(fonts/golos-text-500-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Golos Text';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(fonts/golos-text-600-cyrillic.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Golos Text';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(fonts/golos-text-600-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/jetbrains-mono-400-cyrillic.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/jetbrains-mono-400-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(fonts/jetbrains-mono-500-cyrillic.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(fonts/jetbrains-mono-500-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(fonts/jetbrains-mono-700-cyrillic.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(fonts/jetbrains-mono-700-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Russo One';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/russo-one-400-cyrillic.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Russo One';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/russo-one-400-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 :root {
   --bg: #0d0b09;
   --bg-deep: #090806;
@@ -12,7 +126,7 @@
 
   --ink: #e9e2cd;
   --muted: #b3a78c;
-  --faint: #8a7f68;
+  --faint: #968b73;
 
   --blood: #b3352b;
   --blood-deep: #8f231c;
@@ -65,6 +179,11 @@ body::after {
 
 .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
+.sr-only {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
 h2 {
   margin: 0;
   font: 600 12.5px/1.2 var(--font-body);
@@ -73,7 +192,7 @@ h2 {
   color: var(--muted);
 }
 
-a { color: var(--blood-text); }
+a { color: var(--muted); }
 
 /* ───────────────────────── шапка ───────────────────────── */
 
@@ -137,6 +256,40 @@ a { color: var(--blood-text); }
 .banner-conn { color: var(--warn); border-color: rgba(217, 164, 65, 0.4); background: rgba(217, 164, 65, 0.07); }
 .banner-demo { color: var(--muted); border-color: var(--line-strong); background: var(--surface); }
 
+/* ───────────────────── строка здоровья ───────────────────── */
+
+.healthbar {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  max-width: 1500px; margin: 0 auto;
+  padding: 12px 22px 0;
+}
+
+.h-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: 500 11.5px/1 var(--font-body); letter-spacing: 0.04em;
+  padding: 6px 11px; border-radius: 999px;
+  border: 1px solid var(--line-strong); color: var(--muted);
+  text-decoration: none; white-space: nowrap;
+}
+
+.h-chip::before {
+  content: "";
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--faint); flex: none;
+}
+
+.h-chip:hover { color: var(--ink); }
+.h-chip[data-state="ok"] { color: var(--ok); border-color: rgba(134, 176, 96, 0.45); }
+.h-chip[data-state="ok"]::before { background: var(--ok); }
+.h-chip[data-state="bad"] { color: var(--blood-text); border-color: rgba(179, 53, 43, 0.5); }
+.h-chip[data-state="bad"]::before { background: var(--blood); }
+.h-chip[data-state="warn"] { color: var(--warn); border-color: rgba(217, 164, 65, 0.45); }
+.h-chip[data-state="warn"]::before { background: var(--warn); }
+
+@media (max-width: 740px) {
+  .healthbar { padding: 10px 14px 0; }
+}
+
 /* ───────────────────────── сетка ───────────────────────── */
 
 .main {
@@ -152,11 +305,12 @@ a { color: var(--blood-text); }
    управление → мониторинг → история → живые стримы */
 .c-status   { grid-column: span 6; }
 .c-updates  { grid-column: span 6; }
+.c-mupd     { grid-column: span 4; }
 .c-players  { grid-column: span 4; }
 .c-metrics  { grid-column: span 4; }
 .c-mods     { grid-column: span 4; }
-.c-backups  { grid-column: span 6; }
-.c-events   { grid-column: span 6; }
+.c-backups  { grid-column: span 4; }
+.c-events   { grid-column: span 4; }
 .c-console  { grid-column: span 7; }
 .c-logs     { grid-column: span 5; }
 
@@ -164,11 +318,12 @@ a { color: var(--blood-text); }
 @media (max-width: 1180px) {
   .c-status   { grid-column: 1 / -1; }
   .c-updates  { grid-column: span 6; }
+  .c-mupd     { grid-column: span 6; }
   .c-players  { grid-column: span 6; }
   .c-metrics  { grid-column: span 6; }
   .c-mods     { grid-column: span 6; }
   .c-backups  { grid-column: span 6; }
-  .c-events   { grid-column: span 6; }
+  .c-events   { grid-column: 1 / -1; }
   .c-console  { grid-column: 1 / -1; }
   .c-logs     { grid-column: 1 / -1; }
 }
@@ -177,7 +332,7 @@ a { color: var(--blood-text); }
   .topbar { padding: 10px 14px; }
   .main { padding: 14px 14px 26px; gap: 12px; }
   .banner { margin: 10px 14px 0; }
-  .c-updates, .c-players, .c-metrics, .c-mods, .c-backups, .c-events { grid-column: span 12; }
+  .c-updates, .c-mupd, .c-players, .c-metrics, .c-mods, .c-backups, .c-events { grid-column: span 12; }
   .clock { display: none; }
 }
 
@@ -269,7 +424,7 @@ a { color: var(--blood-text); }
 
 .state-label {
   font: 26px/1.1 var(--font-display);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
@@ -305,6 +460,8 @@ a { color: var(--blood-text); }
   white-space: nowrap;
 }
 
+.meta dd.ok-same { color: var(--ok); }
+
 .hint {
   margin: 0 0 12px;
   font-size: 12.5px;
@@ -339,8 +496,9 @@ select:focus-visible,
   outline-offset: 2px;
 }
 
-.btn.primary { background: var(--blood); border-color: var(--blood-deep); color: #fff; }
-.btn.primary:hover:not(:disabled) { background: var(--blood-hover); border-color: var(--blood-hover); }
+/* primary — «кость»: кровь остаётся только опасным действиям и живым состояниям */
+.btn.primary { background: var(--ink); border-color: var(--ink); color: #171310; }
+.btn.primary:hover:not(:disabled) { background: #fdf6e4; border-color: #fdf6e4; }
 
 .btn.danger {
   background: transparent;
@@ -429,6 +587,16 @@ select:focus-visible,
 @media (max-width: 460px) {
   .auto-grid { grid-template-columns: 1fr; }
   .backup-row .b-age { display: none; }
+}
+
+/* узкий экран: шапка уплотняется вместо переполнения */
+@media (max-width: 500px) {
+  .topbar { padding: 10px 12px; }
+  .top-right { gap: 6px; }
+  .pill { padding: 4px 7px; font-size: 10.5px; letter-spacing: 0.02em; }
+  .brand-name { font-size: 13px; }
+  .brand-icon { width: 24px; height: 24px; }
+  .fresh { font-size: 10.5px; }
 }
 
 .field {
@@ -567,6 +735,11 @@ select {
 .icon-btn svg { width: 15px; height: 15px; }
 
 /* события */
+.event-day {
+  font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--faint); padding: 8px 0 2px; border-bottom: 1px solid var(--line);
+}
+
 .event-row {
   display: flex;
   gap: 10px;
@@ -644,7 +817,7 @@ select {
 .mod-row .m-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
 .mod-row .m-ws { flex: none; display: inline-flex; align-items: center; gap: 6px; max-width: 48%; min-width: 0; }
 .mod-row .m-ws a {
-  color: var(--blood-text); text-decoration: none; display: inline-flex;
+  color: var(--muted); text-decoration: none; display: inline-flex;
   align-items: center; gap: 6px; min-width: 0; font-size: 12px;
 }
 .mod-row .m-ws a:hover { color: var(--ink); }
@@ -666,21 +839,11 @@ select {
   font-size: 12.5px; padding: 4px 0; border-bottom: 1px solid var(--line);
 }
 .mod-line .m-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
-.mod-line a.m-t { color: var(--blood-text); text-decoration: none; }
+.mod-line a.m-t { color: var(--muted); text-decoration: none; }
 .mod-line a.m-t:hover { color: var(--ink); }
 .mod-line .wid { color: var(--muted); font-size: 11px; flex: none; cursor: copy; }
 
-/* обновления модов (в карточке «Обновления») */
-.upd-divider { margin: 16px -18px 14px; border-top: 1px solid var(--line); }
-.upd-sub-head {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; flex-wrap: wrap; margin-bottom: 8px;
-}
-.upd-sub-head h3 {
-  margin: 0; font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--faint); font-weight: 600;
-}
-.upd-sub .actions { margin: 10px 0 2px; }
+/* обновления модов (карточка «Обновления модов») */
 .mods-need { max-height: 220px; margin-top: 8px; border: 1px solid var(--line); border-radius: var(--r-sm); padding: 4px 10px; background: var(--surface-2); }
 .mod-need-row {
   display: flex; align-items: center; gap: 8px; padding: 5px 0;
@@ -688,7 +851,7 @@ select {
 }
 .mod-need-row:last-child { border-bottom: none; }
 .mod-need-row .m-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mod-need-row .m-title a { color: var(--blood-text); text-decoration: none; }
+.mod-need-row .m-title a { color: var(--muted); text-decoration: none; }
 .mod-need-row .m-title a:hover { color: var(--ink); }
 .mod-need-row .wid { color: var(--muted); flex: none; }
 
@@ -703,7 +866,7 @@ select {
 }
 .ws-head { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; }
 .ws-head a {
-  color: var(--blood-text); text-decoration: none; display: inline-flex;
+  color: var(--muted); text-decoration: none; display: inline-flex;
   align-items: center; gap: 6px; font-size: 12.5px; min-width: 0; flex: 1;
 }
 .ws-head a:hover { color: var(--ink); }

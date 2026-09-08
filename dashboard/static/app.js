@@ -1,5 +1,6 @@
-/* PZ Пульт · V8 — логика интерфейса.
-   Данные приходят с бэкенда пульта; при отсутствии API включается демо-режим.
+/* PZ Пульт · V9 — логика интерфейса.
+   Данные приходят по SSE-потоку /api/stream; при недоступности — опрос по таймерам.
+   При отсутствии API включается демо-режим.
    Режим «remote»: пульт вне хоста сервера — управление только по RCON. */
 "use strict";
 
@@ -14,6 +15,7 @@ const esc = (s) => String(s ?? "")
 const timeFmt = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
 const dateFmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 const timeFullFmt = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const dayFmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit" });
 
 function fmtTime(iso) {
   if (!iso) return "—";
@@ -111,6 +113,16 @@ const modal = (() => {
   $("modalCancel").addEventListener("click", close);
   $("modalBackdrop").addEventListener("click", close);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !root.hidden) close(); });
+  // фокус не покидает открытую модалку (Tab зациклен по её элементам)
+  root.addEventListener("keydown", (e) => {
+    if (root.hidden || e.key !== "Tab") return;
+    const els = [...root.querySelectorAll("button, input, select, textarea, a[href]")]
+      .filter((el) => !el.disabled);
+    if (!els.length) return;
+    const first = els[0], last = els[els.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
   $("modalOk").addEventListener("click", async () => {
     if (!onOk) return close();
     const okBtn = $("modalOk");
@@ -135,6 +147,7 @@ const S = {
   lastOpActive: false,
   logsLevel: "all",
   logsLines: [],
+  backupsItems: [],
   phPoints: [],
   lastDataOk: 0,
 };
@@ -349,7 +362,9 @@ function renderOverview(o) {
     $("updNote").textContent = "Сверяется digest локального образа с Docker Hub.";
   }
   $("updLocal").textContent = shortDigest(u.local);
-  $("updRemote").textContent = shortDigest(u.remote);
+  const same = u.local && u.remote && u.local === u.remote;
+  $("updRemote").textContent = same ? "совпадает" : shortDigest(u.remote);
+  $("updRemote").classList.toggle("ok-same", !!same);
   $("updChecked").textContent = u.at ? fmtTime(u.at) : "никогда";
   $("updHubDate").textContent = u.hubUpdated ? "собрана " + fmtTime(u.hubUpdated) : "—";
   if (u.local) $("updLocal").dataset.copy = u.local; else $("updLocal").removeAttribute("data-copy");
@@ -414,7 +429,75 @@ function renderOverview(o) {
   $("modsAutoNext").hidden = !(mu.enabled && nextM);
   if (mu.enabled && nextM) $("modsAutoNext").textContent = `Следующая проверка: ${new Date(nextM * 1000).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`;
 
+  renderHealth();
   updateButtons();
+}
+
+/* строка здоровья: состояние сервера одним взглядом */
+function renderHealth() {
+  const o = S.overview;
+  const set = (id, state, text) => {
+    const el = $(id);
+    if (!el) return;
+    el.dataset.state = state;
+    el.textContent = text;
+  };
+  const remote = !!(o && o.mode === "remote");
+  ["hbBackup", "hbImage", "hbWatchdog"].forEach((id) => { const el = $(id); if (el) el.hidden = remote; });
+
+  if (!o) {
+    set("hbServer", "unknown", "Сервер: …");
+    set("hbMods", "unknown", "Моды: …");
+    return;
+  }
+
+  if (remote) {
+    const rs = o.rcon ? o.rcon.state : "unknown";
+    set("hbServer", rs === "ok" ? "ok" : rs === "error" ? "bad" : "unknown",
+      rs === "ok" ? "Сервер: RCON" : rs === "error" ? "Сервер: нет ответа" : "Сервер: …");
+  } else {
+    const c = o.containerInfo;
+    if (!c) set("hbServer", "bad", "Сервер: не найден");
+    else if (c.running) set("hbServer", "ok", "Сервер: работает");
+    else if (c.status === "restarting") set("hbServer", "warn", "Сервер: перезапускается");
+    else set("hbServer", "bad", "Сервер: остановлен");
+  }
+
+  const mc = o.modsCheck || {};
+  if (mc.state === "up-to-date") set("hbMods", "ok", "Моды: актуальны");
+  else if (mc.state === "needs-update") {
+    const n = (mc.items || []).length;
+    set("hbMods", "warn", n ? `Моды: обновить ${n}` : "Моды: есть обновления");
+  }
+  else if (mc.state === "inconclusive") set("hbMods", "warn", "Моды: нет ответа");
+  else set("hbMods", "unknown", "Моды: не проверялись");
+
+  if (remote) {
+    set("hbBackup", "unknown", "Бэкап: на хосте");
+    set("hbImage", "unknown", "Образ: на хосте");
+    set("hbWatchdog", "unknown", "Watchdog: на хосте");
+    return;
+  }
+
+  const last = S.backupsItems && S.backupsItems[0];
+  if (!last || !last.mtime) set("hbBackup", "bad", "Бэкап: нет");
+  else {
+    const age = Date.now() - new Date(last.mtime).getTime();
+    if (isNaN(age)) set("hbBackup", "unknown", "Бэкап: …");
+    else if (age > 72 * 3600 * 1000) set("hbBackup", "warn", `Бэкап: ${Math.floor(age / 86400000)} д назад`);
+    else set("hbBackup", "ok", `Бэкап: ${relTime(last.mtime)}`);
+  }
+
+  const u = o.update || {};
+  if (u.available === false) set("hbImage", "ok", "Образ: актуален");
+  else if (u.available === true) set("hbImage", "warn", "Образ: есть обновление");
+  else if (u.error) set("hbImage", "bad", "Образ: ошибка");
+  else set("hbImage", "unknown", "Образ: не проверялся");
+
+  const wd = o.settings ? o.settings.watchdog : null;
+  const fails = (o.watchdog && o.watchdog.consecutiveFailures) || 0;
+  if (wd && wd.enabled) set("hbWatchdog", fails ? "bad" : "ok", fails ? `Watchdog: сбои ${fails}` : "Watchdog: ок");
+  else set("hbWatchdog", "unknown", "Watchdog: выкл");
 }
 
 function updateButtons() {
@@ -788,6 +871,8 @@ function renderBackups(data) {
     return;
   }
   const items = data.items || [];
+  S.backupsItems = items;
+  renderHealth();
   if (!items.length) {
     body.dataset.state = "empty";
     body.innerHTML = `<p class="list-empty"><strong>Бэкапов ещё нет.</strong> Нажмите «Создать» — мир и конфиги уйдут в архив.</p>`;
@@ -900,11 +985,25 @@ function renderEvents(data) {
     return;
   }
   body.dataset.state = "ok";
-  body.innerHTML = items.map((ev) => `
-    <div class="event-row" data-kind="${esc(ev.type)}">
+  const today = new Date();
+  const yest = new Date(today.getTime() - 86400000);
+  const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  let html = "";
+  let lastDay = "";
+  for (const ev of items) {
+    const d = new Date(ev.ts);
+    const key = isNaN(d) ? "" : d.toDateString();
+    if (key && key !== lastDay) {
+      lastDay = key;
+      const label = sameDay(d, today) ? "Сегодня" : sameDay(d, yest) ? "Вчера" : dayFmt.format(d);
+      html += `<div class="event-day">${esc(label)}</div>`;
+    }
+    html += `<div class="event-row" data-kind="${esc(ev.type)}">
       <span class="e-time mono" title="${esc(ev.ts)}">${esc(relTime(ev.ts) || fmtTime(ev.ts))}</span>
       <span class="e-text"><b>${esc(EVENT_LABELS[ev.type] || ev.type)}.</b> ${esc(ev.text)}</span>
-    </div>`).join("");
+    </div>`;
+  }
+  body.innerHTML = html;
 }
 
 /* ───────────────────────── консоль ───────────────────────── */
@@ -1192,44 +1291,59 @@ $("modsAutoAction").addEventListener("change", pushSettings);
 
 let connFailStreak = 0;
 
+function markConnFail() {
+  connFailStreak++;
+  if (!S.demo) $("connBanner").hidden = connFailStreak < 2;
+}
+
+function applyOverview(o) {
+  if (o.error && !o.serverName) { markConnFail(); return; }
+  connFailStreak = 0;
+  $("connBanner").hidden = true;
+  S.lastDataOk = Date.now();
+  updateFreshness();
+  renderOverview(o);
+}
+
+const applyPlayers = renderPlayers;
+const applyStats = renderStats;
+const applyOps = renderOp;
+const applyBackups = renderBackups;
+const applyEvents = renderEvents;
+const applyMods = renderMods;
+
+function applyLogs(data) {
+  if (!S.logsAuto && !$("logsOut").textContent.startsWith("Загрузка")) return;
+  renderLogs(data);
+}
+
 async function refreshOverview() {
-  try {
-    const o = await api("/api/overview");
-    if (o.error && !o.serverName) throw new Error(o.error);
-    connFailStreak = 0;
-    $("connBanner").hidden = true;
-    S.lastDataOk = Date.now();
-    updateFreshness();
-    renderOverview(o);
-  } catch (e) {
-    connFailStreak++;
-    if (!S.demo) $("connBanner").hidden = connFailStreak < 2;
-  }
+  try { applyOverview(await api("/api/overview")); }
+  catch (e) { markConnFail(); }
 }
 
 async function refreshPlayers() {
-  try { renderPlayers(await api("/api/players")); } catch (e) { /* тихо */ }
+  try { applyPlayers(await api("/api/players")); } catch (e) { /* тихо */ }
 }
 
 async function refreshStats() {
-  try { renderStats(await api("/api/stats")); } catch (e) { /* тихо */ }
+  try { applyStats(await api("/api/stats")); } catch (e) { /* тихо */ }
 }
 
 async function refreshLogs() {
-  if (!S.logsAuto && !$("logsOut").textContent.startsWith("Загрузка")) return;
-  try { renderLogs(await api("/api/logs")); } catch (e) { /* тихо */ }
+  try { applyLogs(await api("/api/logs")); } catch (e) { /* тихо */ }
 }
 
 async function refreshBackups() {
-  try { renderBackups(await api("/api/backups")); } catch (e) { /* тихо */ }
+  try { applyBackups(await api("/api/backups")); } catch (e) { /* тихо */ }
 }
 
 async function refreshEvents() {
-  try { renderEvents(await api("/api/events")); } catch (e) { /* тихо */ }
+  try { applyEvents(await api("/api/events")); } catch (e) { /* тихо */ }
 }
 
 async function refreshOps() {
-  try { renderOp(await api("/api/ops")); } catch (e) { /* тихо */ }
+  try { applyOps(await api("/api/ops")); } catch (e) { /* тихо */ }
 }
 
 function refreshAll() {
@@ -1277,6 +1391,48 @@ function startClock() {
 
 /* ───────────────────────── запуск ───────────────────────── */
 
+/* ───────────────────── SSE: живой поток данных ───────────────────── */
+
+function startSse() {
+  if (typeof EventSource === "undefined") { startPolling(); return; }
+  const es = new EventSource("/api/stream");
+  let messages = 0;
+  let errors = 0;
+  let fellBack = false;
+  const fallback = () => {
+    if (fellBack) return;
+    fellBack = true;
+    es.close();
+    startPolling();
+  };
+  const bind = (name, apply) => es.addEventListener(name, (e) => {
+    messages++;
+    errors = 0;
+    connFailStreak = 0;
+    $("connBanner").hidden = true;
+    S.lastDataOk = Date.now();
+    updateFreshness();
+    try { apply(JSON.parse(e.data)); } catch (err) { /* битый кадр пропускаем */ }
+  });
+  bind("overview", applyOverview);
+  bind("players", applyPlayers);
+  bind("stats", applyStats);
+  bind("logs", applyLogs);
+  bind("backups", applyBackups);
+  bind("events", applyEvents);
+  bind("ops", applyOps);
+  bind("stats-history", (d) => renderStatsHistory(d.points || []));
+  bind("players-history", (d) => renderPlayersHistory(d.points || []));
+  bind("mods", applyMods);
+  // браузер сам переподключается; откат на опрос — если поток так и не ожил
+  // или умер уже после того, как работал
+  es.onerror = () => {
+    errors++;
+    if (errors >= 3 && Date.now() - S.lastDataOk > 20000) fallback();
+  };
+  setTimeout(() => { if (messages === 0) fallback(); }, 9000);
+}
+
 async function boot() {
   startClock();
   consoleAppend("Пульт подключается к серверу…", "c-dim");
@@ -1291,7 +1447,7 @@ async function boot() {
     enterDemo();
     return;
   }
-  startPolling();
+  startSse();
 }
 
 function enterDemo() {

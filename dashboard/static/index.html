@@ -1,10 +1,10 @@
 <!doctype html>
 <!--
   PZ Пульт — панель управления dedicated-сервером Project Zomboid
-  Версия: V8 (читаемые логи: локальное время вместо docker-таймстемпов, дедупликация
-  подряд идущих строк ×N, фильтры Все/WARN/ERROR; бэкапы: размер и возраст в одной
-  строке; компактная сетка Workshop-элементов без модов на диске; якорная навигация
-  на десктопе; индикатор свежести данных в шапке)
+  Версия: V9 (строка здоровья под шапкой: сервер/бэкап/моды/образ/watchdog; карточка
+  «Обновления» разделена: образ и моды; живой SSE-канал /api/stream вместо серии
+  опросов с фолбэком; шрифты self-host; кровь только опасным действиям и живым
+  состояниям, primary — «кость»; группировка событий по дням; focus trap в модалке)
   Discovery:
     deliverable: web-дашборд (desktop-first, адаптив 390–1440)
     audience: админ собственного PZ-сервера (indifferentbrokkoli + docker compose)
@@ -18,12 +18,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>PZ Пульт — управление сервером</title>
   <link rel="icon" href="static/favicon.svg" type="image/svg+xml" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Russo+One&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="static/style.css" />
 </head>
 <body>
+  <h1 class="sr-only">PZ Пульт — управление сервером Project Zomboid</h1>
   <header class="topbar" data-od-id="topbar">
     <div class="brand">
       <svg class="brand-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a8 8 0 0 0-8 8c0 3 1.6 5.4 4 6.8V20a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-3.2c2.4-1.4 4-3.8 4-6.8a8 8 0 0 0-8-8Z" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="9" cy="10.5" r="1.6" fill="currentColor"/><circle cx="15" cy="10.5" r="1.6" fill="currentColor"/><path d="M10.5 15.5h3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
@@ -59,6 +57,14 @@
   </div>
   <div class="banner banner-demo" id="demoBanner" hidden>
     Демонстрация интерфейса: данные вымышленные, операции отключены. Реальная работа начнётся после запуска в docker compose.
+  </div>
+
+  <div class="healthbar" id="healthbar" data-od-id="health" role="status" aria-label="Сводка состояния сервера">
+    <a class="h-chip" href="#sec-status" id="hbServer" data-state="unknown">Сервер: …</a>
+    <a class="h-chip" href="#sec-backups" id="hbBackup" data-state="unknown">Бэкап: …</a>
+    <a class="h-chip" href="#sec-mods" id="hbMods" data-state="unknown">Моды: …</a>
+    <a class="h-chip" href="#sec-updates" id="hbImage" data-state="unknown">Образ: …</a>
+    <a class="h-chip" href="#sec-status" id="hbWatchdog" data-state="unknown">Watchdog: …</a>
   </div>
 
   <main class="main" data-od-id="main">
@@ -115,10 +121,10 @@
       <p class="hint mono" id="wdStatus" hidden></p>
     </section>
 
-    <!-- ОБНОВЛЕНИЯ -->
+    <!-- ОБНОВЛЕНИЯ ОБРАЗА -->
     <section class="card c-updates" id="sec-updates" data-od-id="updates" aria-labelledby="hUpdates">
       <header class="card-head">
-        <h2 id="hUpdates">Обновления</h2>
+        <h2 id="hUpdates">Обновления образа</h2>
         <span class="pill" id="updPill" data-state="unknown">—</span>
       </header>
       <p class="upd-note" id="updNote">Сверяется digest локального образа с Docker Hub.</p>
@@ -161,44 +167,45 @@
         <label class="check"><input type="checkbox" id="buBackup" /> Бэкап перед обновлением</label>
         <p class="hint" id="autoNext" hidden>Следующая проверка: —</p>
       </div>
-      <div class="upd-divider" role="separator" aria-hidden="true"></div>
-      <div class="upd-sub">
-        <div class="upd-sub-head">
-          <h3>Моды Workshop</h3>
-          <span class="pill" id="modsPill" data-state="unknown">—</span>
+    </section>
+
+    <!-- ОБНОВЛЕНИЯ МОДОВ (RCON checkModsNeedUpdate) -->
+    <section class="card c-mupd" id="sec-mods-update" data-od-id="mods-update" aria-labelledby="hModsUpd">
+      <header class="card-head">
+        <h2 id="hModsUpd">Обновления модов</h2>
+        <span class="pill" id="modsPill" data-state="unknown">—</span>
+      </header>
+      <p class="upd-note" id="modsCheckNote">Сервер сверяет версии со Steam Workshop и пишет результат в лог; обновления применяются рестартом.</p>
+      <div class="actions">
+        <button class="btn" id="btnCheckMods">Проверить моды</button>
+        <button class="btn primary" id="btnApplyMods" hidden>Перезапустить для обновления</button>
+      </div>
+      <div id="modsNeedList" class="list mods-need" hidden></div>
+      <div class="auto-block">
+        <div class="auto-row">
+          <label class="switch">
+            <input type="checkbox" id="modsAutoSwitch" role="switch" />
+            <span class="switch-track" aria-hidden="true"></span>
+            <span class="switch-label">Автообновление модов</span>
+          </label>
         </div>
-        <p class="hint" id="modsCheckNote">Сервер сверяет версии со Steam Workshop и пишет результат в лог; обновления применяются рестартом.</p>
-        <div class="actions">
-          <button class="btn" id="btnCheckMods">Проверить моды</button>
-          <button class="btn primary" id="btnApplyMods" hidden>Перезапустить для обновления</button>
+        <div class="auto-grid">
+          <label class="field">Интервал проверки
+            <select id="modsAutoInterval">
+              <option value="1">каждый 1 ч</option>
+              <option value="6" selected>каждые 6 ч</option>
+              <option value="12">каждые 12 ч</option>
+              <option value="24">раз в сутки</option>
+            </select>
+          </label>
+          <label class="field">При обновлениях
+            <select id="modsAutoAction">
+              <option value="restart" selected>перезапустить сервер</option>
+              <option value="notify">только сообщить</option>
+            </select>
+          </label>
         </div>
-        <div id="modsNeedList" class="list mods-need" hidden></div>
-        <div class="auto-block">
-          <div class="auto-row">
-            <label class="switch">
-              <input type="checkbox" id="modsAutoSwitch" role="switch" />
-              <span class="switch-track" aria-hidden="true"></span>
-              <span class="switch-label">Автообновление модов</span>
-            </label>
-          </div>
-          <div class="auto-grid">
-            <label class="field">Интервал проверки
-              <select id="modsAutoInterval">
-                <option value="1">каждый 1 ч</option>
-                <option value="6" selected>каждые 6 ч</option>
-                <option value="12">каждые 12 ч</option>
-                <option value="24">раз в сутки</option>
-              </select>
-            </label>
-            <label class="field">При обновлениях
-              <select id="modsAutoAction">
-                <option value="restart" selected>перезапустить сервер</option>
-                <option value="notify">только сообщить</option>
-              </select>
-            </label>
-          </div>
-          <p class="hint" id="modsAutoNext" hidden>Следующая проверка: —</p>
-        </div>
+        <p class="hint" id="modsAutoNext" hidden>Следующая проверка: —</p>
       </div>
     </section>
 
@@ -316,7 +323,7 @@
   </main>
 
   <footer class="foot" data-od-id="footer">
-    PZ Пульт · V8 · обновление данных: статус 3 с, игроки и метрики 5 с, логи 5 с
+    PZ Пульт · V9 · живой поток данных (SSE), шрифты локальные
   </footer>
 
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
