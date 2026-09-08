@@ -1,15 +1,14 @@
 <!doctype html>
 <!--
   PZ Пульт — панель управления dedicated-сервером Project Zomboid
-  Версия: V9 (строка здоровья под шапкой: сервер/бэкап/моды/образ/watchdog; карточка
-  «Обновления» разделена: образ и моды; живой SSE-канал /api/stream вместо серии
-  опросов с фолбэком; шрифты self-host; кровь только опасным действиям и живым
-  состояниям, primary — «кость»; группировка событий по дням; focus trap в модалке)
+  Версия: V10 (мультистраничный каркас: hash-роутинг, 7 страниц, постоянный
+  навбар с активным состоянием; SSE-поток живёт между переключениями страниц;
+  Watchdog переехал в «Обслуживание»; строки здоровья ведут на свои страницы)
   Discovery:
     deliverable: web-дашборд (desktop-first, адаптив 390–1440)
     audience: админ собственного PZ-сервера (indifferentbrokkoli + docker compose)
     direction: dense / dark — «карантинный пункт управления»: сажа + кость + кровь
-    sections: статус+управление / обновления+авто / игроки / метрики / бэкапы / события / консоль / логи
+    pages: обзор / игроки / моды / обслуживание / бэкапы / события / консоль
     accent: кровь #b3352b только на опасных действиях и живых состояниях
 -->
 <html lang="ru">
@@ -40,16 +39,35 @@
     </div>
   </header>
 
-  <nav class="anchors" aria-label="Разделы пульта">
-    <a href="#sec-status">Статус</a>
-    <a href="#sec-updates">Обновления</a>
-    <a href="#sec-players">Игроки</a>
-    <a href="#sec-metrics">Нагрузка</a>
-    <a href="#sec-mods">Моды</a>
-    <a href="#sec-backups">Бэкапы</a>
-    <a href="#sec-events">События</a>
-    <a href="#sec-console">Консоль</a>
-    <a href="#sec-logs">Логи</a>
+  <nav class="nav" aria-label="Разделы пульта">
+    <a href="#/overview" data-route="overview" aria-current="page">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2.5-6.5 4 13L16 12h5"/></svg>
+      <span>Обзор</span>
+    </a>
+    <a href="#/players" data-route="players">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19c.7-3.2 2.9-4.9 5.5-4.9s4.8 1.7 5.5 4.9"/><circle cx="16.8" cy="9.5" r="2.5"/><path d="M16.4 14.4c2.2.3 3.7 1.7 4.3 4.1"/></svg>
+      <span>Игроки</span>
+    </a>
+    <a href="#/mods" data-route="mods">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13.5 9 5 9-5"/></svg>
+      <span>Моды</span>
+    </a>
+    <a href="#/maintenance" data-route="maintenance">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9m4 0h3M4 12h3m4 0h9M4 17h9m4 0h3"/><circle cx="15" cy="7" r="1.9"/><circle cx="9" cy="12" r="1.9"/><circle cx="15" cy="17" r="1.9"/></svg>
+      <span>Обслуживание</span>
+    </a>
+    <a href="#/backups" data-route="backups">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></svg>
+      <span>Бэкапы</span>
+    </a>
+    <a href="#/events" data-route="events">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
+      <span>События</span>
+    </a>
+    <a href="#/console" data-route="console">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="m7 9.5 3 2.7-3 2.7M12.5 15H17"/></svg>
+      <span>Консоль</span>
+    </a>
   </nav>
 
   <div class="banner banner-conn" id="connBanner" hidden>
@@ -60,270 +78,292 @@
   </div>
 
   <div class="healthbar" id="healthbar" data-od-id="health" role="status" aria-label="Сводка состояния сервера">
-    <a class="h-chip" href="#sec-status" id="hbServer" data-state="unknown">Сервер: …</a>
-    <a class="h-chip" href="#sec-backups" id="hbBackup" data-state="unknown">Бэкап: …</a>
-    <a class="h-chip" href="#sec-mods" id="hbMods" data-state="unknown">Моды: …</a>
-    <a class="h-chip" href="#sec-updates" id="hbImage" data-state="unknown">Образ: …</a>
-    <a class="h-chip" href="#sec-status" id="hbWatchdog" data-state="unknown">Watchdog: …</a>
+    <a class="h-chip" href="#/overview" id="hbServer" data-state="unknown">Сервер: …</a>
+    <a class="h-chip" href="#/backups" id="hbBackup" data-state="unknown">Бэкап: …</a>
+    <a class="h-chip" href="#/mods" id="hbMods" data-state="unknown">Моды: …</a>
+    <a class="h-chip" href="#/maintenance" id="hbImage" data-state="unknown">Образ: …</a>
+    <a class="h-chip" href="#/maintenance" id="hbWatchdog" data-state="unknown">Watchdog: …</a>
   </div>
 
   <main class="main" data-od-id="main">
 
-    <!-- СТАТУС + УПРАВЛЕНИЕ -->
-    <section class="card c-status" id="sec-status" data-od-id="status" aria-labelledby="hStatus">
-      <header class="card-head">
-        <h2 id="hStatus">Состояние сервера</h2>
-        <span class="pill" id="pillCompose" data-state="unknown">compose</span>
-      </header>
-      <div class="state-line">
-        <span class="lamp" id="stateLamp" data-state="unknown" aria-hidden="true"></span>
-        <span class="state-label" id="stateLabel">Подключение…</span>
-      </div>
-      <div class="uptime mono" id="uptime" aria-label="Время работы">—</div>
-      <dl class="meta">
-        <div><dt>Запущен</dt><dd id="mStarted">—</dd></div>
-        <div><dt>Контейнер</dt><dd class="mono" id="mContainer">—</dd></div>
-        <div><dt>Образ</dt><dd class="mono" id="mImage">—</dd></div>
-        <div><dt>Локальный digest</dt><dd class="mono" id="mDigest">—</dd></div>
-      </dl>
-      <p class="hint" id="absentHint" hidden>
-        Контейнер не найден. Проверьте имя (переменная PZ_CONTAINER) и что compose-проект запущен.
-      </p>
-      <div class="nudge" id="backupNudge" hidden>
-        <span class="nudge-text">Мир ещё ни разу не бэкапился — начните с первого архива.</span>
-        <button class="btn small" id="btnNudgeBackup">Создать первый бэкап</button>
-      </div>
-      <div class="actions">
-        <button class="btn" id="btnStart">Запустить</button>
-        <button class="btn danger" id="btnStop">Остановить</button>
-        <button class="btn" id="btnRestart">Перезапустить</button>
-        <button class="btn ghost" id="btnSaveWorld" title="Команда save через RCON">Сохранить мир</button>
-      </div>
-      <div class="opbar" id="opbar" hidden aria-live="polite">
-        <span class="op-spin" aria-hidden="true"></span>
-        <div class="op-text"><strong id="opPhase"></strong><span id="opMsg"></span></div>
-      </div>
-      <div class="watchdog-block">
-        <label class="switch">
-          <input type="checkbox" id="wdSwitch" role="switch" />
-          <span class="switch-track" aria-hidden="true"></span>
-          <span class="switch-label">Watchdog RCON</span>
-        </label>
-        <select id="wdThreshold" aria-label="Порог тишины RCON">
-          <option value="3">3 мин тишины</option>
-          <option value="5" selected>5 мин тишины</option>
-          <option value="10">10 мин тишины</option>
-        </select>
-        <label class="check" title="Только при запуске пульта на хосте сервера">
-          <input type="checkbox" id="wdRestart" /> авто-рестарт при зависании
-        </label>
-      </div>
-      <p class="hint mono" id="wdStatus" hidden></p>
-    </section>
+    <!-- ОБЗОР: состояние и нагрузка -->
+    <div class="view" id="view-overview" tabindex="-1">
+      <section class="card c-status" id="sec-status" data-od-id="status" aria-labelledby="hStatus">
+        <header class="card-head">
+          <h2 id="hStatus">Состояние сервера</h2>
+          <span class="pill" id="pillCompose" data-state="unknown">compose</span>
+        </header>
+        <div class="state-line">
+          <span class="lamp" id="stateLamp" data-state="unknown" aria-hidden="true"></span>
+          <span class="state-label" id="stateLabel">Подключение…</span>
+        </div>
+        <div class="uptime mono" id="uptime" aria-label="Время работы">—</div>
+        <dl class="meta">
+          <div><dt>Запущен</dt><dd id="mStarted">—</dd></div>
+          <div><dt>Контейнер</dt><dd class="mono" id="mContainer">—</dd></div>
+          <div><dt>Образ</dt><dd class="mono" id="mImage">—</dd></div>
+          <div><dt>Локальный digest</dt><dd class="mono" id="mDigest">—</dd></div>
+        </dl>
+        <p class="hint" id="absentHint" hidden>
+          Контейнер не найден. Проверьте имя (переменная PZ_CONTAINER) и что compose-проект запущен.
+        </p>
+        <div class="nudge" id="backupNudge" hidden>
+          <span class="nudge-text">Мир ещё ни разу не бэкапился — начните с первого архива.</span>
+          <button class="btn small" id="btnNudgeBackup">Создать первый бэкап</button>
+        </div>
+        <div class="actions">
+          <button class="btn" id="btnStart">Запустить</button>
+          <button class="btn danger" id="btnStop">Остановить</button>
+          <button class="btn" id="btnRestart">Перезапустить</button>
+          <button class="btn ghost" id="btnSaveWorld" title="Команда save через RCON">Сохранить мир</button>
+        </div>
+        <div class="opbar" id="opbar" hidden aria-live="polite">
+          <span class="op-spin" aria-hidden="true"></span>
+          <div class="op-text"><strong id="opPhase"></strong><span id="opMsg"></span></div>
+        </div>
+      </section>
 
-    <!-- ОБНОВЛЕНИЯ ОБРАЗА -->
-    <section class="card c-updates" id="sec-updates" data-od-id="updates" aria-labelledby="hUpdates">
-      <header class="card-head">
-        <h2 id="hUpdates">Обновления образа</h2>
-        <span class="pill" id="updPill" data-state="unknown">—</span>
-      </header>
-      <p class="upd-note" id="updNote">Сверяется digest локального образа с Docker Hub.</p>
-      <dl class="meta">
-        <div><dt>Локальный</dt><dd class="mono" id="updLocal" data-copy>—</dd></div>
-        <div><dt>В Docker Hub</dt><dd class="mono" id="updRemote" data-copy>—</dd></div>
-        <div><dt>Сборка latest</dt><dd id="updHubDate">—</dd></div>
-        <div><dt>Проверено</dt><dd id="updChecked">никогда</dd></div>
-      </dl>
-      <div class="actions">
-        <button class="btn" id="btnCheckUpd">Проверить</button>
-        <button class="btn primary" id="btnApplyUpd">Обновить сейчас</button>
-      </div>
-      <div class="auto-block">
-        <div class="auto-row">
-          <label class="switch">
-            <input type="checkbox" id="autoSwitch" role="switch" />
-            <span class="switch-track" aria-hidden="true"></span>
-            <span class="switch-label">Автообновление</span>
-          </label>
+      <!-- МЕТРИКИ -->
+      <section class="card c-metrics" id="sec-metrics" data-od-id="metrics" aria-labelledby="hMetrics">
+        <header class="card-head"><h2 id="hMetrics">Нагрузка контейнера</h2></header>
+        <div class="metric">
+          <div class="metric-row"><span>CPU</span><span class="mono" id="cpuVal">—</span></div>
+          <div class="bar"><i id="cpuBar" style="width:0%"></i></div>
+          <svg class="spark" id="cpuSpark" viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><polyline id="cpuSparkLine" fill="none" stroke="currentColor" stroke-width="1.6" points=""/></svg>
+          <div class="metric-sub">линия — история за час</div>
         </div>
-        <div class="auto-grid">
-          <label class="field">Интервал проверки
-            <select id="autoInterval">
-              <option value="1">каждый 1 ч</option>
-              <option value="6" selected>каждые 6 ч</option>
-              <option value="12">каждые 12 ч</option>
-              <option value="24">раз в сутки</option>
-            </select>
-          </label>
-          <label class="field">Предупреждать игроков
-            <select id="autoWarn">
-              <option value="60">за 1 мин</option>
-              <option value="300" selected>за 5 мин</option>
-              <option value="600">за 10 мин</option>
-              <option value="0">без предупреждения</option>
-            </select>
-          </label>
+        <div class="metric">
+          <div class="metric-row"><span>RAM</span><span class="mono" id="ramVal">—</span></div>
+          <div class="bar"><i id="ramBar" style="width:0%"></i></div>
+          <svg class="spark ram" id="ramSpark" viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><polyline id="ramSparkLine" fill="none" stroke="currentColor" stroke-width="1.6" points=""/></svg>
+          <div class="metric-sub mono" id="ramSub">—</div>
         </div>
-        <label class="check"><input type="checkbox" id="buBackup" /> Бэкап перед обновлением</label>
-        <p class="hint" id="autoNext" hidden>Следующая проверка: —</p>
-      </div>
-    </section>
-
-    <!-- ОБНОВЛЕНИЯ МОДОВ (RCON checkModsNeedUpdate) -->
-    <section class="card c-mupd" id="sec-mods-update" data-od-id="mods-update" aria-labelledby="hModsUpd">
-      <header class="card-head">
-        <h2 id="hModsUpd">Обновления модов</h2>
-        <span class="pill" id="modsPill" data-state="unknown">—</span>
-      </header>
-      <p class="upd-note" id="modsCheckNote">Сервер сверяет версии со Steam Workshop и пишет результат в лог; обновления применяются рестартом.</p>
-      <div class="actions">
-        <button class="btn" id="btnCheckMods">Проверить моды</button>
-        <button class="btn primary" id="btnApplyMods" hidden>Перезапустить для обновления</button>
-      </div>
-      <div id="modsNeedList" class="list mods-need" hidden></div>
-      <div class="auto-block">
-        <div class="auto-row">
-          <label class="switch">
-            <input type="checkbox" id="modsAutoSwitch" role="switch" />
-            <span class="switch-track" aria-hidden="true"></span>
-            <span class="switch-label">Автообновление модов</span>
-          </label>
+        <div class="net-row">
+          <div><dt>Сеть ↓</dt><dd class="mono" id="netIn">—</dd></div>
+          <div><dt>Сеть ↑</dt><dd class="mono" id="netOut">—</dd></div>
+          <div><dt>Процессов</dt><dd class="mono" id="pids">—</dd></div>
         </div>
-        <div class="auto-grid">
-          <label class="field">Интервал проверки
-            <select id="modsAutoInterval">
-              <option value="1">каждый 1 ч</option>
-              <option value="6" selected>каждые 6 ч</option>
-              <option value="12">каждые 12 ч</option>
-              <option value="24">раз в сутки</option>
-            </select>
-          </label>
-          <label class="field">При обновлениях
-            <select id="modsAutoAction">
-              <option value="restart" selected>перезапустить сервер</option>
-              <option value="notify">только сообщить</option>
-            </select>
-          </label>
-        </div>
-        <p class="hint" id="modsAutoNext" hidden>Следующая проверка: —</p>
-      </div>
-    </section>
+      </section>
+    </div>
 
     <!-- ИГРОКИ -->
-    <section class="card c-players" id="sec-players" data-od-id="players" aria-labelledby="hPlayers">
-      <header class="card-head">
-        <h2 id="hPlayers">Игроки онлайн</h2>
-        <span class="count mono" id="playersCount">–</span>
-      </header>
-      <div id="playersBody" class="list" data-state="loading">
-        <p class="skeleton-line"></p><p class="skeleton-line short"></p><p class="skeleton-line"></p>
-      </div>
-      <div class="ph-block">
-        <div class="metric-row"><span>Онлайн за сутки</span><span class="mono" id="phPeak"></span></div>
-        <div class="ph-wrap">
-          <svg class="spark ph-spark" id="phSpark" viewBox="0 0 120 30" preserveAspectRatio="none" aria-hidden="true"></svg>
-          <div class="ph-tip mono" id="phTip" hidden></div>
+    <div class="view view-narrow" id="view-players" tabindex="-1" hidden>
+      <section class="card c-players" id="sec-players" data-od-id="players" aria-labelledby="hPlayers">
+        <header class="card-head">
+          <h2 id="hPlayers">Игроки онлайн</h2>
+          <span class="count mono" id="playersCount">–</span>
+        </header>
+        <div id="playersBody" class="list" data-state="loading">
+          <p class="skeleton-line"></p><p class="skeleton-line short"></p><p class="skeleton-line"></p>
         </div>
-        <div class="ph-labels mono"><span>сутки назад</span><span>сейчас</span></div>
-        <p class="hint" id="phEmpty" hidden>Данные собираются — точка появляется раз в 4 минуты.</p>
-      </div>
-    </section>
-
-    <!-- МЕТРИКИ -->
-    <section class="card c-metrics" id="sec-metrics" data-od-id="metrics" aria-labelledby="hMetrics">
-      <header class="card-head"><h2 id="hMetrics">Нагрузка контейнера</h2></header>
-      <div class="metric">
-        <div class="metric-row"><span>CPU</span><span class="mono" id="cpuVal">—</span></div>
-        <div class="bar"><i id="cpuBar" style="width:0%"></i></div>
-        <svg class="spark" id="cpuSpark" viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><polyline id="cpuSparkLine" fill="none" stroke="currentColor" stroke-width="1.6" points=""/></svg>
-        <div class="metric-sub">линия — история за час</div>
-      </div>
-      <div class="metric">
-        <div class="metric-row"><span>RAM</span><span class="mono" id="ramVal">—</span></div>
-        <div class="bar"><i id="ramBar" style="width:0%"></i></div>
-        <svg class="spark ram" id="ramSpark" viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><polyline id="ramSparkLine" fill="none" stroke="currentColor" stroke-width="1.6" points=""/></svg>
-        <div class="metric-sub mono" id="ramSub">—</div>
-      </div>
-      <div class="net-row">
-        <div><dt>Сеть ↓</dt><dd class="mono" id="netIn">—</dd></div>
-        <div><dt>Сеть ↑</dt><dd class="mono" id="netOut">—</dd></div>
-        <div><dt>Процессов</dt><dd class="mono" id="pids">—</dd></div>
-      </div>
-    </section>
-
-    <!-- МОДЫ СЕРВЕРА -->
-    <section class="card c-mods" id="sec-mods" data-od-id="mods" aria-labelledby="hMods">
-      <header class="card-head">
-        <h2 id="hMods">Моды сервера</h2>
-        <div class="mods-tools">
-          <select id="modsFile" aria-label="Файл конфигурации" hidden></select>
-          <span class="count mono" id="modsCount">–</span>
+        <div class="ph-block">
+          <div class="metric-row"><span>Онлайн за сутки</span><span class="mono" id="phPeak"></span></div>
+          <div class="ph-wrap">
+            <svg class="spark ph-spark" id="phSpark" viewBox="0 0 120 30" preserveAspectRatio="none" aria-hidden="true"></svg>
+            <div class="ph-tip mono" id="phTip" hidden></div>
+          </div>
+          <div class="ph-labels mono"><span>сутки назад</span><span>сейчас</span></div>
+          <p class="hint" id="phEmpty" hidden>Данные собираются — точка появляется раз в 4 минуты.</p>
         </div>
-      </header>
-      <div id="modsBody" class="list" data-state="loading">
-        <p class="skeleton-line"></p><p class="skeleton-line short"></p>
-      </div>
-    </section>
+      </section>
+    </div>
 
-    <section class="card c-backups" id="sec-backups" data-od-id="backups" aria-labelledby="hBackups">
-      <header class="card-head">
-        <h2 id="hBackups">Бэкапы</h2>
-        <button class="btn small" id="btnBackup">Создать</button>
-      </header>
-      <div id="backupsBody" class="list" data-state="loading">
-        <p class="skeleton-line"></p><p class="skeleton-line short"></p>
-      </div>
-    </section>
+    <!-- МОДЫ: реестр + обновления -->
+    <div class="view" id="view-mods" tabindex="-1" hidden>
+      <section class="card c-mods" id="sec-mods" data-od-id="mods" aria-labelledby="hMods">
+        <header class="card-head">
+          <h2 id="hMods">Моды сервера</h2>
+          <div class="mods-tools">
+            <select id="modsFile" aria-label="Файл конфигурации" hidden></select>
+            <span class="count mono" id="modsCount">–</span>
+          </div>
+        </header>
+        <div id="modsBody" class="list" data-state="loading">
+          <p class="skeleton-line"></p><p class="skeleton-line short"></p>
+        </div>
+      </section>
+
+      <!-- ОБНОВЛЕНИЯ МОДОВ (RCON checkModsNeedUpdate) -->
+      <section class="card c-mupd" id="sec-mods-update" data-od-id="mods-update" aria-labelledby="hModsUpd">
+        <header class="card-head">
+          <h2 id="hModsUpd">Обновления модов</h2>
+          <span class="pill" id="modsPill" data-state="unknown">—</span>
+        </header>
+        <p class="upd-note" id="modsCheckNote">Сервер сверяет версии со Steam Workshop и пишет результат в лог; обновления применяются рестартом.</p>
+        <div class="actions">
+          <button class="btn" id="btnCheckMods">Проверить моды</button>
+          <button class="btn primary" id="btnApplyMods" hidden>Перезапустить для обновления</button>
+        </div>
+        <div id="modsNeedList" class="list mods-need" hidden></div>
+        <div class="auto-block">
+          <div class="auto-row">
+            <label class="switch">
+              <input type="checkbox" id="modsAutoSwitch" role="switch" />
+              <span class="switch-track" aria-hidden="true"></span>
+              <span class="switch-label">Автообновление модов</span>
+            </label>
+          </div>
+          <div class="auto-grid">
+            <label class="field">Интервал проверки
+              <select id="modsAutoInterval">
+                <option value="1">каждый 1 ч</option>
+                <option value="6" selected>каждые 6 ч</option>
+                <option value="12">каждые 12 ч</option>
+                <option value="24">раз в сутки</option>
+              </select>
+            </label>
+            <label class="field">При обновлениях
+              <select id="modsAutoAction">
+                <option value="restart" selected>перезапустить сервер</option>
+                <option value="notify">только сообщить</option>
+              </select>
+            </label>
+          </div>
+          <p class="hint" id="modsAutoNext" hidden>Следующая проверка: —</p>
+        </div>
+      </section>
+    </div>
+
+    <!-- ОБСЛУЖИВАНИЕ: образ, автообновление, watchdog -->
+    <div class="view" id="view-maintenance" tabindex="-1" hidden>
+      <section class="card c-updates" id="sec-updates" data-od-id="updates" aria-labelledby="hUpdates">
+        <header class="card-head">
+          <h2 id="hUpdates">Обновления образа</h2>
+          <span class="pill" id="updPill" data-state="unknown">—</span>
+        </header>
+        <p class="upd-note" id="updNote">Сверяется digest локального образа с Docker Hub.</p>
+        <dl class="meta">
+          <div><dt>Локальный</dt><dd class="mono" id="updLocal" data-copy>—</dd></div>
+          <div><dt>В Docker Hub</dt><dd class="mono" id="updRemote" data-copy>—</dd></div>
+          <div><dt>Сборка latest</dt><dd id="updHubDate">—</dd></div>
+          <div><dt>Проверено</dt><dd id="updChecked">никогда</dd></div>
+        </dl>
+        <div class="actions">
+          <button class="btn" id="btnCheckUpd">Проверить</button>
+          <button class="btn primary" id="btnApplyUpd">Обновить сейчас</button>
+        </div>
+        <div class="auto-block">
+          <div class="auto-row">
+            <label class="switch">
+              <input type="checkbox" id="autoSwitch" role="switch" />
+              <span class="switch-track" aria-hidden="true"></span>
+              <span class="switch-label">Автообновление</span>
+            </label>
+          </div>
+          <div class="auto-grid">
+            <label class="field">Интервал проверки
+              <select id="autoInterval">
+                <option value="1">каждый 1 ч</option>
+                <option value="6" selected>каждые 6 ч</option>
+                <option value="12">каждые 12 ч</option>
+                <option value="24">раз в сутки</option>
+              </select>
+            </label>
+            <label class="field">Предупреждать игроков
+              <select id="autoWarn">
+                <option value="60">за 1 мин</option>
+                <option value="300" selected>за 5 мин</option>
+                <option value="600">за 10 мин</option>
+                <option value="0">без предупреждения</option>
+              </select>
+            </label>
+          </div>
+          <label class="check"><input type="checkbox" id="buBackup" /> Бэкап перед обновлением</label>
+          <p class="hint" id="autoNext" hidden>Следующая проверка: —</p>
+        </div>
+      </section>
+
+      <section class="card c-watchdog" id="sec-watchdog" data-od-id="watchdog" aria-labelledby="hWatchdog">
+        <header class="card-head">
+          <h2 id="hWatchdog">Watchdog RCON</h2>
+          <span class="pill" id="wdPill" data-state="unknown">—</span>
+        </header>
+        <p class="upd-note">Следит за ответом RCON: если сервер молчит дольше порога, пульт фиксирует зависание и может перезапустить контейнер.</p>
+        <div class="watchdog-block">
+          <label class="switch">
+            <input type="checkbox" id="wdSwitch" role="switch" />
+            <span class="switch-track" aria-hidden="true"></span>
+            <span class="switch-label">Watchdog RCON</span>
+          </label>
+          <select id="wdThreshold" aria-label="Порог тишины RCON">
+            <option value="3">3 мин тишины</option>
+            <option value="5" selected>5 мин тишины</option>
+            <option value="10">10 мин тишины</option>
+          </select>
+          <label class="check" title="Только при запуске пульта на хосте сервера">
+            <input type="checkbox" id="wdRestart" /> авто-рестарт при зависании
+          </label>
+        </div>
+        <p class="hint mono" id="wdStatus" hidden></p>
+      </section>
+    </div>
+
+    <!-- БЭКАПЫ -->
+    <div class="view view-narrow" id="view-backups" tabindex="-1" hidden>
+      <section class="card c-backups" id="sec-backups" data-od-id="backups" aria-labelledby="hBackups">
+        <header class="card-head">
+          <h2 id="hBackups">Бэкапы</h2>
+          <button class="btn small" id="btnBackup">Создать</button>
+        </header>
+        <div id="backupsBody" class="list" data-state="loading">
+          <p class="skeleton-line"></p><p class="skeleton-line short"></p>
+        </div>
+      </section>
+    </div>
 
     <!-- СОБЫТИЯ -->
-    <section class="card c-events" id="sec-events" data-od-id="events" aria-labelledby="hEvents">
-      <header class="card-head"><h2 id="hEvents">История событий</h2></header>
-      <div id="eventsBody" class="list" data-state="loading">
-        <p class="skeleton-line"></p><p class="skeleton-line short"></p><p class="skeleton-line"></p>
-      </div>
-    </section>
-
-    <!-- КОНСОЛЬ -->
-    <section class="card c-console" id="sec-console" data-od-id="console" aria-labelledby="hConsole">
-      <header class="card-head">
-        <h2 id="hConsole">Консоль RCON</h2>
-        <div class="chips" id="quickCmds">
-          <button class="chip" data-cmd="save">save</button>
-          <button class="chip" data-cmd="players">players</button>
-          <button class="chip" data-cmd="help">help</button>
-          <button class="chip" data-act="broadcast">Объявить…</button>
+    <div class="view" id="view-events" tabindex="-1" hidden>
+      <section class="card c-events" id="sec-events" data-od-id="events" aria-labelledby="hEvents">
+        <header class="card-head"><h2 id="hEvents">История событий</h2></header>
+        <div id="eventsBody" class="list" data-state="loading">
+          <p class="skeleton-line"></p><p class="skeleton-line short"></p><p class="skeleton-line"></p>
         </div>
-      </header>
-      <pre class="console-out mono" id="consoleOut" aria-live="polite"></pre>
-      <form class="console-form" id="consoleForm">
-        <span class="console-prompt mono" aria-hidden="true">rcon&gt;</span>
-        <input id="consoleInput" class="mono" type="text" autocomplete="off" spellcheck="false"
-               placeholder="Команда администратора, например: servermsg &quot;Привет&quot;" aria-label="Команда RCON" />
-        <button class="btn primary" type="submit">Отправить</button>
-      </form>
-    </section>
+      </section>
+    </div>
 
-    <!-- ЛОГИ -->
-    <section class="card c-logs" id="sec-logs" data-od-id="logs" aria-labelledby="hLogs">
-      <header class="card-head">
-        <h2 id="hLogs">Логи контейнера</h2>
-        <div class="logs-tools">
-          <div class="chips" id="logLevels" role="group" aria-label="Уровень логов">
-            <button class="chip" type="button" data-level="all" aria-pressed="true">Все</button>
-            <button class="chip" type="button" data-level="warn" aria-pressed="false">WARN</button>
-            <button class="chip" type="button" data-level="error" aria-pressed="false">ERROR</button>
+    <!-- КОНСОЛЬ + ЛОГИ -->
+    <div class="view" id="view-console" tabindex="-1" hidden>
+      <section class="card c-console" id="sec-console" data-od-id="console" aria-labelledby="hConsole">
+        <header class="card-head">
+          <h2 id="hConsole">Консоль RCON</h2>
+          <div class="chips" id="quickCmds">
+            <button class="chip" data-cmd="save">save</button>
+            <button class="chip" data-cmd="players">players</button>
+            <button class="chip" data-cmd="help">help</button>
+            <button class="chip" data-act="broadcast">Объявить…</button>
           </div>
-          <input type="search" id="logsFilter" class="mono" placeholder="фильтр строк…" aria-label="Фильтр логов" />
-          <label class="check"><input type="checkbox" id="logsAuto" checked /> Обновлять</label>
-          <a class="btn small" id="logsDownload" href="/api/logs/full" download title="Полный лог файлом">Скачать лог</a>
-        </div>
-      </header>
-      <pre class="logs-out mono" id="logsOut">Загрузка логов…</pre>
-    </section>
+        </header>
+        <pre class="console-out mono" id="consoleOut" aria-live="polite"></pre>
+        <form class="console-form" id="consoleForm">
+          <span class="console-prompt mono" aria-hidden="true">rcon&gt;</span>
+          <input id="consoleInput" class="mono" type="text" autocomplete="off" spellcheck="false"
+                 placeholder="Команда администратора, например: servermsg &quot;Привет&quot;" aria-label="Команда RCON" />
+          <button class="btn primary" type="submit">Отправить</button>
+        </form>
+      </section>
+
+      <section class="card c-logs" id="sec-logs" data-od-id="logs" aria-labelledby="hLogs">
+        <header class="card-head">
+          <h2 id="hLogs">Логи контейнера</h2>
+          <div class="logs-tools">
+            <div class="chips" id="logLevels" role="group" aria-label="Уровень логов">
+              <button class="chip" type="button" data-level="all" aria-pressed="true">Все</button>
+              <button class="chip" type="button" data-level="warn" aria-pressed="false">WARN</button>
+              <button class="chip" type="button" data-level="error" aria-pressed="false">ERROR</button>
+            </div>
+            <input type="search" id="logsFilter" class="mono" placeholder="фильтр строк…" aria-label="Фильтр логов" />
+            <label class="check"><input type="checkbox" id="logsAuto" checked /> Обновлять</label>
+            <a class="btn small" id="logsDownload" href="/api/logs/full" download title="Полный лог файлом">Скачать лог</a>
+          </div>
+        </header>
+        <pre class="logs-out mono" id="logsOut">Загрузка логов…</pre>
+      </section>
+    </div>
   </main>
 
   <footer class="foot" data-od-id="footer">
-    PZ Пульт · V9 · живой поток данных (SSE), шрифты локальные
+    PZ Пульт · V10 · живой поток данных (SSE), шрифты локальные
   </footer>
 
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>

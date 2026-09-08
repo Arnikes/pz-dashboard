@@ -293,46 +293,46 @@ a { color: var(--muted); }
 /* ───────────────────────── сетка ───────────────────────── */
 
 .main {
-  display: grid;
-  grid-template-columns: repeat(12, 1fr);
-  gap: 16px;
   padding: 18px 22px 30px;
   max-width: 1500px;
   margin: 0 auto;
 }
 
-/* Десктоп: карточки выровнены по нижней кромке ряда, пары по смыслу:
-   управление → мониторинг → история → живые стримы */
-.c-status   { grid-column: span 6; }
-.c-updates  { grid-column: span 6; }
-.c-mupd     { grid-column: span 4; }
-.c-players  { grid-column: span 4; }
-.c-metrics  { grid-column: span 4; }
-.c-mods     { grid-column: span 4; }
-.c-backups  { grid-column: span 4; }
-.c-events   { grid-column: span 4; }
-.c-console  { grid-column: span 7; }
-.c-logs     { grid-column: span 5; }
+/* страницы: каждая — своя 12-колоночная сетка, видима только активная */
+.view {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 16px;
+  min-width: 0;
+  outline: none;
+}
 
-/* Планшет: статус во всю ширину, остальное парами */
+.view-narrow { max-width: 980px; margin: 0 auto; width: 100%; }
+
+/* Десктоп: внутри страницы карточки разбиты парами по смыслу */
+.c-status    { grid-column: span 7; }
+.c-metrics   { grid-column: span 5; }
+.c-updates   { grid-column: span 7; }
+.c-watchdog  { grid-column: span 5; }
+.c-players   { grid-column: 1 / -1; }
+.c-mods      { grid-column: span 7; }
+.c-mupd      { grid-column: span 5; }
+.c-backups   { grid-column: 1 / -1; }
+.c-events    { grid-column: 1 / -1; }
+.c-console   { grid-column: span 7; }
+.c-logs      { grid-column: span 5; }
+
+/* Планшет: широкие карточки во всю ширину страницы */
 @media (max-width: 1180px) {
-  .c-status   { grid-column: 1 / -1; }
-  .c-updates  { grid-column: span 6; }
-  .c-mupd     { grid-column: span 6; }
-  .c-players  { grid-column: span 6; }
-  .c-metrics  { grid-column: span 6; }
-  .c-mods     { grid-column: span 6; }
-  .c-backups  { grid-column: span 6; }
-  .c-events   { grid-column: 1 / -1; }
-  .c-console  { grid-column: 1 / -1; }
-  .c-logs     { grid-column: 1 / -1; }
+  .c-status, .c-metrics, .c-updates, .c-watchdog,
+  .c-mods, .c-mupd, .c-console, .c-logs { grid-column: 1 / -1; }
 }
 
 @media (max-width: 740px) {
   .topbar { padding: 10px 14px; }
-  .main { padding: 14px 14px 26px; gap: 12px; }
+  .main { padding: 14px 14px 26px; }
+  .view { gap: 12px; }
   .banner { margin: 10px 14px 0; }
-  .c-updates, .c-mupd, .c-players, .c-metrics, .c-mods, .c-backups, .c-events { grid-column: span 12; }
   .clock { display: none; }
 }
 
@@ -556,6 +556,9 @@ select:focus-visible,
   padding-top: 12px;
   border-top: 1px dashed var(--line-strong);
 }
+
+/* watchdog выделен в отдельную карточку на странице обслуживания */
+.c-watchdog .watchdog-block { margin: 0; padding: 0; border-top: none; }
 
 .watchdog-block select { height: 30px; font-size: 12px; padding: 0 8px; }
 
@@ -1048,27 +1051,28 @@ select {
 .fresh { font-size: 11.5px; color: var(--faint); }
 .fresh.stale { color: var(--warn); }
 
-/* якоря видны всегда: на узких экранах — лента, на десктопе — по центру */
-.anchors {
+/* постоянная навигация по страницам: активный пункт подсвечен */
+.nav {
   display: flex; gap: 6px; overflow-x: auto; padding: 8px 14px;
   position: sticky; top: 55px; z-index: 40;
   background: rgba(13, 11, 9, 0.94); border-bottom: 1px solid var(--line);
   backdrop-filter: blur(6px);
   scrollbar-width: none;
 }
-.anchors::-webkit-scrollbar { display: none; }
-.anchors a {
-  flex: none; font-size: 12px; color: var(--muted); text-decoration: none;
-  border: 1px solid var(--line-strong); border-radius: 999px; padding: 6px 11px;
+.nav::-webkit-scrollbar { display: none; }
+.nav a {
+  flex: none; display: inline-flex; align-items: center; gap: 7px;
+  font-size: 12px; color: var(--muted); text-decoration: none;
+  border: 1px solid var(--line-strong); border-radius: 999px; padding: 6px 12px;
 }
-.anchors a:hover, .anchors a:focus-visible { color: var(--ink); }
-.anchors a:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.nav a svg { width: 15px; height: 15px; }
+.nav a:hover, .nav a:focus-visible { color: var(--ink); }
+.nav a:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.nav a[aria-current="page"] { color: var(--ink); border-color: rgba(233, 226, 205, 0.3); background: var(--surface-2); }
 
 @media (min-width: 1181px) {
-  .anchors { justify-content: center; }
+  .nav { justify-content: center; }
 }
-
-section[id] { scroll-margin-top: 124px; }
 
 [data-copy] { cursor: copy; }
 [data-copy]:hover { color: var(--ink); }

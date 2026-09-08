@@ -1,5 +1,6 @@
-/* PZ Пульт · V9 — логика интерфейса.
-   Данные приходят по SSE-потоку /api/stream; при недоступности — опрос по таймерам.
+/* PZ Пульт · V10 — логика интерфейса.
+   Мультистраничный каркас: hash-роутинг (#/overview, #/mods, …), 7 страниц,
+   SSE-поток /api/stream живёт между переключениями; при недоступности — опрос.
    При отсутствии API включается демо-режим.
    Режим «remote»: пульт вне хоста сервера — управление только по RCON. */
 "use strict";
@@ -384,11 +385,13 @@ function renderOverview(o) {
   const wds = o.watchdog || {};
   if (wdCfg.enabled) {
     const fails = wds.consecutiveFailures || 0;
+    setPill("wdPill", fails ? "bad" : "ok", fails ? `сбои: ${fails}` : "следит");
     $("wdStatus").hidden = false;
     $("wdStatus").className = "hint mono " + (fails ? "bad" : "ok");
     $("wdStatus").textContent = `проба ${fmtTime(wds.lastProbeAt)} · сбоев подряд: ${fails}` +
       (fails && wds.lastError ? ` · ${wds.lastError}` : "");
   } else {
+    setPill("wdPill", "unknown", "выкл");
     $("wdStatus").hidden = true;
   }
   const next = o.settings?.nextCheck;
@@ -1017,6 +1020,7 @@ function consoleAppend(text, cls = "") {
   out.appendChild(document.createTextNode("\n"));
   while (out.childNodes.length > 800) out.removeChild(out.firstChild);
   out.scrollTop = out.scrollHeight;
+  return line;
 }
 
 $("consoleForm").addEventListener("submit", async (e) => {
@@ -1300,6 +1304,10 @@ function applyOverview(o) {
   if (o.error && !o.serverName) { markConnFail(); return; }
   connFailStreak = 0;
   $("connBanner").hidden = true;
+  if (consoleBootLine) {
+    consoleBootLine.textContent = "Консоль готова — команды уходят на сервер по RCON.";
+    consoleBootLine = null;
+  }
   S.lastDataOk = Date.now();
   updateFreshness();
   renderOverview(o);
@@ -1391,6 +1399,43 @@ function startClock() {
 
 /* ───────────────────────── запуск ───────────────────────── */
 
+/* ───────────────────── роутер страниц ───────────────────── */
+
+const VIEWS = {
+  overview: "Обзор",
+  players: "Игроки",
+  mods: "Моды",
+  maintenance: "Обслуживание",
+  backups: "Бэкапы",
+  events: "События",
+  console: "Консоль",
+};
+
+let activeView = null;
+let consoleBootLine = null;
+
+function currentRoute() {
+  const h = location.hash.replace(/^#\/?/, "");
+  return VIEWS[h] ? h : "overview";
+}
+
+function applyRoute() {
+  const r = currentRoute();
+  if (r === activeView) return;
+  activeView = r;
+  document.querySelectorAll(".view").forEach((v) => { v.hidden = v.id !== "view-" + r; });
+  document.querySelectorAll(".nav a").forEach((a) => {
+    if (a.dataset.route === r) a.setAttribute("aria-current", "page");
+    else a.removeAttribute("aria-current");
+  });
+  document.title = `${VIEWS[r]} · PZ Пульт`;
+  window.scrollTo(0, 0);
+  const view = $("view-" + r);
+  if (view) view.focus({ preventScroll: true });
+}
+
+window.addEventListener("hashchange", applyRoute);
+
 /* ───────────────────── SSE: живой поток данных ───────────────────── */
 
 function startSse() {
@@ -1435,7 +1480,8 @@ function startSse() {
 
 async function boot() {
   startClock();
-  consoleAppend("Пульт подключается к серверу…", "c-dim");
+  consoleBootLine = consoleAppend("Пульт подключается к серверу…", "c-dim");
+  applyRoute();
   if (location.protocol === "file:") {
     enterDemo();
     return;
@@ -1454,6 +1500,10 @@ function enterDemo() {
   S.demo = true;
   $("demoBadge").hidden = false;
   $("demoBanner").hidden = false;
+  if (consoleBootLine) {
+    consoleBootLine.textContent = "Консоль недоступна — это демо-предпросмотр.";
+    consoleBootLine = null;
+  }
   consoleAppend("Демо-режим: данные вымышленные, операции отключены.", "c-dim");
   startPolling();
 }
