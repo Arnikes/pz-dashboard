@@ -343,3 +343,81 @@ def test_check_mods_update_inconclusive(monkeypatch):
     res = ops.check_mods_update(source="auto", timeout=3)
     assert res["state"] == "inconclusive"
     assert res["error"]
+
+
+# ─────────────── остановка / рестарт: restart policy ───────────────
+
+def _run_state(**kwargs):
+    st = {"status": "running", "running": True, "startedAt": "S1", "image": "img"}
+    st.update(kwargs)
+    return st
+
+
+def test_graceful_stop_disables_restart_policy(monkeypatch):
+    """Политика рестарта глушится до quit и возвращается после остановки."""
+    calls = []
+    st = _run_state()
+    monkeypatch.setattr(ops, "log_event", lambda *a, **k: None)
+    monkeypatch.setattr(ops, "container_state", lambda: st)
+
+    def fake_set(name, policy):
+        calls.append(("set", policy))
+        return True
+
+    def fake_rcon(cmd, quiet=False):
+        calls.append(("rcon", cmd))
+        st.update({"status": "exited", "running": False})
+        return "ok"
+
+    monkeypatch.setattr(dockerlib, "get_restart_policy", lambda name: "unless-stopped")
+    monkeypatch.setattr(dockerlib, "set_restart_policy", fake_set)
+    monkeypatch.setattr(ops, "rcon", fake_rcon)
+    assert ops.graceful_stop() == "stopped"
+    assert calls == [("set", "no"), ("rcon", "quit"), ("set", "unless-stopped")]
+
+
+def test_graceful_stop_resurrected_by_docker(monkeypatch):
+    """Если policy заглушить не удалось и docker поднял контейнер заново
+    (StartedAt сменился) — graceful_stop это распознаёт, не виснет."""
+    st = _run_state()
+    monkeypatch.setattr(ops, "log_event", lambda *a, **k: None)
+    monkeypatch.setattr(ops, "container_state", lambda: st)
+    monkeypatch.setattr(dockerlib, "get_restart_policy", lambda name: "always")
+    monkeypatch.setattr(dockerlib, "set_restart_policy", lambda name, policy: False)
+    stops = []
+    monkeypatch.setattr(dockerlib, "container_stop",
+                        lambda name, seconds=180: stops.append(name))
+
+    def quit_and_resurrect(cmd, quiet=False):
+        st.update({"status": "running", "running": True, "startedAt": "S2"})
+        return "ok"
+
+    monkeypatch.setattr(ops, "rcon", quit_and_resurrect)
+    assert ops.graceful_stop() == "resurrected"
+    assert stops == []
+
+
+def test_graceful_stop_force_stop_when_quit_ignored(monkeypatch):
+    """Без политики: quit не сработал → docker stop, политика не трогается."""
+    calls = []
+    st = _run_state()
+    monkeypatch.setattr(ops, "log_event", lambda *a, **k: None)
+    monkeypatch.setattr(ops, "container_state", lambda: st)
+    monkeypatch.setattr(dockerlib, "get_restart_policy", lambda name: "no")
+    monkeypatch.setattr(dockerlib, "set_restart_policy",
+                        lambda name, policy: calls.append(("set", policy)) or True)
+
+    def fail_quit(cmd, quiet=False):
+        raise rcon.RCONError("нет ответа")
+
+    monkeypatch.setattr(ops, "rcon", fail_quit)
+
+    def force_stop(name, seconds=180):
+        calls.append(("stop", name))
+        st.update({"status": "exited", "running": False})
+        return 0, name, ""
+
+    monkeypatch.setattr(dockerlib, "container_stop", force_stop)
+    monkeypatch.setattr(ops.time, "sleep", lambda s: None)
+    assert ops.graceful_stop() == "stopped"
+    assert calls == [("stop", "pzserver")]

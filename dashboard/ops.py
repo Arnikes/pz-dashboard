@@ -240,15 +240,21 @@ def is_running():
     return bool(st and st["running"])
 
 
-def wait_until_stopped(timeout=240):
+def wait_until_stopped(timeout=240, started_at=None):
+    """Ждать остановки контейнера.
+
+    Возвращает "stopped", "running" (не дождались) или "resurrected" —
+    docker сам поднял контейнер заново (restart policy), StartedAt сменился."""
     waited = 0
     while waited < timeout:
         st = container_state()
         if not st or not st["running"]:
-            return True
+            return "stopped"
+        if started_at and st["startedAt"] and st["startedAt"] != started_at:
+            return "resurrected"
         time.sleep(5)
         waited += 5
-    return not is_running()
+    return "running" if is_running() else "stopped"
 
 
 def wait_until_running(timeout=120):
@@ -262,23 +268,56 @@ def wait_until_running(timeout=120):
 
 
 def graceful_stop(phase_hook=None):
-    """Правильная остановка PZ: RCON quit (сохранение мира), затем docker stop."""
+    """Правильная остановка PZ: RCON quit (сохранение мира), затем docker stop.
+
+    Контейнер PZ обычно живёт с restart: unless-stopped/always — тогда через
+    секунду после quit docker поднимает его обратно, и ожидание остановки
+    не заканчивается никогда: даунтайм в доли секунды не виден 5-секундному
+    опросу, а со стороны выглядит как самопроизвольный рестарт. Поэтому
+    на время остановки политика рестарта временно глушится и восстанавливается
+    после (docker update не запускает контейнер, так что это безопасно).
+
+    Возвращает "stopped" или "resurrected" — docker сам перезапустил контейнер,
+    т.е. рестарт уже произошёл без нас."""
     def hook(msg):
         if phase_hook:
             phase_hook(msg)
     if not is_running():
-        return
-    hook("Команда quit через RCON (сохранение мира)")
+        return "stopped"
+    container = config.CFG["pz_container"]
+    started_at = (container_state() or {}).get("startedAt")
+    orig_policy = dockerlib.get_restart_policy(container)
+    policy_off = False
+    if orig_policy and orig_policy != "no":
+        policy_off = dockerlib.set_restart_policy(container, "no")
+        if policy_off:
+            hook(f"Restart policy {orig_policy} временно отключена")
+        else:
+            log_event("warn", "Не удалось временно отключить restart policy — "
+                              "docker может сам перезапустить контейнер при остановке")
     try:
-        rcon("quit", quiet=True)
-    except rconlib.RCONError:
-        pass
-    hook("Ожидание остановки контейнера")
-    if not wait_until_stopped(240):
-        hook("Принудительная остановка контейнера")
-        dockerlib.container_stop(config.CFG["pz_container"], seconds=180)
-        wait_until_stopped(60)
-    log_event("stop", "Сервер остановлен")
+        hook("Команда quit через RCON (сохранение мира)")
+        try:
+            rcon("quit", quiet=True)
+        except rconlib.RCONError:
+            pass
+        hook("Ожидание остановки контейнера")
+        first = wait_until_stopped(240, started_at=started_at)
+        if first == "resurrected":
+            return "resurrected"
+        if first == "running":
+            hook("Принудительная остановка контейнера")
+            dockerlib.container_stop(container, seconds=180)
+            second = wait_until_stopped(60, started_at=started_at)
+            if second == "resurrected":
+                return "resurrected"
+            if second == "running":
+                raise OpsError("Контейнер не остановился — смотрите docker logs " + container)
+        log_event("stop", "Сервер остановлен")
+        return "stopped"
+    finally:
+        if policy_off:
+            dockerlib.set_restart_policy(container, orig_policy)
 
 
 # ─────────────────────────── операции ───────────────────────────
@@ -372,7 +411,9 @@ def _do_stop(warn_seconds):
     if warn_seconds > 0:
         _set_phase("Предупреждение игроков", f"отсчёт {warn_seconds} с")
         rcon_warn_broadcast(warn_seconds, "Остановка сервера")
-    graceful_stop(lambda m: _set_phase("Остановка", m))
+    if graceful_stop(lambda m: _set_phase("Остановка", m)) == "resurrected":
+        raise OpsError("Docker сам перезапустил контейнер — остановка не удалась, "
+                       "проверьте restart policy и повторите")
     _set_phase("Готово", "Сервер остановлен")
 
 
@@ -382,7 +423,13 @@ def _do_restart(warn_seconds, reason="Перезапуск сервера"):
     if warn_seconds > 0:
         _set_phase("Предупреждение игроков", f"отсчёт {warn_seconds} с")
         rcon_warn_broadcast(warn_seconds, reason)
-    graceful_stop(lambda m: _set_phase("Остановка", m))
+    if graceful_stop(lambda m: _set_phase("Остановка", m)) == "resurrected":
+        # docker сам поднял контейнер (restart policy) — рестарт уже случился,
+        # остаётся дождаться запуска сервера
+        wait_until_running(150)
+        log_event("restart", f"Сервер перезапущен ({reason})")
+        _set_phase("Готово", "Сервер перезапущен")
+        return
     _set_phase("Запуск", "docker start")
     code, out, err = dockerlib.container_start(config.CFG["pz_container"])
     if code != 0:

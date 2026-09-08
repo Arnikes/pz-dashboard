@@ -134,6 +134,23 @@ def container_stop(name, seconds=180):
     return sh(["docker", "stop", "-t", str(seconds), name], timeout=seconds + 60)
 
 
+def get_restart_policy(name):
+    """Имя политики рестарта ("no", "always", "unless-stopped", "on-failure") или None."""
+    code, out, err = sh([
+        "docker", "inspect", name,
+        "--format", "{{.HostConfig.RestartPolicy.Name}}",
+    ], timeout=30)
+    if code != 0:
+        return None
+    return (out or "").strip() or "no"
+
+
+def set_restart_policy(name, policy):
+    """docker update --restart=… (не запускает контейнер, меняет только политику)."""
+    code, out, err = sh(["docker", "update", "--restart=" + policy, name], timeout=30)
+    return code == 0
+
+
 def image_pull(image, timeout=1500):
     return sh(["docker", "pull", image], timeout=timeout)
 
