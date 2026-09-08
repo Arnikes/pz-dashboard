@@ -6,7 +6,8 @@ FROM python:3.12-alpine
 RUN apk add --no-cache docker-cli docker-cli-compose tar tzdata
 
 WORKDIR /app
-COPY config.py rcon.py dockerlib.py ops.py app.py healthcheck.py ./
+# новые модули пульта добавлять сюда же (или заменить на COPY *.py ./)
+COPY config.py rcon.py dockerlib.py notify.py ops.py app.py healthcheck.py ./
 COPY static ./static
 
 EXPOSE 8080
