@@ -45,6 +45,7 @@
     <a href="#sec-updates">Обновления</a>
     <a href="#sec-players">Игроки</a>
     <a href="#sec-metrics">Нагрузка</a>
+    <a href="#sec-mods">Моды</a>
     <a href="#sec-backups">Бэкапы</a>
     <a href="#sec-events">События</a>
     <a href="#sec-console">Консоль</a>
@@ -203,6 +204,19 @@
     </section>
 
     <!-- БЭКАПЫ -->
+    <section class="card c-mods" id="sec-mods" data-od-id="mods" aria-labelledby="hMods">
+      <header class="card-head">
+        <h2 id="hMods">Моды сервера</h2>
+        <div class="mods-tools">
+          <select id="modsFile" aria-label="Файл конфигурации" hidden></select>
+          <span class="count mono" id="modsCount">–</span>
+        </div>
+      </header>
+      <div id="modsBody" class="list" data-state="loading">
+        <p class="skeleton-line"></p><p class="skeleton-line short"></p>
+      </div>
+    </section>
+
     <section class="card c-backups" id="sec-backups" data-od-id="backups" aria-labelledby="hBackups">
       <header class="card-head">
         <h2 id="hBackups">Бэкапы</h2>

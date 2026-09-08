@@ -175,7 +175,7 @@ a { color: var(--blood-text); }
   .topbar { padding: 10px 14px; }
   .main { padding: 14px 14px 26px; gap: 12px; }
   .banner { margin: 10px 14px 0; }
-  .c-updates, .c-players, .c-metrics, .c-backups { grid-column: span 12; }
+  .c-updates, .c-players, .c-metrics, .c-mods, .c-backups, .c-events { grid-column: span 12; }
   .clock { display: none; }
 }
 
@@ -626,6 +626,27 @@ select {
 .c-players .list { max-height: 230px; overflow: auto; }
 .c-backups .list { max-height: 310px; overflow: auto; }
 .c-events .list  { max-height: 330px; overflow: auto; }
+.c-mods .list    { max-height: 330px; overflow: auto; }
+
+/* моды */
+.mod-row {
+  display: flex; align-items: center; gap: 10px; padding: 7px 0;
+  border-bottom: 1px solid var(--line); font-size: 12.5px;
+}
+.mod-row:last-child { border-bottom: none; }
+.mod-row .m-idx { color: var(--faint); width: 20px; flex: none; text-align: right; }
+.mod-row .m-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.mod-row .m-ws { flex: none; display: inline-flex; align-items: center; gap: 6px; max-width: 48%; min-width: 0; }
+.mod-row .m-ws a {
+  color: var(--blood-text); text-decoration: none; display: inline-flex;
+  align-items: center; gap: 6px; min-width: 0; font-size: 12px;
+}
+.mod-row .m-ws a:hover { color: var(--ink); }
+.mod-row .m-ws a .ws-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
+.mod-row .m-ws svg { width: 14px; height: 14px; flex: none; }
+.mod-row .m-ws .wid { color: var(--muted); }
+.mods-tools { display: flex; align-items: center; gap: 10px; }
+.mods-tools select { height: 30px; font-size: 12px; padding: 0 8px; max-width: 220px; }
 
 .net-row dt { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); margin-bottom: 2px; }
 .net-row dd { margin: 0; font-size: 12.5px; color: var(--muted); }

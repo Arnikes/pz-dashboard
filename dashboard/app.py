@@ -146,6 +146,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"ok": True, "points": ops.get_stats_history()})
         elif path == "/api/logs/full":
             self._send_full_logs()
+        elif path == "/api/mods":
+            self._send_json(ops.list_mods((qs.get("file", [None])[0])))
         elif path == "/api/stats":
             self._send_json({"ok": True, **ops.fetch_stats()})
         elif path == "/api/logs":

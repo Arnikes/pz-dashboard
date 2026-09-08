@@ -703,6 +703,113 @@ def full_logs():
     return out if code == 0 else None
 
 
+# ─────────────────────────── моды сервера ───────────────────────────
+
+import re as _re  # noqa: E402
+
+_WS_TITLES = {}      # workshop id -> title
+_WS_FAIL = {}        # workshop id -> ts последней неудачи (повтор через 10 мин)
+_WS_TTL = 600.0
+
+
+def list_server_inis():
+    """Все .ini из /data/Server (имя файла зависит от имени сервера)."""
+    server_dir = os.path.join(config.CFG["data_dir"], "Server")
+    try:
+        return sorted(f for f in os.listdir(server_dir) if f.lower().endswith(".ini"))
+    except OSError:
+        return []
+
+
+def _ini_value(text, key):
+    """Значение ключа ini. Если строка заканчивается на ';' и следующая начинается
+    с отступа — это перенос длинного значения, доклеиваем."""
+    pattern = _re.compile(rf"^\s*{_re.escape(key)}\s*=(.*)$", _re.IGNORECASE)
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        m = pattern.match(line)
+        if not m:
+            continue
+        value = m.group(1).strip()
+        j = i + 1
+        while value.endswith(";") and j < len(lines) and lines[j][:1] in (" ", "\t"):
+            value += lines[j].strip()
+            j += 1
+        return value
+    return ""
+
+
+def _split_list(raw):
+    return [x.strip() for x in (raw or "").split(";") if x.strip()]
+
+
+def parse_mods_ini(filename):
+    """Пары (мод, workshop item) из ini. Mods и WorkshopItems соответствуют по индексу."""
+    if os.path.basename(filename) != filename:
+        return None
+    path = os.path.join(config.CFG["data_dir"], "Server", filename)
+    if not os.path.isfile(path):
+        return None
+    with open(path, encoding="utf-8", errors="replace") as f:
+        text = f.read()
+    mods = _split_list(_ini_value(text, "Mods"))
+    items = _split_list(_ini_value(text, "WorkshopItems"))
+    rows = []
+    for i in range(max(len(mods), len(items))):
+        mod = mods[i] if i < len(mods) else ""
+        wid = items[i] if i < len(items) else ""
+        url = f"https://steamcommunity.com/sharedfiles/filedetails/?id={wid}" if wid.isdigit() else ""
+        rows.append({"mod": mod, "workshopId": wid, "url": url})
+    return rows
+
+
+def _ws_titles(ids):
+    """Названия Workshop-элементов одним запросом к Steam. Ошибки не ломают ответ."""
+    now = time.time()
+    need = [i for i in ids if i and i not in _WS_TITLES and now - _WS_FAIL.get(i, 0) > _WS_TTL]
+    if need:
+        try:
+            params = "&".join(f"publishedfileids%5B{i}%5D={wid}" for i, wid in enumerate(need))
+            body = f"itemcount={len(need)}&{params}".encode()
+            req = urllib.request.Request(
+                "https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/",
+                data=body,
+                headers={"Content-Type": "application/x-www-form-urlencoded",
+                         "User-Agent": "pz-dashboard/1.0"},
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+            for item in (payload.get("response") or {}).get("publishedfiledetails") or []:
+                wid = str(item.get("publishedfileid") or "")
+                title = (item.get("title") or "").strip()
+                if wid and title:
+                    _WS_TITLES[wid] = title
+                elif wid:
+                    _WS_FAIL[wid] = now
+        except Exception:  # noqa: BLE001 — Steam недоступен: показываем только ID
+            for wid in need:
+                _WS_FAIL[wid] = now
+    return _WS_TITLES
+
+
+def list_mods(filename=None):
+    files = list_server_inis()
+    if not files:
+        return {"ok": False,
+                "error": "В /data/Server не найдено .ini файлов — проверьте монтирование каталога данных",
+                "files": [], "file": None, "mods": []}
+    if filename not in files:
+        filename = files[0]
+    rows = parse_mods_ini(filename)
+    if rows is None:
+        return {"ok": False, "error": "Файл конфигурации не найден",
+                "files": files, "file": filename, "mods": []}
+    _ws_titles([r["workshopId"] for r in rows if r["workshopId"]])
+    for r in rows:
+        r["title"] = _WS_TITLES.get(r["workshopId"], "")
+    return {"ok": True, "files": files, "file": filename, "mods": rows}
+
+
 def overview():
     cfg = config.CFG
     docker_ok = docker_ok_cached()

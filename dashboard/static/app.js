@@ -158,6 +158,15 @@ const DEMO = {
     }
     return { ok: true, points: pts };
   },
+  mods: () => ({
+    ok: true, files: ["servertest.ini"], file: "servertest.ini",
+    mods: [
+      { mod: "tsarslib", workshopId: "2694464646", url: "https://steamcommunity.com/sharedfiles/filedetails/?id=2694464646", title: "Tsar's Library" },
+      { mod: "commonpackagev15", workshopId: "2694464645", url: "https://steamcommunity.com/sharedfiles/filedetails/?id=2694464645", title: "Common Package v1.5" },
+      { mod: "sandbox-plus", workshopId: "2804001857", url: "https://steamcommunity.com/sharedfiles/filedetails/?id=2804001857", title: "Sandbox+ (Sandbox Options)" },
+      { mod: "local-mod", workshopId: "", url: "", title: "" },
+    ],
+  }),
   history: () => {
     const pts = [];
     const now = Date.now();
@@ -202,6 +211,7 @@ async function api(path, opts = {}) {
     if (path.startsWith("/api/overview")) return DEMO.overview();
     if (path.startsWith("/api/players/history")) return DEMO.history();
     if (path.startsWith("/api/stats/history")) return DEMO.statsHistory();
+    if (path.startsWith("/api/mods")) return DEMO.mods();
     if (path.startsWith("/api/players")) return DEMO.players();
     if (path.startsWith("/api/stats")) return DEMO.stats();
     if (path.startsWith("/api/logs")) return DEMO.logs();
@@ -611,6 +621,65 @@ function setBar(id, pct) {
   bar.className = pct >= 85 ? "hot" : pct >= 60 ? "warm" : "";
 }
 
+/* ───────────────────────── моды сервера ───────────────────────── */
+
+function renderMods(data) {
+  const body = $("modsBody");
+  const sel = $("modsFile");
+  if (!data.ok) {
+    body.dataset.state = "error";
+    body.innerHTML = `<p class="list-error">${esc(data.error || "нет данных")}</p>`;
+    $("modsCount").textContent = "–";
+    sel.hidden = true;
+    return;
+  }
+  const files = data.files || [];
+  if (files.length > 1) {
+    sel.hidden = false;
+    if (sel.dataset.current !== data.file) {
+      sel.innerHTML = files.map((f) => `<option value="${esc(f)}"${f === data.file ? " selected" : ""}>${esc(f)}</option>`).join("");
+      sel.dataset.current = data.file;
+    }
+  } else {
+    sel.hidden = true;
+  }
+  const mods = data.mods || [];
+  $("modsCount").textContent = String(mods.length);
+  if (!mods.length) {
+    body.dataset.state = "empty";
+    body.innerHTML = `<p class="list-empty"><strong>Модов нет.</strong> Параметры Mods= и WorkshopItems= в конфиге пустые.</p>`;
+    return;
+  }
+  body.dataset.state = "ok";
+  body.innerHTML = mods.map((m, i) => `
+    <div class="mod-row">
+      <span class="m-idx mono">${i + 1}</span>
+      <span class="m-name mono" title="${esc(m.mod || "workshop item")}" ${m.mod ? `data-copy="${esc(m.mod)}"` : ""}>${esc(m.mod || "—")}</span>
+      <span class="m-ws">
+        ${m.url
+          ? `<a href="${esc(m.url)}" target="_blank" rel="noopener" title="Steam Workshop · ${esc(m.workshopId)}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M10 5H5v14h14v-5"/></svg>
+              <span class="ws-title">${esc(m.title || m.workshopId)}</span>
+            </a>
+            ${m.title ? `<span class="wid mono" title="Workshop ID: ${esc(m.workshopId)}" data-copy="${esc(m.workshopId)}">${esc(m.workshopId)}</span>` : ""}`
+          : `<span class="wid mono">${esc(m.workshopId || "—")}</span>`}
+      </span>
+    </div>`).join("");
+}
+
+async function refreshMods(file) {
+  try {
+    const q = file ? `?file=${encodeURIComponent(file)}` : "";
+    renderMods(await api(`/api/mods${q}`));
+  } catch (e) { /* тихо */ }
+}
+
+$("modsFile").addEventListener("change", () => {
+  const sel = $("modsFile");
+  sel.dataset.current = "";
+  refreshMods(sel.value);
+});
+
 /* ───────────────────────── бэкапы ───────────────────────── */
 
 function renderBackups(data) {
@@ -988,7 +1057,7 @@ async function refreshOps() {
 }
 
 function refreshAll() {
-  refreshOverview(); refreshPlayers(); refreshStats(); refreshBackups(); refreshEvents(); refreshPlayersHistory(); refreshStatsHistory();
+  refreshOverview(); refreshPlayers(); refreshStats(); refreshBackups(); refreshEvents(); refreshPlayersHistory(); refreshStatsHistory(); refreshMods();
 }
 
 function startPolling() {
@@ -1002,6 +1071,7 @@ function startPolling() {
   setInterval(refreshOps, 1500);
   setInterval(refreshPlayersHistory, 60000);
   setInterval(refreshStatsHistory, 30000);
+  setInterval(refreshMods, 60000);
 }
 
 function startClock() {

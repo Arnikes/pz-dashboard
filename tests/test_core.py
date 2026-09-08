@@ -94,6 +94,28 @@ def test_local_digest_cache(monkeypatch):
     assert ops._LOCAL_DIGEST["image"].endswith(":latest")
 
 
+def test_parse_mods_ini(tmp_path):
+    """Mods= и WorkshopItems= соответствуют по индексу; пропуски — пустые строки."""
+    config.CFG["data_dir"] = str(tmp_path)
+    server_dir = tmp_path / "Server"
+    server_dir.mkdir()
+    (server_dir / "servertest.ini").write_text(
+        "NightLength=60\n"
+        "Mods=tsarslib;my mod;SoloMod\n"
+        "WorkshopItems=111111111;222222222\n"
+        "Map=Muldraugh, KY\n",
+        encoding="utf-8")
+    assert ops.list_server_inis() == ["servertest.ini"]
+    rows = ops.parse_mods_ini("servertest.ini")
+    assert len(rows) == 3
+    assert rows[0] == {"mod": "tsarslib", "workshopId": "111111111",
+                       "url": "https://steamcommunity.com/sharedfiles/filedetails/?id=111111111"}
+    assert rows[1]["mod"] == "my mod" and rows[1]["workshopId"] == "222222222"
+    assert rows[2]["mod"] == "SoloMod" and rows[2]["workshopId"] == "" and rows[2]["url"] == ""
+    res = ops.list_mods("servertest.ini")
+    assert res["ok"] and res["file"] == "servertest.ini" and len(res["mods"]) == 3
+
+
 # ───────────────────────── фейковый RCON-сервер ─────────────────────────
 
 def _pkt(rid, ptype, body: bytes) -> bytes:
