@@ -504,3 +504,64 @@ def test_telegram_send_and_test(monkeypatch):
     monkeypatch.setattr(ops, "get_settings", lambda: {"telegram": {}})
     ok, err = notify.send_message("x")
     assert ok is False and err and len(calls) == 2
+
+
+# ─────────────────────── watchdog: пробы RCON ───────────────────────
+
+def _wd_reset():
+    ops._WD.update({"lastProbeAt": None, "lastResult": None, "lastError": None,
+                    "consecutiveFailures": 0, "alerted": False, "lastRestartAt": None})
+
+
+def test_watchdog_skips_when_stopped_or_busy(monkeypatch):
+    """Остановленный контейнер и занятый пульт — не зависание: счётчик сбрасывается."""
+    _wd_reset()
+    events = []
+    monkeypatch.setattr(ops, "log_event", lambda *a, **k: events.append(a))
+    monkeypatch.setattr(ops, "op_busy", lambda: False)
+    monkeypatch.setattr(ops, "docker_ok_cached", lambda ttl=60: True)
+    monkeypatch.setattr(ops, "container_state", lambda: {
+        "status": "exited", "running": False, "startedAt": "S1", "image": "img"})
+    probes = []
+    monkeypatch.setattr(ops.rconlib, "run_command",
+                        lambda *a, **k: probes.append(a))
+    ops._watchdog_probe({"enabled": True, "thresholdMin": 1, "autoRestart": True})
+    assert ops._WD["lastResult"] == "skipped"
+    assert ops._WD["consecutiveFailures"] == 0 and not probes
+
+    monkeypatch.setattr(ops, "op_busy", lambda: True)   # идёт операция
+    monkeypatch.setattr(ops, "container_state", lambda: {
+        "status": "running", "running": True, "startedAt": "S1", "image": "img"})
+    ops._watchdog_probe({"enabled": True, "thresholdMin": 1, "autoRestart": True})
+    assert ops._WD["lastResult"] == "skipped" and not probes
+
+
+def test_watchdog_alert_and_autorestart(monkeypatch):
+    """Молчание дольше порога → событие и один авторестарт; кулдаун держит."""
+    _wd_reset()
+    events, restarts = [], []
+    monkeypatch.setattr(ops, "log_event", lambda *a, **k: events.append(a))
+    monkeypatch.setattr(ops, "op_busy", lambda: False)
+    monkeypatch.setattr(ops, "docker_ok_cached", lambda ttl=60: True)
+    monkeypatch.setattr(ops, "container_state", lambda: {
+        "status": "running", "running": True, "startedAt": "S1", "image": "img"})
+    monkeypatch.setattr(ops, "is_running", lambda: True)
+    monkeypatch.setattr(ops, "start_op", lambda op, fn: restarts.append(op))
+
+    def dead_rcon(*a, **k):
+        raise rcon.RCONError("таймаут")
+
+    monkeypatch.setattr(ops.rconlib, "run_command", dead_rcon)
+    wd = {"enabled": True, "thresholdMin": 1, "autoRestart": True}
+    for _ in range(2):                    # 2 × 30 с = 1 мин порога
+        ops._watchdog_probe(wd)
+    assert ops._WD["consecutiveFailures"] == 2 and restarts == ["restart"]
+    # ещё десять проб — рестарт не повторяется (кулдаун и alerted)
+    for _ in range(10):
+        ops._watchdog_probe(wd)
+    assert restarts == ["restart"]
+    # успешная проба всё сбрасывает
+    monkeypatch.setattr(ops.rconlib, "run_command", lambda *a, **k: "Дмитрий\n")
+    ops._watchdog_probe(wd)
+    assert ops._WD["lastResult"] == "ok" and ops._WD["consecutiveFailures"] == 0
+    assert not ops._WD["alerted"]

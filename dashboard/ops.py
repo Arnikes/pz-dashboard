@@ -1265,41 +1265,55 @@ def get_players_history():
 # ─────────────────────────── watchdog RCON ───────────────────────────
 
 _WD = {"lastProbeAt": None, "lastResult": None, "lastError": None,
-       "consecutiveFailures": 0, "alerted": False}
+       "consecutiveFailures": 0, "alerted": False, "lastRestartAt": None}
 
 
 def watchdog_state():
     return dict(_WD)
 
 
+def _watchdog_probe(wd):
+    """Одна проба RCON: решает skip/fail/alert/авторестарт, мутирует _WD."""
+    _WD["lastProbeAt"] = now_iso()
+    st = container_state() if docker_ok_cached(ttl=120) else None
+    if op_busy() or not st or not st["running"]:
+        # сервер остановлен или идёт операция — это не зависание
+        _WD.update({"lastResult": "skipped", "lastError": None,
+                    "consecutiveFailures": 0, "alerted": False})
+        return
+    try:
+        rconlib.run_command(config.CFG["rcon_host"], config.CFG["rcon_port"],
+                            config.CFG["rcon_password"], "players")
+        _WD.update({"lastResult": "ok", "lastError": None,
+                    "consecutiveFailures": 0, "alerted": False})
+    except rconlib.RCONError as e:
+        _WD["lastResult"] = "fail"
+        _WD["lastError"] = str(e)
+        _WD["consecutiveFailures"] += 1
+        silent_min = _WD["consecutiveFailures"] * 30 / 60
+        if silent_min >= wd["thresholdMin"] and not _WD["alerted"]:
+            _WD["alerted"] = True
+            log_event("warn", f"Watchdog: RCON не отвечает {silent_min:.0f} мин — {e}")
+            cooldown = max(15, int(wd["thresholdMin"]) * 3) * 60
+            cooled = not _WD["lastRestartAt"] or time.time() - _WD["lastRestartAt"] >= cooldown
+            if wd["autoRestart"] and not cooled:
+                log_event("warn", "Watchdog: рестарт недавно был — ждём кулдауна")
+            elif wd["autoRestart"] and docker_ok_cached() and is_running() and not op_busy():
+                log_event("warn", "Watchdog: авторестарт зависшего сервера")
+                _WD["lastRestartAt"] = time.time()
+                try:
+                    start_op("restart", lambda: _do_restart(0))
+                except OpsError:
+                    pass
+
+
 def _watchdog_loop():
-    """Раз в 30 с пробует RCON. При молчании дольше порога — событие,
-    а на хосте сервера — опциональный авторестарт (без предупреждения:
-    предупреждать некому — RCON мёртв)."""
+    """Раз в 30 с проба RCON (детали в _watchdog_probe)."""
     while True:
         try:
             wd = get_settings()["watchdog"]
             if wd["enabled"]:
-                _WD["lastProbeAt"] = now_iso()
-                try:
-                    rconlib.run_command(config.CFG["rcon_host"], config.CFG["rcon_port"],
-                                        config.CFG["rcon_password"], "players")
-                    _WD.update({"lastResult": "ok", "lastError": None,
-                                "consecutiveFailures": 0, "alerted": False})
-                except rconlib.RCONError as e:
-                    _WD["lastResult"] = "fail"
-                    _WD["lastError"] = str(e)
-                    _WD["consecutiveFailures"] += 1
-                    silent_min = _WD["consecutiveFailures"] * 30 / 60
-                    if silent_min >= wd["thresholdMin"] and not _WD["alerted"]:
-                        _WD["alerted"] = True
-                        log_event("warn", f"Watchdog: RCON не отвечает {silent_min:.0f} мин — {e}")
-                        if wd["autoRestart"] and docker_ok_cached() and is_running() and not op_busy():
-                            log_event("warn", "Watchdog: авторестарт зависшего сервера")
-                            try:
-                                start_op("restart", lambda: _do_restart(0))
-                            except OpsError:
-                                pass
+                _watchdog_probe(wd)
         except Exception as e:  # noqa: BLE001
             log_event("error", "Watchdog: " + str(e))
         time.sleep(30)

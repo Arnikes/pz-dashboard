@@ -386,10 +386,14 @@ function renderOverview(o) {
   const wds = o.watchdog || {};
   if (wdCfg.enabled) {
     const fails = wds.consecutiveFailures || 0;
-    setPill("wdPill", fails ? "bad" : "ok", fails ? `сбои: ${fails}` : "следит");
+    const skipped = wds.lastResult === "skipped" && !fails;
+    setPill("wdPill", fails ? "bad" : skipped ? "unknown" : "ok",
+      fails ? `сбои: ${fails}` : skipped ? "ожидание" : "следит");
     $("wdStatus").hidden = false;
     $("wdStatus").className = "hint mono " + (fails ? "bad" : "ok");
-    $("wdStatus").textContent = `проба ${fmtTime(wds.lastProbeAt)} · сбоев подряд: ${fails}` +
+    $("wdStatus").textContent = `проба ${fmtTime(wds.lastProbeAt)} · ` +
+      (skipped ? "сервер остановлен или идёт операция — проба пропущена"
+               : `сбоев подряд: ${fails}`) +
       (fails && wds.lastError ? ` · ${wds.lastError}` : "");
   } else {
     setPill("wdPill", "unknown", "выкл");
