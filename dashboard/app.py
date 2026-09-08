@@ -5,6 +5,7 @@ import mimetypes
 import os
 import posixpath
 import sys
+import threading
 import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -282,6 +283,16 @@ def main():
 
     ops.start_scheduler()
     ops.start_watchdog()
+
+    # первая проверка обновлений — сама, без кнопки: карточка заполняется на загрузке
+    def _startup_check():
+        time.sleep(2)
+        try:
+            ops.check_update(force_event=True)
+        except Exception as e:  # noqa: BLE001
+            ops.log_event("error", "Стартовая проверка обновлений: " + str(e))
+
+    threading.Thread(target=_startup_check, daemon=True, name="pz-startup-check").start()
 
     # первичная проба RCON, чтобы статус сразу показал живость сервера
     try:

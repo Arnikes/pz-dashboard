@@ -46,6 +46,15 @@ def test_stats_parse(monkeypatch):
     assert s["pids"] == 17
 
 
+def test_image_digests_parse(monkeypatch):
+    """RepoDigests приходит как repo@sha256:... — хеш после @."""
+    monkeypatch.setattr(dockerlib, "sh", lambda args, timeout=120: (
+        0, "indifferentbroccoli/projectzomboid-server-docker@sha256:8e13816b92fdd\n", ""))
+    assert dockerlib.image_digests("x") == "sha256:8e13816b92fdd"
+    monkeypatch.setattr(dockerlib, "sh", lambda args, timeout=120: (0, "", ""))
+    assert dockerlib.image_digests("x") is None
+
+
 def test_effective_image(monkeypatch):
     """Образ для проверки обновлений берётся из контейнера, тег дописывается."""
     monkeypatch.setattr(ops, "container_state", lambda: {
@@ -63,6 +72,26 @@ def test_stats_history_throttle():
     ops.record_stats_sample({"cpuPct": 2.5, "memPct": 11})   # троттлинг
     h = ops.get_stats_history()
     assert len(h) == 1 and h[0]["cpu"] == 1.5 and h[0]["mem"] == 10
+
+
+def test_local_digest_cache(monkeypatch):
+    """Локальный digest считается сам и кэшируется — docker дёргается один раз."""
+    calls = {"n": 0}
+
+    def fake_digests(img):
+        calls["n"] += 1
+        return "sha256:abc123"
+
+    monkeypatch.setattr(ops.dockerlib, "image_digests", fake_digests)
+    monkeypatch.setattr(ops, "container_state", lambda: {
+        "status": "running", "running": True, "startedAt": None,
+        "image": "indifferentbroccoli/projectzomboid-server-docker",
+    })
+    ops._LOCAL_DIGEST["at"] = 0.0
+    assert ops.local_digest_cached() == "sha256:abc123"
+    assert ops.local_digest_cached() == "sha256:abc123"
+    assert calls["n"] == 1
+    assert ops._LOCAL_DIGEST["image"].endswith(":latest")
 
 
 # ───────────────────────── фейковый RCON-сервер ─────────────────────────

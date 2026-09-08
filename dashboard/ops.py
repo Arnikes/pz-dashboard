@@ -414,7 +414,10 @@ def check_update(force_event=False):
             result["available"] = local != result["remote"]
         elif result["remote"] and not local:
             result["available"] = None
-            result["note"] = "Локальный digest недоступен (пульт вне хоста сервера) — сравнение версий невозможно"
+            if docker_ok_cached():
+                result["note"] = "У образа нет repo-digest (собран или загружен без pull) — сравнение по digest невозможно"
+            else:
+                result["note"] = "Локальный digest недоступен (пульт вне хоста сервера) — сравнение версий невозможно"
         elif not result["remote"]:
             result["error"] = "не удалось получить актуальный образ из Docker Hub"
     except (urllib.error.URLError, urllib.error.HTTPError, OSError, ValueError) as e:
@@ -430,6 +433,18 @@ def check_update(force_event=False):
 
 def update_state():
     return dict(_LAST_CHECK)
+
+
+_LOCAL_DIGEST = {"digest": None, "image": None, "at": 0.0}
+
+
+def local_digest_cached(ttl=60):
+    """Локальный digest считается сам по себе (TTL-кэш), а не только по кнопке «Проверить»."""
+    now = time.time()
+    if now - _LOCAL_DIGEST["at"] > ttl:
+        image = _effective_image()
+        _LOCAL_DIGEST.update({"digest": dockerlib.image_digests(image), "image": image, "at": now})
+    return _LOCAL_DIGEST["digest"]
 
 
 def _do_apply_update(warn_seconds, reason="Обновление сервера"):
@@ -717,7 +732,7 @@ def overview():
         "rconConfigured": bool(cfg["rcon_password"]),
         "rcon": dict(_RCON_CACHE),
         "containerInfo": cont,
-        "update": update_state(),
+        "update": {**update_state(), "local": local_digest_cached()},
         "settings": get_settings(),
         "watchdog": watchdog_state(),
         "image": _effective_image(),

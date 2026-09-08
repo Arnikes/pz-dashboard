@@ -60,7 +60,9 @@ def inspect_container(name):
 
 
 def image_digests(image):
-    """Первый RepoDigest образа (sha256:...) или None."""
+    """Первый RepoDigest образа (sha256:...) или None.
+
+    Важно: RepoDigests хранится в виде repo@sha256:... — парсим хеш после @."""
     code, out, err = sh([
         "docker", "image", "inspect", image,
         "--format", "{{range .RepoDigests}}{{println .}}{{end}}",
@@ -69,6 +71,8 @@ def image_digests(image):
         return None
     for line in out.splitlines():
         line = line.strip()
+        if "@sha256:" in line:
+            return line.split("@", 1)[1]
         if line.startswith("sha256:"):
             return line
     return None
