@@ -744,7 +744,8 @@ def _split_list(raw):
 
 
 def parse_mods_ini(filename):
-    """Пары (мод, workshop item) из ini. Mods и WorkshopItems соответствуют по индексу."""
+    """Читает ini и возвращает два списка: mod ID (Mods=) и Workshop ID (WorkshopItems=).
+    Один Workshop-элемент может содержать несколько модов — соответствие не по индексу."""
     if os.path.basename(filename) != filename:
         return None
     path = os.path.join(config.CFG["data_dir"], "Server", filename)
@@ -752,15 +753,55 @@ def parse_mods_ini(filename):
         return None
     with open(path, encoding="utf-8", errors="replace") as f:
         text = f.read()
-    mods = _split_list(_ini_value(text, "Mods"))
-    items = _split_list(_ini_value(text, "WorkshopItems"))
-    rows = []
-    for i in range(max(len(mods), len(items))):
-        mod = mods[i] if i < len(mods) else ""
-        wid = items[i] if i < len(items) else ""
-        url = f"https://steamcommunity.com/sharedfiles/filedetails/?id={wid}" if wid.isdigit() else ""
-        rows.append({"mod": mod, "workshopId": wid, "url": url})
-    return rows
+    return {
+        "mods": _split_list(_ini_value(text, "Mods")),
+        "items": _split_list(_ini_value(text, "WorkshopItems")),
+    }
+
+
+def _workshop_dir():
+    """Где скачан Workshop-контент внутри /data (расположение зависит от образа)."""
+    for candidate in (
+        os.path.join(config.CFG["data_dir"], "steamapps", "workshop", "content", "108600"),
+        os.path.join(config.CFG["data_dir"], "workshop", "content", "108600"),
+    ):
+        if os.path.isdir(candidate):
+            return candidate
+    return None
+
+
+def _mod_info_id(path):
+    """modID= из mod.info скачанного Workshop-мода."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if line.lower().startswith("modid"):
+                    return line.partition("=")[2].strip()
+    except OSError:
+        pass
+    return ""
+
+
+def _workshop_map(items):
+    """workshop id -> [modID,...] из mod.info скачанных элементов (если контент на диске)."""
+    wdir = _workshop_dir()
+    mapping = {}
+    if not wdir:
+        return mapping
+    for wid in items:
+        mods_dir = os.path.join(wdir, str(wid), "mods")
+        found = []
+        if os.path.isdir(mods_dir):
+            try:
+                for entry in sorted(os.listdir(mods_dir)):
+                    info = os.path.join(mods_dir, entry, "mod.info")
+                    if os.path.isfile(info):
+                        found.append(_mod_info_id(info) or entry)
+            except OSError:
+                pass
+        if found:
+            mapping[str(wid)] = found
+    return mapping
 
 
 def _ws_titles(ids):
@@ -797,17 +838,44 @@ def list_mods(filename=None):
     if not files:
         return {"ok": False,
                 "error": "В /data/Server не найдено .ini файлов — проверьте монтирование каталога данных",
-                "files": [], "file": None, "mods": []}
+                "files": [], "file": None, "mods": [], "workshop": [], "pairs": [],
+                "paired": False, "unbound": [], "mappingSource": None}
     if filename not in files:
         filename = files[0]
-    rows = parse_mods_ini(filename)
-    if rows is None:
+    parsed = parse_mods_ini(filename)
+    if parsed is None:
         return {"ok": False, "error": "Файл конфигурации не найден",
-                "files": files, "file": filename, "mods": []}
-    _ws_titles([r["workshopId"] for r in rows if r["workshopId"]])
-    for r in rows:
-        r["title"] = _WS_TITLES.get(r["workshopId"], "")
-    return {"ok": True, "files": files, "file": filename, "mods": rows}
+                "files": files, "file": filename, "mods": [], "workshop": [],
+                "pairs": [], "paired": False, "unbound": [], "mappingSource": None}
+    mods, items = parsed["mods"], parsed["items"]
+    _ws_titles(items)
+    wmap = _workshop_map(items)
+
+    workshop = []
+    for wid in items:
+        workshop.append({
+            "workshopId": wid,
+            "url": f"https://steamcommunity.com/sharedfiles/filedetails/?id={wid}" if wid.isdigit() else "",
+            "title": _WS_TITLES.get(wid, ""),
+            "mods": wmap.get(wid, []),
+        })
+
+    bound = {m for lst in wmap.values() for m in lst}
+    unbound = [m for m in mods if m not in bound]
+    paired = len(mods) == len(items) and not wmap
+    pairs = []
+    if paired:
+        for i, wid in enumerate(items):
+            pairs.append({
+                "mod": mods[i],
+                "workshopId": wid,
+                "url": f"https://steamcommunity.com/sharedfiles/filedetails/?id={wid}" if wid.isdigit() else "",
+                "title": _WS_TITLES.get(wid, ""),
+            })
+    return {"ok": True, "files": files, "file": filename,
+            "workshop": workshop, "mods": mods, "unbound": unbound,
+            "pairs": pairs, "paired": paired,
+            "mappingSource": "disk" if wmap else ("order" if paired else None)}
 
 
 def overview():

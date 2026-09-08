@@ -160,12 +160,14 @@ const DEMO = {
   },
   mods: () => ({
     ok: true, files: ["servertest.ini"], file: "servertest.ini",
-    mods: [
-      { mod: "tsarslib", workshopId: "2694464646", url: "https://steamcommunity.com/sharedfiles/filedetails/?id=2694464646", title: "Tsar's Library" },
-      { mod: "commonpackagev15", workshopId: "2694464645", url: "https://steamcommunity.com/sharedfiles/filedetails/?id=2694464645", title: "Common Package v1.5" },
-      { mod: "sandbox-plus", workshopId: "2804001857", url: "https://steamcommunity.com/sharedfiles/filedetails/?id=2804001857", title: "Sandbox+ (Sandbox Options)" },
-      { mod: "local-mod", workshopId: "", url: "", title: "" },
+    mods: ["tsarslib", "commonpackagev15", "commonpackagev15options", "sandbox-plus", "local-mod"],
+    unbound: ["local-mod"],
+    paired: false, mappingSource: "disk",
+    workshop: [
+      { workshopId: "2694464646", url: "https://steamcommunity.com/sharedfiles/filedetails/?id=2694464646", title: "Common Package v1.5", mods: ["commonpackagev15", "commonpackagev15options"] },
+      { workshopId: "2804001857", url: "https://steamcommunity.com/sharedfiles/filedetails/?id=2804001857", title: "Sandbox+ (Sandbox Options)", mods: ["sandbox-plus"] },
     ],
+    pairs: [],
   }),
   history: () => {
     const pts = [];
@@ -644,27 +646,66 @@ function renderMods(data) {
     sel.hidden = true;
   }
   const mods = data.mods || [];
+  const ws = data.workshop || [];
   $("modsCount").textContent = String(mods.length);
-  if (!mods.length) {
+  if (!mods.length && !ws.length) {
     body.dataset.state = "empty";
     body.innerHTML = `<p class="list-empty"><strong>Модов нет.</strong> Параметры Mods= и WorkshopItems= в конфиге пустые.</p>`;
     return;
   }
+
+  let html = "";
+  if (data.paired && (data.pairs || []).length) {
+    // 1:1 — моды соответствуют Workshop-элементам по порядку
+    html += `<p class="mods-note">Моды соответствуют Workshop-элементам по порядку.</p>`;
+    html += data.pairs.map((p, i) => `
+      <div class="mod-row">
+        <span class="m-idx mono">${i + 1}</span>
+        <span class="m-name mono" title="${esc(p.mod)}" data-copy="${esc(p.mod)}">${esc(p.mod)}</span>
+        <span class="m-ws">
+          ${p.url
+            ? `<a href="${esc(p.url)}" target="_blank" rel="noopener" title="Steam Workshop · ${esc(p.workshopId)}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M10 5H5v14h14v-5"/></svg>
+                <span class="ws-title">${esc(p.title || p.workshopId)}</span>
+              </a>
+              <span class="wid mono" title="Workshop ID: ${esc(p.workshopId)}" data-copy="${esc(p.workshopId)}">${esc(p.workshopId)}</span>`
+            : `<span class="wid mono">${esc(p.workshopId || "—")}</span>`}
+        </span>
+      </div>`).join("");
+  } else {
+    // Общий случай: один Workshop-элемент может содержать несколько модов
+    if (ws.length) {
+      html += `<p class="mods-note">Workshop-элементы — ${ws.length}</p>`;
+      html += ws.map((w) => `
+        <div class="ws-card">
+          <div class="ws-head">
+            ${w.url
+              ? `<a href="${esc(w.url)}" target="_blank" rel="noopener" title="Steam Workshop · ${esc(w.workshopId)}">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M10 5H5v14h14v-5"/></svg>
+                  <span class="ws-title">${esc(w.title || w.workshopId)}</span>
+                </a>`
+              : `<span class="wid mono">${esc(w.workshopId)}</span>`}
+            ${w.title ? `<span class="wid mono" title="Workshop ID: ${esc(w.workshopId)}" data-copy="${esc(w.workshopId)}">${esc(w.workshopId)}</span>` : ""}
+          </div>
+          ${(w.mods || []).length
+            ? `<div class="ws-mods">${w.mods.map((m) => `<span class="chip mono" data-copy="${esc(m)}" title="нажмите — скопировать">${esc(m)}</span>`).join("")}</div>`
+            : ""}
+        </div>`).join("");
+    }
+    if (mods.length) {
+      html += `<p class="mods-note">Моды из конфига (Mods=) — ${mods.length}</p>`;
+      html += `<div class="mods-chips">${mods.map((m) => `<span class="chip mono" data-copy="${esc(m)}" title="нажмите — скопировать">${esc(m)}</span>`).join("")}</div>`;
+    }
+    if ((data.unbound || []).length && data.mappingSource === "disk") {
+      html += `<p class="mods-note">Без привязки к Workshop — ${data.unbound.length}</p>`;
+      html += `<div class="mods-chips">${data.unbound.map((m) => `<span class="chip mono" data-copy="${esc(m)}">${esc(m)}</span>`).join("")}</div>`;
+    }
+    if (!ws.length) {
+      html += `<p class="mods-note">Один Workshop-элемент может содержать несколько модов — сопоставление по конфигу невозможно.</p>`;
+    }
+  }
   body.dataset.state = "ok";
-  body.innerHTML = mods.map((m, i) => `
-    <div class="mod-row">
-      <span class="m-idx mono">${i + 1}</span>
-      <span class="m-name mono" title="${esc(m.mod || "workshop item")}" ${m.mod ? `data-copy="${esc(m.mod)}"` : ""}>${esc(m.mod || "—")}</span>
-      <span class="m-ws">
-        ${m.url
-          ? `<a href="${esc(m.url)}" target="_blank" rel="noopener" title="Steam Workshop · ${esc(m.workshopId)}">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M10 5H5v14h14v-5"/></svg>
-              <span class="ws-title">${esc(m.title || m.workshopId)}</span>
-            </a>
-            ${m.title ? `<span class="wid mono" title="Workshop ID: ${esc(m.workshopId)}" data-copy="${esc(m.workshopId)}">${esc(m.workshopId)}</span>` : ""}`
-          : `<span class="wid mono">${esc(m.workshopId || "—")}</span>`}
-      </span>
-    </div>`).join("");
+  body.innerHTML = html;
 }
 
 async function refreshMods(file) {

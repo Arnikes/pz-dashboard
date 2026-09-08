@@ -80,6 +80,7 @@ docker compose -f docker-compose.yml -f docker-compose.dashboard.yml up -d --bui
 | Авто-бэкап перед обновлением | Перед применением обновления автоматически снимается архив мира (если не удалось — обновление отменяется); отключается галочкой «Бэкап перед обновлением» |
 | Watchdog RCON | Раз в 30 с проба RCON; при тишине дольше порога — событие в истории, а на хосте сервера — опциональный авторестарт зависшего сервера (без предупреждения: предупреждать некому) |
 | График онлайна | Точки раз в 4 минуты (окно 24 ч) — пик и динамика онлайна на карточке игроков |
+| Моды | Читает `/data/Server/*.ini` (Mods= и WorkshopItems=): названия Workshop-элементов из Steam API, ссылки, чипы модов. Один Workshop-элемент может содержать несколько модов — если Workshop-контент лежит в /data, распределение берётся из mod.info, иначе показываются раздельные списки |
 | Автообновление | Планировщик внутри пульта: проверка по интервалу, при находке — предупреждение игрокам через `servermsg`, сохранение мира (`quit`), `compose up -d` на новом образе |
 | Рестарт/стоп | RCON `quit` (мир сохраняется), ожидание остановки, при зависании — `docker stop` |
 | Бэкап | `RCON save` → `tar -czf` каталога данных (логи исключены). Опционально — с остановкой сервера |
@@ -91,7 +92,7 @@ docker compose -f docker-compose.yml -f docker-compose.dashboard.yml up -d --bui
 
 ### API (для своих скриптов)
 
-`GET /api/overview` · `GET /api/players` · `GET /api/players/history` · `GET /api/stats` · `GET /api/stats/history` ·
+`GET /api/overview` · `GET /api/mods` · `GET /api/players` · `GET /api/players/history` · `GET /api/stats` · `GET /api/stats/history` ·
 `GET /api/logs?tail=250` · `GET /api/logs/full` (файлом) · `GET /api/backups` · `GET /api/events` ·
 `GET /api/ops` · `GET /api/health`
 

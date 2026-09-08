@@ -94,9 +94,9 @@ def test_local_digest_cache(monkeypatch):
     assert ops._LOCAL_DIGEST["image"].endswith(":latest")
 
 
-def test_parse_mods_ini(tmp_path):
-    """Mods= и WorkshopItems= соответствуют по индексу; пропуски — пустые строки."""
+def test_parse_mods_ini(tmp_path, monkeypatch):
     config.CFG["data_dir"] = str(tmp_path)
+    monkeypatch.setattr(ops, "_ws_titles", lambda ids: {})
     server_dir = tmp_path / "Server"
     server_dir.mkdir()
     (server_dir / "servertest.ini").write_text(
@@ -106,14 +106,49 @@ def test_parse_mods_ini(tmp_path):
         "Map=Muldraugh, KY\n",
         encoding="utf-8")
     assert ops.list_server_inis() == ["servertest.ini"]
-    rows = ops.parse_mods_ini("servertest.ini")
-    assert len(rows) == 3
-    assert rows[0] == {"mod": "tsarslib", "workshopId": "111111111",
-                       "url": "https://steamcommunity.com/sharedfiles/filedetails/?id=111111111"}
-    assert rows[1]["mod"] == "my mod" and rows[1]["workshopId"] == "222222222"
-    assert rows[2]["mod"] == "SoloMod" and rows[2]["workshopId"] == "" and rows[2]["url"] == ""
+    parsed = ops.parse_mods_ini("servertest.ini")
+    assert parsed["mods"] == ["tsarslib", "my mod", "SoloMod"]
+    assert parsed["items"] == ["111111111", "222222222"]
     res = ops.list_mods("servertest.ini")
-    assert res["ok"] and res["file"] == "servertest.ini" and len(res["mods"]) == 3
+    assert res["ok"] and res["file"] == "servertest.ini"
+    assert res["mods"] == ["tsarslib", "my mod", "SoloMod"]
+    assert [w["workshopId"] for w in res["workshop"]] == ["111111111", "222222222"]
+    assert res["paired"] is False and res["mappingSource"] is None
+    assert res["workshop"][0]["url"].endswith("id=111111111")
+
+
+def test_mods_paired(tmp_path, monkeypatch):
+    """Равные количества и без данных с диска — соответствие 1:1 по порядку."""
+    config.CFG["data_dir"] = str(tmp_path)
+    monkeypatch.setattr(ops, "_WS_TITLES", {"111": "Mod A", "222": "Mod B"})
+    monkeypatch.setattr(ops, "_ws_titles", lambda ids: ops._WS_TITLES)
+    server_dir = tmp_path / "Server"
+    server_dir.mkdir()
+    (server_dir / "srv.ini").write_text("Mods=modA;modB\nWorkshopItems=111;222\n", encoding="utf-8")
+    res = ops.list_mods("srv.ini")
+    assert res["paired"] is True and res["mappingSource"] == "order"
+    assert [p["mod"] for p in res["pairs"]] == ["modA", "modB"]
+    assert [p["title"] for p in res["pairs"]] == ["Mod A", "Mod B"]
+
+
+def test_mods_disk_mapping(tmp_path, monkeypatch):
+    """Один Workshop-элемент тянет несколько модов — маппинг из mod.info на диске."""
+    config.CFG["data_dir"] = str(tmp_path)
+    monkeypatch.setattr(ops, "_ws_titles", lambda ids: {})
+    server_dir = tmp_path / "Server"
+    server_dir.mkdir()
+    (server_dir / "srv.ini").write_text(
+        "Mods=libA;pluginB;localMod\nWorkshopItems=111\n", encoding="utf-8")
+    ws_dir = tmp_path / "steamapps" / "workshop" / "content" / "108600" / "111" / "mods"
+    (ws_dir / "tsar").mkdir(parents=True)
+    (ws_dir / "tsar" / "mod.info").write_text("name=Big Pack\nmodID=libA\n", encoding="utf-8")
+    (ws_dir / "plug").mkdir()
+    (ws_dir / "plug" / "mod.info").write_text("modID=pluginB\n", encoding="utf-8")
+    res = ops.list_mods("srv.ini")
+    assert res["mappingSource"] == "disk"
+    assert sorted(res["workshop"][0]["mods"]) == ["libA", "pluginB"]
+    assert res["unbound"] == ["localMod"]
+    assert res["paired"] is False
 
 
 # ───────────────────────── фейковый RCON-сервер ─────────────────────────
