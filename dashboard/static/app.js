@@ -1,4 +1,4 @@
-/* PZ Пульт · V13 — логика интерфейса.
+/* PZ Пульт · V14 — логика интерфейса.
    Мультистраничный каркас: hash-роутинг (#/overview, #/mods, …), 7 страниц,
    SSE-поток /api/stream живёт между переключениями; при недоступности — опрос.
    При отсутствии API включается демо-режим.
@@ -730,6 +730,7 @@ function renderPlayersHistory(points) {
   svg.innerHTML = inner;
   const peak = points.reduce((m, p) => Math.max(m, p.count || 0), 0);
   $("phPeak").textContent = `пик: ${peak}`;
+  if (typeof renderKpis === "function") renderKpis();
 }
 
 (() => {

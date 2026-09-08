@@ -1177,6 +1177,48 @@ select {
   .nav { justify-content: center; }
 }
 
+/* анимация смены страницы — только если движение разрешено */
+@media (prefers-reduced-motion: no-preference) {
+  .view { animation: viewIn 180ms var(--ease); }
+}
+
+@keyframes viewIn {
+  from { opacity: 0; transform: translateY(4px); }
+}
+
+/* мобильный навбар: нижний таб-бар с иконками и безопасными отступами */
+@media (max-width: 740px) {
+  body { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+  .nav {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 55;
+    justify-content: space-around;
+    gap: 2px;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+    border-bottom: none;
+    border-top: 1px solid var(--line);
+  }
+  .nav a {
+    flex: 1 1 0;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
+    justify-content: center;
+    border: none;
+    background: none;
+    padding: 4px 2px;
+    font-size: 10px;
+    border-radius: 8px;
+  }
+  .nav a svg { width: 19px; height: 19px; }
+  .nav a[aria-current="page"] { background: var(--surface-2); }
+  .foot { padding-bottom: 12px; }
+}
+
 [data-copy] { cursor: copy; }
 [data-copy]:hover { color: var(--ink); }
 dd[data-copy] { text-decoration: underline dotted rgba(233, 226, 205, 0.35); text-underline-offset: 3px; }
