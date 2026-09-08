@@ -1,8 +1,8 @@
 <!doctype html>
 <!--
   PZ Пульт — панель управления dedicated-сервером Project Zomboid
-  Версия: V6.1 (фикс сетки: карточка «Моды» в ряду игроков/метрик, бэкапы+события парой;
-  компактные строки Workshop-элементов; счётчик учитывает то, что реально показано)
+  Версия: V7 (проверка обновлений модов через RCON checkModsNeedUpdate с разбором лога
+  консоли; автообновление модов по расписанию с предупреждением игроков и рестартом)
   Discovery:
     deliverable: web-дашборд (desktop-first, адаптив 390–1440)
     audience: админ собственного PZ-сервера (indifferentbrokkoli + docker compose)
@@ -159,6 +159,45 @@
         <label class="check"><input type="checkbox" id="buBackup" /> Бэкап перед обновлением</label>
         <p class="hint" id="autoNext" hidden>Следующая проверка: —</p>
       </div>
+      <div class="upd-divider" role="separator" aria-hidden="true"></div>
+      <div class="upd-sub">
+        <div class="upd-sub-head">
+          <h3>Моды Workshop</h3>
+          <span class="pill" id="modsPill" data-state="unknown">—</span>
+        </div>
+        <p class="hint" id="modsCheckNote">Сервер сверяет версии со Steam Workshop и пишет результат в лог; обновления применяются рестартом.</p>
+        <div class="actions">
+          <button class="btn" id="btnCheckMods">Проверить моды</button>
+          <button class="btn primary" id="btnApplyMods" hidden>Перезапустить для обновления</button>
+        </div>
+        <div id="modsNeedList" class="list mods-need" hidden></div>
+        <div class="auto-block">
+          <div class="auto-row">
+            <label class="switch">
+              <input type="checkbox" id="modsAutoSwitch" role="switch" />
+              <span class="switch-track" aria-hidden="true"></span>
+              <span class="switch-label">Автообновление модов</span>
+            </label>
+          </div>
+          <div class="auto-grid">
+            <label class="field">Интервал проверки
+              <select id="modsAutoInterval">
+                <option value="1">каждый 1 ч</option>
+                <option value="6" selected>каждые 6 ч</option>
+                <option value="12">каждые 12 ч</option>
+                <option value="24">раз в сутки</option>
+              </select>
+            </label>
+            <label class="field">При обновлениях
+              <select id="modsAutoAction">
+                <option value="restart" selected>перезапустить сервер</option>
+                <option value="notify">только сообщить</option>
+              </select>
+            </label>
+          </div>
+          <p class="hint" id="modsAutoNext" hidden>Следующая проверка: —</p>
+        </div>
+      </div>
     </section>
 
     <!-- ИГРОКИ -->
@@ -270,7 +309,7 @@
   </main>
 
   <footer class="foot" data-od-id="footer">
-    PZ Пульт · V6.1 · обновление данных: статус 3 с, игроки и метрики 5 с, логи 5 с
+    PZ Пульт · V7 · обновление данных: статус 3 с, игроки и метрики 5 с, логи 5 с
   </footer>
 
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>

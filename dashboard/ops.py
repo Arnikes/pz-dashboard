@@ -10,7 +10,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from collections import deque
+from collections import Counter, deque
 from datetime import datetime, timezone
 
 import config
@@ -46,7 +46,7 @@ _EV_MEM = deque(maxlen=300)
 
 _EVENT_TYPES = {"start", "stop", "restart", "backup", "restore", "update",
                 "update-check", "auto", "console", "warn", "delete",
-                "rcon-error", "error", "docker", "backup-delete"}
+                "rcon-error", "error", "docker", "backup-delete", "mods"}
 
 
 def log_event(kind, text, detail=None):
@@ -88,9 +88,11 @@ def get_events(limit=100):
 _SET_LOCK = threading.Lock()
 _SETTINGS = {
     "autoUpdate": {"enabled": False, "intervalHours": 6, "warnSeconds": 300, "backupBeforeUpdate": True},
+    "modsUpdate": {"enabled": False, "intervalHours": 6, "restartOnUpdate": True},
     "backup": {"stopServer": False, "maxBackups": 10},
     "watchdog": {"enabled": False, "thresholdMin": 5, "autoRestart": False},
     "nextCheck": None,
+    "nextModsCheck": None,
 }
 
 
@@ -101,7 +103,7 @@ def _load_settings():
         for k, v in data.items():
             if k in _SETTINGS and isinstance(v, dict):
                 _SETTINGS[k].update(v)
-            elif k in ("nextCheck",):
+            elif k in ("nextCheck", "nextModsCheck"):
                 _SETTINGS[k] = v
     except (OSError, ValueError):
         pass
@@ -139,6 +141,17 @@ def patch_settings(patch):
             if "backupBeforeUpdate" in au and not isinstance(au["backupBeforeUpdate"], bool):
                 return "backupBeforeUpdate должен быть true/false"
             _SETTINGS["autoUpdate"].update(au)
+        mu = patch.get("modsUpdate")
+        if mu is not None:
+            if not isinstance(mu, dict):
+                return "неверный формат modsUpdate"
+            if "enabled" in mu and not isinstance(mu["enabled"], bool):
+                return "enabled должен быть true/false"
+            if "intervalHours" in mu:
+                mu["intervalHours"] = max(1, min(168, int(mu["intervalHours"])))
+            if "restartOnUpdate" in mu and not isinstance(mu["restartOnUpdate"], bool):
+                return "restartOnUpdate должен быть true/false"
+            _SETTINGS["modsUpdate"].update(mu)
         wd = patch.get("watchdog")
         if wd is not None:
             if not isinstance(wd, dict):
@@ -363,19 +376,19 @@ def _do_stop(warn_seconds):
     _set_phase("Готово", "Сервер остановлен")
 
 
-def _do_restart(warn_seconds):
+def _do_restart(warn_seconds, reason="Перезапуск сервера"):
     if not is_running():
         raise OpsError("Сервер не запущен — сначала запустите его")
     if warn_seconds > 0:
         _set_phase("Предупреждение игроков", f"отсчёт {warn_seconds} с")
-        rcon_warn_broadcast(warn_seconds, "Перезапуск сервера")
+        rcon_warn_broadcast(warn_seconds, reason)
     graceful_stop(lambda m: _set_phase("Остановка", m))
     _set_phase("Запуск", "docker start")
     code, out, err = dockerlib.container_start(config.CFG["pz_container"])
     if code != 0:
         raise OpsError(f"Не удалось запустить после рестарта: {err or out}")
     wait_until_running(150)
-    log_event("restart", "Сервер перезапущен")
+    log_event("restart", f"Сервер перезапущен ({reason})")
     _set_phase("Готово", "Сервер перезапущен")
 
 
@@ -657,6 +670,30 @@ def _scheduler_loop():
                         log_event("error", "Автообновление: " + str(e))
                     _SETTINGS["nextCheck"] = time.time() + au["intervalHours"] * 3600
                     _save_settings()
+            mu = s.get("modsUpdate") or {}
+            if mu.get("enabled"):
+                nxt_m = s.get("nextModsCheck")
+                now = time.time()
+                if not nxt_m:
+                    nxt_m = now + mu["intervalHours"] * 3600
+                    _SETTINGS["nextModsCheck"] = nxt_m
+                    _save_settings()
+                if now >= nxt_m and not op_busy():
+                    try:
+                        if is_running():
+                            res = check_mods_update(source="auto")
+                            if res["state"] == "needs-update":
+                                if mu.get("restartOnUpdate", True):
+                                    log_event("auto", "Автообновление модов: рестарт для загрузки обновлений")
+                                    _do_restart(au.get("warnSeconds", 300), reason="Обновление модов")
+                                else:
+                                    log_event("auto", "Автопроверка модов: найдены обновления (рестарт отключён)")
+                        else:
+                            log_event("warn", "Автопроверка модов: сервер не запущен — пропуск")
+                    except OpsError as e:
+                        log_event("error", "Автопроверка модов: " + str(e))
+                    _SETTINGS["nextModsCheck"] = time.time() + mu["intervalHours"] * 3600
+                    _save_settings()
         except Exception as e:  # noqa: BLE001
             log_event("error", "Планировщик: " + str(e))
         time.sleep(20)
@@ -878,6 +915,135 @@ def list_mods(filename=None):
             "mappingSource": "disk" if wmap else ("order" if paired else None)}
 
 
+# ─────────────────────── обновления модов (RCON) ───────────────────────
+
+# Сервер отвечает на RCON сразу («Checking started…»), а результат пишет
+# асинхронно в лог консоли: 'CheckModsNeedUpdate: Checking...', затем либо
+# 'Mods updated' (всё актуально), либо строки с 'need update' по каждому
+# устаревшему моду. В B42 проверка иногда зависает — фиксируем 'inconclusive'.
+
+_MODS_TAIL = 400
+_LAST_MODS_CHECK = {"at": None, "state": None, "items": [], "error": None, "source": None}
+_NEED_UPDATE_RE = re.compile(r"needs?\s+update", re.I)
+_ALL_UPDATED_RE = re.compile(r"mods?\s+updated", re.I)
+_IDS_RE = re.compile(r"\d{6,}")
+
+
+def mods_check_state():
+    state = dict(_LAST_MODS_CHECK)
+    state["items"] = list(state.get("items") or [])
+    return state
+
+
+def _fresh_lines(before_counter, text):
+    """Новые строки лога (с учётом повторов) в исходном порядке."""
+    cnt = Counter(before_counter)
+    out = []
+    for ln in text.splitlines():
+        if cnt.get(ln, 0) > 0:
+            cnt[ln] -= 1
+        else:
+            out.append(ln)
+    return out
+
+
+def _parse_mods_check(lines):
+    """('needs-update' | 'up-to-date' | None, строки с 'need update')."""
+    need, done = [], False
+    for ln in lines:
+        if "CheckModsNeedUpdate" not in ln:
+            continue
+        if _NEED_UPDATE_RE.search(ln):
+            need.append(ln)
+        elif _ALL_UPDATED_RE.search(ln):
+            done = True
+    if need:
+        return "needs-update", need
+    return ("up-to-date" if done else None), []
+
+
+def _mods_registry():
+    """workshop id → title и mod id → workshop id (для подписи результата)."""
+    ws, mods = {}, {}
+    try:
+        data = list_mods(None)
+    except Exception:  # noqa: BLE001 — реестр нужен только для подписей
+        return ws, mods
+    for w in data.get("workshop") or []:
+        wid = str(w.get("workshopId") or "")
+        if wid:
+            ws[wid] = {"title": w.get("title") or wid,
+                       "url": w.get("url") or f"https://steamcommunity.com/sharedfiles/filedetails/?id={wid}"}
+            for m in w.get("mods") or []:
+                mods.setdefault(str(m).strip().lower(), wid)
+    return ws, mods
+
+
+def _mods_items_from_lines(lines, ws):
+    items, seen = [], set()
+    for ln in lines:
+        text = ln.split("CheckModsNeedUpdate:", 1)[-1].strip()
+        wid = next((c for c in _IDS_RE.findall(text) if c in ws), None)
+        item = {"raw": text[:160]}
+        if wid:
+            item["workshopId"] = wid
+            item["title"] = ws[wid]["title"]
+            item["url"] = ws[wid]["url"]
+        key = wid or item["raw"]
+        if key in seen:
+            continue
+        seen.add(key)
+        items.append(item)
+    return items
+
+
+def check_mods_update(source="manual", timeout=45):
+    """RCON-команда checkModsNeedUpdate + разбор свежих строк лога контейнера."""
+    if not docker_ok_cached():
+        raise OpsError("Проверка модов требует запуска пульта на хосте сервера")
+    if not is_running():
+        raise OpsError("Сервер не запущен — проверять моды некому")
+    before_text, err = dockerlib.container_logs(config.CFG["pz_container"], _MODS_TAIL)
+    if before_text is None:
+        raise OpsError("Логи контейнера недоступны: " + (err or "?"))
+    before = Counter(before_text.splitlines())
+    rcon("checkModsNeedUpdate", quiet=True)
+    deadline = time.time() + timeout
+    state, need = None, []
+    while time.time() < deadline:
+        time.sleep(3)
+        text, _ = dockerlib.container_logs(config.CFG["pz_container"], _MODS_TAIL)
+        if text is None:
+            continue
+        state, need = _parse_mods_check(_fresh_lines(before, text))
+        if state:
+            break
+    ws, _mods = _mods_registry()
+    result = {"at": now_iso(), "source": source,
+              "state": state or "inconclusive",
+              "items": _mods_items_from_lines(need, ws),
+              "error": None}
+    if not state:
+        result["error"] = ("Сервер не вернул результат за отведённое время — "
+                           "известная особенность B42, попробуйте позже")
+    _LAST_MODS_CHECK.clear()
+    _LAST_MODS_CHECK.update(result)
+    if state == "needs-update":
+        log_event("mods", f"Моды требуют обновления: {len(result['items'])}")
+    elif state == "up-to-date":
+        log_event("mods", "Моды актуальны")
+    else:
+        log_event("warn", "Проверка модов не завершилась — нет ответа сервера")
+    return mods_check_state()
+
+
+def _do_apply_mods_update(warn_seconds):
+    """Применение обновлений модов: рестарт — при старте Steam докачает свежие версии."""
+    _do_restart(warn_seconds, reason="Обновление модов")
+    _SETTINGS["nextModsCheck"] = time.time() + get_settings()["modsUpdate"]["intervalHours"] * 3600
+    _save_settings()
+
+
 def overview():
     cfg = config.CFG
     docker_ok = docker_ok_cached()
@@ -908,6 +1074,7 @@ def overview():
         "rcon": dict(_RCON_CACHE),
         "containerInfo": cont,
         "update": {**update_state(), "local": local_digest_cached()},
+        "modsCheck": mods_check_state(),
         "settings": get_settings(),
         "watchdog": watchdog_state(),
         "image": _effective_image(),

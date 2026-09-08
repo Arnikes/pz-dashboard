@@ -4,6 +4,7 @@ import json
 import struct
 import sys
 import threading
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -268,3 +269,77 @@ def test_history_persisted(tmp_path):
     ops._PH = None                        # имитация перезапуска: загрузка из файла
     assert ops.get_players_history()[0]["count"] == 5
     assert json.loads((tmp_path / "players-history.json").read_text())[0]["count"] == 5
+
+
+# ───────────────────────── проверка обновлений модов ─────────────────────────
+
+def test_fresh_lines_respects_duplicates():
+    before = "a\nb\na"
+    after = "a\nb\na\nb\nc\na"
+    assert ops._fresh_lines(Counter(before.splitlines()), after) == ["b", "c", "a"]
+
+
+def test_parse_mods_check_states():
+    up = [
+        "2026Z LOG : Mod f:1 st:1> CheckModsNeedUpdate: Checking...",
+        "2026Z LOG : Mod f:1 st:2> CheckModsNeedUpdate: Mods updated",
+    ]
+    assert ops._parse_mods_check(up) == ("up-to-date", [])
+
+    need = [
+        "2026Z LOG : Mod f:1 st:1> CheckModsNeedUpdate: Checking...",
+        "2026Z LOG : Mod f:1 st:2> CheckModsNeedUpdate: MOD killcount need update",
+        "2026Z LOG : Mod f:1 st:3> CheckModsNeedUpdate: MOD etw need update",
+    ]
+    state, lines = ops._parse_mods_check(need)
+    assert state == "needs-update"
+    assert len(lines) == 2
+
+    assert ops._parse_mods_check(["2026Z LOG : General f:1 st:1> что-то другое"]) == (None, [])
+
+
+def test_mods_items_extraction():
+    ws = {"2983905789": {"title": "Wandering Zombies",
+                         "url": "https://steamcommunity.com/sharedfiles/filedetails/?id=2983905789"}}
+    lines = [
+        "2026Z LOG : Mod f:1 st:1> CheckModsNeedUpdate: MOD wanderingzombies 2983905789 need update",
+        "2026Z LOG : Mod f:1 st:2> CheckModsNeedUpdate: MOD unknownmod need update",
+    ]
+    items = ops._mods_items_from_lines(lines, ws)
+    assert items[0]["workshopId"] == "2983905789"
+    assert items[0]["title"] == "Wandering Zombies"
+    assert "workshopId" not in items[1]
+    assert items[1]["raw"].endswith("need update")
+
+
+def test_check_mods_update_flow(monkeypatch):
+    calls = {"n": 0}
+    base = "\n".join(
+        f"2026-09-08T12:0{i}.000000000Z LOG : General f:1 st:1> line{i}" for i in range(5))
+    result_line = ("2026-09-08T12:28:01.613439139Z LOG  : Mod          f:1 st:503,316,043> "
+                   "CheckModsNeedUpdate: Mods updated")
+
+    def fake_logs(name, tail=250):
+        calls["n"] += 1
+        return (base if calls["n"] == 1 else base + "\n" + result_line), None
+
+    monkeypatch.setattr(dockerlib, "container_logs", fake_logs)
+    monkeypatch.setattr(ops, "rcon", lambda cmd, quiet=False: "Checking started.")
+    monkeypatch.setattr(ops, "docker_ok_cached", lambda ttl=60: True)
+    monkeypatch.setattr(ops, "is_running", lambda: True)
+    monkeypatch.setattr(ops, "_mods_registry", lambda: ({}, {}))
+    res = ops.check_mods_update(source="manual", timeout=10)
+    assert res["state"] == "up-to-date"
+    assert res["error"] is None
+    assert res["at"]
+
+
+def test_check_mods_update_inconclusive(monkeypatch):
+    base = "2026-09-08T12:00:00.000000000Z LOG : General f:1 st:1> hi"
+    monkeypatch.setattr(dockerlib, "container_logs", lambda name, tail=250: (base, None))
+    monkeypatch.setattr(ops, "rcon", lambda cmd, quiet=False: "Checking started.")
+    monkeypatch.setattr(ops, "docker_ok_cached", lambda ttl=60: True)
+    monkeypatch.setattr(ops, "is_running", lambda: True)
+    res = ops.check_mods_update(source="auto", timeout=3)
+    assert res["state"] == "inconclusive"
+    assert res["error"]

@@ -145,7 +145,8 @@ const DEMO = {
     rconConfigured: true, rcon: { state: "ok", error: null, at: demoNow() },
     containerInfo: { status: "running", running: true, startedAt: new Date(Date.now() - 569000 * 1000).toISOString(), image: "indifferentbrokkoli/pzserver:latest", uptimeSec: 569000 },
     update: { at: new Date(Date.now() - 2 * 3600 * 1000).toISOString(), local: "sha256:9f21a4c0e7b2d8f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d5f7a9c1e3b5d7f9", remote: "sha256:9f21a4c0e7b2d8f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d5f7a9c1e3b5d7f9", available: false, error: null },
-    settings: { autoUpdate: { enabled: true, intervalHours: 6, warnSeconds: 300, backupBeforeUpdate: true }, backup: { stopServer: false, maxBackups: 10 }, watchdog: { enabled: true, thresholdMin: 5, autoRestart: false }, nextCheck: Date.now() / 1000 + 3600 * 4 },
+    modsCheck: { at: new Date(Date.now() - 30 * 60 * 1000).toISOString(), state: "up-to-date", items: [], error: null, source: "auto" },
+    settings: { autoUpdate: { enabled: true, intervalHours: 6, warnSeconds: 300, backupBeforeUpdate: true }, modsUpdate: { enabled: true, intervalHours: 6, restartOnUpdate: true }, backup: { stopServer: false, maxBackups: 10 }, watchdog: { enabled: true, thresholdMin: 5, autoRestart: false }, nextCheck: Date.now() / 1000 + 3600 * 4, nextModsCheck: Date.now() / 1000 + 3600 * 2 },
     watchdog: { lastProbeAt: demoNow(), lastResult: "ok", lastError: null, consecutiveFailures: 0, alerted: false },
     backupsCount: 2, now: demoNow(),
   }),
@@ -376,6 +377,40 @@ function renderOverview(o) {
   $("autoNext").hidden = !(au.enabled && next);
   if (au.enabled && next) $("autoNext").textContent = `Следующая проверка: ${new Date(next * 1000).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`;
 
+  // проверка модов (RCON checkModsNeedUpdate)
+  const mc = o.modsCheck || {};
+  if (mc.state === "up-to-date") {
+    setPill("modsPill", "ok", "актуальны");
+    $("modsCheckNote").textContent = mc.at ? `Проверено ${fmtTime(mc.at)} — сервер вернул «Mods updated».` : "Сервер сверяет версии со Steam Workshop; обновления применяются рестартом.";
+  } else if (mc.state === "needs-update") {
+    const n = (mc.items || []).length;
+    setPill("modsPill", "warn", n ? `обновить: ${n}` : "есть обновления");
+    $("modsCheckNote").textContent = mc.at ? `Проверено ${fmtTime(mc.at)} — часть модов устарела, нужен рестарт для загрузки версий.` : "";
+  } else if (mc.state === "inconclusive") {
+    setPill("modsPill", "warn", "нет ответа");
+    $("modsCheckNote").textContent = mc.at ? `Проверено ${fmtTime(mc.at)} — сервер не вернул результат за отведённое время, попробуйте позже.` : "";
+  } else {
+    setPill("modsPill", "unknown", "не проверялись");
+  }
+  const items = mc.items || [];
+  const needList = $("modsNeedList");
+  needList.hidden = !(mc.state === "needs-update" && items.length);
+  needList.innerHTML = items.map((it) => `
+    <div class="mod-need-row">
+      <span class="m-title">${it.url
+        ? `<a href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.title || it.workshopId)}</a>`
+        : esc(it.raw || "мод требует обновления")}</span>
+      ${it.workshopId ? `<span class="wid mono" data-copy="${esc(it.workshopId)}" title="нажмите — скопировать">${esc(it.workshopId)}</span>` : ""}
+    </div>`).join("");
+  $("btnApplyMods").hidden = mc.state !== "needs-update";
+  const mu = o.settings?.modsUpdate || {};
+  if (!$("modsAutoSwitch").matches(":focus")) $("modsAutoSwitch").checked = !!mu.enabled;
+  if (!$("modsAutoInterval").matches(":focus")) $("modsAutoInterval").value = String(mu.intervalHours ?? 6);
+  if (!$("modsAutoAction").matches(":focus")) $("modsAutoAction").value = mu.restartOnUpdate === false ? "notify" : "restart";
+  const nextM = o.settings?.nextModsCheck;
+  $("modsAutoNext").hidden = !(mu.enabled && nextM);
+  if (mu.enabled && nextM) $("modsAutoNext").textContent = `Следующая проверка: ${new Date(nextM * 1000).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`;
+
   updateButtons();
 }
 
@@ -394,7 +429,12 @@ function updateButtons() {
   $("btnSaveWorld").disabled = !consoleLive;
   $("btnCheckUpd").disabled = busy || remote;
   $("btnApplyUpd").disabled = busy || remote || (o && o.compose === false);
-  for (const id of ["btnStart", "btnStop", "btnRestart", "btnCheckUpd", "btnApplyUpd", "btnBackup"]) {
+  $("btnCheckMods").disabled = busy || remote;
+  $("btnApplyMods").disabled = busy || remote;
+  $("modsAutoSwitch").disabled = busy;
+  $("modsAutoInterval").disabled = busy;
+  $("modsAutoAction").disabled = busy;
+  for (const id of ["btnStart", "btnStop", "btnRestart", "btnCheckUpd", "btnApplyUpd", "btnBackup", "btnCheckMods", "btnApplyMods"]) {
     $(id).title = remote ? hostHint : (id === "btnApplyUpd" && o && o.compose === false
       ? "Недоступен плагин docker compose в контейнере пульта" : "");
   }
@@ -1023,6 +1063,34 @@ $("btnApplyUpd").addEventListener("click", () => {
   });
 });
 
+/* ─────────────────────── проверка модов (RCON) ─────────────────────── */
+
+$("btnCheckMods").addEventListener("click", async () => {
+  const btn = $("btnCheckMods");
+  btn.disabled = true;
+  try {
+    const res = await api("/api/action", { method: "POST", body: { op: "check-mods-update" } });
+    if (res.error) throw new Error(res.error);
+    toast("Проверка модов запущена — результат появится в карточке", "ok");
+  } catch (e) {
+    toast(e.message || String(e), "error");
+  } finally {
+    btn.disabled = false;
+  }
+});
+$("btnApplyMods").addEventListener("click", () => {
+  modal.open({
+    title: "Перезапустить для обновления модов?",
+    okLabel: "Перезапустить",
+    bodyHTML: `
+      <p>Сервер предупредит игроков, сохранит мир и перезапустится — при старте
+      Steam докачает свежие версии модов из Workshop.</p>
+      ${WARN_OPTIONS}
+    `,
+    onConfirm: async () => action("apply-mods-update", { warnSeconds: Number($("warnSel").value) }),
+  });
+});
+
 /* ───────────────────────── настройки автообновления ───────────────────────── */
 
 async function pushSettings() {
@@ -1037,6 +1105,11 @@ async function pushSettings() {
       enabled: $("wdSwitch").checked,
       thresholdMin: Number($("wdThreshold").value),
       autoRestart: $("wdRestart").checked,
+    },
+    modsUpdate: {
+      enabled: $("modsAutoSwitch").checked,
+      intervalHours: Number($("modsAutoInterval").value),
+      restartOnUpdate: $("modsAutoAction").value === "restart",
     },
   };
   try {
@@ -1056,6 +1129,9 @@ $("buBackup").addEventListener("change", pushSettings);
 $("wdSwitch").addEventListener("change", pushSettings);
 $("wdThreshold").addEventListener("change", pushSettings);
 $("wdRestart").addEventListener("change", pushSettings);
+$("modsAutoSwitch").addEventListener("change", pushSettings);
+$("modsAutoInterval").addEventListener("change", pushSettings);
+$("modsAutoAction").addEventListener("change", pushSettings);
 
 /* ───────────────────────── опрос ───────────────────────── */
 

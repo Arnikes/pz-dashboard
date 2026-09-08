@@ -233,7 +233,8 @@ class Handler(BaseHTTPRequestHandler):
         except (TypeError, ValueError):
             warn = warn_default
 
-        known = {"start", "stop", "restart", "check-update", "apply-update", "backup", "restore"}
+        known = {"start", "stop", "restart", "check-update", "apply-update",
+                 "check-mods-update", "apply-mods-update", "backup", "restore"}
         if action not in known:
             self._send_error_json(400, "Неизвестная операция")
             return
@@ -256,6 +257,12 @@ class Handler(BaseHTTPRequestHandler):
                     settings["autoUpdate"]["intervalHours"] * 3600
                 ops.start_op("apply-update",
                              lambda: ops._do_apply_update(warn, "Обновление сервера"))
+            elif action == "check-mods-update":
+                ops.start_op("check-mods-update",
+                             lambda: ops.check_mods_update(source="manual"))
+            elif action == "apply-mods-update":
+                ops.start_op("apply-mods-update",
+                             lambda: ops._do_apply_mods_update(warn))
             elif action == "backup":
                 stop_flag = bool(data.get("stopServer", False))
                 ops.start_op("backup", lambda: ops._do_backup(stop_flag))
