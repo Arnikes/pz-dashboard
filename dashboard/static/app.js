@@ -647,7 +647,10 @@ function renderMods(data) {
   }
   const mods = data.mods || [];
   const ws = data.workshop || [];
-  $("modsCount").textContent = String(mods.length);
+  const total = data.paired && (data.pairs || []).length
+    ? data.pairs.length
+    : (ws.length || mods.length);
+  $("modsCount").textContent = String(total);
   if (!mods.length && !ws.length) {
     body.dataset.state = "empty";
     body.innerHTML = `<p class="list-empty"><strong>Модов нет.</strong> Параметры Mods= и WorkshopItems= в конфиге пустые.</p>`;

@@ -1,8 +1,8 @@
 <!doctype html>
 <!--
   PZ Пульт — панель управления dedicated-сервером Project Zomboid
-  Версия: V6 (layout: сбалансированные ряды, выравнивание карточек,
-  авто-подгонка мета-сеток, капы высоты списков, консоль + логи рядом)
+  Версия: V6.1 (фикс сетки: карточка «Моды» в ряду игроков/метрик, бэкапы+события парой;
+  компактные строки Workshop-элементов; счётчик учитывает то, что реально показано)
   Discovery:
     deliverable: web-дашборд (desktop-first, адаптив 390–1440)
     audience: админ собственного PZ-сервера (indifferentbrokkoli + docker compose)
@@ -203,7 +203,7 @@
       </div>
     </section>
 
-    <!-- БЭКАПЫ -->
+    <!-- МОДЫ СЕРВЕРА -->
     <section class="card c-mods" id="sec-mods" data-od-id="mods" aria-labelledby="hMods">
       <header class="card-head">
         <h2 id="hMods">Моды сервера</h2>
@@ -270,7 +270,7 @@
   </main>
 
   <footer class="foot" data-od-id="footer">
-    PZ Пульт · V6 · обновление данных: статус 3 с, игроки и метрики 5 с, логи 5 с
+    PZ Пульт · V6.1 · обновление данных: статус 3 с, игроки и метрики 5 с, логи 5 с
   </footer>
 
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
