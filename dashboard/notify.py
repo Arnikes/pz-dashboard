@@ -86,7 +86,9 @@ def send_message(text):
             return True, None
         return False, str(payload.get("description") or "Telegram вернул ошибку")
     except Exception as e:  # noqa: BLE001 — наружу отдаём текст ошибки
-        return False, str(e)
+        # текст ошибки может содержать полный URL запроса — маскируем токен
+        err = str(e).replace(token, "•••" + token[-4:])
+        return False, err or "ошибка отправки"
 
 
 def test_message():

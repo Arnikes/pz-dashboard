@@ -180,6 +180,14 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):  # тише в логах
         sys.stderr.write("[http] %s\n" % (fmt % args))
 
+    def handle_one_request(self):
+        # браузер может резко сбросить keep-alive при закрытии вкладки —
+        # это не ошибка сервера, тихо закрываем вместо трейсбека в лог
+        try:
+            super().handle_one_request()
+        except ConnectionResetError:
+            self.close_connection = True
+
     # ── SSE-поток: живые данные одним соединением вместо серии опросов ──
 
     def _sse_write(self, chunk: bytes):
@@ -191,6 +199,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
+        # кадры кодируем чанками вручную (длина заранее неизвестна) —
+        # без этого заголовка браузеры декодируют поток «по привычке»,
+        # а строгие клиенты видят сырые hex-строки между кадрами
+        self.send_header("Transfer-Encoding", "chunked")
         self.end_headers()
         self.connection.settimeout(75)
         last = {name: 0.0 for name, _ in STREAM_PLAN}
@@ -199,7 +211,7 @@ class Handler(BaseHTTPRequestHandler):
             self._sse_write(b"retry: 3000\n\n")
             while True:
                 now = time.time()
-                for name, interval in self.STREAM_PLAN:
+                for name, interval in STREAM_PLAN:
                     if now - last[name] < interval:
                         continue
                     try:
@@ -361,8 +373,9 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({"ok": True, "check": ops.check_update(force_event=True)})
                 return
             elif action == "apply-update":
-                settings["nextCheck"] = __import__("time").time() + \
-                    settings["autoUpdate"]["intervalHours"] * 3600
+                # после ручного обновления откладываем автопроверку на интервал:
+                # get_settings() возвращает копию, мутация копии не сохраняется
+                ops.defer_next_check(settings["autoUpdate"]["intervalHours"])
                 ops.start_op("apply-update",
                              lambda: ops._do_apply_update(warn, "Обновление сервера"))
             elif action == "check-mods-update":

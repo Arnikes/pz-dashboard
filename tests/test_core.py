@@ -1,11 +1,13 @@
 """Юнит-тесты ядра пульта: парсеры docker, RCON-протокол (с фейковым сервером),
-настройки, история онлайна. Запуск: pytest -q tests (или из корня проекта)."""
+настройки, история онлайна, SSE-поток. Запуск: pytest -q tests (или из корня проекта)."""
+import http.client
 import json
 import struct
 import sys
 import threading
 from collections import Counter
 from datetime import datetime, timedelta, timezone
+from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -654,3 +656,143 @@ def test_mods_toggle_blocked_without_mapping(tmp_path, monkeypatch):
     assert text.count("999999") == 1 and "WorkshopItems=2694464646;2804001857;999999" in text
     assert any(kind == "warn" and "modID" in t for kind, t in events)
     assert res["disabled"] == []
+
+
+# ─────────────────────── регресс: SSE-поток ───────────────────────
+
+def test_sse_stream_serves_data(monkeypatch):
+    """/api/stream должен реально слать кадры данных.
+
+    Регресс: в обработчике было обращение к несуществующему self.STREAM_PLAN —
+    поток падал сразу после retry-кадра, клиент бесконечно переподключался."""
+    import app
+    monkeypatch.setattr(app.Handler, "log_message", lambda *a, **k: None)
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+    srv.daemon_threads = True
+    th = threading.Thread(target=srv.serve_forever, daemon=True)
+    th.start()
+    try:
+        port = srv.server_address[1]
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=6)
+        conn.request("GET", "/api/stream")
+        resp = conn.getresponse()
+        assert resp.status == 200
+        buf = b""
+        deadline = ops.time.time() + 5
+        while b"event: ops" not in buf and ops.time.time() < deadline:
+            chunk = resp.read1(512)
+            if not chunk:
+                break   # соединение закрыто сервером — падение обработчика
+            buf += chunk
+        assert b"event: ops" in buf, "SSE закрылся до первого кадра данных"
+        conn.close()
+    finally:
+        srv.shutdown()
+        srv.server_close()
+
+
+# ─────────────────────── регресс: бэкофф поиска модов ───────────────────────
+
+def test_workshop_exec_backoff(monkeypatch):
+    """Пустой результат поиска в контейнере кэшируется: повторные вызовы
+    в паузу не гоняют find по всей ФС (list_mods приходит каждые 60 с)."""
+    calls = {"n": 0}
+
+    def fake_exec(name, cmd, timeout=60):
+        calls["n"] += 1
+        return 0, "", ""
+
+    monkeypatch.setattr(dockerlib, "container_exec", fake_exec)
+    monkeypatch.setattr(ops, "docker_ok_cached", lambda ttl=600: True)
+    ops._WS_EXEC.update({"at": 0.0, "map": {}})
+    try:
+        assert ops._workshop_map_via_exec() == {}
+        assert calls["n"] == 1
+        assert ops._workshop_map_via_exec() == {}
+        assert calls["n"] == 1, "повторный поиск должен быть отложен на паузу"
+    finally:
+        ops._WS_EXEC.update({"at": 0.0, "map": {}})
+
+
+# ─────────────────────── регресс: бэкап с остановкой ───────────────────────
+
+def test_backup_with_stop_aborts_on_resurrect(tmp_path, monkeypatch):
+    """Если docker сам перезапустил контейнер посреди остановки — бэкап
+    прерывается с ошибкой, а не снимает архив с полуживого мира."""
+    config.CFG["backup_dir"] = str(tmp_path)
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "world").mkdir()
+    monkeypatch.setattr(ops, "log_event", lambda *a, **k: None)
+    monkeypatch.setattr(ops, "_set_phase", lambda *a, **k: None)
+    monkeypatch.setattr(ops, "is_running", lambda: True)
+    monkeypatch.setattr(ops, "rcon_warn_broadcast", lambda s, r: True)
+    monkeypatch.setattr(ops, "graceful_stop", lambda hook=None: "resurrected")
+    with pytest.raises(ops.OpsError):
+        ops._do_backup(True)
+
+
+# ─────────────────────── регресс: отложенная автопроверка ───────────────────────
+
+def test_defer_next_check_saves(tmp_path):
+    """defer_next_check пишет в основной словарь и сохраняет файл —
+    раньше «Обновить сейчас» мутировало копию настроек, и откат автопроверки терялся."""
+    config.CFG["settings_file"] = str(tmp_path / "settings.json")
+    config.CFG["events_file"] = str(tmp_path / "events.jsonl")
+    ops._SETTINGS["nextCheck"] = None
+    snap = json.loads(json.dumps(ops._SETTINGS))
+    try:
+        ops.defer_next_check(6)
+        now = ops.time.time()
+        delta = ops._SETTINGS["nextCheck"] - now
+        assert 5 * 3600 < delta <= 6 * 3600
+        saved = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
+        assert abs(saved["nextCheck"] - ops._SETTINGS["nextCheck"]) < 1
+    finally:
+        ops._SETTINGS.clear()
+        ops._SETTINGS.update(snap)
+
+
+# ─────────────────────── регресс: клампы settings.json ───────────────────────
+
+def test_load_settings_clamps(tmp_path):
+    """Значения из старого/ручного settings.json клампятся, как в patch_settings:
+    интервал 0 иначе превратил бы планировщик в проверки каждые 20 с."""
+    config.CFG["settings_file"] = str(tmp_path / "settings.json")
+    config.CFG["events_file"] = str(tmp_path / "events.jsonl")
+    (tmp_path / "settings.json").write_text(json.dumps({
+        "autoUpdate": {"intervalHours": 0, "warnSeconds": 99999},
+        "modsUpdate": {"intervalHours": -5},
+        "watchdog": {"thresholdMin": 1000},
+        "backup": {"maxBackups": -1},
+    }), encoding="utf-8")
+    snap = json.loads(json.dumps(ops._SETTINGS))
+    try:
+        ops._load_settings()
+        s = ops.get_settings()
+        assert s["autoUpdate"]["intervalHours"] == 1
+        assert s["autoUpdate"]["warnSeconds"] == 3600
+        assert s["modsUpdate"]["intervalHours"] == 1
+        assert s["watchdog"]["thresholdMin"] == 60
+        assert s["backup"]["maxBackups"] == 0
+    finally:
+        ops._SETTINGS.clear()
+        ops._SETTINGS.update(snap)
+
+
+# ─────────────────────── регресс: маскирование токена ───────────────────────
+
+def test_notify_error_masks_token(monkeypatch):
+    """Ошибка отправки не должна уносить токен наружу (UI, события)."""
+    import notify
+    monkeypatch.setattr(ops, "get_settings", lambda: {"telegram": {
+        "enabled": True, "botToken": "123456:SECRET", "chatId": "42"}})
+
+    def boom(req, timeout=10):
+        raise OSError("connection failed for bot123456:SECRET (https url)")
+
+    monkeypatch.setattr(notify.urllib.request, "urlopen", boom)
+    ok, err = notify.send_message("x")
+    assert ok is False and err
+    assert "123456:SECRET" not in err
+    assert "•••" in err

@@ -92,7 +92,7 @@ def get_events(limit=100):
 # ─────────────────────────── настройки ───────────────────────────
 
 _SET_LOCK = threading.Lock()
-_SETTINGS = {
+_DEFAULTS = {
     "autoUpdate": {"enabled": False, "intervalHours": 6, "warnSeconds": 300, "backupBeforeUpdate": True},
     "modsUpdate": {"enabled": False, "intervalHours": 6, "restartOnUpdate": True, "warnSeconds": 600},
     "telegram": {"enabled": False, "botToken": "", "chatId": "",
@@ -103,6 +103,9 @@ _SETTINGS = {
     "nextModsCheck": None,
     "modsDisabled": {},   # workshop id -> {title, modIds, at} — выключенные из конфига
 }
+
+# рабочая копия настроек: мутируется в рантайме, _DEFAULTS остаётся эталоном
+_SETTINGS = json.loads(json.dumps(_DEFAULTS))
 
 
 def _load_settings():
@@ -118,6 +121,18 @@ def _load_settings():
                 _SETTINGS[k] = v
     except (OSError, ValueError):
         pass
+    # значения из старого/ручного файла не должны обходить валидацию patch_settings:
+    # интервал 0 превратил бы планировщик в цикл проверок каждые 20 с
+    for section, key, lo, hi in (
+        ("autoUpdate", "intervalHours", 1, 168), ("autoUpdate", "warnSeconds", 0, 3600),
+        ("modsUpdate", "intervalHours", 1, 168), ("modsUpdate", "warnSeconds", 0, 3600),
+        ("watchdog", "thresholdMin", 1, 60), ("backup", "maxBackups", 0, 200),
+    ):
+        val = _SETTINGS[section].get(key)
+        if isinstance(val, bool) or not isinstance(val, (int, float)):
+            _SETTINGS[section][key] = _DEFAULTS[section][key]
+        else:
+            _SETTINGS[section][key] = max(lo, min(hi, int(val)))
 
 
 def _save_settings():
@@ -657,7 +672,11 @@ def _do_backup(stop_server):
                            "снимите флажок")
         _set_phase("Предупреждение игроков", "отсчёт 60 с")
         rcon_warn_broadcast(60, "Бэкап сервера")
-        graceful_stop(lambda m: _set_phase("Остановка для бэкапа", m))
+        if graceful_stop(lambda m: _set_phase("Остановка для бэкапа", m)) == "resurrected":
+            # docker сам поднял контейнер посреди остановки — архивировать
+            # полуживой мир нельзя, файлы могут быть в записи
+            raise OpsError("Docker сам перезапустил контейнер — бэкап прерван, "
+                           "повторите попытку")
     else:
         if was_running:
             _set_phase("Сохранение мира", "RCON save")
@@ -797,6 +816,19 @@ def _scheduler_loop():
         time.sleep(20)
 
 
+def defer_next_check(interval_hours):
+    """Отложить автопроверку образа (после ручного обновления) с сохранением.
+
+    get_settings() возвращает копию — править надо основной словарь."""
+    try:
+        hours = max(1, min(168, int(interval_hours)))
+    except (TypeError, ValueError):
+        hours = _DEFAULTS["autoUpdate"]["intervalHours"]
+    with _SET_LOCK:
+        _SETTINGS["nextCheck"] = time.time() + hours * 3600
+        _save_settings()
+
+
 def start_scheduler():
     threading.Thread(target=_scheduler_loop, daemon=True, name="pz-scheduler").start()
 
@@ -907,6 +939,7 @@ def _workshop_dir():
 
 _WS_EXEC = {"at": 0.0, "map": {}}   # кэш поиска mod.info внутри контейнера
 _WS_EXEC_TTL = 1800.0
+_WS_EXEC_RETRY = 300.0              # пауза после пустого результата (find — не дешёвый)
 
 
 def _workshop_map_via_exec():
@@ -916,8 +949,11 @@ def _workshop_map_via_exec():
     находим каталог 108600 по всей ФС контейнера и читаем mod.info оттуда.
     Результат кэшируется на полчаса: find по миру — не самая дешёвая операция."""
     now = time.time()
-    if _WS_EXEC["map"] and now - _WS_EXEC["at"] < _WS_EXEC_TTL:
-        return _WS_EXEC["map"]
+    if _WS_EXEC["map"]:
+        if now - _WS_EXEC["at"] < _WS_EXEC_TTL:
+            return _WS_EXEC["map"]
+    elif now - _WS_EXEC["at"] < _WS_EXEC_RETRY:
+        return {}   # недавний пустой поиск: не гоняем find по всей ФС каждую минуту
     if not docker_ok_cached(ttl=600):
         return {}
     name = config.CFG["pz_container"]
@@ -953,7 +989,8 @@ def _workshop_map_via_exec():
         _WS_EXEC["map"] = mapping
         _WS_EXEC["at"] = now
         return mapping
-    _WS_EXEC["at"] = now - _WS_EXEC_TTL + 300.0
+    _WS_EXEC["map"] = {}
+    _WS_EXEC["at"] = now
     return {}
 
 
@@ -1374,7 +1411,6 @@ def overview():
         "serverName": cfg["server_name"],
         "mode": "local" if docker_ok else "remote",
         "container": cfg["pz_container"],
-        "image": cfg["pz_image"],
         "docker": docker_ok,
         "compose": dockerlib.compose_version() if docker_ok else False,
         "rconConfigured": bool(cfg["rcon_password"]),
@@ -1385,6 +1421,8 @@ def overview():
         "settings": get_settings(),
         "watchdog": watchdog_state(),
         "notify": notifylib.state(),
+        # фактический образ контейнера (в remote — из конфига); ключ один,
+        # без дублей: в литерале ниже его уже не повторять
         "image": _effective_image(),
         "backupsCount": len(list_backups()),
         "now": now_iso(),

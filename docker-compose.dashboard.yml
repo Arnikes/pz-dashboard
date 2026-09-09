@@ -22,7 +22,7 @@ services:
     ports:
       - "8081:8080"               # веб-интерфейс: http://IP:8081
     environment:
-      - RCON_PASSWORD=${RCON_PASSWORD:?Задайте RCON_PASSWORD в .env}
+      - RCON_PASSWORD=${RCON_PASSWORD:?Пропишите RCON_PASSWORD в .env}
       - RCON_HOST=pzserver
       - RCON_PORT=27015
       - PZ_CONTAINER=pzserver
