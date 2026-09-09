@@ -796,3 +796,206 @@ def test_notify_error_masks_token(monkeypatch):
     assert ok is False and err
     assert "123456:SECRET" not in err
     assert "•••" in err
+
+
+# ─────────────── регресс V19: восстановление при resurrected ───────────────
+
+def test_restore_aborts_on_resurrect(tmp_path, monkeypatch):
+    """Восстановление прерывается, если docker сам поднял контейнер посреди
+    остановки. Регресс: _do_restore игнорировал результат graceful_stop —
+    каталог данных очищался под живым сервером (потеря мира)."""
+    config.CFG["backup_dir"] = str(tmp_path)
+    data = tmp_path / "data"
+    (data / "world").mkdir(parents=True)
+    (data / "keep.txt").write_text("x", encoding="utf-8")
+    config.CFG["data_dir"] = str(data)
+    bak = tmp_path / "pz-backup-20260909-120000.tar.gz"
+    bak.write_bytes(b"\\x1f\\x8b")   # имя валидно, до распаковки дело не дойдёт
+    wiped = []
+    monkeypatch.setattr(ops, "log_event", lambda *a, **k: None)
+    monkeypatch.setattr(ops, "_set_phase", lambda *a, **k: None)
+    monkeypatch.setattr(ops, "is_running", lambda: True)
+    monkeypatch.setattr(ops, "rcon_warn_broadcast", lambda s, r: True)
+    monkeypatch.setattr(ops, "graceful_stop", lambda hook=None: "resurrected")
+    monkeypatch.setattr(ops.shutil, "rmtree", lambda p, ignore_errors=False: wiped.append(str(p)))
+    with pytest.raises(ops.OpsError):
+        ops._do_restore(bak.name)
+    assert wiped == [], "каталог данных не должен очищаться при resurrected"
+    assert (data / "keep.txt").exists(), "файлы мира не должны удаляться"
+
+
+# ─────────────── регресс V19: спам rcon-error ───────────────
+
+def test_rcon_error_events_throttled(monkeypatch):
+    """RCON недоступен: событие пишется на смену состояния и раз в 5 минут,
+    а не на каждый опрос (SSE players каждые 5 с заливал журнал и Telegram)."""
+    events = []
+    monkeypatch.setattr(ops, "log_event", lambda kind, text, **k: events.append(kind))
+
+    def dead(*a, **k):
+        raise rcon.RCONError("нет ответа")
+
+    monkeypatch.setattr(ops.rconlib, "run_command", dead)
+    ops._RCON_CACHE.update({"state": "ok", "error": None, "at": None})
+    ops._RCON_LOG["at"] = 0.0
+    try:
+        for _ in range(12):            # минута опросов каждые 5 с
+            with pytest.raises(rcon.RCONError):
+                ops.rcon("players")
+        assert len(events) == 1, "на постоянный сбой — одна запись, не 12"
+        ops._RCON_LOG["at"] -= 301     # прошло 5 минут тишины
+        with pytest.raises(rcon.RCONError):
+            ops.rcon("players")
+        assert len(events) == 2
+    finally:
+        ops._RCON_CACHE.update({"state": "unknown", "error": None, "at": None})
+        ops._RCON_LOG["at"] = 0.0
+
+
+# ─────────────── регресс V19: нечисловые значения в настройках ───────────────
+
+def test_patch_settings_non_numeric_is_error(tmp_path):
+    """POST /api/settings с нечисловым интервалом раньше ронял обработчик
+    ValueError'ом (соединение рвалось) — теперь это валидационная ошибка."""
+    config.CFG["settings_file"] = str(tmp_path / "settings.json")
+    config.CFG["events_file"] = str(tmp_path / "events.jsonl")
+    assert ops.patch_settings({"autoUpdate": {"intervalHours": "abc"}}) is not None
+    assert ops.patch_settings({"modsUpdate": {"warnSeconds": [1]}}) is not None
+    assert ops.patch_settings({"watchdog": {"thresholdMin": True}}) is not None
+    assert ops.patch_settings({"backup": {"maxBackups": "много"}}) is not None
+    # числовая строка по-прежнему допустима, настройки не изменились
+    assert ops.patch_settings({"autoUpdate": {"intervalHours": "6"}}) is None
+    assert ops.get_settings()["autoUpdate"]["intervalHours"] == 6
+
+
+def test_load_settings_nextcheck_type_guard(tmp_path):
+    """Строковый nextCheck в settings.json раньше ронял планировщик TypeError
+    каждые 20 с (спам «Планировщик: …»). Нечисловые метки сбрасываются в None."""
+    config.CFG["settings_file"] = str(tmp_path / "settings.json")
+    config.CFG["events_file"] = str(tmp_path / "events.jsonl")
+    (tmp_path / "settings.json").write_text(json.dumps({
+        "nextCheck": "скоро", "nextModsCheck": [1],
+        "autoUpdate": {"enabled": True},
+    }), encoding="utf-8")
+    snap = json.loads(json.dumps(ops._SETTINGS))
+    try:
+        ops._load_settings()
+        assert ops._SETTINGS["nextCheck"] is None
+        assert ops._SETTINGS["nextModsCheck"] is None
+        # валидное число сохраняется; true/false — не метка
+        (tmp_path / "settings.json").write_text(
+            json.dumps({"nextCheck": 123.5, "nextModsCheck": True}), encoding="utf-8")
+        ops._load_settings()
+        assert ops._SETTINGS["nextCheck"] == 123.5
+        assert ops._SETTINGS["nextModsCheck"] is None
+    finally:
+        ops._SETTINGS.clear()
+        ops._SETTINGS.update(snap)
+
+
+# ─────────────── регресс V19: предупреждение не кратно 10 с ───────────────
+
+def test_warn_broadcast_non_multiple_of_ten(monkeypatch):
+    """Отсчёт 45 с раньше не отправлял ни одного сообщения (шаг 10 не попадал
+    в пороги {30, 10, 60…}) — сервер останавливался молча."""
+    sent = []
+    monkeypatch.setattr(ops, "rcon", lambda cmd, quiet=False: sent.append(cmd) or "")
+    monkeypatch.setattr(ops.time, "sleep", lambda s: None)
+    assert ops.rcon_warn_broadcast(45, "Стоп") is True
+    assert any("30 сек" in s for s in sent) and any("10 сек" in s for s in sent)
+    # кратные значения не сломались
+    sent.clear()
+    ops.rcon_warn_broadcast(90, "Стоп")
+    assert any("1 мин" in s for s in sent) and any("30 сек" in s for s in sent)
+    # совсем короткий отсчёт тоже слышен
+    sent.clear()
+    ops.rcon_warn_broadcast(5, "Стоп")
+    assert any("5 сек" in s for s in sent)
+
+
+# ─────────────── регресс V19: кэш compose version ───────────────
+
+def test_compose_version_cached(monkeypatch):
+    """compose_ok_cached: docker compose version не гоняется на каждом
+    SSE-кадре overview (каждые 3 с), а кэшируется как docker_ok_cached."""
+    calls = {"n": 0}
+
+    def fake():
+        calls["n"] += 1
+        return True
+
+    monkeypatch.setattr(dockerlib, "compose_version", fake)
+    ops._COMPOSE_OK.update({"ok": None, "at": 0.0})
+    try:
+        assert ops.compose_ok_cached() is True
+        assert ops.compose_ok_cached() is True
+        assert calls["n"] == 1
+    finally:
+        ops._COMPOSE_OK.update({"ok": None, "at": 0.0})
+
+
+# ─────────────── регресс V19: таймаут tar ───────────────
+
+def test_backup_tar_timeout_readable(tmp_path, monkeypatch):
+    """Зависший tar даёт понятную OpsError, а не «Внутренняя ошибка:
+    Command … timed out» из общего перехватчика."""
+    import subprocess as sp
+    config.CFG["backup_dir"] = str(tmp_path)
+    data = tmp_path / "data"
+    (data / "w").mkdir(parents=True)
+    config.CFG["data_dir"] = str(data)
+    monkeypatch.setattr(ops, "_set_phase", lambda *a, **k: None)
+    monkeypatch.setattr(ops, "is_running", lambda: False)
+
+    def boom(*a, **k):
+        raise sp.TimeoutExpired(cmd="tar", timeout=2400)
+
+    monkeypatch.setattr(ops.subprocess, "run", boom)
+    with pytest.raises(ops.OpsError) as ei:
+        ops._do_backup(False)
+    assert "2400" in str(ei.value)
+
+
+# ─────────────── регресс V19: stats-кадр при остановленном сервере ───────────────
+
+def test_stats_payload_error_is_ok_false(monkeypatch):
+    """Кадр stats без контейнера — ok:false + error (интерфейс показывает
+    состояние ошибки), а не ok:true с фиктивными нулями."""
+    import app
+    monkeypatch.setattr(ops, "container_state", lambda: None)
+    data = app.stats_payload()
+    assert data["ok"] is False and "error" in data
+    # живые данные не сломались
+    monkeypatch.setattr(ops, "container_state", lambda: {
+        "status": "running", "running": True, "startedAt": None, "image": "img"})
+    monkeypatch.setattr(dockerlib, "container_stats", lambda name: {
+        "cpuPct": 1.0, "memUsed": 1, "memLimit": 2, "memPct": 1,
+        "netIn": 1, "netOut": 1, "pids": 1})
+    data = app.stats_payload()
+    assert data["ok"] is True and data["cpuPct"] == 1.0
+
+
+# ─────────────── регресс V19: скачивание исчезнувшего бэкапа ───────────────
+
+def test_backup_download_missing_file_404(monkeypatch):
+    """Файл удалён prune'ом между проверкой и чтением → честный 404 JSON,
+    а не необработанное исключение и разрыв соединения."""
+    import app
+    monkeypatch.setattr(app.Handler, "log_message", lambda *a, **k: None)
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+    srv.daemon_threads = True
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        monkeypatch.setattr(ops, "backup_download_path",
+                            lambda name: "/несуществующий/путь.tar.gz")
+        port = srv.server_address[1]
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        conn.request("GET", "/api/backup/download?name=x.tar.gz")
+        resp = conn.getresponse()
+        assert resp.status == 404
+        body = json.loads(resp.read().decode("utf-8"))
+        assert body["ok"] is False
+        conn.close()
+    finally:
+        srv.shutdown()
+        srv.server_close()

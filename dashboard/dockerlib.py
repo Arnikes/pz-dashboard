@@ -8,7 +8,6 @@ import re
 import subprocess
 
 SIZE_RE = re.compile(r"^([\d.]+)\s*([kKmMgG]?)(i?)([bB])$")
-_MULT = {"k": 1e3, "m": 1e6, "g": 1e9, "K": 1024, "M": 1024 ** 2, "G": 1024 ** 3}
 
 
 def sh(args, timeout=120):

@@ -1,4 +1,6 @@
-/* PZ Пульт · V18 — логика интерфейса.
+/* PZ Пульт · V19 — логика интерфейса.
+   V19: подпись события «mods» в журнале; host-only автонастройки глушатся в
+   remote-режиме; тикер свежести данных живёт и в SSE-режиме.
    Мультистраничный каркас: hash-роутинг (#/overview, #/mods, …), 7 страниц,
    SSE-поток /api/stream живёт между переключениями; при недоступности — опрос.
    При отсутствии API включается демо-режим.
@@ -612,19 +614,26 @@ function updateButtons() {
   $("btnApplyUpd").disabled = busy || remote || (o && o.compose === false);
   $("btnCheckMods").disabled = busy || remote;
   $("btnApplyMods").disabled = busy || remote;
-  $("modsAutoSwitch").disabled = busy;
-  $("modsAutoInterval").disabled = busy;
-  $("modsAutoAction").disabled = busy;
-  $("modsAutoWarn").disabled = busy;
-  for (const id of ["btnStart", "btnStop", "btnRestart", "btnCheckUpd", "btnApplyUpd", "btnBackup", "btnCheckMods", "btnApplyMods"]) {
+  // автонастройки и watchdog пишут в настройки и работают только с хоста —
+  // в remote-режиме они тихо ничего не делают, честно их глушим
+  const hostOnly = busy || remote;
+  $("autoSwitch").disabled = hostOnly;
+  $("autoInterval").disabled = hostOnly;
+  $("autoWarn").disabled = hostOnly;
+  $("buBackup").disabled = hostOnly;
+  $("wdSwitch").disabled = hostOnly;
+  $("wdThreshold").disabled = hostOnly;
+  $("modsAutoSwitch").disabled = hostOnly;
+  $("modsAutoInterval").disabled = hostOnly;
+  $("modsAutoAction").disabled = hostOnly;
+  $("modsAutoWarn").disabled = hostOnly;
+  for (const id of ["btnStart", "btnStop", "btnRestart", "btnCheckUpd", "btnApplyUpd", "btnBackup", "btnCheckMods", "btnApplyMods",
+                    "autoSwitch", "autoInterval", "autoWarn", "buBackup", "wdSwitch", "wdThreshold",
+                    "modsAutoSwitch", "modsAutoInterval", "modsAutoAction", "modsAutoWarn"]) {
     $(id).title = remote ? hostHint : (id === "btnApplyUpd" && o && o.compose === false
       ? "Недоступен плагин docker compose в контейнере пульта" : "");
   }
   $("btnBackup").disabled = busy || remote;
-  $("wdRestart").disabled = busy || remote;
-  $("buBackup").disabled = busy;
-  $("wdSwitch").disabled = busy;
-  $("wdThreshold").disabled = busy;
   $("logsDownload").style.display = (remote || S.demo) ? "none" : "";
   $("logsFilter").disabled = remote || S.demo;
   document.querySelectorAll("#playersBody .p-actions .icon-btn").forEach((b) => { b.disabled = !consoleLive; });
@@ -1212,6 +1221,7 @@ const EVENT_LABELS = {
   restore: "Восстановление", update: "Обновление", "update-check": "Проверка",
   auto: "Автообновление", console: "Консоль", warn: "Внимание", delete: "Удаление",
   "rcon-error": "RCON", error: "Ошибка", docker: "Docker", "backup-delete": "Бэкап",
+  mods: "Моды",
 };
 
 /* фильтры страницы событий: категории группируют типы журнала */
@@ -1707,7 +1717,6 @@ function updateFreshness() {
 
 function startPolling() {
   refreshAll();
-  setInterval(updateFreshness, 5000);
   setInterval(refreshOverview, 3000);
   setInterval(refreshPlayers, 5000);
   setInterval(refreshStats, 5000);
@@ -1810,6 +1819,9 @@ function startSse() {
 
 async function boot() {
   startClock();
+  // тикер свежести живёт всегда: в SSE-режиме при молчащем потоке шапка
+  // честно показывает «нет данных N мин», а не замирает на старом времени
+  setInterval(updateFreshness, 5000);
   consoleBootLine = consoleAppend("Пульт подключается к серверу…", "c-dim");
   applyRoute();
   if (location.protocol === "file:") {

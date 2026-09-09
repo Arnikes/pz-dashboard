@@ -108,6 +108,16 @@ _DEFAULTS = {
 _SETTINGS = json.loads(json.dumps(_DEFAULTS))
 
 
+def _clamp_int(value, lo, hi):
+    """int с клампом для patch_settings; None — если значение не числовое."""
+    if isinstance(value, bool):
+        return None
+    try:
+        return max(lo, min(hi, int(value)))
+    except (TypeError, ValueError):
+        return None
+
+
 def _load_settings():
     try:
         with open(config.CFG["settings_file"], encoding="utf-8") as f:
@@ -118,7 +128,9 @@ def _load_settings():
             elif k == "modsDisabled" and isinstance(v, dict):
                 _SETTINGS["modsDisabled"] = v
             elif k in ("nextCheck", "nextModsCheck"):
-                _SETTINGS[k] = v
+                # метка планировщика — только число; строка/список из рук
+                # иначе роняли бы планировщик TypeError'ом каждые 20 с
+                _SETTINGS[k] = v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
     except (OSError, ValueError):
         pass
     # значения из старого/ручного файла не должны обходить валидацию patch_settings:
@@ -168,9 +180,15 @@ def patch_settings(patch):
             if "enabled" in au and not isinstance(au["enabled"], bool):
                 return "enabled должен быть true/false"
             if "intervalHours" in au:
-                au["intervalHours"] = max(1, min(168, int(au["intervalHours"])))
+                v = _clamp_int(au["intervalHours"], 1, 168)
+                if v is None:
+                    return "intervalHours должен быть числом 1–168"
+                au["intervalHours"] = v
             if "warnSeconds" in au:
-                au["warnSeconds"] = max(0, min(3600, int(au["warnSeconds"])))
+                v = _clamp_int(au["warnSeconds"], 0, 3600)
+                if v is None:
+                    return "warnSeconds должен быть числом 0–3600"
+                au["warnSeconds"] = v
             if "backupBeforeUpdate" in au and not isinstance(au["backupBeforeUpdate"], bool):
                 return "backupBeforeUpdate должен быть true/false"
             _SETTINGS["autoUpdate"].update(au)
@@ -181,9 +199,15 @@ def patch_settings(patch):
             if "enabled" in mu and not isinstance(mu["enabled"], bool):
                 return "enabled должен быть true/false"
             if "intervalHours" in mu:
-                mu["intervalHours"] = max(1, min(168, int(mu["intervalHours"])))
+                v = _clamp_int(mu["intervalHours"], 1, 168)
+                if v is None:
+                    return "intervalHours должен быть числом 1–168"
+                mu["intervalHours"] = v
             if "warnSeconds" in mu:
-                mu["warnSeconds"] = max(0, min(3600, int(mu["warnSeconds"])))
+                v = _clamp_int(mu["warnSeconds"], 0, 3600)
+                if v is None:
+                    return "warnSeconds должен быть числом 0–3600"
+                mu["warnSeconds"] = v
             if "restartOnUpdate" in mu and not isinstance(mu["restartOnUpdate"], bool):
                 return "restartOnUpdate должен быть true/false"
             _SETTINGS["modsUpdate"].update(mu)
@@ -194,7 +218,10 @@ def patch_settings(patch):
             if "enabled" in wd and not isinstance(wd["enabled"], bool):
                 return "watchdog.enabled должен быть true/false"
             if "thresholdMin" in wd:
-                wd["thresholdMin"] = max(1, min(60, int(wd["thresholdMin"])))
+                v = _clamp_int(wd["thresholdMin"], 1, 60)
+                if v is None:
+                    return "thresholdMin должен быть числом 1–60"
+                wd["thresholdMin"] = v
             if "autoRestart" in wd and not isinstance(wd["autoRestart"], bool):
                 return "watchdog.autoRestart должен быть true/false"
             _SETTINGS["watchdog"].update(wd)
@@ -205,7 +232,10 @@ def patch_settings(patch):
             if "stopServer" in bk and not isinstance(bk["stopServer"], bool):
                 return "stopServer должен быть true/false"
             if "maxBackups" in bk:
-                bk["maxBackups"] = max(0, min(200, int(bk["maxBackups"])))
+                v = _clamp_int(bk["maxBackups"], 0, 200)
+                if v is None:
+                    return "maxBackups должен быть числом 0–200"
+                bk["maxBackups"] = v
             _SETTINGS["backup"].update(bk)
         tg = patch.get("telegram")
         if tg is not None:
@@ -245,6 +275,7 @@ def patch_settings(patch):
 # ─────────────────────────── RCON-хелперы ───────────────────────────
 
 _RCON_CACHE = {"state": "unknown", "error": None, "at": None}
+_RCON_LOG = {"at": 0.0}   # когда последний раз писали rcon-error событие
 
 
 def rcon(command, quiet=False):
@@ -252,11 +283,19 @@ def rcon(command, quiet=False):
     cfg = config.CFG
     try:
         text = rconlib.run_command(cfg["rcon_host"], cfg["rcon_port"], cfg["rcon_password"], command)
+        if _RCON_CACHE["state"] != "ok":
+            _RCON_LOG["at"] = 0.0   # связь восстановилась — следующий сбой снова заметен
         _RCON_CACHE.update({"state": "ok", "error": None, "at": now_iso()})
         return text
     except rconlib.RCONError as e:
+        was_ok = _RCON_CACHE["state"] == "ok"
         _RCON_CACHE.update({"state": "error", "error": str(e), "at": now_iso()})
-        if not quiet:
+        now = time.time()
+        # сбойный RCON опрашивается каждые 5 с (SSE players) — пишем событие
+        # на переход «было ok» и далее раз в 5 минут, иначе журнал и Telegram
+        # заливаются дубликатами
+        if not quiet and (was_ok or now - _RCON_LOG["at"] >= 300):
+            _RCON_LOG["at"] = now
             log_event("rcon-error", "RCON: " + str(e))
         raise
 
@@ -267,9 +306,14 @@ def rcon_warn_broadcast(seconds, reason):
         return True
     thresholds = {30, 10}
     thresholds.update(range(60, seconds + 1, 60))
+    if seconds < 10:
+        thresholds.add(seconds)   # совсем короткий отсчёт всё равно слышен
     last_sent = None
     ok = True
-    for left in range(seconds, 0, -10):
+    # шаг 10 с, старт выровнен вниз до кратности: иначе (например 45 с)
+    # отсчёт молча пропускает все пороги и сервер останавливается без предупреждения
+    start = seconds if seconds < 10 else seconds - (seconds % 10)
+    for left in range(start, 0, -10):
         if left in thresholds and left != last_sent:
             text = (f"{reason} через {left // 60} мин" if left >= 60
                     else f"{reason} через {left} сек")
@@ -286,6 +330,7 @@ def rcon_warn_broadcast(seconds, reason):
 # ─────────────────────────── статус контейнера ───────────────────────────
 
 _DOCKER_CACHE = {"ok": None, "at": 0.0}
+_COMPOSE_OK = {"ok": None, "at": 0.0}
 
 
 def docker_ok_cached(ttl=60):
@@ -295,6 +340,16 @@ def docker_ok_cached(ttl=60):
         _DOCKER_CACHE["ok"] = dockerlib.docker_version()
         _DOCKER_CACHE["at"] = now
     return _DOCKER_CACHE["ok"]
+
+
+def compose_ok_cached(ttl=60):
+    """Доступность плагина compose — тоже с кэшем: overview отдаётся каждые 3 с,
+    а `docker compose version` — заметно более тяжёлый вызов, чем docker version."""
+    now = time.time()
+    if _COMPOSE_OK["ok"] is None or now - _COMPOSE_OK["at"] > ttl:
+        _COMPOSE_OK["ok"] = dockerlib.compose_version()
+        _COMPOSE_OK["at"] = now
+    return _COMPOSE_OK["ok"]
 
 
 def container_state():
@@ -689,10 +744,13 @@ def _do_backup(stop_server):
     name = time.strftime("pz-backup-%Y%m%d-%H%M%S.tar.gz")
     dest = os.path.join(bdir, name)
     _set_phase("Создание архива", name)
-    proc = subprocess.run(
-        ["tar", "-czf", dest, "--exclude=Logs", "--exclude=logs", "--exclude=*.log",
-         "-C", ddir, "."],
-        capture_output=True, text=True, timeout=2400)
+    try:
+        proc = subprocess.run(
+            ["tar", "-czf", dest, "--exclude=Logs", "--exclude=logs", "--exclude=*.log",
+             "-C", ddir, "."],
+            capture_output=True, text=True, timeout=2400)
+    except subprocess.TimeoutExpired:
+        raise OpsError("Архив не создан: tar не уложился в таймаут (2400 с)")
     if proc.returncode != 0:
         raise OpsError(f"tar не удался: {(proc.stderr or proc.stdout)[:200]}")
     if stop_server and was_running:
@@ -727,7 +785,11 @@ def _do_restore(name):
     if is_running():
         _set_phase("Предупреждение игроков", "отсчёт 60 с")
         rcon_warn_broadcast(60, "Восстановление из бэкапа")
-        graceful_stop(lambda m: _set_phase("Остановка сервера", m))
+        if graceful_stop(lambda m: _set_phase("Остановка сервера", m)) == "resurrected":
+            # docker сам поднял контейнер посреди остановки — стирать данные
+            # под живым сервером нельзя: мир будет в записи
+            raise OpsError("Docker сам перезапустил контейнер — восстановление "
+                           "прервано, повторите попытку")
     _set_phase("Очистка каталога данных", "удаление старого мира")
     for entry in os.listdir(config.CFG["data_dir"]):
         full = os.path.join(config.CFG["data_dir"], entry)
@@ -739,8 +801,11 @@ def _do_restore(name):
             except OSError:
                 pass
     _set_phase("Распаковка архива", name)
-    proc = subprocess.run(["tar", "-xzf", path, "-C", config.CFG["data_dir"]],
-                          capture_output=True, text=True, timeout=2400)
+    try:
+        proc = subprocess.run(["tar", "-xzf", path, "-C", config.CFG["data_dir"]],
+                              capture_output=True, text=True, timeout=2400)
+    except subprocess.TimeoutExpired:
+        raise OpsError("Распаковка не удалась: tar не уложился в таймаут (2400 с)")
     if proc.returncode != 0:
         raise OpsError(f"Распаковка не удалась: {(proc.stderr or proc.stdout)[:200]}")
     _set_phase("Запуск сервера", "docker start")
@@ -1412,7 +1477,7 @@ def overview():
         "mode": "local" if docker_ok else "remote",
         "container": cfg["pz_container"],
         "docker": docker_ok,
-        "compose": dockerlib.compose_version() if docker_ok else False,
+        "compose": compose_ok_cached() if docker_ok else False,
         "rconConfigured": bool(cfg["rcon_password"]),
         "rcon": dict(_RCON_CACHE),
         "containerInfo": cont,

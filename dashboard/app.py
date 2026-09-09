@@ -56,6 +56,13 @@ def logs_payload():
     return {"ok": True, "text": text}
 
 
+def stats_payload():
+    """Кадр метрик: ошибка контейнера отдаётся как ok:false + error, иначе
+    интерфейс рисует фиктивные нули вместо состояния ошибки."""
+    data = ops.fetch_stats()
+    return {"ok": "error" not in data, **data}
+
+
 def backups_payload():
     return {"ok": True, "items": ops.list_backups(),
             "maxBackups": ops.get_settings()["backup"]["maxBackups"]}
@@ -86,7 +93,7 @@ def stream_payload(name):
     if name == "players":
         return players_payload()
     if name == "stats":
-        return {"ok": True, **ops.fetch_stats()}
+        return stats_payload()
     if name == "logs":
         return logs_payload()
     if name == "backups":
@@ -164,18 +171,28 @@ class Handler(BaseHTTPRequestHandler):
         except ops.OpsError as e:
             self._send_error_json(400, str(e))
             return
-        size = os.path.getsize(path)
-        self.send_response(200)
-        self.send_header("Content-Type", "application/gzip")
-        self.send_header("Content-Length", str(size))
-        self.send_header("Content-Disposition", f'attachment; filename="{os.path.basename(path)}"')
-        self.end_headers()
-        with open(path, "rb") as f:
-            while True:
-                chunk = f.read(1024 * 256)
-                if not chunk:
-                    break
-                self.wfile.write(chunk)
+        try:
+            size = os.path.getsize(path)
+        except OSError:
+            # архив исчез между проверкой и чтением (например, удалил prune)
+            self._send_error_json(404, "Файл бэкапа не найден")
+            return
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "application/gzip")
+            self.send_header("Content-Length", str(size))
+            self.send_header("Content-Disposition", f'attachment; filename="{os.path.basename(path)}"')
+            self.end_headers()
+            with open(path, "rb") as f:
+                while True:
+                    chunk = f.read(1024 * 256)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+        except OSError:
+            # заголовки уже ушли (файл пропал mid-stream или клиент отвалился) —
+            # остаётся честно закрыть соединение
+            self.close_connection = True
 
     def log_message(self, fmt, *args):  # тише в логах
         sys.stderr.write("[http] %s\n" % (fmt % args))
@@ -262,7 +279,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/mods":
             self._send_json(ops.mods_config_state((qs.get("file", [None])[0])))
         elif path == "/api/stats":
-            self._send_json({"ok": True, **ops.fetch_stats()})
+            self._send_json(stats_payload())
         elif path == "/api/logs":
             self._send_json(logs_payload())
         elif path == "/api/backups":
