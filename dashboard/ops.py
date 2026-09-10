@@ -361,8 +361,11 @@ def rcon(command, quiet=False):
         raise
 
 
-def rcon_warn_broadcast(seconds, reason):
-    """Отправляет игрокам отсчёт перед остановкой. Возвращает False при сбое RCON."""
+def rcon_warn_broadcast(seconds, reason, abort_check=None):
+    """Отправляет игрокам отсчёт перед остановкой. Возвращает False при сбое RCON.
+
+    abort_check — вызывается перед каждым шагом отсчёта; истинный результат
+    прерывает рассылку (например, сервер уже перезапустили вручную)."""
     if seconds <= 0:
         return True
     thresholds = {30, 10}
@@ -375,6 +378,8 @@ def rcon_warn_broadcast(seconds, reason):
     # отсчёт молча пропускает все пороги и сервер останавливается без предупреждения
     start = seconds if seconds < 10 else seconds - (seconds % 10)
     for left in range(start, 0, -10):
+        if abort_check is not None and abort_check():
+            return ok
         if left in thresholds and left != last_sent:
             text = (f"{reason} через {left // 60} мин" if left >= 60
                     else f"{reason} через {left} сек")
@@ -609,12 +614,38 @@ def _do_stop(warn_seconds):
     _set_phase("Готово", "Сервер остановлен")
 
 
-def _do_restart(warn_seconds, reason="Перезапуск сервера"):
+def _restarted_since(started_at):
+    """Что стало с контейнером с момента started_at: 'restarted', 'stopped' или None."""
+    st = container_state()
+    if not st or not st["running"]:
+        return "stopped"
+    if started_at and st.get("startedAt") and st["startedAt"] != started_at:
+        return "restarted"
+    return None
+
+
+def _do_restart(warn_seconds, reason="Перезапуск сервера", guard_restarted=False):
     if not is_running():
         raise OpsError("Сервер не запущен — сначала запустите его")
+    # guard_restarted: авторестарт (моды) не должен дублировать ручной рестарт
+    # админа — если за время отсчёта контейнер уже перезапустили, отменяемся
+    guard_at = (container_state() or {}).get("startedAt") if guard_restarted else None
+
+    def _guard_tripped():
+        return _restarted_since(guard_at) if guard_restarted else None
+
     if warn_seconds > 0:
         _set_phase("Предупреждение игроков", f"отсчёт {warn_seconds} с")
-        rcon_warn_broadcast(warn_seconds, reason)
+        rcon_warn_broadcast(warn_seconds, reason, abort_check=_guard_tripped)
+    if guard_restarted:
+        verdict = _restarted_since(guard_at)
+        if verdict:
+            msg = ("Сервер уже перезапущен вручную — авторестарт отменён"
+                   if verdict == "restarted"
+                   else "Сервер остановлен вручную — авторестарт отменён")
+            log_event("auto", msg)
+            _set_phase("Готово", "Авторестарт отменён: сервер уже перезапущен")
+            return "aborted"
     if graceful_stop(lambda m: _set_phase("Остановка", m)) == "resurrected":
         # docker сам поднял контейнер (restart policy) — рестарт уже случился,
         # остаётся дождаться запуска сервера
@@ -1086,7 +1117,9 @@ def _scheduler_loop():
                             if res["state"] == "needs-update":
                                 if mu.get("restartOnUpdate", True):
                                     log_event("auto", "Автообновление модов: рестарт для загрузки обновлений")
-                                    _do_restart(mu.get("warnSeconds", 600), reason="Обновление модов")
+                                    warn_s = mu.get("warnSeconds", 600)
+                                    start_op("mods-restart", lambda w=warn_s: _do_restart(
+                                        w, reason="Обновление модов", guard_restarted=True))
                                 else:
                                     log_event("auto", "Автопроверка модов: найдены обновления (рестарт отключён)")
                         else:
@@ -1095,6 +1128,7 @@ def _scheduler_loop():
                         log_event("error", "Автопроверка модов: " + str(e))
                     _SETTINGS["nextModsCheck"] = time.time() + mu["intervalHours"] * 3600
                     _save_settings()
+            _post_restart_rescan_tick(s)
             _auto_backup_tick(s, time.time())
         except Exception as e:  # noqa: BLE001
             log_event("error", "Планировщик: " + str(e))
@@ -1686,6 +1720,62 @@ def _do_apply_mods_update(warn_seconds):
     _do_restart(warn_seconds, reason="Обновление модов")
     _SETTINGS["nextModsCheck"] = time.time() + get_settings()["modsUpdate"]["intervalHours"] * 3600
     _save_settings()
+
+
+# ─── рескан модов после рестарта ───
+
+_POST_RESTART = {"startedAt": None, "dueAt": None, "tries": 0}
+_RESCAN_BOOT_DELAY = 120    # после рестарта даём серверу загрузиться до рескана
+_RESCAN_RETRIES = 3         # повторы, если RCON ещё не поднялся после старта
+_RESCAN_RETRY_DELAY = 90
+
+
+def _reset_post_restart_state():
+    _POST_RESTART.update({"startedAt": None, "dueAt": None, "tries": 0})
+
+
+def _post_restart_rescan_tick(s):
+    """Рескан модов после рестарта сервера.
+
+    Админ мог перезапустить сервер вручную (панель, docker restart) — тогда
+    обновления модов применяются этим рестартом, а таймер автопроверки уже
+    не нужен. Ловим смену StartedAt контейнера, после загрузки сервера
+    перепроверяем моды и, если они актуальны, сбрасываем nextModsCheck —
+    авторестарт впустую не сработает."""
+    mu = s.get("modsUpdate") or {}
+    if not mu.get("enabled"):
+        _reset_post_restart_state()
+        return
+    st = container_state() if docker_ok_cached() else None
+    started = (st or {}).get("startedAt")
+    if st and st["running"] and started:
+        if _POST_RESTART["startedAt"] and started != _POST_RESTART["startedAt"]:
+            # контейнер перезапустился — ждём загрузку сервера и проверяем моды
+            _POST_RESTART.update({"dueAt": time.time() + _RESCAN_BOOT_DELAY, "tries": 0})
+        _POST_RESTART["startedAt"] = started
+    due = _POST_RESTART.get("dueAt")
+    if not due or time.time() < due or op_busy():
+        return
+    if not is_running():
+        _reset_post_restart_state()
+        return
+    try:
+        res = check_mods_update(source="post-restart")
+        _POST_RESTART["dueAt"] = None
+        if res["state"] == "up-to-date":
+            with _SET_LOCK:
+                _SETTINGS["nextModsCheck"] = time.time() + (mu.get("intervalHours") or 6) * 3600
+                _save_settings()
+            log_event("mods", "После рестарта моды актуальны — таймер автопроверки сброшен")
+        elif res["state"] == "needs-update":
+            log_event("mods", "После рестарта моды всё ещё требуют обновления — таймер автопроверки сохранён")
+    except Exception as e:  # noqa: BLE001 — RCON мог ещё не подняться после старта
+        _POST_RESTART["tries"] += 1
+        if _POST_RESTART["tries"] <= _RESCAN_RETRIES:
+            _POST_RESTART["dueAt"] = time.time() + _RESCAN_RETRY_DELAY
+        else:
+            _reset_post_restart_state()
+            log_event("warn", f"Рескан модов после рестарта не удался: {e}")
 
 
 def overview():

@@ -686,6 +686,7 @@ const OP_TITLES = {
   start: "Запуск", stop: "Остановка", restart: "Рестарт",
   "check-update": "Проверка обновлений", "apply-update": "Обновление сервера",
   "check-mods-update": "Проверка модов", "apply-mods-update": "Обновление модов",
+  "mods-restart": "Авторестарт модов",
   backup: "Бэкап", restore: "Восстановление", "verify-backup": "Проверка архива",
 };
 

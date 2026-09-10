@@ -7,6 +7,7 @@ import struct
 import sys
 import tarfile
 import threading
+import time
 import urllib.error
 from collections import Counter
 from datetime import datetime, timedelta, timezone
@@ -353,6 +354,115 @@ def test_check_mods_update_inconclusive(monkeypatch):
     res = ops.check_mods_update(source="auto", timeout=3)
     assert res["state"] == "inconclusive"
     assert res["error"]
+
+
+# ────────── авторестарт модов: защита от двойного рестарта ──────────
+
+def test_restarted_since(monkeypatch):
+    monkeypatch.setattr(ops, "container_state",
+                        lambda: {"running": True, "startedAt": "S2"})
+    assert ops._restarted_since("S1") == "restarted"
+    assert ops._restarted_since("S2") is None
+    assert ops._restarted_since(None) is None
+    monkeypatch.setattr(ops, "container_state",
+                        lambda: {"running": False, "startedAt": "S2"})
+    assert ops._restarted_since("S1") == "stopped"
+
+
+def test_do_restart_guard_aborts_on_manual_restart(monkeypatch):
+    started = {"at": "S1"}
+    flips = {"n": 0}
+
+    def fake_broadcast(seconds, reason, abort_check=None):
+        flips["n"] += 1
+        started["at"] = f"S{flips['n'] + 1}"   # сервер перезапустили в момент отсчёта
+        return True
+
+    monkeypatch.setattr(ops, "log_event", lambda *a, **k: None)
+    monkeypatch.setattr(ops, "is_running", lambda: True)
+    monkeypatch.setattr(ops, "container_state",
+                        lambda: {"running": True, "startedAt": started["at"]})
+    monkeypatch.setattr(ops, "rcon_warn_broadcast", fake_broadcast)
+    monkeypatch.setattr(ops, "graceful_stop", lambda hook=None: "stopped")
+    monkeypatch.setattr(dockerlib, "container_start", lambda name: (0, "", ""))
+    monkeypatch.setattr(ops, "wait_until_running", lambda timeout=120: True)
+
+    # без защиты рестарт доходит до конца, даже если сервер уже перезапустили
+    assert ops._do_restart(600) != "aborted"
+    assert flips["n"] == 1
+
+    # с защитой: контейнер перезапущен вручную — авторестарт отменяется
+    assert ops._do_restart(600, guard_restarted=True) == "aborted"
+    assert flips["n"] == 2
+
+    # с защитой: сервер остановлен вручную — тоже отменяемся
+    monkeypatch.setattr(ops, "container_state",
+                        lambda: {"running": False, "startedAt": "S3"})
+    assert ops._do_restart(600, guard_restarted=True) == "aborted"
+
+
+def test_post_restart_rescan_resets_timer(monkeypatch, tmp_path):
+    config.CFG["settings_file"] = str(tmp_path / "settings.json")
+    config.CFG["events_file"] = str(tmp_path / "events.jsonl")
+    ops._reset_post_restart_state()
+    monkeypatch.setattr(ops, "log_event", lambda *a, **k: None)
+    monkeypatch.setattr(ops, "op_busy", lambda: False)
+    monkeypatch.setattr(ops, "docker_ok_cached", lambda ttl=60: True)
+    monkeypatch.setattr(ops, "container_state",
+                        lambda: {"running": True, "startedAt": "S1"})
+    assert ops.patch_settings({"modsUpdate": {"enabled": True}}) is None
+
+    # первый тик: фиксируем StartedAt, рескан не планируется
+    ops._post_restart_rescan_tick(ops.get_settings())
+    assert ops._POST_RESTART["startedAt"] == "S1"
+    assert ops._POST_RESTART["dueAt"] is None
+
+    # сервер перезапустился — рескан откладывается до загрузки
+    monkeypatch.setattr(ops, "container_state",
+                        lambda: {"running": True, "startedAt": "S2"})
+    ops._post_restart_rescan_tick(ops.get_settings())
+    assert ops._POST_RESTART["dueAt"] is not None
+
+    # время вышло, проверка: «актуально» — таймер сбрасывается на полный интервал
+    ops._POST_RESTART["dueAt"] = time.time() - 1
+    monkeypatch.setattr(ops, "is_running", lambda: True)
+    monkeypatch.setattr(ops, "check_mods_update",
+                        lambda source="manual", timeout=45: {"state": "up-to-date"})
+    before = time.time()
+    ops._post_restart_rescan_tick(ops.get_settings())
+    assert ops._POST_RESTART["dueAt"] is None
+    nxt = ops._SETTINGS["nextModsCheck"]
+    assert 21600 - 10 <= nxt - before <= 21600 + 120
+
+    # обновления ещё нужны — таймер не трогаем
+    ops._POST_RESTART["dueAt"] = time.time() - 1
+    ops._SETTINGS["nextModsCheck"] = 12345.0
+    monkeypatch.setattr(ops, "check_mods_update",
+                        lambda source="manual", timeout=45: {"state": "needs-update"})
+    ops._post_restart_rescan_tick(ops.get_settings())
+    assert ops._SETTINGS["nextModsCheck"] == 12345.0
+    assert ops._POST_RESTART["dueAt"] is None
+
+    # RCON ещё не поднялся — повтор; после лимита — отказ и сброс состояния
+    def boom(source="manual", timeout=45):
+        raise RuntimeError("RCON down")
+
+    monkeypatch.setattr(ops, "check_mods_update", boom)
+    ops._POST_RESTART["dueAt"] = time.time() - 1
+    ops._post_restart_rescan_tick(ops.get_settings())
+    assert ops._POST_RESTART["tries"] == 1
+    assert ops._POST_RESTART["dueAt"] > time.time()
+    ops._POST_RESTART["tries"] = ops._RESCAN_RETRIES
+    ops._POST_RESTART["dueAt"] = time.time() - 1
+    ops._post_restart_rescan_tick(ops.get_settings())
+    assert ops._POST_RESTART["dueAt"] is None and ops._POST_RESTART["tries"] == 0
+
+
+def test_post_restart_rescan_disabled_clears_state(monkeypatch):
+    ops._POST_RESTART.update({"startedAt": "S1", "dueAt": 1.0, "tries": 2})
+    monkeypatch.setattr(ops, "log_event", lambda *a, **k: None)
+    ops._post_restart_rescan_tick({"modsUpdate": {"enabled": False}})
+    assert ops._POST_RESTART == {"startedAt": None, "dueAt": None, "tries": 0}
 
 
 # ─────────────── остановка / рестарт: restart policy ───────────────
