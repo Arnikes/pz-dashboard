@@ -39,9 +39,13 @@ def state():
 
 
 def _telegram_settings():
-    """Настройки Telegram. Локальный импорт ops — ops импортирует этот модуль."""
+    """Настройки Telegram. Локальный импорт ops — ops импортирует этот модуль.
+
+    Обязательно telegram_settings_raw(): get_settings() отдаёт токен наружу
+    маской и пустым botToken — отправка через него считала токен незаданным
+    («не задан токен бота или chat id») при сохранённом токене."""
     import ops  # noqa: PLC0415
-    return (ops.get_settings().get("telegram") or {})
+    return ops.telegram_settings_raw()
 
 
 def _format(kind, text):

@@ -457,9 +457,9 @@ def test_telegram_enqueue_filters(monkeypatch):
     """Группы подписки фильтруют события; сообщение без полного токена."""
     import notify
     sent = []
-    monkeypatch.setattr(ops, "get_settings", lambda: {"telegram": {
+    monkeypatch.setattr(ops, "telegram_settings_raw", lambda: {
         "enabled": True, "botToken": "123456:SECRET", "chatId": "42",
-        "groups": {"ops": True, "backup": False, "update": True, "problems": True}}})
+        "groups": {"ops": True, "backup": False, "update": True, "problems": True}})
     monkeypatch.setattr(notify._QUEUE, "put_nowait", lambda m: sent.append(m))
     notify.enqueue("restart", "Сервер перезапущен")      # ops → в очередь
     notify.enqueue("backup", "Бэкап создан")             # backup → выключен
@@ -469,7 +469,7 @@ def test_telegram_enqueue_filters(monkeypatch):
     assert sent[0].startswith("🔄") and sent[0].endswith("Сервер перезапущен")
     assert sent[1].startswith("❌")
     # выключено → ничего
-    monkeypatch.setattr(ops, "get_settings", lambda: {"telegram": {"enabled": False}})
+    monkeypatch.setattr(ops, "telegram_settings_raw", lambda: {"enabled": False})
     notify.enqueue("restart", "x")
     assert len(sent) == 2
     # формат: значок + имя сервера
@@ -482,9 +482,9 @@ def test_telegram_send_and_test(monkeypatch):
     """sendMessage уходит с токеном из настроек; ответ API уважается; тест-кнопка."""
     import notify
     calls = []
-    monkeypatch.setattr(ops, "get_settings", lambda: {"telegram": {
+    monkeypatch.setattr(ops, "telegram_settings_raw", lambda: {
         "enabled": True, "botToken": "123456:SECRET", "chatId": "42",
-        "groups": {"ops": True, "backup": True, "update": True, "problems": True}}})
+        "groups": {"ops": True, "backup": True, "update": True, "problems": True}})
 
     class FakeResp:
         def __enter__(self): return self
@@ -504,9 +504,51 @@ def test_telegram_send_and_test(monkeypatch):
     ok, err = notify.test_message()
     assert ok is True and "проверка связи" in calls[-1][1]["text"]
     # без настроек — честная ошибка, без сетевого вызова
-    monkeypatch.setattr(ops, "get_settings", lambda: {"telegram": {}})
+    monkeypatch.setattr(ops, "telegram_settings_raw", lambda: {})
     ok, err = notify.send_message("x")
     assert ok is False and err and len(calls) == 2
+
+
+def test_telegram_send_uses_saved_token_not_mask(monkeypatch):
+    """Регресс V20.1: notify читал get_settings(), который отдаёт токен маской
+    и пустым botToken (защита от утечки в API) — отправка считала сохранённый
+    токен незаданным, и «Проверить» всегда писала «не задан токен бота или chat id».
+    Теперь отправка берёт telegram_settings_raw(): наружу маска, внутрь — токен."""
+    import notify
+    snap = json.loads(json.dumps(ops._SETTINGS))
+    calls = []
+
+    class FakeResp:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self): return json.dumps({"ok": True}).encode()
+
+    def fake_urlopen(req, timeout=10):
+        calls.append(req.full_url)
+        return FakeResp()
+
+    monkeypatch.setattr(notify.urllib.request, "urlopen", fake_urlopen)
+    try:
+        ops._SETTINGS["telegram"].update({
+            "enabled": True, "botToken": "123456:REAL-TOKEN", "chatId": "-10042",
+            "groups": {"ops": True, "backup": True, "update": True, "problems": True}})
+        # наружу токен по-прежнему не уходит
+        assert ops.get_settings()["telegram"]["botToken"] == ""
+        assert ops.get_settings()["telegram"]["botTokenMasked"] == "•••OKEN"
+        # ...но отправка и проверка связи используют настоящий токен
+        ok, err = notify.send_message("привет")
+        assert ok is True and err is None
+        assert calls == ["https://api.telegram.org/bot123456:REAL-TOKEN/sendMessage"]
+        ok, err = notify.test_message()
+        assert ok is True and len(calls) == 2
+        # очередь уведомлений тоже видит настоящий токен: событие попадает в очередь
+        queued = []
+        monkeypatch.setattr(notify._QUEUE, "put_nowait", lambda m: queued.append(m))
+        notify.enqueue("error", "сбой бэкапа")
+        assert len(queued) == 1 and "сбой бэкапа" in queued[0]
+    finally:
+        ops._SETTINGS.clear()
+        ops._SETTINGS.update(snap)
 
 
 # ─────────────────────── watchdog: пробы RCON ───────────────────────
@@ -786,8 +828,8 @@ def test_load_settings_clamps(tmp_path):
 def test_notify_error_masks_token(monkeypatch):
     """Ошибка отправки не должна уносить токен наружу (UI, события)."""
     import notify
-    monkeypatch.setattr(ops, "get_settings", lambda: {"telegram": {
-        "enabled": True, "botToken": "123456:SECRET", "chatId": "42"}})
+    monkeypatch.setattr(ops, "telegram_settings_raw", lambda: {
+        "enabled": True, "botToken": "123456:SECRET", "chatId": "42"})
 
     def boom(req, timeout=10):
         raise OSError("connection failed for bot123456:SECRET (https url)")

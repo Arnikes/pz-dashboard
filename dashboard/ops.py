@@ -205,6 +205,15 @@ def get_settings():
     return data
 
 
+def telegram_settings_raw():
+    """Полный блок настроек Telegram с НАСТОЯЩИМ токеном — только для
+    внутренней отправки (notify). Наружу идёт get_settings() с маской:
+    уведомления и кнопка «Проверить» читали маску с пустым botToken и
+    считали токен незаданным, хотя он был сохранён."""
+    with _SET_LOCK:
+        return json.loads(json.dumps(_SETTINGS.get("telegram") or {}))
+
+
 def patch_settings(patch):
     """Обновить настройки с валидацией. Возвращает текст ошибки или None."""
     with _SET_LOCK:

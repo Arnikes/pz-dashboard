@@ -1721,6 +1721,9 @@ $("btnTgTest").addEventListener("click", async () => {
   const btn = $("btnTgTest");
   btn.disabled = true;
   try {
+    // если токен/chat ввели и сразу нажали «Проверить» — сначала дожимаем сохранение,
+    // иначе проверка уйдёт со старыми настройками и скажет «не задан токен»
+    await pushSettings();
     const res = await api("/api/notify-test", { method: "POST", body: {} });
     if (res.error) throw new Error(res.error);
     toast("Отправлено — проверьте чат Telegram", "ok");
