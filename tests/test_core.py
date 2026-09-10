@@ -929,6 +929,30 @@ def test_notify_fetch_recent_chats(monkeypatch):
     assert chats is None and "Conflict" in err and "SECRET" not in err
 
 
+def test_telegram_chats_route_on_get(monkeypatch):
+    """Регресс V20.4: маршрут /api/telegram-chats был объявлен в do_POST,
+    а интерфейс дергает его GET'ом — «Нет такого маршрута». Теперь GET работает."""
+    import app
+    monkeypatch.setattr(app.Handler, "log_message", lambda *a, **k: None)
+    monkeypatch.setattr(ops, "telegram_settings_raw", lambda: {
+        "enabled": True, "botToken": "", "chatId": ""})
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+    srv.daemon_threads = True
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        port = srv.server_address[1]
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        conn.request("GET", "/api/telegram-chats")
+        resp = conn.getresponse()
+        assert resp.status == 200
+        body = json.loads(resp.read().decode("utf-8"))
+        assert body["ok"] is False and "токен" in body["error"]
+        conn.close()
+    finally:
+        srv.shutdown()
+        srv.server_close()
+
+
 def test_restore_aborts_on_resurrect(tmp_path, monkeypatch):
     """Восстановление прерывается, если docker сам поднял контейнер посреди
     остановки. Регресс: _do_restore игнорировал результат graceful_stop —
