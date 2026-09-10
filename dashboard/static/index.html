@@ -433,6 +433,31 @@
 
     <!-- БЭКАПЫ -->
     <div class="view view-narrow" id="view-backups" tabindex="-1" hidden>
+      <section class="card c-bksched" id="sec-bksched" data-od-id="bk-schedule" aria-labelledby="hBkSched">
+        <header class="card-head">
+          <h2 id="hBkSched">Бэкап по расписанию</h2>
+          <label class="switch">
+            <input type="checkbox" id="bkAutoSwitch" role="switch" />
+            <span class="switch-track" aria-hidden="true"></span>
+          </label>
+        </header>
+        <div class="auto-block">
+          <div class="auto-grid">
+            <label class="field">Время запуска
+              <input type="time" id="bkAutoTime" value="03:00" />
+            </label>
+            <label class="field">Хранить копий
+              <input type="number" id="bkAutoKeep" min="1" max="200" value="7" />
+            </label>
+          </div>
+          <label class="check" title="Надёжнее для целостности: мир сохранён и закрыт на время архива">
+            <input type="checkbox" id="bkAutoStop" /> Останавливать сервер на время бэкапа
+          </label>
+          <p class="hint" id="bkAutoNext" hidden>Следующий запуск: —</p>
+          <p class="hint">Время — по часам сервера, где запущен пульт (TZ контейнера). Копии старше лимита «Хранить копий» удаляются автоматически.</p>
+        </div>
+      </section>
+
       <section class="card c-backups" id="sec-backups" data-od-id="backups" aria-labelledby="hBackups">
         <header class="card-head">
           <h2 id="hBackups">Бэкапы</h2>
@@ -440,6 +465,15 @@
         </header>
         <div id="backupsBody" class="list" data-state="loading">
           <p class="skeleton-line"></p><p class="skeleton-line short"></p>
+        </div>
+      </section>
+
+      <section class="card c-bkjournal" id="sec-bkjournal" data-od-id="bk-journal" aria-labelledby="hBkJournal">
+        <header class="card-head">
+          <h2 id="hBkJournal">Журнал запусков</h2>
+        </header>
+        <div id="bkJournalBody" class="list" data-state="empty">
+          <p class="list-empty">Запусков ещё не было — журнал наполнится после первого бэкапа.</p>
         </div>
       </section>
     </div>

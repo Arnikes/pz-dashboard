@@ -11,7 +11,7 @@ import time
 import urllib.error
 import urllib.request
 from collections import Counter, deque
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import config
 import dockerlib
@@ -97,10 +97,12 @@ _DEFAULTS = {
     "modsUpdate": {"enabled": False, "intervalHours": 6, "restartOnUpdate": True, "warnSeconds": 600},
     "telegram": {"enabled": False, "botToken": "", "chatId": "",
                  "groups": {"ops": True, "backup": True, "update": True, "problems": True}},
-    "backup": {"stopServer": False, "maxBackups": 10},
+    "backup": {"stopServer": False, "maxBackups": 7},
+    "autoBackup": {"enabled": False, "time": "03:00", "stopServer": False},
     "watchdog": {"enabled": False, "thresholdMin": 5, "autoRestart": False},
     "nextCheck": None,
     "nextModsCheck": None,
+    "nextBackupRun": None,
     "modsDisabled": {},   # workshop id -> {title, modIds, at} — выключенные из конфига
 }
 
@@ -118,6 +120,34 @@ def _clamp_int(value, lo, hi):
         return None
 
 
+_TIME_RE = re.compile(r"^(\d{1,2}):(\d{2})$")
+
+
+def _valid_hhmm(value):
+    """Строка «ЧЧ:ММ» с валидными часами и минутами."""
+    if not isinstance(value, str):
+        return False
+    m = _TIME_RE.match(value.strip())
+    if not m:
+        return False
+    return 0 <= int(m.group(1)) <= 23 and 0 <= int(m.group(2)) <= 59
+
+
+def _norm_hhmm(value):
+    m = _TIME_RE.match(str(value).strip())
+    return f"{int(m.group(1)):02d}:{int(m.group(2)):02d}"
+
+
+def _next_daily_run(time_str, now=None):
+    """Следующий суточный запуск в «ЧЧ:ММ» по локальному времени пульта."""
+    hh, mm = (_norm_hhmm(time_str).split(":") if _valid_hhmm(time_str) else ("3", "0"))
+    base = datetime.fromtimestamp(now if now is not None else time.time())
+    run = base.replace(hour=int(hh), minute=int(mm), second=0, microsecond=0)
+    if run <= base:
+        run += timedelta(days=1)
+    return run.timestamp()
+
+
 def _load_settings():
     try:
         with open(config.CFG["settings_file"], encoding="utf-8") as f:
@@ -127,7 +157,7 @@ def _load_settings():
                 _SETTINGS[k].update(v)
             elif k == "modsDisabled" and isinstance(v, dict):
                 _SETTINGS["modsDisabled"] = v
-            elif k in ("nextCheck", "nextModsCheck"):
+            elif k in ("nextCheck", "nextModsCheck", "nextBackupRun"):
                 # метка планировщика — только число; строка/список из рук
                 # иначе роняли бы планировщик TypeError'ом каждые 20 с
                 _SETTINGS[k] = v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
@@ -145,6 +175,11 @@ def _load_settings():
             _SETTINGS[section][key] = _DEFAULTS[section][key]
         else:
             _SETTINGS[section][key] = max(lo, min(hi, int(val)))
+    # время автобэкапа — строка «ЧЧ:ММ»; мусор из рук заменяется значением по умолчанию
+    if not _valid_hhmm(_SETTINGS["autoBackup"].get("time")):
+        _SETTINGS["autoBackup"]["time"] = _DEFAULTS["autoBackup"]["time"]
+    else:
+        _SETTINGS["autoBackup"]["time"] = _norm_hhmm(_SETTINGS["autoBackup"]["time"])
 
 
 def _save_settings():
@@ -237,6 +272,23 @@ def patch_settings(patch):
                     return "maxBackups должен быть числом 0–200"
                 bk["maxBackups"] = v
             _SETTINGS["backup"].update(bk)
+        abk = patch.get("autoBackup")
+        if abk is not None:
+            if not isinstance(abk, dict):
+                return "неверный формат autoBackup"
+            if "enabled" in abk and not isinstance(abk["enabled"], bool):
+                return "enabled должен быть true/false"
+            if "time" in abk:
+                if not _valid_hhmm(abk["time"]):
+                    return "time должен быть временем в формате ЧЧ:ММ"
+                abk["time"] = _norm_hhmm(abk["time"])
+            if "stopServer" in abk and not isinstance(abk["stopServer"], bool):
+                return "stopServer должен быть true/false"
+            _SETTINGS["autoBackup"].update(abk)
+            if "enabled" in abk or "time" in abk:
+                # расписание изменилось — пересчитать следующий запуск
+                _SETTINGS["nextBackupRun"] = (_next_daily_run(_SETTINGS["autoBackup"]["time"])
+                                              if _SETTINGS["autoBackup"]["enabled"] else None)
         tg = patch.get("telegram")
         if tg is not None:
             if not isinstance(tg, dict):
@@ -447,6 +499,10 @@ class OpsError(Exception):
     pass
 
 
+class OpsErrorReported(OpsError):
+    """OpsError, о которой уже сообщено (событие и журнал) — воркер не дублирует."""
+    pass
+
 _OP_LOCK = threading.Lock()
 _ACTIVE = {"op": None, "phase": "", "message": "", "startedAt": None}
 _OP_HISTORY = deque(maxlen=10)
@@ -479,6 +535,12 @@ def _start_worker(op, fn):
             fn()
             with _OP_LOCK:
                 _OP_HISTORY.appendleft({"op": op, "ok": True, "message": _ACTIVE["message"],
+                                        "finishedAt": now_iso()})
+        except OpsErrorReported as e:
+            # событие уже записал источник (run_backup_job) — фиксируем только статус
+            with _OP_LOCK:
+                _ACTIVE["message"] = str(e)
+                _OP_HISTORY.appendleft({"op": op, "ok": False, "message": str(e),
                                         "finishedAt": now_iso()})
         except OpsError as e:
             log_event("error", f"Операция «{op}» не удалась: {e}")
@@ -680,6 +742,50 @@ def _do_apply_update(warn_seconds, reason="Обновление сервера")
 
 # ─── бэкапы ───
 
+# ─────────────────────────── журнал бэкапов ───────────────────────────
+
+_BJ_LOCK = threading.Lock()
+_BJ_FIELDS = ("ts", "trigger", "type", "name", "size", "path", "status", "duration", "error")
+
+
+def _journal_path():
+    return os.path.join(config.CFG["dashboard_dir"], "backups.jsonl")
+
+
+def _journal_append(entry):
+    """Добавить запись о запуске бэкапа: дата, триггер, имя, размер, путь, статус."""
+    rec = {"ts": now_iso(), "trigger": "manual", "type": "full", "name": "", "size": 0,
+           "path": "", "status": "success", "duration": 0, "error": ""}
+    rec.update({k: entry[k] for k in _BJ_FIELDS if k in entry})
+    with _BJ_LOCK:
+        try:
+            os.makedirs(os.path.dirname(_journal_path()), exist_ok=True)
+            with open(_journal_path(), "a", encoding="utf-8") as f:
+                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        except OSError:
+            pass
+
+
+def get_backup_journal(limit=50):
+    """Последние записи журнала запусков бэкапов — новые сверху."""
+    try:
+        with open(_journal_path(), encoding="utf-8") as f:
+            lines = f.read().splitlines()
+    except OSError:
+        return []
+    out = []
+    for line in reversed(lines):
+        try:
+            out.append(json.loads(line))
+        except ValueError:
+            continue
+        if len(out) >= limit:
+            break
+    return out
+
+
+# ─────────────────────────── бэкапы ───────────────────────────
+
 def _backup_paths():
     return config.CFG["backup_dir"], config.CFG["data_dir"]
 
@@ -715,8 +821,9 @@ def _prune_backups(max_keep):
     return removed
 
 
-def _do_backup(stop_server):
+def _do_backup(stop_server, trigger="manual", started=None):
     bdir, ddir = _backup_paths()
+    started = started if started is not None else time.time()
     os.makedirs(bdir, exist_ok=True)
     if not os.path.isdir(ddir) or not os.listdir(ddir):
         raise OpsError("Каталог данных PZ пуст или не смонтирован — бэкап невозможен")
@@ -759,11 +866,30 @@ def _do_backup(stop_server):
         wait_until_running(150)
     size = os.path.getsize(dest)
     pruned = _prune_backups(get_settings()["backup"]["maxBackups"])
-    log_event("backup", f"Бэкап создан: {name} ({fmt_size(size)})")
+    label = "по расписанию" if trigger == "scheduled" else "вручную"
+    log_event("backup", f"Бэкап создан ({label}): {name} ({fmt_size(size)})")
+    _journal_append({"trigger": trigger, "name": name, "size": size, "path": dest,
+                     "status": "success", "duration": round(time.time() - started, 1)})
     if pruned:
         log_event("backup-delete", f"Удалено старых бэкапов: {pruned}")
     _set_phase("Готово", f"Бэкап {name} создан")
     return {"name": name, "size": size}
+
+
+def run_backup_job(trigger, stop_server):
+    """Бэкап с журналированием: ручной запуск и запуск по расписанию.
+
+    Сбой пишется в журнал и в событие с контекстом запуска; воркеру уходит
+    OpsErrorReported, чтобы не дублировать событие об одной ошибке."""
+    started = time.time()
+    try:
+        return _do_backup(stop_server, trigger=trigger, started=started)
+    except OpsError as e:
+        label = "по расписанию" if trigger == "scheduled" else "вручную"
+        _journal_append({"trigger": trigger, "status": "error", "error": str(e)[:300],
+                         "duration": round(time.time() - started, 1)})
+        log_event("error", f"Бэкап ({label}) не удался: {e}")
+        raise OpsErrorReported(str(e)) from e
 
 
 def _validate_backup_name(name):
@@ -827,7 +953,91 @@ def backup_download_path(name):
     return _validate_backup_name(name)
 
 
+def verify_backup(name):
+    """Контрольная проверка архива: целостность gzip/tar и распаковка во
+    временную папку с подсчётом файлов. Данные сервера не затрагивает."""
+    path = _validate_backup_name(name)
+    started = time.time()
+    _set_phase("Проверка целостности", name)
+    try:
+        proc = subprocess.run(["tar", "-tzf", path], capture_output=True, text=True, timeout=900)
+    except subprocess.TimeoutExpired:
+        raise OpsError("Проверка не удалась: tar не уложился в таймаут (900 с)")
+    if proc.returncode != 0:
+        raise OpsError(f"Архив повреждён: {(proc.stderr or proc.stdout)[:200]}")
+    if not any(ln.strip() for ln in proc.stdout.splitlines()):
+        raise OpsError("Архив пуст — восстанавливаться из него нечем")
+    _set_phase("Распаковка в песочницу", name)
+    dest = os.path.join(config.CFG["dashboard_dir"], f"verify-tmp-{int(time.time())}")
+    os.makedirs(dest, exist_ok=True)
+    try:
+        try:
+            proc = subprocess.run(["tar", "-xzf", path, "-C", dest],
+                                  capture_output=True, text=True, timeout=900)
+        except subprocess.TimeoutExpired:
+            raise OpsError("Распаковка не удалась: tar не уложился в таймаут (900 с)")
+        if proc.returncode != 0:
+            raise OpsError(f"Архив повреждён (распаковка): {(proc.stderr or proc.stdout)[:200]}")
+        files = total = 0
+        has_ini = has_map = False
+        for root, _dirs, fnames in os.walk(dest):
+            for fn in fnames:
+                fp = os.path.join(root, fn)
+                try:
+                    total += os.path.getsize(fp)
+                except OSError:
+                    continue
+                files += 1
+                rel = os.path.relpath(fp, dest).replace(os.sep, "/")
+                if rel.startswith("Server/") and fn.lower().endswith(".ini"):
+                    has_ini = True
+                if rel.startswith("Maps/"):
+                    has_map = True
+        if not files:
+            raise OpsError("Архив распаковался, но файлов внутри нет")
+        notes = []
+        if not has_ini:
+            notes.append("нет Server/*.ini")
+        if not has_map:
+            notes.append("нет Maps/")
+        res = {"name": name, "files": files, "totalSize": total,
+               "totalSizeText": fmt_size(total), "hasServerIni": has_ini,
+               "hasMapData": has_map, "duration": round(time.time() - started, 1)}
+        log_event("backup", f"Проверка бэкапа {name}: OK — файлов {files}, {fmt_size(total)}"
+                  + (", замечания: " + ", ".join(notes) if notes else ""))
+        _set_phase("Готово", f"Проверка {name}: OK")
+        return res
+    finally:
+        shutil.rmtree(dest, ignore_errors=True)
+
+
 # ─────────────────────────── планировщик автообновления ───────────────────────────
+
+def _auto_backup_tick(s, now):
+    """Тик автобэкапа: когда наступило nextBackupRun и пульт свободен — запуск."""
+    ab = s.get("autoBackup") or {}
+    if not ab.get("enabled"):
+        return
+    t = ab.get("time") or "03:00"
+    nxt = s.get("nextBackupRun")
+    if not nxt:
+        nxt = _next_daily_run(t, now)
+        _SETTINGS["nextBackupRun"] = nxt
+        _save_settings()
+    if now < nxt or op_busy():
+        return
+    late = (now - nxt) / 60
+    note = " (навёрстывание)" if late > 15 else ""
+    _SETTINGS["nextBackupRun"] = _next_daily_run(t, now)
+    _save_settings()
+    log_event("auto", f"Автобэкап по расписанию{note}: запуск ({t})")
+    try:
+        start_op("backup", lambda: run_backup_job("scheduled", bool(ab.get("stopServer"))))
+    except OpsError:
+        # гонка: между проверкой и стартом началась другая операция —
+        # откатываем время, попытка повторится на следующем тике (20 с)
+        _SETTINGS["nextBackupRun"] = nxt
+        _save_settings()
 
 def _scheduler_loop():
     while True:
@@ -876,6 +1086,7 @@ def _scheduler_loop():
                         log_event("error", "Автопроверка модов: " + str(e))
                     _SETTINGS["nextModsCheck"] = time.time() + mu["intervalHours"] * 3600
                     _save_settings()
+            _auto_backup_tick(s, time.time())
         except Exception as e:  # noqa: BLE001
             log_event("error", "Планировщик: " + str(e))
         time.sleep(20)
@@ -892,6 +1103,21 @@ def defer_next_check(interval_hours):
     with _SET_LOCK:
         _SETTINGS["nextCheck"] = time.time() + hours * 3600
         _save_settings()
+
+
+def auto_backup_state():
+    """Сводка расписания автобэкапа для API и интерфейса."""
+    s = get_settings()
+    ab = s["autoBackup"]
+    nxt = s.get("nextBackupRun")
+    next_iso = None
+    if isinstance(nxt, (int, float)) and not isinstance(nxt, bool):
+        try:
+            next_iso = datetime.fromtimestamp(nxt).astimezone().isoformat(timespec="seconds")
+        except (OSError, OverflowError, ValueError):
+            next_iso = None
+    return {"enabled": bool(ab["enabled"]), "time": ab["time"],
+            "stopServer": bool(ab["stopServer"]), "nextRun": next_iso}
 
 
 def start_scheduler():

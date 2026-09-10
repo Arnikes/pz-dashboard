@@ -64,8 +64,11 @@ def stats_payload():
 
 
 def backups_payload():
+    s = ops.get_settings()
     return {"ok": True, "items": ops.list_backups(),
-            "maxBackups": ops.get_settings()["backup"]["maxBackups"]}
+            "maxBackups": s["backup"]["maxBackups"],
+            "autoBackup": ops.auto_backup_state(),
+            "journal": ops.get_backup_journal(30)}
 
 
 def events_payload(limit=100):
@@ -371,7 +374,8 @@ class Handler(BaseHTTPRequestHandler):
             warn = warn_default
 
         known = {"start", "stop", "restart", "check-update", "apply-update",
-                 "check-mods-update", "apply-mods-update", "backup", "restore"}
+                 "check-mods-update", "apply-mods-update", "backup", "restore",
+                 "verify-backup"}
         if action not in known:
             self._send_error_json(400, "Неизвестная операция")
             return
@@ -403,7 +407,10 @@ class Handler(BaseHTTPRequestHandler):
                              lambda: ops._do_apply_mods_update(warn))
             elif action == "backup":
                 stop_flag = bool(data.get("stopServer", False))
-                ops.start_op("backup", lambda: ops._do_backup(stop_flag))
+                ops.start_op("backup", lambda: ops.run_backup_job("manual", stop_flag))
+            elif action == "verify-backup":
+                vname = data.get("name") or ""
+                ops.start_op("verify-backup", lambda: ops.verify_backup(vname))
             elif action == "restore":
                 name = data.get("name") or ""
                 ops.start_op("restore", lambda: ops._do_restore(name))

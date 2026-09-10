@@ -1278,6 +1278,32 @@ dd[data-copy] { text-decoration: underline dotted rgba(233, 226, 205, 0.35); tex
 
 .spark.ram { color: #8aa5b8; }
 
+/* ─────────── бэкапы: расписание и журнал запусков ─────────── */
+.c-bksched .auto-block { display: flex; flex-direction: column; gap: 4px; }
+.c-bksched .field input { width: 100%; }
+
+.journal-row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  gap: 2px 14px;
+  align-items: baseline;
+  padding: 9px 2px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13.5px;
+}
+.journal-row:last-child { border-bottom: none; }
+.j-date { color: var(--muted); font-size: 12.5px; }
+.j-trig { color: var(--muted); font-size: 12.5px; }
+.j-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.j-status { color: var(--ok); font-size: 12.5px; letter-spacing: 0.02em; }
+.journal-row.j-err .j-name { color: var(--blood-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.journal-row.j-err .j-status { color: var(--blood-text); }
+
+@media (max-width: 560px) {
+  .journal-row { grid-template-columns: auto 1fr auto; }
+  .journal-row .j-date, .journal-row .j-trig { display: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }

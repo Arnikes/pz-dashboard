@@ -53,6 +53,13 @@ function relTime(iso) {
   const d = new Date(iso);
   if (isNaN(d)) return "";
   const s = Math.round((Date.now() - d.getTime()) / 1000);
+  if (s < -45) {
+    // будущее время (например, следующий запуск автобэкапа)
+    const f = -s;
+    if (f < 3600) return `через ${Math.max(1, Math.round(f / 60))} мин`;
+    if (f < 86400) return `через ${Math.round(f / 3600)} ч`;
+    return fmtTime(iso);
+  }
   if (s < 45) return "только что";
   if (s < 3600) return `${Math.max(1, Math.round(s / 60))} мин назад`;
   if (s < 86400) return `${Math.round(s / 3600)} ч назад`;
@@ -209,10 +216,17 @@ const DEMO = {
     text: `${demoNow()} PZ SERVER: v44.3.2 MP dedicated\n${demoNow()} [save] World saved (demo line)\n${demoNow()} INFO: 3 players online\n`,
   }),
   backups: () => ({
-    ok: true, maxBackups: 10,
+    ok: true, maxBackups: 7,
+    autoBackup: { enabled: true, time: "03:00", stopServer: false,
+                  nextRun: new Date(Date.now() + 36e5 * 11).toISOString() },
     items: [
       { name: "pz-backup-20260901-040000.tar.gz", size: 684000000, sizeText: "652.3 МБ", mtime: "2026-09-01T04:00:00" },
       { name: "pz-backup-20260831-040000.tar.gz", size: 672000000, sizeText: "640.9 МБ", mtime: "2026-08-31T04:00:00" },
+    ],
+    journal: [
+      { ts: "2026-09-01T04:00:03", trigger: "scheduled", type: "full", name: "pz-backup-20260901-040000.tar.gz", size: 684000000, status: "success", duration: 42.5 },
+      { ts: "2026-08-31T04:00:02", trigger: "scheduled", type: "full", name: "pz-backup-20260831-040000.tar.gz", size: 672000000, status: "success", duration: 41.2 },
+      { ts: "2026-08-30T04:00:05", trigger: "scheduled", type: "full", name: "", size: 0, status: "error", error: "Каталог данных PZ пуст или не смонтирован", duration: 0.4 },
     ],
   }),
   events: () => ({
@@ -264,7 +278,7 @@ async function action(op, extra = {}) {
   try {
     const res = await api("/api/action", { method: "POST", body: { op, ...extra } });
     if (res.error) throw new Error(res.error);
-    toast(`Операция «${op}» запущена`, "ok");
+    toast(`Операция «${OP_TITLES[op] || op}» запущена`, "ok");
   } catch (e) {
     toast(e.message || String(e), "error");
   }
@@ -627,9 +641,14 @@ function updateButtons() {
   $("modsAutoInterval").disabled = hostOnly;
   $("modsAutoAction").disabled = hostOnly;
   $("modsAutoWarn").disabled = hostOnly;
+  $("bkAutoSwitch").disabled = hostOnly;
+  $("bkAutoTime").disabled = hostOnly;
+  $("bkAutoKeep").disabled = hostOnly;
+  $("bkAutoStop").disabled = hostOnly;
   for (const id of ["btnStart", "btnStop", "btnRestart", "btnCheckUpd", "btnApplyUpd", "btnBackup", "btnCheckMods", "btnApplyMods",
                     "autoSwitch", "autoInterval", "autoWarn", "buBackup", "wdSwitch", "wdThreshold",
-                    "modsAutoSwitch", "modsAutoInterval", "modsAutoAction", "modsAutoWarn"]) {
+                    "modsAutoSwitch", "modsAutoInterval", "modsAutoAction", "modsAutoWarn",
+                    "bkAutoSwitch", "bkAutoTime", "bkAutoKeep", "bkAutoStop"]) {
     $(id).title = remote ? hostHint : (id === "btnApplyUpd" && o && o.compose === false
       ? "Недоступен плагин docker compose в контейнере пульта" : "");
   }
@@ -647,7 +666,7 @@ function renderOp(op) {
   const active = op && op.active;
   if (active) {
     $("opbar").hidden = false;
-    $("opPhase").textContent = `${active.op}: ${active.phase}`;
+    $("opPhase").textContent = `${OP_TITLES[active.op] || active.op}: ${active.phase}`;
     $("opMsg").textContent = active.message || "";
   } else {
     $("opbar").hidden = true;
@@ -661,6 +680,14 @@ function renderOp(op) {
   S.op = op;
   updateButtons();
 }
+
+/* человеческие названия операций для полосы прогресса и тостов */
+const OP_TITLES = {
+  start: "Запуск", stop: "Остановка", restart: "Рестарт",
+  "check-update": "Проверка обновлений", "apply-update": "Обновление сервера",
+  "check-mods-update": "Проверка модов", "apply-mods-update": "Обновление модов",
+  backup: "Бэкап", restore: "Восстановление", "verify-backup": "Проверка архива",
+};
 
 /* ───────────────────────── игроки ───────────────────────── */
 
@@ -1121,6 +1148,8 @@ function renderBackups(data) {
     body.innerHTML = `<p class="list-error">${esc(data.error || "нет данных")}</p>`;
     return;
   }
+  renderBkSchedule(data);
+  renderBkJournal(data.journal || []);
   const items = data.items || [];
   S.backupsItems = items;
   renderHealth();
@@ -1139,6 +1168,9 @@ function renderBackups(data) {
       <button class="icon-btn" data-b="dl" data-name="${esc(b.name)}" title="Скачать" aria-label="Скачать ${esc(b.name)}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
       </button>
+      <button class="icon-btn" data-b="verify" data-name="${esc(b.name)}" title="Проверить архив" aria-label="Проверить ${esc(b.name)}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.4-2.9 8.2-7 10-4.1-1.8-7-5.6-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
+      </button>
       <button class="icon-btn" data-b="restore" data-name="${esc(b.name)}" title="Восстановить" aria-label="Восстановить из ${esc(b.name)}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9a8 8 0 1 1 2 6"/><path d="M4 4v5h5"/></svg>
       </button>
@@ -1152,6 +1184,8 @@ function renderBackups(data) {
       const name = btn.dataset.name;
       if (btn.dataset.b === "dl") {
         window.location.href = `/api/backup/download?name=${encodeURIComponent(name)}`;
+      } else if (btn.dataset.b === "verify") {
+        action("verify-backup", { name });
       } else if (btn.dataset.b === "restore") {
         confirmRestore(name);
       } else {
@@ -1160,6 +1194,48 @@ function renderBackups(data) {
     });
   });
   updateButtons();
+}
+
+function renderBkSchedule(data) {
+  const ab = data.autoBackup || {};
+  const sw = $("bkAutoSwitch");
+  if (sw && !sw.matches(":focus")) sw.checked = !!ab.enabled;
+  const t = $("bkAutoTime");
+  if (t && !t.matches(":focus")) t.value = ab.time || "03:00";
+  const keep = $("bkAutoKeep");
+  if (keep && !keep.matches(":focus")) keep.value = data.maxBackups ?? 7;
+  const stop = $("bkAutoStop");
+  if (stop && !stop.matches(":focus")) stop.checked = !!ab.stopServer;
+  const next = $("bkAutoNext");
+  if (!next) return;
+  if (ab.enabled && ab.nextRun) {
+    next.hidden = false;
+    const d = new Date(ab.nextRun);
+    next.textContent = `Следующий запуск: ${d.toLocaleString("ru-RU",
+      { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} (${relTime(ab.nextRun)})`;
+  } else {
+    next.hidden = true;
+  }
+}
+
+function renderBkJournal(journal) {
+  const body = $("bkJournalBody");
+  if (!body) return;
+  if (!journal.length) {
+    body.dataset.state = "empty";
+    body.innerHTML = `<p class="list-empty">Запусков ещё не было — журнал наполнится после первого бэкапа.</p>`;
+    return;
+  }
+  body.dataset.state = "ok";
+  const trig = { manual: "вручную", scheduled: "по расписанию" };
+  body.innerHTML = journal.map((j) => `
+    <div class="journal-row${j.status === "error" ? " j-err" : ""}">
+      <span class="j-date mono" title="${esc(j.ts)}">${esc((j.ts || "").slice(0, 16).replace("T", " "))}</span>
+      <span class="j-trig">${esc(trig[j.trigger] || j.trigger || "")}</span>
+      <span class="j-name mono" title="${esc(j.name || j.error || "")}">${esc(j.name || "—")}</span>
+      <span class="j-size mono">${j.status === "error" ? "—" : esc(fmtBytes(j.size))}</span>
+      <span class="j-status" title="${esc(j.error || "")}">${j.status === "error" ? "ошибка" : "готово"}</span>
+    </div>`).join("");
 }
 
 function confirmRestore(name) {
@@ -1600,6 +1676,31 @@ async function pushSettings() {
 }
 
 $("autoSwitch").addEventListener("change", pushSettings);
+
+/* расписание бэкапов: отдельная карточка на странице «Бэкапы» */
+async function pushBkSettings() {
+  const body = {
+    autoBackup: {
+      enabled: $("bkAutoSwitch").checked,
+      time: $("bkAutoTime").value || "03:00",
+      stopServer: $("bkAutoStop").checked,
+    },
+    backup: { maxBackups: Number($("bkAutoKeep").value) },
+  };
+  try {
+    const res = await api("/api/settings", { method: "POST", body });
+    if (res.error) throw new Error(res.error);
+    toast("Расписание бэкапов сохранено", "ok");
+    refreshBackups();
+  } catch (e) {
+    toast(e.message || String(e), "error");
+  }
+}
+
+$("bkAutoSwitch").addEventListener("change", pushBkSettings);
+$("bkAutoTime").addEventListener("change", pushBkSettings);
+$("bkAutoKeep").addEventListener("change", pushBkSettings);
+$("bkAutoStop").addEventListener("change", pushBkSettings);
 $("autoInterval").addEventListener("change", pushSettings);
 $("autoWarn").addEventListener("change", pushSettings);
 $("buBackup").addEventListener("change", pushSettings);

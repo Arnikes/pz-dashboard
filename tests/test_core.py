@@ -4,6 +4,7 @@ import http.client
 import json
 import struct
 import sys
+import tarfile
 import threading
 from collections import Counter
 from datetime import datetime, timedelta, timezone
@@ -999,3 +1000,200 @@ def test_backup_download_missing_file_404(monkeypatch):
     finally:
         srv.shutdown()
         srv.server_close()
+
+
+# ─────────────────────── бэкапы по расписанию (V20) ───────────────────────
+
+def _bk_fixture(tmp_path, monkeypatch):
+    """Обвязка: временные каталоги данных/бэкапов/журнала, тихие события, сервер «стоит»."""
+    config.CFG["backup_dir"] = str(tmp_path / "backups")
+    config.CFG["data_dir"] = str(tmp_path / "data")
+    config.CFG["dashboard_dir"] = str(tmp_path / "dd")
+    config.CFG["settings_file"] = str(tmp_path / "dd" / "settings.json")
+    config.CFG["events_file"] = str(tmp_path / "dd" / "events.jsonl")
+    data = tmp_path / "data"
+    (data / "Server").mkdir(parents=True)
+    (data / "Maps" / "TestMap").mkdir(parents=True)
+    (data / "Server" / "test.ini").write_text("Mods=\n", encoding="utf-8")
+    (data / "Maps" / "TestMap" / "region.bin").write_bytes(b"x" * 2048)
+    monkeypatch.setattr(ops, "log_event", lambda *a, **k: None)
+    monkeypatch.setattr(ops, "_set_phase", lambda *a, **k: None)
+    monkeypatch.setattr(ops, "is_running", lambda: False)
+    return data
+
+
+def _bk_snap():
+    return json.loads(json.dumps(ops._SETTINGS))
+
+
+def _bk_restore(snap):
+    ops._SETTINGS.clear()
+    ops._SETTINGS.update(snap)
+
+
+def test_next_daily_run_boundaries():
+    """Расписание суточное: до времени — сегодня, после — завтра; мусор → 03:00."""
+    base = datetime(2026, 9, 10, 2, 0).timestamp()
+    nxt = ops._next_daily_run("03:00", now=base)
+    assert datetime.fromtimestamp(nxt).strftime("%d %H:%M") == "10 03:00"
+    base2 = datetime(2026, 9, 10, 4, 0).timestamp()
+    nxt2 = ops._next_daily_run("03:00", now=base2)
+    assert datetime.fromtimestamp(nxt2).strftime("%d %H:%M") == "11 03:00"
+    assert ops._next_daily_run("мусор", now=base) == nxt
+
+
+def test_auto_backup_settings_validation(tmp_path):
+    """patch_settings валидирует расписание и пересчитывает следующий запуск."""
+    config.CFG["settings_file"] = str(tmp_path / "settings.json")
+    snap = _bk_snap()
+    try:
+        assert ops.patch_settings({"autoBackup": {"time": "25:99"}}) is not None
+        assert ops.patch_settings({"autoBackup": {"time": "в полдень"}}) is not None
+        assert ops.patch_settings({"autoBackup": {"enabled": "да"}}) is not None
+        assert ops.patch_settings({"autoBackup": {"enabled": True, "time": "3:05"}}) is None
+        s = ops.get_settings()
+        assert s["autoBackup"]["enabled"] is True
+        assert s["autoBackup"]["time"] == "03:05"
+        assert s["nextBackupRun"] > ops.time.time()
+        saved = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
+        assert saved["autoBackup"]["time"] == "03:05"
+        assert ops.patch_settings({"autoBackup": {"enabled": False}}) is None
+        assert ops.get_settings()["nextBackupRun"] is None
+    finally:
+        _bk_restore(snap)
+
+
+def test_load_settings_bad_time_falls_back(tmp_path):
+    """Мусор в settings.json (время 99:99, метка-строка) не роняет пульт."""
+    config.CFG["settings_file"] = str(tmp_path / "settings.json")
+    (tmp_path / "settings.json").write_text(json.dumps({
+        "autoBackup": {"enabled": True, "time": "99:99"},
+        "nextBackupRun": "мусор",
+    }), encoding="utf-8")
+    snap = _bk_snap()
+    try:
+        ops._load_settings()
+        assert ops._SETTINGS["autoBackup"]["time"] == "03:00"
+        assert ops._SETTINGS["nextBackupRun"] is None
+    finally:
+        _bk_restore(snap)
+
+
+def test_auto_backup_tick_fires_and_journals(tmp_path, monkeypatch):
+    """Наступило время — планировщик запускает бэкап, архив и журнал создаются."""
+    data = _bk_fixture(tmp_path, monkeypatch)
+    snap = _bk_snap()
+    fired = {}
+
+    def fake_start_op(op, fn):
+        fired["op"] = op
+        fn()
+
+    monkeypatch.setattr(ops, "start_op", fake_start_op)
+    try:
+        ops._SETTINGS["autoBackup"].update({"enabled": True, "time": "03:00", "stopServer": False})
+        ops._SETTINGS["nextBackupRun"] = ops.time.time() - 60
+        s = ops.get_settings()
+        ops._auto_backup_tick(s, ops.time.time())
+        assert fired["op"] == "backup"
+        assert ops._SETTINGS["nextBackupRun"] > ops.time.time()
+        items = ops.list_backups()
+        assert len(items) == 1
+        journal = ops.get_backup_journal()
+        assert len(journal) == 1
+        rec = journal[0]
+        assert rec["trigger"] == "scheduled" and rec["status"] == "success"
+        assert rec["name"] == items[0]["name"]
+        assert rec["size"] > 0 and rec["path"].endswith(".tar.gz")
+        assert (data / "Server" / "test.ini").exists()
+    finally:
+        _bk_restore(snap)
+
+
+def test_auto_backup_tick_skips_when_busy(tmp_path, monkeypatch):
+    """Пульт занят другой операцией — запуск откладывается, время не двигаем."""
+    _bk_fixture(tmp_path, monkeypatch)
+    monkeypatch.setattr(ops, "op_busy", lambda: True)
+    called = {}
+    monkeypatch.setattr(ops, "start_op", lambda *a, **k: called.setdefault("x", True))
+    snap = _bk_snap()
+    try:
+        ops._SETTINGS["autoBackup"].update({"enabled": True, "time": "03:00"})
+        ops._SETTINGS["nextBackupRun"] = ops.time.time() - 60
+        before = ops._SETTINGS["nextBackupRun"]
+        ops._auto_backup_tick(ops.get_settings(), ops.time.time())
+        assert not called
+        assert ops._SETTINGS["nextBackupRun"] == before
+    finally:
+        _bk_restore(snap)
+
+
+def test_backup_failure_journaled_and_reported(tmp_path, monkeypatch):
+    """Сбой бэкапа: запись статуса error в журнал + событие с пометкой «по расписанию»."""
+    config.CFG["backup_dir"] = str(tmp_path / "backups")
+    config.CFG["data_dir"] = str(tmp_path / "empty-data")
+    config.CFG["dashboard_dir"] = str(tmp_path / "dd")
+    (tmp_path / "empty-data").mkdir()
+    errors = []
+    monkeypatch.setattr(ops, "log_event", lambda kind, text, *a, **k: errors.append((kind, text)))
+    monkeypatch.setattr(ops, "_set_phase", lambda *a, **k: None)
+    with pytest.raises(ops.OpsErrorReported):
+        ops.run_backup_job("scheduled", False)
+    journal = ops.get_backup_journal()
+    assert len(journal) == 1
+    assert journal[0]["status"] == "error" and journal[0]["trigger"] == "scheduled"
+    assert journal[0]["error"]
+    assert any(kind == "error" and "по расписанию" in text for kind, text in errors)
+
+
+def test_verify_backup_ok_and_broken(tmp_path, monkeypatch):
+    """Проверка архива: целостный проходит с подсчётом файлов, битый отклоняется."""
+    _bk_fixture(tmp_path, monkeypatch)
+    res = ops.run_backup_job("manual", False)
+    v = ops.verify_backup(res["name"])
+    assert v["files"] == 2
+    assert v["totalSize"] > 0
+    assert v["hasServerIni"] is True and v["hasMapData"] is True
+    assert not list((tmp_path / "dd").glob("verify-tmp-*"))
+    broken = tmp_path / "backups" / "broken.tar.gz"
+    broken.write_bytes(b"not a gzip file at all")
+    with pytest.raises(ops.OpsError):
+        ops.verify_backup("broken.tar.gz")
+
+
+def test_restore_roundtrip_returns_source(tmp_path, monkeypatch):
+    """Контрольное восстановление: после порчи данных архив возвращает исходный мир."""
+    data = _bk_fixture(tmp_path, monkeypatch)
+    res = ops.run_backup_job("manual", False)
+    (data / "Server" / "test.ini").write_text("ПОРЧА\n", encoding="utf-8")
+    monkeypatch.setattr(dockerlib, "container_start", lambda name: (0, "", ""))
+    monkeypatch.setattr(ops, "wait_until_running", lambda timeout=120: None)
+    ops._do_restore(res["name"])
+    assert (data / "Server" / "test.ini").read_text(encoding="utf-8") == "Mods=\n"
+    assert (data / "Maps" / "TestMap" / "region.bin").read_bytes() == b"x" * 2048
+
+
+def test_rotation_prunes_old_backups(tmp_path, monkeypatch):
+    """Ротация: сверх лимита остаются только свежие копии."""
+    _bk_fixture(tmp_path, monkeypatch)
+    (tmp_path / "backups").mkdir()
+    for i in range(9):
+        (tmp_path / "backups" / f"pz-backup-2026090{i + 1}-030000.tar.gz").write_bytes(b"stub")
+    assert len(ops.list_backups()) == 9
+    assert ops._prune_backups(7) == 2
+    assert len(ops.list_backups()) == 7
+
+
+def test_backup_journal_roundtrip_file(tmp_path, monkeypatch):
+    """Журнал — файл backups.jsonl: записи читаются новыми сверху с нужными полями."""
+    _bk_fixture(tmp_path, monkeypatch)
+    ops._journal_append({"trigger": "manual", "name": "a.tar.gz", "size": 10,
+                         "path": "/backups/a.tar.gz", "status": "success", "duration": 1.0})
+    ops._journal_append({"trigger": "scheduled", "status": "error", "error": "tar не удался"})
+    path = tmp_path / "dd" / "backups.jsonl"
+    assert path.exists()
+    journal = ops.get_backup_journal(10)
+    assert [r["trigger"] for r in journal] == ["scheduled", "manual"]
+    assert journal[1]["name"] == "a.tar.gz" and journal[1]["size"] == 10
+    assert journal[0]["status"] == "error"
+    assert journal[0]["ts"]
