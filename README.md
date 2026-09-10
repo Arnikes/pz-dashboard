@@ -117,6 +117,7 @@ docker compose -f docker-compose.yml -f docker-compose.dashboard.yml up -d --bui
 `POST /api/action` — `{"op":"start|stop|restart|check-update|apply-update|backup|restore|verify-backup", "warnSeconds":300, "stopServer":false, "name":"..."}`
 `POST /api/rcon` — `{"command":"save"}` · `POST /api/settings` — блоки `autoUpdate`, `autoBackup` (`{"enabled":true,"time":"03:00","stopServer":false}`), `backup` (`{"maxBackups":7}`)
 `GET /api/backup/download?name=...` · `DELETE /api/backup?name=...`
+`GET /api/telegram-chats` — чаты, где бот недавно видел сообщения (кнопка «Найти чаты бота»)
 `GET /api/backups` возвращает также `autoBackup` (состояние расписания и следующий запуск) и `journal` (последние 30 записей журнала)
 
 Одновременно выполняется только одна «тяжёлая» операция — прогресс виден

@@ -337,6 +337,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({"ok": True})
             else:
                 self._send_json({"ok": False, "error": err})
+        elif path == "/api/telegram-chats":
+            chats, err = notify.fetch_recent_chats()
+            if err:
+                self._send_json({"ok": False, "error": err})
+            else:
+                self._send_json({"ok": True, "chats": chats or []})
         elif path == "/api/mods-config":
             try:
                 result = ops.set_mod_enabled(

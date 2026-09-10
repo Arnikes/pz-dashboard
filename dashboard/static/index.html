@@ -423,6 +423,11 @@
             <label class="check"><input type="checkbox" id="tgUpdate" checked /> Обновления</label>
             <label class="check"><input type="checkbox" id="tgProblems" checked /> Проблемы</label>
           </div>
+          <div class="actions">
+            <button class="btn small" id="btnTgChats" type="button">Найти чаты бота</button>
+          </div>
+          <div id="tgChatsBody" class="tg-chats" hidden></div>
+          <p class="hint">Кнопка показывает чаты, где бот недавно видел сообщения: напишите что-нибудь в нужный чат и нажмите — настоящий chat id подставится сам (Telegram принимает id с префиксом −100, а в ссылках и дев-тулзах он часто без него).</p>
           <p class="hint" id="tgNote">Токен хранится на сервере пульта и наружу не отдаётся — в поле видно только маску.</p>
           <div class="actions">
             <button class="btn" id="btnTgTest">Проверить</button>

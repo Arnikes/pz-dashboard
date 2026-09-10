@@ -877,6 +877,58 @@ def test_notify_error_surfaces_telegram_description(monkeypatch):
     assert ok is False and err
 
 
+def test_notify_fetch_recent_chats(monkeypatch):
+    """Кнопка «Найти чаты бота»: getUpdates → уникальные чаты с настоящими id
+    (в т.ч. супергруппы с -100, которые из ссылок копируют без префикса);
+    ошибки Telegram уходят с описанием, токен маскируется."""
+    import notify
+
+    class FakeResp:
+        def __init__(self, payload): self._p = payload
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self): return json.dumps(self._p).encode()
+
+    updates = [
+        {"message": {"chat": {"id": -1001234567890, "title": "Тест-группа", "type": "supergroup"}}},
+        {"channel_post": {"chat": {"id": -1001234567890, "title": "Тест-группа", "type": "supergroup"}}},
+        {"message": {"chat": {"id": 42, "first_name": "Иван", "type": "private"}}},
+        {"my_chat_member": {"chat": {"id": -1009876543210, "title": "Вторая", "type": "supergroup"}}},
+        {"callback_query": {"id": "x"}},   # без чата — пропускается
+    ]
+    seen = {}
+
+    def fake_urlopen(req, timeout=10):
+        seen["url"] = req.full_url
+        return FakeResp({"ok": True, "result": updates})
+
+    monkeypatch.setattr(ops, "telegram_settings_raw", lambda: {
+        "enabled": True, "botToken": "123456:SECRET", "chatId": ""})
+    monkeypatch.setattr(notify.urllib.request, "urlopen", fake_urlopen)
+    chats, err = notify.fetch_recent_chats()
+    assert err is None
+    assert seen["url"] == "https://api.telegram.org/bot123456:SECRET/getUpdates?limit=100"
+    assert [c["id"] for c in chats] == ["-1001234567890", "-1009876543210", "42"]
+    assert chats[0]["title"] == "Тест-группа" and chats[1]["title"] == "Вторая"
+    assert chats[2]["title"] == "Иван" and chats[2]["type"] == "private"
+    # нет токена — честная ошибка без сети
+    monkeypatch.setattr(ops, "telegram_settings_raw", lambda: {
+        "enabled": True, "botToken": "", "chatId": ""})
+    chats, err = notify.fetch_recent_chats()
+    assert chats is None and "не задан токен" in err
+    # ошибка Telegram с описанием и маской токена
+    monkeypatch.setattr(ops, "telegram_settings_raw", lambda: {
+        "enabled": True, "botToken": "123456:SECRET", "chatId": ""})
+    def boom(req, timeout=10):
+        raise urllib.error.HTTPError(req.full_url, 409, "Conflict", {},
+                                     io.BytesIO(json.dumps({
+                                         "ok": False, "error_code": 409,
+                                         "description": "Conflict: terminated by other getUpdates request"}).encode()))
+    monkeypatch.setattr(notify.urllib.request, "urlopen", boom)
+    chats, err = notify.fetch_recent_chats()
+    assert chats is None and "Conflict" in err and "SECRET" not in err
+
+
 def test_restore_aborts_on_resurrect(tmp_path, monkeypatch):
     """Восстановление прерывается, если docker сам поднял контейнер посреди
     остановки. Регресс: _do_restore игнорировал результат graceful_stop —

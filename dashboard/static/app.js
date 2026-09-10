@@ -1717,6 +1717,40 @@ $("tgToken").addEventListener("change", () => {
   pushSettings().then(() => { $("tgToken").value = ""; });
 });
 ["tgOps", "tgBackup", "tgUpdate", "tgProblems"].forEach((id) => $(id).addEventListener("change", pushSettings));
+/* «Найти чаты бота»: getUpdates показывает, где бот реально состоит,
+   и подставляет настоящий chat id вместо копипасты с ошибками */
+$("btnTgChats").addEventListener("click", async () => {
+  const btn = $("btnTgChats");
+  const body = $("tgChatsBody");
+  try {
+    btn.disabled = true;
+    await pushSettings();          // токен мог быть введён только что
+    const res = await api("/api/telegram-chats");
+    if (res.error) throw new Error(res.error);
+    const chats = res.chats || [];
+    body.hidden = false;
+    if (!chats.length) {
+      body.innerHTML = `<p class="hint">Пока не нашёл ни одного чата: напишите что-нибудь в нужный чат (в группе — любое сообщение боту) и нажмите кнопку ещё раз. Обновления Telegram хранит сутки.</p>`;
+      return;
+    }
+    body.innerHTML = chats.map((c) => `
+      <button type="button" class="chat-chip" data-id="${esc(c.id)}" title="Подставить в Chat ID">
+        <span>${esc(c.title)}</span><span class="chat-id mono">${esc(c.id)}</span>
+      </button>`).join("");
+    body.querySelectorAll(".chat-chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        $("tgChat").value = chip.dataset.id;
+        pushSettings();
+        toast(`Chat id ${chip.dataset.id} подставлен и сохранён`, "ok");
+      });
+    });
+  } catch (e) {
+    toast(e.message || String(e), "error");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 $("btnTgTest").addEventListener("click", async () => {
   const btn = $("btnTgTest");
   btn.disabled = true;
