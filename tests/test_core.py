@@ -1,11 +1,13 @@
 """Юнит-тесты ядра пульта: парсеры docker, RCON-протокол (с фейковым сервером),
 настройки, история онлайна, SSE-поток. Запуск: pytest -q tests (или из корня проекта)."""
 import http.client
+import io
 import json
 import struct
 import sys
 import tarfile
 import threading
+import urllib.error
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from http.server import ThreadingHTTPServer
@@ -842,6 +844,38 @@ def test_notify_error_masks_token(monkeypatch):
 
 
 # ─────────────── регресс V19: восстановление при resurrected ───────────────
+
+def test_notify_error_surfaces_telegram_description(monkeypatch):
+    """Регресс V20.3: HTTP-ошибка Telegram (400/401) показывалась безликим
+    «HTTP Error 400: Bad Request», хотя в теле ответа Telegram пишет настоящую
+    причину («chat not found» — бот не запущен/не добавлен в чат)."""
+    import notify
+
+    def boom(req, timeout=10):
+        raise urllib.error.HTTPError(
+            req.full_url, 400, "Bad Request",
+            {"Content-Type": "application/json"},
+            io.BytesIO(json.dumps({"ok": False, "error_code": 400,
+                                   "description": "Bad Request: chat not found"}).encode()))
+
+    monkeypatch.setattr(ops, "telegram_settings_raw", lambda: {
+        "enabled": True, "botToken": "123456:SECRET", "chatId": "42"})
+    monkeypatch.setattr(notify.urllib.request, "urlopen", boom)
+    ok, err = notify.send_message("x")
+    assert ok is False
+    assert "chat not found" in err
+    assert "SECRET" not in err
+    # «Проверить» добавляет к ошибке сохранённый chat id — видно, что лежит в настройках
+    ok, err = notify.test_message()
+    assert ok is False and "chat not found" in err and "chat id: 42" in err
+    # тело не-json/пустое → хотя бы безликая ошибка, без падения
+    def boom_raw(req, timeout=10):
+        raise urllib.error.HTTPError(req.full_url, 500, "Internal Error",
+                                     {}, io.BytesIO(b""))
+    monkeypatch.setattr(notify.urllib.request, "urlopen", boom_raw)
+    ok, err = notify.send_message("x")
+    assert ok is False and err
+
 
 def test_restore_aborts_on_resurrect(tmp_path, monkeypatch):
     """Восстановление прерывается, если docker сам поднял контейнер посреди

@@ -10,6 +10,7 @@ import json
 import queue
 import threading
 import time
+import urllib.error
 import urllib.request
 
 import config
@@ -89,6 +90,16 @@ def send_message(text):
         if payload.get("ok"):
             return True, None
         return False, str(payload.get("description") or "Telegram вернул ошибку")
+    except urllib.error.HTTPError as e:
+        # в теле ответа Telegram пишет настоящую причину («Bad Request: chat not
+        # found» и т.п.), а str(e) — безликое «HTTP Error 400: Bad Request»
+        try:
+            payload = json.loads(e.read().decode("utf-8", "replace"))
+            desc = str(payload.get("description") or "").strip()
+        except Exception:  # noqa: BLE001 — тело может быть пустым/не-json
+            desc = ""
+        err = desc or str(e)
+        return False, err.replace(token, "•••" + token[-4:])
     except Exception as e:  # noqa: BLE001 — наружу отдаём текст ошибки
         # текст ошибки может содержать полный URL запроса — маскируем токен
         err = str(e).replace(token, "•••" + token[-4:])
@@ -96,10 +107,16 @@ def send_message(text):
 
 
 def test_message():
-    """Кнопка «Проверить» в карточке уведомлений."""
+    """Кнопка «Проверить» в карточке уведомлений. При ошибке добавляет к тексту
+    сохранённый chat id — чтобы сразу видеть, что реально лежит в настройках."""
+    tg = _telegram_settings()
     ok, err = send_message("✅ PZ Пульт: проверка связи — уведомления работают.")
     with _LOCK:
         _LAST.update({"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "ok": ok, "error": err})
+    if not ok:
+        chat = (tg.get("chatId") or "").strip()
+        if chat:
+            err = f"{err} · chat id: {chat}"
     return ok, err
 
 
