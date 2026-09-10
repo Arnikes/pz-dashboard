@@ -404,6 +404,8 @@ a.sum-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .c-mods      { grid-column: span 7; }
 .c-mupd      { grid-column: span 5; }
 .c-backups   { grid-column: 1 / -1; }
+.c-bksched   { grid-column: 1 / -1; }
+.c-bkjournal { grid-column: 1 / -1; }
 .c-events    { grid-column: 1 / -1; }
 .c-console   { grid-column: span 7; }
 .c-logs      { grid-column: span 5; }
