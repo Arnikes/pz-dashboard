@@ -27,10 +27,11 @@ def api(monkeypatch):
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
 
-    def request(method, path, data=None):
+    def request(method, path, data=None, *, raw=None, headers=None):
         connection = http.client.HTTPConnection(*server.server_address, timeout=5)
         try:
-            connection.request(method, path, json.dumps(data) if data is not None else None)
+            body = raw if raw is not None else json.dumps(data) if data is not None else None
+            connection.request(method, path, body, headers or {})
             response = connection.getresponse()
             return response.status, json.loads(response.read())
         finally:
@@ -174,3 +175,60 @@ def test_players_rcon_failure(monkeypatch, docker, state):
     monkeypatch.setattr(ops, "fetch_players", Mock(side_effect=rcon.RCONError("offline")))
     assert payloads.players_payload() == {"ok": False, "error": "offline"}
     assert container.call_count == int(docker)
+
+
+@pytest.mark.parametrize("raw", ["[]", "null", "42", '"text"', "{broken", b"\xff"])
+def test_invalid_json_is_rejected(api, monkeypatch, raw):
+    patch = Mock()
+    monkeypatch.setattr(ops, "patch_settings", patch)
+    status, body = api("POST", "/api/settings", raw=raw)
+    assert status == 400 and body["ok"] is False
+    patch.assert_not_called()
+
+
+@pytest.mark.parametrize("length", ["invalid", "-1", "65537"])
+def test_invalid_content_length_is_rejected(api, length):
+    status, body = api("POST", "/api/action", raw="{}", headers={"Content-Length": length})
+    assert status == 400 and body["ok"] is False
+
+
+@pytest.mark.parametrize("value", [[], {}, 12, True])
+def test_invalid_action_and_command_types(api, operation_env, value):
+    for path, key in (("/api/action", "op"), ("/api/rcon", "command")):
+        status, body = api("POST", path, {key: value})
+        assert status == 400 and body["ok"] is False
+    operation_env[0].assert_not_called()
+
+
+def test_logs_tail_parameter(api, monkeypatch):
+    logs = Mock(return_value=("server log", None))
+    monkeypatch.setattr(app.dockerlib, "container_logs", logs)
+    for query, expected in (
+        ("12", 12),
+        ("0", 1),
+        ("99999", 10000),
+        ("bad", app.config.CFG["log_lines"]),
+    ):
+        assert api("GET", "/api/logs?tail=" + query) == (200, {"ok": True, "text": "server log"})
+        assert logs.call_args.args[1] == expected
+
+
+def test_settings_patch_is_atomic(monkeypatch):
+    before = json.loads(json.dumps(ops._SETTINGS))
+    monkeypatch.setattr(ops, "_SETTINGS", json.loads(json.dumps(before)))
+    save = Mock()
+    monkeypatch.setattr(ops, "_save_settings", save)
+    patch = {
+        "autoUpdate": {"enabled": not before["autoUpdate"]["enabled"], "intervalHours": "12"},
+        "telegram": {"enabled": "invalid"},
+    }
+    original = json.loads(json.dumps(patch))
+    assert ops.patch_settings(patch) is not None
+    assert ops._SETTINGS == before
+    assert patch == original
+    save.assert_not_called()
+    patch.pop("telegram")
+    assert ops.patch_settings(patch) is None
+    assert ops._SETTINGS["autoUpdate"]["enabled"] != before["autoUpdate"]["enabled"]
+    assert ops._SETTINGS["autoUpdate"]["intervalHours"] == 12
+    save.assert_called_once()

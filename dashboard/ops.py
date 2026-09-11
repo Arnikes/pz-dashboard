@@ -256,7 +256,11 @@ def telegram_settings_raw():
 
 def patch_settings(patch):
     """Обновить настройки с валидацией. Возвращает текст ошибки или None."""
+    if not isinstance(patch, dict):
+        return "неверный формат настроек"
+    patch = json.loads(json.dumps(patch))
     with _SET_LOCK:
+        updated = json.loads(json.dumps(_SETTINGS))
         au = patch.get("autoUpdate")
         if au is not None:
             if not isinstance(au, dict):
@@ -275,7 +279,7 @@ def patch_settings(patch):
                 au["warnSeconds"] = v
             if "backupBeforeUpdate" in au and not isinstance(au["backupBeforeUpdate"], bool):
                 return "backupBeforeUpdate должен быть true/false"
-            _SETTINGS["autoUpdate"].update(au)
+            updated["autoUpdate"].update(au)
         mu = patch.get("modsUpdate")
         if mu is not None:
             if not isinstance(mu, dict):
@@ -294,7 +298,7 @@ def patch_settings(patch):
                 mu["warnSeconds"] = v
             if "restartOnUpdate" in mu and not isinstance(mu["restartOnUpdate"], bool):
                 return "restartOnUpdate должен быть true/false"
-            _SETTINGS["modsUpdate"].update(mu)
+            updated["modsUpdate"].update(mu)
         wd = patch.get("watchdog")
         if wd is not None:
             if not isinstance(wd, dict):
@@ -308,7 +312,7 @@ def patch_settings(patch):
                 wd["thresholdMin"] = v
             if "autoRestart" in wd and not isinstance(wd["autoRestart"], bool):
                 return "watchdog.autoRestart должен быть true/false"
-            _SETTINGS["watchdog"].update(wd)
+            updated["watchdog"].update(wd)
         bk = patch.get("backup")
         if bk is not None:
             if not isinstance(bk, dict):
@@ -320,7 +324,7 @@ def patch_settings(patch):
                 if v is None:
                     return "maxBackups должен быть числом 0–200"
                 bk["maxBackups"] = v
-            _SETTINGS["backup"].update(bk)
+            updated["backup"].update(bk)
         abk = patch.get("autoBackup")
         if abk is not None:
             if not isinstance(abk, dict):
@@ -333,12 +337,12 @@ def patch_settings(patch):
                 abk["time"] = _norm_hhmm(abk["time"])
             if "stopServer" in abk and not isinstance(abk["stopServer"], bool):
                 return "stopServer должен быть true/false"
-            _SETTINGS["autoBackup"].update(abk)
+            updated["autoBackup"].update(abk)
             if "enabled" in abk or "time" in abk:
                 # расписание изменилось — пересчитать следующий запуск
-                _SETTINGS["nextBackupRun"] = (
-                    _next_daily_run(_SETTINGS["autoBackup"]["time"])
-                    if _SETTINGS["autoBackup"]["enabled"]
+                updated["nextBackupRun"] = (
+                    _next_daily_run(updated["autoBackup"]["time"])
+                    if updated["autoBackup"]["enabled"]
                     else None
                 )
         tg = patch.get("telegram")
@@ -374,7 +378,8 @@ def patch_settings(patch):
                 tg["chatId"] = cid.strip()[:32]
             else:
                 return "chatId должен быть строкой"
-            _SETTINGS["telegram"].update(tg)
+            updated["telegram"].update(tg)
+        _SETTINGS.update(updated)
         _save_settings()
         return None
 
@@ -1366,7 +1371,9 @@ def fetch_stats():
 
 def full_logs():
     """Полный лог контейнера (для скачивания файлом)."""
-    code, out, err = dockerlib.sh(["docker", "logs", config.CFG["pz_container"]], timeout=120)
+    code, out, err = dockerlib.sh(
+        ["docker", "logs", config.CFG["pz_container"]], timeout=120, merge_stderr=True
+    )
     return out if code == 0 else None
 
 

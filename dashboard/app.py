@@ -23,13 +23,23 @@ STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
 
 def _read_json(handler):
-    length = int(handler.headers.get("Content-Length") or 0)
-    if length <= 0 or length > 65536:
+    if handler.headers.get("Transfer-Encoding"):
+        raise ValueError("Transfer-Encoding не поддерживается")
+    try:
+        length = int(handler.headers.get("Content-Length") or 0)
+    except ValueError:
+        raise ValueError("Некорректный Content-Length") from None
+    if length < 0 or length > 65536:
+        raise ValueError("Размер JSON должен быть не больше 65536 байт")
+    if length == 0:
         return {}
     try:
-        return json.loads(handler.rfile.read(length).decode("utf-8"))
+        data = json.loads(handler.rfile.read(length).decode("utf-8"))
     except (ValueError, UnicodeDecodeError):
-        return {}
+        raise ValueError("Некорректный JSON") from None
+    if not isinstance(data, dict):
+        raise ValueError("JSON должен быть объектом")
+    return data
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -191,7 +201,14 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/health":
             self._send_json({"ok": True, "now": ops.now_iso()})
         elif path in payloads.GET_CHANNELS:
-            self._send_json(payloads.stream_payload(payloads.GET_CHANNELS[path]))
+            if path == "/api/logs":
+                try:
+                    tail = min(10000, max(1, int(qs.get("tail", [config.CFG["log_lines"]])[0])))
+                except ValueError:
+                    tail = config.CFG["log_lines"]
+                self._send_json(payloads.logs_payload(tail))
+            else:
+                self._send_json(payloads.stream_payload(payloads.GET_CHANNELS[path]))
         elif path == "/api/logs/full":
             self._send_full_logs()
         elif path == "/api/mods":
@@ -219,10 +236,20 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
-        data = _read_json(self)
+        try:
+            data = _read_json(self)
+        except ValueError as error:
+            # Unread bodies must not become the next request on a persistent connection.
+            self.close_connection = True
+            self._send_error_json(400, str(error))
+            return
 
         if path == "/api/rcon":
-            command = (data.get("command") or "").strip()
+            command = data.get("command", "")
+            if not isinstance(command, str):
+                self._send_error_json(400, "command должен быть строкой")
+                return
+            command = command.strip()
             if not command or len(command) > 500:
                 self._send_error_json(400, "Пустая или слишком длинная команда")
                 return

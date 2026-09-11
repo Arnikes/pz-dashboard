@@ -21,8 +21,10 @@ def players_payload():
         return {"ok": False, "error": str(e)}
 
 
-def logs_payload():
-    text, err = dockerlib.container_logs(config.CFG["pz_container"], config.CFG["log_lines"])
+def logs_payload(tail=None):
+    text, err = dockerlib.container_logs(
+        config.CFG["pz_container"], config.CFG["log_lines"] if tail is None else tail
+    )
     if text is None:
         return {"ok": False, "error": err or "логи недоступны"}
     return {"ok": True, "text": text}

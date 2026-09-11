@@ -36,6 +36,31 @@ def test_parse_bytes():
     assert dockerlib.parse_bytes("мусор") == 0
 
 
+def test_command_output_includes_stderr_when_requested():
+    script = "import os; os.write(1, b'normal\\n'); os.write(2, b'error\\n')"
+    command = [sys.executable, "-c", script]
+    assert dockerlib.sh(command) == (0, "normal", "error")
+    assert dockerlib.sh(command, merge_stderr=True) == (0, "normal\nerror", "")
+
+
+def test_log_readers_request_both_streams(monkeypatch):
+    calls = []
+
+    def fake_sh(args, timeout=120, merge_stderr=False):
+        calls.append((args, merge_stderr))
+        return 0, "normal\nerror" if merge_stderr else "normal", ""
+
+    monkeypatch.setattr(dockerlib, "sh", fake_sh)
+    assert dockerlib.container_logs("server") == ("normal\nerror", None)
+    assert ops.full_logs() == "normal\nerror"
+    assert all(merge for _, merge in calls)
+
+
+def test_command_output_decodes_utf8_and_replaces_invalid_bytes():
+    script = "import os; os.write(1, bytes.fromhex('d09fd180d0b8d0b2d0b5d182ff'))"
+    assert dockerlib.sh([sys.executable, "-c", script]) == (0, "Привет�", "")
+
+
 def test_fmt_size():
     assert ops.fmt_size(0) == "0 Б"
     assert ops.fmt_size(1024) == "1.0 КБ"

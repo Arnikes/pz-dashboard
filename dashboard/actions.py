@@ -15,11 +15,13 @@ class ActionError(Exception):
 
 def dispatch(data):
     action = data.get("op")
+    if not isinstance(action, str):
+        raise ActionError(400, "Неизвестная операция")
     settings = ops.get_settings()
     warn_default = settings["autoUpdate"]["warnSeconds"]
     try:
         warn = max(0, min(3600, int(data.get("warnSeconds", warn_default))))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         warn = warn_default
 
     # Bind arguments now; start_op executes the selected callable in a worker.

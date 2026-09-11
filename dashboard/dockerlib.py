@@ -11,10 +11,18 @@ import subprocess
 SIZE_RE = re.compile(r"^([\d.]+)\s*([kKmMgG]?)(i?)([bB])$")
 
 
-def sh(args, timeout=120):
+def sh(args, timeout=120, merge_stderr=False):
     """Выполнить команду, вернуть (code, stdout, stderr)."""
     try:
-        p = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+        p = subprocess.run(
+            args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT if merge_stderr else subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+        )
         return p.returncode, (p.stdout or "").strip(), (p.stderr or "").strip()
     except FileNotFoundError:
         return -1, "", "docker CLI не найден в контейнере"
@@ -92,7 +100,11 @@ def image_digests(image):
 
 
 def container_logs(name, tail=250):
-    code, out, err = sh(["docker", "logs", "--tail", str(tail), "--timestamps", name], timeout=30)
+    code, out, err = sh(
+        ["docker", "logs", "--tail", str(tail), "--timestamps", name],
+        timeout=30,
+        merge_stderr=True,
+    )
     if code != 0:
         return None, err or out
     return out, None
