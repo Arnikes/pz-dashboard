@@ -11,10 +11,12 @@ import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import actions
 import config
 import dockerlib
 import notify
 import ops
+import payloads
 import rcon
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
@@ -28,94 +30,6 @@ def _read_json(handler):
         return json.loads(handler.rfile.read(length).decode("utf-8"))
     except (ValueError, UnicodeDecodeError):
         return {}
-
-
-def players_payload():
-    if not ops.docker_ok_cached():
-        # удалённый режим: статус сервера узнаём самим RCON
-        try:
-            data = ops.fetch_players()
-            return {"ok": True, **data}
-        except rcon.RCONError as e:
-            return {"ok": False, "error": str(e)}
-    st = ops.container_state()
-    if not st:
-        return {"ok": False, "error": "Контейнер не найден"}
-    if not st["running"]:
-        return {"ok": False, "error": "Сервер остановлен"}
-    try:
-        data = ops.fetch_players()
-        return {"ok": True, **data}
-    except rcon.RCONError as e:
-        return {"ok": False, "error": str(e)}
-
-
-def logs_payload():
-    text, err = dockerlib.container_logs(config.CFG["pz_container"], config.CFG["log_lines"])
-    if text is None:
-        return {"ok": False, "error": err or "логи недоступны"}
-    return {"ok": True, "text": text}
-
-
-def stats_payload():
-    """Кадр метрик: ошибка контейнера отдаётся как ok:false + error, иначе
-    интерфейс рисует фиктивные нули вместо состояния ошибки."""
-    data = ops.fetch_stats()
-    return {"ok": "error" not in data, **data}
-
-
-def backups_payload():
-    s = ops.get_settings()
-    return {
-        "ok": True,
-        "items": ops.list_backups(),
-        "maxBackups": s["backup"]["maxBackups"],
-        "autoBackup": ops.auto_backup_state(),
-        "journal": ops.get_backup_journal(30),
-    }
-
-
-def events_payload(limit=100):
-    return {"ok": True, "items": ops.get_events(limit)}
-
-
-# каналы SSE: имя события → интервал отправки, секунды
-STREAM_PLAN = (
-    ("ops", 1.0),
-    ("overview", 3.0),
-    ("players", 5.0),
-    ("stats", 5.0),
-    ("logs", 5.0),
-    ("backups", 10.0),
-    ("events", 12.0),
-    ("stats-history", 30.0),
-    ("players-history", 60.0),
-    ("mods", 60.0),
-)
-
-
-def stream_payload(name):
-    if name == "overview":
-        return {"ok": True, **ops.overview()}
-    if name == "players":
-        return players_payload()
-    if name == "stats":
-        return stats_payload()
-    if name == "logs":
-        return logs_payload()
-    if name == "backups":
-        return backups_payload()
-    if name == "events":
-        return events_payload()
-    if name == "ops":
-        return {"ok": True, **ops.op_state()}
-    if name == "stats-history":
-        return {"ok": True, "points": ops.get_stats_history()}
-    if name == "players-history":
-        return {"ok": True, "points": ops.get_players_history()}
-    if name == "mods":
-        return ops.list_mods(None)
-    return {"ok": False, "error": "нет такого потока"}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -231,17 +145,17 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Transfer-Encoding", "chunked")
         self.end_headers()
         self.connection.settimeout(75)
-        last = {name: 0.0 for name, _ in STREAM_PLAN}
+        last = {name: 0.0 for name, _ in payloads.STREAM_PLAN}
         last_beat = time.time()
         try:
             self._sse_write(b"retry: 3000\n\n")
             while True:
                 now = time.time()
-                for name, interval in STREAM_PLAN:
+                for name, interval in payloads.STREAM_PLAN:
                     if now - last[name] < interval:
                         continue
                     try:
-                        data = stream_payload(name)
+                        data = payloads.stream_payload(name)
                     except Exception as e:  # noqa: BLE001
                         data = {"ok": False, "error": str(e)}
                     frame = (
@@ -276,24 +190,12 @@ class Handler(BaseHTTPRequestHandler):
             self._static_file("favicon.svg")
         elif path == "/api/health":
             self._send_json({"ok": True, "now": ops.now_iso()})
-        elif path == "/api/overview":
-            self._send_json({"ok": True, **ops.overview()})
-        elif path == "/api/players":
-            self._send_json(players_payload())
-        elif path == "/api/players/history":
-            self._send_json({"ok": True, "points": ops.get_players_history()})
-        elif path == "/api/stats/history":
-            self._send_json({"ok": True, "points": ops.get_stats_history()})
+        elif path in payloads.GET_CHANNELS:
+            self._send_json(payloads.stream_payload(payloads.GET_CHANNELS[path]))
         elif path == "/api/logs/full":
             self._send_full_logs()
         elif path == "/api/mods":
             self._send_json(ops.mods_config_state((qs.get("file", [None])[0])))
-        elif path == "/api/stats":
-            self._send_json(stats_payload())
-        elif path == "/api/logs":
-            self._send_json(logs_payload())
-        elif path == "/api/backups":
-            self._send_json(backups_payload())
         elif path == "/api/telegram-chats":
             chats, err = notify.fetch_recent_chats()
             if err:
@@ -305,11 +207,9 @@ class Handler(BaseHTTPRequestHandler):
                 limit = min(200, max(1, int(qs.get("limit", [100])[0])))
             except ValueError:
                 limit = 100
-            self._send_json(events_payload(limit))
+            self._send_json(payloads.events_payload(limit))
         elif path == "/api/stream":
             self._serve_stream()
-        elif path == "/api/ops":
-            self._send_json({"ok": True, **ops.op_state()})
         elif path == "/api/backup/download":
             self._serve_backup((qs.get("name", [""])[0]))
         else:
@@ -378,67 +278,12 @@ class Handler(BaseHTTPRequestHandler):
 
     # ── операции ──
     def _handle_action(self, data):
-        action = data.get("op")
-        settings = ops.get_settings()
-        warn_default = settings["autoUpdate"]["warnSeconds"]
         try:
-            warn = max(0, min(3600, int(data.get("warnSeconds", warn_default))))
-        except (TypeError, ValueError):
-            warn = warn_default
-
-        known = {
-            "start",
-            "stop",
-            "restart",
-            "check-update",
-            "apply-update",
-            "check-mods-update",
-            "apply-mods-update",
-            "backup",
-            "restore",
-            "verify-backup",
-        }
-        if action not in known:
-            self._send_error_json(400, "Неизвестная операция")
+            result = actions.dispatch(data)
+        except actions.ActionError as error:
+            self._send_error_json(error.status, str(error))
             return
-        if ops.op_busy():
-            self._send_error_json(409, "Уже выполняется другая операция")
-            return
-
-        try:
-            if action == "start":
-                ops.start_op("start", ops._do_start)
-            elif action == "stop":
-                ops.start_op("stop", lambda: ops._do_stop(warn))
-            elif action == "restart":
-                ops.start_op("restart", lambda: ops._do_restart(warn))
-            elif action == "check-update":
-                self._send_json({"ok": True, "check": ops.check_update(force_event=True)})
-                return
-            elif action == "apply-update":
-                # после ручного обновления откладываем автопроверку на интервал:
-                # get_settings() возвращает копию, мутация копии не сохраняется
-                ops.defer_next_check(settings["autoUpdate"]["intervalHours"])
-                ops.start_op(
-                    "apply-update", lambda: ops._do_apply_update(warn, "Обновление сервера")
-                )
-            elif action == "check-mods-update":
-                ops.start_op("check-mods-update", lambda: ops.check_mods_update(source="manual"))
-            elif action == "apply-mods-update":
-                ops.start_op("apply-mods-update", lambda: ops._do_apply_mods_update(warn))
-            elif action == "backup":
-                stop_flag = bool(data.get("stopServer", False))
-                ops.start_op("backup", lambda: ops.run_backup_job("manual", stop_flag))
-            elif action == "verify-backup":
-                vname = data.get("name") or ""
-                ops.start_op("verify-backup", lambda: ops.verify_backup(vname))
-            elif action == "restore":
-                name = data.get("name") or ""
-                ops.start_op("restore", lambda: ops._do_restore(name))
-        except ops.OpsError as e:
-            self._send_error_json(409, str(e))
-            return
-        self._send_json({"ok": True, "started": action})
+        self._send_json(result)
 
 
 def main():

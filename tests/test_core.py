@@ -1408,10 +1408,10 @@ def test_backup_tar_timeout_readable(tmp_path, monkeypatch):
 def test_stats_payload_error_is_ok_false(monkeypatch):
     """Кадр stats без контейнера — ok:false + error (интерфейс показывает
     состояние ошибки), а не ok:true с фиктивными нулями."""
-    import app
+    import payloads
 
     monkeypatch.setattr(ops, "container_state", lambda: None)
-    data = app.stats_payload()
+    data = payloads.stats_payload()
     assert data["ok"] is False and "error" in data
     # живые данные не сломались
     monkeypatch.setattr(
@@ -1432,7 +1432,7 @@ def test_stats_payload_error_is_ok_false(monkeypatch):
             "pids": 1,
         },
     )
-    data = app.stats_payload()
+    data = payloads.stats_payload()
     assert data["ok"] is True and data["cpuPct"] == 1.0
 
 

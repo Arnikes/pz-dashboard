@@ -33,6 +33,8 @@ docker compose): статус, игроки, обновления, автооб�
 | `.env.example` | Образец переменных окружения (скопировать в `.env`) |
 | `dashboard/Dockerfile` | Образ пульта: python + docker CLI + compose + tar |
 | `dashboard/app.py` | HTTP-сервер и API |
+| `dashboard/payloads.py` | Общие данные ответов JSON API и SSE, расписание каналов |
+| `dashboard/actions.py` | Проверка и диспетчеризация команд API, параметры фоновых операций |
 | `dashboard/ops.py` | Операции: старт/стоп/бэкапы/обновления, события, планировщик |
 | `dashboard/dockerlib.py` | Обёртка над docker CLI |
 | `dashboard/rcon.py` | Клиент Source RCON |
