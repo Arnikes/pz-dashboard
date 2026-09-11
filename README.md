@@ -130,10 +130,11 @@ docker compose -f docker-compose.yml -f docker-compose.dashboard.yml up -d --bui
 Пайплайны лежат в `.gitea/workflows/` и работают на штатном Gitea Actions (act_runner).
 
 **ci.yml** — на каждый push в main/master, на PR и вручную:
-1. компиляция всех python-модулей;
-2. юнит-тесты pytest из `tests/` — в том числе фейковый RCON-сервер,
-   который ловит регресс протокола (кейс с 10-байтовыми пакетами);
-3. проверка синтаксиса JS;
+1. Python 3.12 и зависимости разработки из `requirements-dev.txt`;
+2. единая команда `python scripts/check.py`: целостность зависимостей,
+   Ruff (линтер и форматирование), синтаксис JS, pytest ядра и браузерные тесты Chromium;
+3. браузерные проверки навигации на десктопе и телефоне, подтверждения операции,
+   ошибки API и перехода в демо-режим; тесты ядра включают фейковый RCON-сервер;
 4. сборка docker-образа и smoke-запуск: контейнер поднимается, пайплайн ждёт `/api/health`.
 
 **deploy.yml** — на тег `v*` и вручную:
@@ -157,12 +158,53 @@ docker compose -f docker-compose.yml -f docker-compose.dashboard.yml up -d --bui
 Чтобы сервер брал образ из реестра, а не собирал локально, замените в
 `docker-compose.dashboard.yml` строку `build:` на `image: <адрес-gitea>/<owner>/pz-pult:latest`.
 
-Локальный запуск тестов:
+### Локальная разработка
+
+Используйте **Python 3.12**, как в Dockerfile (`.python-version`), и **Node.js 24**
+для проверки синтаксиса JS. Зависимости приложения — стандартная библиотека;
+`requirements-dev.txt` фиксирует прямые и транзитивные зависимости только для разработки.
+
+Windows / PowerShell, из корня проекта:
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m playwright install chromium
+.\.venv\Scripts\python.exe scripts/check.py
+```
+
+Linux / WSL (нужна отдельная Linux-venv; Windows-venv здесь не работает):
 
 ```bash
-python3 -m venv .venv && .venv/bin/pip install -q pytest
-.venv/bin/pytest -q tests
+python3.12 -m venv .venv-linux
+.venv-linux/bin/python -m pip install -r requirements-dev.txt
+.venv-linux/bin/python -m playwright install --with-deps chromium
+.venv-linux/bin/python scripts/check.py
 ```
+
+После активации окружения единая команда — `python scripts/check.py`.
+Она работает и в CI, прекращает выполнение при первой ошибке и требует Python 3.12.
+Временные данные pytest хранятся в `.tmp-pytest/`, трассы и скриншоты неудачных
+браузерных тестов — в `test-results/`; эти каталоги исключены из Git.
+
+Полезные отдельные команды (из активированной venv):
+
+```bash
+python -m ruff check .
+python -m ruff format .
+python -m pytest -q tests/test_core.py
+python -m pytest -q tests/browser --headed
+python -m playwright show-trace test-results/<test-name>/trace.zip
+```
+
+Браузерные тесты запускают временный HTTP-сервер только на `127.0.0.1`,
+загружают настоящие HTML/CSS/JS проекта и подменяют ответы API, включая SSE.
+Docker, PZ, RCON и Telegram для этих тестов не нужны. Это проверка интерфейса;
+интеграционная проверка управления игровым сервером потребует отдельного стенда позже.
+
+При обновлении инструментов обновляйте версии в `requirements-dev.txt` вместе
+с транзитивными зависимостями, затем повторно установите Chromium и запустите
+`python scripts/check.py`. Для воспроизводимости не устанавливайте в CI незакреплённый pytest.
 
 ## Бэкапы по расписанию
 

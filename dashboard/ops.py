@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Ядро пульта: события, настройки, операции (старт/стоп/бэкапы/обновления),
 планировщик автообновления. Всё на стандартной библиотеке."""
+
 import json
 import os
 import re
@@ -20,13 +21,18 @@ import rcon as rconlib
 
 # ─────────────────────────── утилиты времени ───────────────────────────
 
+
 def now_iso():
     return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
 
 
 def _iso_ts(value):
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone().isoformat(timespec="seconds")
+        return (
+            datetime.fromisoformat(value.replace("Z", "+00:00"))
+            .astimezone()
+            .isoformat(timespec="seconds")
+        )
     except (ValueError, AttributeError):
         return value or ""
 
@@ -45,9 +51,24 @@ def fmt_size(n):
 _EV_LOCK = threading.Lock()
 _EV_MEM = deque(maxlen=300)
 
-_EVENT_TYPES = {"start", "stop", "restart", "backup", "restore", "update",
-                "update-check", "auto", "console", "warn", "delete",
-                "rcon-error", "error", "docker", "backup-delete", "mods"}
+_EVENT_TYPES = {
+    "start",
+    "stop",
+    "restart",
+    "backup",
+    "restore",
+    "update",
+    "update-check",
+    "auto",
+    "console",
+    "warn",
+    "delete",
+    "rcon-error",
+    "error",
+    "docker",
+    "backup-delete",
+    "mods",
+}
 
 
 def log_event(kind, text, detail=None, notify=True):
@@ -93,17 +114,31 @@ def get_events(limit=100):
 
 _SET_LOCK = threading.Lock()
 _DEFAULTS = {
-    "autoUpdate": {"enabled": False, "intervalHours": 6, "warnSeconds": 300, "backupBeforeUpdate": True},
-    "modsUpdate": {"enabled": False, "intervalHours": 6, "restartOnUpdate": True, "warnSeconds": 600},
-    "telegram": {"enabled": False, "botToken": "", "chatId": "",
-                 "groups": {"ops": True, "backup": True, "update": True, "problems": True}},
+    "autoUpdate": {
+        "enabled": False,
+        "intervalHours": 6,
+        "warnSeconds": 300,
+        "backupBeforeUpdate": True,
+    },
+    "modsUpdate": {
+        "enabled": False,
+        "intervalHours": 6,
+        "restartOnUpdate": True,
+        "warnSeconds": 600,
+    },
+    "telegram": {
+        "enabled": False,
+        "botToken": "",
+        "chatId": "",
+        "groups": {"ops": True, "backup": True, "update": True, "problems": True},
+    },
     "backup": {"stopServer": False, "maxBackups": 7},
     "autoBackup": {"enabled": False, "time": "03:00", "stopServer": False},
     "watchdog": {"enabled": False, "thresholdMin": 5, "autoRestart": False},
     "nextCheck": None,
     "nextModsCheck": None,
     "nextBackupRun": None,
-    "modsDisabled": {},   # workshop id -> {title, modIds, at} — выключенные из конфига
+    "modsDisabled": {},  # workshop id -> {title, modIds, at} — выключенные из конфига
 }
 
 # рабочая копия настроек: мутируется в рантайме, _DEFAULTS остаётся эталоном
@@ -140,7 +175,7 @@ def _norm_hhmm(value):
 
 def _next_daily_run(time_str, now=None):
     """Следующий суточный запуск в «ЧЧ:ММ» по локальному времени пульта."""
-    hh, mm = (_norm_hhmm(time_str).split(":") if _valid_hhmm(time_str) else ("3", "0"))
+    hh, mm = _norm_hhmm(time_str).split(":") if _valid_hhmm(time_str) else ("3", "0")
     base = datetime.fromtimestamp(now if now is not None else time.time())
     run = base.replace(hour=int(hh), minute=int(mm), second=0, microsecond=0)
     if run <= base:
@@ -160,15 +195,20 @@ def _load_settings():
             elif k in ("nextCheck", "nextModsCheck", "nextBackupRun"):
                 # метка планировщика — только число; строка/список из рук
                 # иначе роняли бы планировщик TypeError'ом каждые 20 с
-                _SETTINGS[k] = v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+                _SETTINGS[k] = (
+                    v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+                )
     except (OSError, ValueError):
         pass
     # значения из старого/ручного файла не должны обходить валидацию patch_settings:
     # интервал 0 превратил бы планировщик в цикл проверок каждые 20 с
     for section, key, lo, hi in (
-        ("autoUpdate", "intervalHours", 1, 168), ("autoUpdate", "warnSeconds", 0, 3600),
-        ("modsUpdate", "intervalHours", 1, 168), ("modsUpdate", "warnSeconds", 0, 3600),
-        ("watchdog", "thresholdMin", 1, 60), ("backup", "maxBackups", 0, 200),
+        ("autoUpdate", "intervalHours", 1, 168),
+        ("autoUpdate", "warnSeconds", 0, 3600),
+        ("modsUpdate", "intervalHours", 1, 168),
+        ("modsUpdate", "warnSeconds", 0, 3600),
+        ("watchdog", "thresholdMin", 1, 60),
+        ("backup", "maxBackups", 0, 200),
     ):
         val = _SETTINGS[section].get(key)
         if isinstance(val, bool) or not isinstance(val, (int, float)):
@@ -296,8 +336,11 @@ def patch_settings(patch):
             _SETTINGS["autoBackup"].update(abk)
             if "enabled" in abk or "time" in abk:
                 # расписание изменилось — пересчитать следующий запуск
-                _SETTINGS["nextBackupRun"] = (_next_daily_run(_SETTINGS["autoBackup"]["time"])
-                                              if _SETTINGS["autoBackup"]["enabled"] else None)
+                _SETTINGS["nextBackupRun"] = (
+                    _next_daily_run(_SETTINGS["autoBackup"]["time"])
+                    if _SETTINGS["autoBackup"]["enabled"]
+                    else None
+                )
         tg = patch.get("telegram")
         if tg is not None:
             if not isinstance(tg, dict):
@@ -308,14 +351,17 @@ def patch_settings(patch):
             if groups is not None:
                 if not isinstance(groups, dict):
                     return "неверный формат groups"
-                tg["groups"] = {k: bool(groups[k]) for k in
-                                ("ops", "backup", "update", "problems") if k in groups}
+                tg["groups"] = {
+                    k: bool(groups[k])
+                    for k in ("ops", "backup", "update", "problems")
+                    if k in groups
+                }
             tok = tg.get("botToken")
             if tok is None or (isinstance(tok, str) and not tok.strip()):
-                tg.pop("botToken", None)          # пустое поле — не менять токен
+                tg.pop("botToken", None)  # пустое поле — не менять токен
             elif isinstance(tok, str):
                 tok = tok.strip()
-                if "•" in tok:                     # маска от get_settings — не менять
+                if "•" in tok:  # маска от get_settings — не менять
                     tg.pop("botToken", None)
                 else:
                     tg["botToken"] = tok[:80]
@@ -336,16 +382,18 @@ def patch_settings(patch):
 # ─────────────────────────── RCON-хелперы ───────────────────────────
 
 _RCON_CACHE = {"state": "unknown", "error": None, "at": None}
-_RCON_LOG = {"at": 0.0}   # когда последний раз писали rcon-error событие
+_RCON_LOG = {"at": 0.0}  # когда последний раз писали rcon-error событие
 
 
 def rcon(command, quiet=False):
     """Выполнить RCON-команду. Бросает RCONError при недоступности."""
     cfg = config.CFG
     try:
-        text = rconlib.run_command(cfg["rcon_host"], cfg["rcon_port"], cfg["rcon_password"], command)
+        text = rconlib.run_command(
+            cfg["rcon_host"], cfg["rcon_port"], cfg["rcon_password"], command
+        )
         if _RCON_CACHE["state"] != "ok":
-            _RCON_LOG["at"] = 0.0   # связь восстановилась — следующий сбой снова заметен
+            _RCON_LOG["at"] = 0.0  # связь восстановилась — следующий сбой снова заметен
         _RCON_CACHE.update({"state": "ok", "error": None, "at": now_iso()})
         return text
     except rconlib.RCONError as e:
@@ -371,7 +419,7 @@ def rcon_warn_broadcast(seconds, reason, abort_check=None):
     thresholds = {30, 10}
     thresholds.update(range(60, seconds + 1, 60))
     if seconds < 10:
-        thresholds.add(seconds)   # совсем короткий отсчёт всё равно слышен
+        thresholds.add(seconds)  # совсем короткий отсчёт всё равно слышен
     last_sent = None
     ok = True
     # шаг 10 с, старт выровнен вниз до кратности: иначе (например 45 с)
@@ -381,8 +429,9 @@ def rcon_warn_broadcast(seconds, reason, abort_check=None):
         if abort_check is not None and abort_check():
             return ok
         if left in thresholds and left != last_sent:
-            text = (f"{reason} через {left // 60} мин" if left >= 60
-                    else f"{reason} через {left} сек")
+            text = (
+                f"{reason} через {left // 60} мин" if left >= 60 else f"{reason} через {left} сек"
+            )
             try:
                 rcon(f'servermsg "{text}"', quiet=True)
                 last_sent = left
@@ -466,9 +515,11 @@ def graceful_stop(phase_hook=None):
 
     Возвращает "stopped" или "resurrected" — docker сам перезапустил контейнер,
     т.е. рестарт уже произошёл без нас."""
+
     def hook(msg):
         if phase_hook:
             phase_hook(msg)
+
     if not is_running():
         return "stopped"
     container = config.CFG["pz_container"]
@@ -480,8 +531,11 @@ def graceful_stop(phase_hook=None):
         if policy_off:
             hook(f"Restart policy {orig_policy} временно отключена")
         else:
-            log_event("warn", "Не удалось временно отключить restart policy — "
-                              "docker может сам перезапустить контейнер при остановке")
+            log_event(
+                "warn",
+                "Не удалось временно отключить restart policy — "
+                "docker может сам перезапустить контейнер при остановке",
+            )
     try:
         hook("Команда quit через RCON (сохранение мира)")
         try:
@@ -509,13 +563,16 @@ def graceful_stop(phase_hook=None):
 
 # ─────────────────────────── операции ───────────────────────────
 
+
 class OpsError(Exception):
     pass
 
 
 class OpsErrorReported(OpsError):
     """OpsError, о которой уже сообщено (событие и журнал) — воркер не дублирует."""
+
     pass
+
 
 _OP_LOCK = threading.Lock()
 _ACTIVE = {"op": None, "phase": "", "message": "", "startedAt": None}
@@ -548,26 +605,30 @@ def _start_worker(op, fn):
         try:
             fn()
             with _OP_LOCK:
-                _OP_HISTORY.appendleft({"op": op, "ok": True, "message": _ACTIVE["message"],
-                                        "finishedAt": now_iso()})
+                _OP_HISTORY.appendleft(
+                    {"op": op, "ok": True, "message": _ACTIVE["message"], "finishedAt": now_iso()}
+                )
         except OpsErrorReported as e:
             # событие уже записал источник (run_backup_job) — фиксируем только статус
             with _OP_LOCK:
                 _ACTIVE["message"] = str(e)
-                _OP_HISTORY.appendleft({"op": op, "ok": False, "message": str(e),
-                                        "finishedAt": now_iso()})
+                _OP_HISTORY.appendleft(
+                    {"op": op, "ok": False, "message": str(e), "finishedAt": now_iso()}
+                )
         except OpsError as e:
             log_event("error", f"Операция «{op}» не удалась: {e}")
             with _OP_LOCK:
                 _ACTIVE["message"] = str(e)
-                _OP_HISTORY.appendleft({"op": op, "ok": False, "message": str(e),
-                                        "finishedAt": now_iso()})
+                _OP_HISTORY.appendleft(
+                    {"op": op, "ok": False, "message": str(e), "finishedAt": now_iso()}
+                )
         except Exception as e:  # noqa: BLE001 — не роняем поток
             log_event("error", f"Операция «{op}»: {e}")
             with _OP_LOCK:
                 _ACTIVE["message"] = f"Внутренняя ошибка: {e}"
-                _OP_HISTORY.appendleft({"op": op, "ok": False, "message": str(e),
-                                        "finishedAt": now_iso()})
+                _OP_HISTORY.appendleft(
+                    {"op": op, "ok": False, "message": str(e), "finishedAt": now_iso()}
+                )
         finally:
             with _OP_LOCK:
                 _ACTIVE["op"] = None
@@ -577,8 +638,7 @@ def _start_worker(op, fn):
     with _OP_LOCK:
         if _ACTIVE["op"]:
             raise OpsError("Уже выполняется другая операция, подождите")
-        _ACTIVE.update({"op": op, "phase": "Подготовка…", "message": "",
-                        "startedAt": now_iso()})
+        _ACTIVE.update({"op": op, "phase": "Подготовка…", "message": "", "startedAt": now_iso()})
     t = threading.Thread(target=worker, daemon=True, name=f"op-{op}")
     t.start()
 
@@ -589,6 +649,7 @@ def start_op(op, fn):
 
 
 # ─── старт / стоп / рестарт ───
+
 
 def _do_start():
     if is_running():
@@ -609,8 +670,10 @@ def _do_stop(warn_seconds):
         _set_phase("Предупреждение игроков", f"отсчёт {warn_seconds} с")
         rcon_warn_broadcast(warn_seconds, "Остановка сервера")
     if graceful_stop(lambda m: _set_phase("Остановка", m)) == "resurrected":
-        raise OpsError("Docker сам перезапустил контейнер — остановка не удалась, "
-                       "проверьте restart policy и повторите")
+        raise OpsError(
+            "Docker сам перезапустил контейнер — остановка не удалась, "
+            "проверьте restart policy и повторите"
+        )
     _set_phase("Готово", "Сервер остановлен")
 
 
@@ -640,9 +703,11 @@ def _do_restart(warn_seconds, reason="Перезапуск сервера", guar
     if guard_restarted:
         verdict = _restarted_since(guard_at)
         if verdict:
-            msg = ("Сервер уже перезапущен вручную — авторестарт отменён"
-                   if verdict == "restarted"
-                   else "Сервер остановлен вручную — авторестарт отменён")
+            msg = (
+                "Сервер уже перезапущен вручную — авторестарт отменён"
+                if verdict == "restarted"
+                else "Сервер остановлен вручную — авторестарт отменён"
+            )
             log_event("auto", msg)
             _set_phase("Готово", "Авторестарт отменён: сервер уже перезапущен")
             return "aborted"
@@ -664,6 +729,7 @@ def _do_restart(warn_seconds, reason="Перезапуск сервера", guar
 
 # ─── обновления ───
 
+
 def _effective_image():
     """Фактический образ контейнера (если пульт на хосте) или из конфига.
     Реальный образ может отличаться от дефолта — проверяем то, что запущено."""
@@ -674,8 +740,15 @@ def _effective_image():
     return img
 
 
-_LAST_CHECK = {"at": None, "image": None, "local": None, "remote": None,
-               "hubUpdated": None, "available": None, "error": None}
+_LAST_CHECK = {
+    "at": None,
+    "image": None,
+    "local": None,
+    "remote": None,
+    "hubUpdated": None,
+    "available": None,
+    "error": None,
+}
 
 
 def check_update(force_event=False):
@@ -683,24 +756,37 @@ def check_update(force_event=False):
     image = _effective_image()
     repo, _, tag = image.rpartition(":")
     local = dockerlib.image_digests(image)
-    result = {"at": now_iso(), "image": image, "local": local, "remote": None,
-              "hubUpdated": None, "available": None, "error": None}
+    result = {
+        "at": now_iso(),
+        "image": image,
+        "local": local,
+        "remote": None,
+        "hubUpdated": None,
+        "available": None,
+        "error": None,
+    }
     try:
         url = f"https://hub.docker.com/v2/repositories/{repo}/tags/{tag}"
         req = urllib.request.Request(url, headers={"User-Agent": "pz-dashboard/1.0"})
         with urllib.request.urlopen(req, timeout=20) as resp:
             data = json.loads(resp.read().decode("utf-8"))
         digest = data.get("digest") or ""
-        result["remote"] = digest if digest.startswith("sha256:") else ("sha256:" + digest if digest else None)
+        result["remote"] = (
+            digest if digest.startswith("sha256:") else ("sha256:" + digest if digest else None)
+        )
         result["hubUpdated"] = data.get("last_updated")
         if local and result["remote"]:
             result["available"] = local != result["remote"]
         elif result["remote"] and not local:
             result["available"] = None
             if docker_ok_cached():
-                result["note"] = "У образа нет repo-digest (собран или загружен без pull) — сравнение по digest невозможно"
+                result["note"] = (
+                    "У образа нет repo-digest (собран или загружен без pull) — сравнение по digest невозможно"
+                )
             else:
-                result["note"] = "Локальный digest недоступен (пульт вне хоста сервера) — сравнение версий невозможно"
+                result["note"] = (
+                    "Локальный digest недоступен (пульт вне хоста сервера) — сравнение версий невозможно"
+                )
         elif not result["remote"]:
             result["error"] = "не удалось получить актуальный образ из Docker Hub"
     except (urllib.error.URLError, urllib.error.HTTPError, OSError, ValueError) as e:
@@ -746,13 +832,17 @@ def _do_apply_update(warn_seconds, reason="Обновление сервера")
             _set_phase("Готово", "Образ уже актуален")
             return
         if not dockerlib.compose_version():
-            raise OpsError("docker compose недоступен — без него нельзя заменить контейнер. "
-                           "Проверьте установку плагина compose в образе пульта")
+            raise OpsError(
+                "docker compose недоступен — без него нельзя заменить контейнер. "
+                "Проверьте установку плагина compose в образе пульта"
+            )
         if get_settings()["autoUpdate"].get("backupBeforeUpdate", True):
             _set_phase("Страховочный бэкап", "сохранение мира и архива")
             try:
                 bk = _do_backup(False)
-                log_event("backup", f"Бэкап перед обновлением: {bk['name']} ({fmt_size(bk['size'])})")
+                log_event(
+                    "backup", f"Бэкап перед обновлением: {bk['name']} ({fmt_size(bk['size'])})"
+                )
             except OpsError as e:
                 raise OpsError(f"Обновление отменено — не удалось сделать бэкап: {e}")
         was_running = is_running()
@@ -766,8 +856,10 @@ def _do_apply_update(warn_seconds, reason="Обновление сервера")
         if code != 0:
             # пробуем поднять старый контейнер обратно
             dockerlib.container_start(config.CFG["pz_container"])
-            raise OpsError(f"docker compose up не удался: {(err or out)[:200]}. "
-                           "Сервер оставлен остановленным — проверьте конфиг")
+            raise OpsError(
+                f"docker compose up не удался: {(err or out)[:200]}. "
+                "Сервер оставлен остановленным — проверьте конфиг"
+            )
         wait_until_running(180)
         if not is_running():
             raise OpsError("Контейнер пересоздан, но не поднялся — проверьте docker logs pzserver")
@@ -794,8 +886,17 @@ def _journal_path():
 
 def _journal_append(entry):
     """Добавить запись о запуске бэкапа: дата, триггер, имя, размер, путь, статус."""
-    rec = {"ts": now_iso(), "trigger": "manual", "type": "full", "name": "", "size": 0,
-           "path": "", "status": "success", "duration": 0, "error": ""}
+    rec = {
+        "ts": now_iso(),
+        "trigger": "manual",
+        "type": "full",
+        "name": "",
+        "size": 0,
+        "path": "",
+        "status": "success",
+        "duration": 0,
+        "error": "",
+    }
     rec.update({k: entry[k] for k in _BJ_FIELDS if k in entry})
     with _BJ_LOCK:
         try:
@@ -826,6 +927,7 @@ def get_backup_journal(limit=50):
 
 # ─────────────────────────── бэкапы ───────────────────────────
 
+
 def _backup_paths():
     return config.CFG["backup_dir"], config.CFG["data_dir"]
 
@@ -839,8 +941,16 @@ def list_backups():
             if not name.endswith(".tar.gz") or not os.path.isfile(path):
                 continue
             st = os.stat(path)
-            items.append({"name": name, "size": st.st_size, "sizeText": fmt_size(st.st_size),
-                          "mtime": datetime.fromtimestamp(st.st_mtime).astimezone().isoformat(timespec="seconds")})
+            items.append(
+                {
+                    "name": name,
+                    "size": st.st_size,
+                    "sizeText": fmt_size(st.st_size),
+                    "mtime": datetime.fromtimestamp(st.st_mtime)
+                    .astimezone()
+                    .isoformat(timespec="seconds"),
+                }
+            )
     except OSError:
         return []
     items.sort(key=lambda x: x["mtime"], reverse=True)
@@ -870,15 +980,13 @@ def _do_backup(stop_server, trigger="manual", started=None):
     was_running = is_running()
     if stop_server:
         if not was_running:
-            raise OpsError("Сервер не запущен — «бэкап с остановкой» не нужен, "
-                           "снимите флажок")
+            raise OpsError("Сервер не запущен — «бэкап с остановкой» не нужен, снимите флажок")
         _set_phase("Предупреждение игроков", "отсчёт 60 с")
         rcon_warn_broadcast(60, "Бэкап сервера")
         if graceful_stop(lambda m: _set_phase("Остановка для бэкапа", m)) == "resurrected":
             # docker сам поднял контейнер посреди остановки — архивировать
             # полуживой мир нельзя, файлы могут быть в записи
-            raise OpsError("Docker сам перезапустил контейнер — бэкап прерван, "
-                           "повторите попытку")
+            raise OpsError("Docker сам перезапустил контейнер — бэкап прерван, повторите попытку")
     else:
         if was_running:
             _set_phase("Сохранение мира", "RCON save")
@@ -893,9 +1001,21 @@ def _do_backup(stop_server, trigger="manual", started=None):
     _set_phase("Создание архива", name)
     try:
         proc = subprocess.run(
-            ["tar", "-czf", dest, "--exclude=Logs", "--exclude=logs", "--exclude=*.log",
-             "-C", ddir, "."],
-            capture_output=True, text=True, timeout=2400)
+            [
+                "tar",
+                "-czf",
+                dest,
+                "--exclude=Logs",
+                "--exclude=logs",
+                "--exclude=*.log",
+                "-C",
+                ddir,
+                ".",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=2400,
+        )
     except subprocess.TimeoutExpired:
         raise OpsError("Архив не создан: tar не уложился в таймаут (2400 с)")
     if proc.returncode != 0:
@@ -908,8 +1028,16 @@ def _do_backup(stop_server, trigger="manual", started=None):
     pruned = _prune_backups(get_settings()["backup"]["maxBackups"])
     label = "по расписанию" if trigger == "scheduled" else "вручную"
     log_event("backup", f"Бэкап создан ({label}): {name} ({fmt_size(size)})")
-    _journal_append({"trigger": trigger, "name": name, "size": size, "path": dest,
-                     "status": "success", "duration": round(time.time() - started, 1)})
+    _journal_append(
+        {
+            "trigger": trigger,
+            "name": name,
+            "size": size,
+            "path": dest,
+            "status": "success",
+            "duration": round(time.time() - started, 1),
+        }
+    )
     if pruned:
         log_event("backup-delete", f"Удалено старых бэкапов: {pruned}")
     _set_phase("Готово", f"Бэкап {name} создан")
@@ -926,8 +1054,14 @@ def run_backup_job(trigger, stop_server):
         return _do_backup(stop_server, trigger=trigger, started=started)
     except OpsError as e:
         label = "по расписанию" if trigger == "scheduled" else "вручную"
-        _journal_append({"trigger": trigger, "status": "error", "error": str(e)[:300],
-                         "duration": round(time.time() - started, 1)})
+        _journal_append(
+            {
+                "trigger": trigger,
+                "status": "error",
+                "error": str(e)[:300],
+                "duration": round(time.time() - started, 1),
+            }
+        )
         log_event("error", f"Бэкап ({label}) не удался: {e}")
         raise OpsErrorReported(str(e)) from e
 
@@ -954,8 +1088,9 @@ def _do_restore(name):
         if graceful_stop(lambda m: _set_phase("Остановка сервера", m)) == "resurrected":
             # docker сам поднял контейнер посреди остановки — стирать данные
             # под живым сервером нельзя: мир будет в записи
-            raise OpsError("Docker сам перезапустил контейнер — восстановление "
-                           "прервано, повторите попытку")
+            raise OpsError(
+                "Docker сам перезапустил контейнер — восстановление прервано, повторите попытку"
+            )
     _set_phase("Очистка каталога данных", "удаление старого мира")
     for entry in os.listdir(config.CFG["data_dir"]):
         full = os.path.join(config.CFG["data_dir"], entry)
@@ -968,8 +1103,12 @@ def _do_restore(name):
                 pass
     _set_phase("Распаковка архива", name)
     try:
-        proc = subprocess.run(["tar", "-xzf", path, "-C", config.CFG["data_dir"]],
-                              capture_output=True, text=True, timeout=2400)
+        proc = subprocess.run(
+            ["tar", "-xzf", path, "-C", config.CFG["data_dir"]],
+            capture_output=True,
+            text=True,
+            timeout=2400,
+        )
     except subprocess.TimeoutExpired:
         raise OpsError("Распаковка не удалась: tar не уложился в таймаут (2400 с)")
     if proc.returncode != 0:
@@ -1012,8 +1151,9 @@ def verify_backup(name):
     os.makedirs(dest, exist_ok=True)
     try:
         try:
-            proc = subprocess.run(["tar", "-xzf", path, "-C", dest],
-                                  capture_output=True, text=True, timeout=900)
+            proc = subprocess.run(
+                ["tar", "-xzf", path, "-C", dest], capture_output=True, text=True, timeout=900
+            )
         except subprocess.TimeoutExpired:
             raise OpsError("Распаковка не удалась: tar не уложился в таймаут (900 с)")
         if proc.returncode != 0:
@@ -1040,11 +1180,20 @@ def verify_backup(name):
             notes.append("нет Server/*.ini")
         if not has_map:
             notes.append("нет Maps/")
-        res = {"name": name, "files": files, "totalSize": total,
-               "totalSizeText": fmt_size(total), "hasServerIni": has_ini,
-               "hasMapData": has_map, "duration": round(time.time() - started, 1)}
-        log_event("backup", f"Проверка бэкапа {name}: OK — файлов {files}, {fmt_size(total)}"
-                  + (", замечания: " + ", ".join(notes) if notes else ""))
+        res = {
+            "name": name,
+            "files": files,
+            "totalSize": total,
+            "totalSizeText": fmt_size(total),
+            "hasServerIni": has_ini,
+            "hasMapData": has_map,
+            "duration": round(time.time() - started, 1),
+        }
+        log_event(
+            "backup",
+            f"Проверка бэкапа {name}: OK — файлов {files}, {fmt_size(total)}"
+            + (", замечания: " + ", ".join(notes) if notes else ""),
+        )
         _set_phase("Готово", f"Проверка {name}: OK")
         return res
     finally:
@@ -1052,6 +1201,7 @@ def verify_backup(name):
 
 
 # ─────────────────────────── планировщик автообновления ───────────────────────────
+
 
 def _auto_backup_tick(s, now):
     """Тик автобэкапа: когда наступило nextBackupRun и пульт свободен — запуск."""
@@ -1078,6 +1228,7 @@ def _auto_backup_tick(s, now):
         # откатываем время, попытка повторится на следующем тике (20 с)
         _SETTINGS["nextBackupRun"] = nxt
         _save_settings()
+
 
 def _scheduler_loop():
     while True:
@@ -1116,12 +1267,22 @@ def _scheduler_loop():
                             res = check_mods_update(source="auto")
                             if res["state"] == "needs-update":
                                 if mu.get("restartOnUpdate", True):
-                                    log_event("auto", "Автообновление модов: рестарт для загрузки обновлений")
+                                    log_event(
+                                        "auto",
+                                        "Автообновление модов: рестарт для загрузки обновлений",
+                                    )
                                     warn_s = mu.get("warnSeconds", 600)
-                                    start_op("mods-restart", lambda w=warn_s: _do_restart(
-                                        w, reason="Обновление модов", guard_restarted=True))
+                                    start_op(
+                                        "mods-restart",
+                                        lambda w=warn_s: _do_restart(
+                                            w, reason="Обновление модов", guard_restarted=True
+                                        ),
+                                    )
                                 else:
-                                    log_event("auto", "Автопроверка модов: найдены обновления (рестарт отключён)")
+                                    log_event(
+                                        "auto",
+                                        "Автопроверка модов: найдены обновления (рестарт отключён)",
+                                    )
                         else:
                             log_event("warn", "Автопроверка модов: сервер не запущен — пропуск")
                     except OpsError as e:
@@ -1159,8 +1320,12 @@ def auto_backup_state():
             next_iso = datetime.fromtimestamp(nxt).astimezone().isoformat(timespec="seconds")
         except (OSError, OverflowError, ValueError):
             next_iso = None
-    return {"enabled": bool(ab["enabled"]), "time": ab["time"],
-            "stopServer": bool(ab["stopServer"]), "nextRun": next_iso}
+    return {
+        "enabled": bool(ab["enabled"]),
+        "time": ab["time"],
+        "stopServer": bool(ab["stopServer"]),
+        "nextRun": next_iso,
+    }
 
 
 def start_scheduler():
@@ -1168,6 +1333,7 @@ def start_scheduler():
 
 
 # ─────────────────────────── игроки ───────────────────────────
+
 
 def fetch_players():
     """Список игроков по RCON-команде players."""
@@ -1208,8 +1374,8 @@ def full_logs():
 
 import re as _re  # noqa: E402
 
-_WS_TITLES = {}      # workshop id -> title
-_WS_FAIL = {}        # workshop id -> ts последней неудачи (повтор через 10 мин)
+_WS_TITLES = {}  # workshop id -> title
+_WS_FAIL = {}  # workshop id -> ts последней неудачи (повтор через 10 мин)
 _WS_TTL = 600.0
 
 
@@ -1271,9 +1437,9 @@ def _workshop_dir():
     return None
 
 
-_WS_EXEC = {"at": 0.0, "map": {}}   # кэш поиска mod.info внутри контейнера
+_WS_EXEC = {"at": 0.0, "map": {}}  # кэш поиска mod.info внутри контейнера
 _WS_EXEC_TTL = 1800.0
-_WS_EXEC_RETRY = 300.0              # пауза после пустого результата (find — не дешёвый)
+_WS_EXEC_RETRY = 300.0  # пауза после пустого результата (find — не дешёвый)
 
 
 def _workshop_map_via_exec():
@@ -1287,24 +1453,26 @@ def _workshop_map_via_exec():
         if now - _WS_EXEC["at"] < _WS_EXEC_TTL:
             return _WS_EXEC["map"]
     elif now - _WS_EXEC["at"] < _WS_EXEC_RETRY:
-        return {}   # недавний пустой поиск: не гоняем find по всей ФС каждую минуту
+        return {}  # недавний пустой поиск: не гоняем find по всей ФС каждую минуту
     if not docker_ok_cached(ttl=600):
         return {}
     name = config.CFG["pz_container"]
     code, out, _ = dockerlib.container_exec(
-        name, "find / -maxdepth 8 -type d -name 108600 2>/dev/null | head -5",
-        timeout=120)
+        name, "find / -maxdepth 8 -type d -name 108600 2>/dev/null | head -5", timeout=120
+    )
     if code != 0:
-        _WS_EXEC["at"] = now - _WS_EXEC_TTL + 300.0   # повторить через 5 мин
+        _WS_EXEC["at"] = now - _WS_EXEC_TTL + 300.0  # повторить через 5 мин
         return {}
     mapping = {}
     for root in [ln.strip() for ln in out.splitlines() if ln.strip()][:3]:
-        cmd = ('find "{root}" -maxdepth 4 -name mod.info 2>/dev/null | head -400 | '
-               'while IFS= read -r f; do '
-               'w=$(basename "$(dirname "$(dirname "$(dirname "$f")")")"); '
-               'm=$(basename "$(dirname "$f")"); '
-               "id=$(sed -n 's/^[Mm]od[Ii][Dd]=[ \\t\\r]*//p' \"$f\" | head -1); "
-               "printf '%s\\t%s\\t%s\\n' \"$w\" \"$m\" \"$id\"; done").format(root=root)
+        cmd = (
+            'find "{root}" -maxdepth 4 -name mod.info 2>/dev/null | head -400 | '
+            "while IFS= read -r f; do "
+            'w=$(basename "$(dirname "$(dirname "$(dirname "$f")")")"); '
+            'm=$(basename "$(dirname "$f")"); '
+            "id=$(sed -n 's/^[Mm]od[Ii][Dd]=[ \\t\\r]*//p' \"$f\" | head -1); "
+            'printf \'%s\\t%s\\t%s\\n\' "$w" "$m" "$id"; done'
+        ).format(root=root)
         code, out, _ = dockerlib.container_exec(name, cmd, timeout=180)
         if code != 0:
             continue
@@ -1386,8 +1554,10 @@ def _ws_titles(ids):
             req = urllib.request.Request(
                 "https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/",
                 data=body,
-                headers={"Content-Type": "application/x-www-form-urlencoded",
-                         "User-Agent": "pz-dashboard/1.0"},
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "User-Agent": "pz-dashboard/1.0",
+                },
             )
             with urllib.request.urlopen(req, timeout=10) as resp:
                 payload = json.loads(resp.read().decode("utf-8"))
@@ -1407,17 +1577,34 @@ def _ws_titles(ids):
 def list_mods(filename=None):
     files = list_server_inis()
     if not files:
-        return {"ok": False,
-                "error": "В /data/Server не найдено .ini файлов — проверьте монтирование каталога данных",
-                "files": [], "file": None, "mods": [], "workshop": [], "pairs": [],
-                "paired": False, "unbound": [], "mappingSource": None}
+        return {
+            "ok": False,
+            "error": "В /data/Server не найдено .ini файлов — проверьте монтирование каталога данных",
+            "files": [],
+            "file": None,
+            "mods": [],
+            "workshop": [],
+            "pairs": [],
+            "paired": False,
+            "unbound": [],
+            "mappingSource": None,
+        }
     if filename not in files:
         filename = files[0]
     parsed = parse_mods_ini(filename)
     if parsed is None:
-        return {"ok": False, "error": "Файл конфигурации не найден",
-                "files": files, "file": filename, "mods": [], "workshop": [],
-                "pairs": [], "paired": False, "unbound": [], "mappingSource": None}
+        return {
+            "ok": False,
+            "error": "Файл конфигурации не найден",
+            "files": files,
+            "file": filename,
+            "mods": [],
+            "workshop": [],
+            "pairs": [],
+            "paired": False,
+            "unbound": [],
+            "mappingSource": None,
+        }
     mods, items = parsed["mods"], parsed["items"]
     _ws_titles(items)
     local_map = _workshop_map_local(items)
@@ -1432,12 +1619,16 @@ def list_mods(filename=None):
 
     workshop = []
     for wid in items:
-        workshop.append({
-            "workshopId": wid,
-            "url": f"https://steamcommunity.com/sharedfiles/filedetails/?id={wid}" if wid.isdigit() else "",
-            "title": _WS_TITLES.get(wid, ""),
-            "mods": wmap.get(wid, []),
-        })
+        workshop.append(
+            {
+                "workshopId": wid,
+                "url": f"https://steamcommunity.com/sharedfiles/filedetails/?id={wid}"
+                if wid.isdigit()
+                else "",
+                "title": _WS_TITLES.get(wid, ""),
+                "mods": wmap.get(wid, []),
+            }
+        )
 
     bound = {m for lst in wmap.values() for m in lst}
     unbound = [m for m in mods if m not in bound]
@@ -1445,17 +1636,30 @@ def list_mods(filename=None):
     pairs = []
     if paired:
         for i, wid in enumerate(items):
-            pairs.append({
-                "mod": mods[i],
-                "workshopId": wid,
-                "url": f"https://steamcommunity.com/sharedfiles/filedetails/?id={wid}" if wid.isdigit() else "",
-                "title": _WS_TITLES.get(wid, ""),
-            })
-    return {"ok": True, "files": files, "file": filename,
-            "workshop": workshop, "mods": mods, "unbound": unbound,
-            "pairs": pairs, "paired": paired,
-            "mappingSource": (("disk" if local_map else ("container" if exec_used else None))
-                              or ("order" if paired else None))}
+            pairs.append(
+                {
+                    "mod": mods[i],
+                    "workshopId": wid,
+                    "url": f"https://steamcommunity.com/sharedfiles/filedetails/?id={wid}"
+                    if wid.isdigit()
+                    else "",
+                    "title": _WS_TITLES.get(wid, ""),
+                }
+            )
+    return {
+        "ok": True,
+        "files": files,
+        "file": filename,
+        "workshop": workshop,
+        "mods": mods,
+        "unbound": unbound,
+        "pairs": pairs,
+        "paired": paired,
+        "mappingSource": (
+            ("disk" if local_map else ("container" if exec_used else None))
+            or ("order" if paired else None)
+        ),
+    }
 
 
 # ───────────────────── управление составом модов ─────────────────────
@@ -1469,8 +1673,11 @@ def mods_config_state(filename=None):
     with _SET_LOCK:
         disabled = json.loads(json.dumps(_SETTINGS.get("modsDisabled") or {}))
     data["disabled"] = [
-        {"workshopId": wid, "title": (rec or {}).get("title") or "",
-         "modIds": list((rec or {}).get("modIds") or [])}
+        {
+            "workshopId": wid,
+            "title": (rec or {}).get("title") or "",
+            "modIds": list((rec or {}).get("modIds") or []),
+        }
         for wid, rec in disabled.items()
     ]
     data["canManage"] = bool(data.get("ok") and data.get("file"))
@@ -1513,12 +1720,12 @@ def _write_mods_ini(filename, mods, items):
     path = os.path.join(config.CFG["data_dir"], "Server", filename)
     with open(path, encoding="utf-8", errors="replace") as f:
         text = f.read()
-    new_text = _ini_replace_value(_ini_replace_value(text, "Mods", mods),
-                                  "WorkshopItems", items)
+    new_text = _ini_replace_value(_ini_replace_value(text, "Mods", mods), "WorkshopItems", items)
     try:
         shutil.copy2(path, f"{path}.bak-{time.strftime('%Y%m%d-%H%M%S')}")
-        baks = sorted(p for p in os.listdir(os.path.dirname(path))
-                      if p.startswith(filename + ".bak-"))
+        baks = sorted(
+            p for p in os.listdir(os.path.dirname(path)) if p.startswith(filename + ".bak-")
+        )
         for old in baks[:-5]:
             try:
                 os.remove(os.path.join(os.path.dirname(path), old))
@@ -1570,17 +1777,23 @@ def set_mod_enabled(filename, ws_id, enable):
             new_items = items + [ws_id]
             new_mods = mods + [m for m in mod_ids if m not in mods]
             if not mod_ids:
-                log_event("warn", f"Мод «{title}»: modID не определён — в конфиг "
-                                  f"добавлен только Workshop-элемент, проверьте загрузку")
+                log_event(
+                    "warn",
+                    f"Мод «{title}»: modID не определён — в конфиг "
+                    f"добавлен только Workshop-элемент, проверьте загрузку",
+                )
             disabled.pop(ws_id, None)
         else:
             if ws_id not in items:
                 raise OpsError("Этого Workshop-элемента нет в конфиге сервера")
-            mod_ids = list(_workshop_map([ws_id]).get(ws_id) or []) \
-                or list((disabled.get(ws_id) or {}).get("modIds") or [])
+            mod_ids = list(_workshop_map([ws_id]).get(ws_id) or []) or list(
+                (disabled.get(ws_id) or {}).get("modIds") or []
+            )
             if not mod_ids:
-                raise OpsError("Не удалось определить modID элемента (контент не найден) — "
-                               "выключение заблокировано, чтобы не потерять состав")
+                raise OpsError(
+                    "Не удалось определить modID элемента (контент не найден) — "
+                    "выключение заблокировано, чтобы не потерять состав"
+                )
             new_items = [x for x in items if x != ws_id]
             new_mods = [m for m in mods if m not in mod_ids]
             disabled[ws_id] = {"title": title, "modIds": mod_ids, "at": now_iso()}
@@ -1588,8 +1801,11 @@ def set_mod_enabled(filename, ws_id, enable):
         with _SET_LOCK:
             _SETTINGS["modsDisabled"] = disabled
             _save_settings()
-    log_event("mods", f"Мод «{title}» {'включён' if enable else 'выключен'} в конфиге — "
-                      f"применится рестартом сервера")
+    log_event(
+        "mods",
+        f"Мод «{title}» {'включён' if enable else 'выключен'} в конфиге — "
+        f"применится рестартом сервера",
+    )
     return mods_config_state(filename)
 
 
@@ -1650,8 +1866,11 @@ def _mods_registry():
     for w in data.get("workshop") or []:
         wid = str(w.get("workshopId") or "")
         if wid:
-            ws[wid] = {"title": w.get("title") or wid,
-                       "url": w.get("url") or f"https://steamcommunity.com/sharedfiles/filedetails/?id={wid}"}
+            ws[wid] = {
+                "title": w.get("title") or wid,
+                "url": w.get("url")
+                or f"https://steamcommunity.com/sharedfiles/filedetails/?id={wid}",
+            }
             for m in w.get("mods") or []:
                 mods.setdefault(str(m).strip().lower(), wid)
     return ws, mods
@@ -1697,13 +1916,18 @@ def check_mods_update(source="manual", timeout=45):
         if state:
             break
     ws, _mods = _mods_registry()
-    result = {"at": now_iso(), "source": source,
-              "state": state or "inconclusive",
-              "items": _mods_items_from_lines(need, ws),
-              "error": None}
+    result = {
+        "at": now_iso(),
+        "source": source,
+        "state": state or "inconclusive",
+        "items": _mods_items_from_lines(need, ws),
+        "error": None,
+    }
     if not state:
-        result["error"] = ("Сервер не вернул результат за отведённое время — "
-                           "известная особенность B42, попробуйте позже")
+        result["error"] = (
+            "Сервер не вернул результат за отведённое время — "
+            "известная особенность B42, попробуйте позже"
+        )
     _LAST_MODS_CHECK.clear()
     _LAST_MODS_CHECK.update(result)
     if state == "needs-update":
@@ -1725,8 +1949,8 @@ def _do_apply_mods_update(warn_seconds):
 # ─── рескан модов после рестарта ───
 
 _POST_RESTART = {"startedAt": None, "dueAt": None, "tries": 0}
-_RESCAN_BOOT_DELAY = 120    # после рестарта даём серверу загрузиться до рескана
-_RESCAN_RETRIES = 3         # повторы, если RCON ещё не поднялся после старта
+_RESCAN_BOOT_DELAY = 120  # после рестарта даём серверу загрузиться до рескана
+_RESCAN_RETRIES = 3  # повторы, если RCON ещё не поднялся после старта
 _RESCAN_RETRY_DELAY = 90
 
 
@@ -1768,7 +1992,10 @@ def _post_restart_rescan_tick(s):
                 _save_settings()
             log_event("mods", "После рестарта моды актуальны — таймер автопроверки сброшен")
         elif res["state"] == "needs-update":
-            log_event("mods", "После рестарта моды всё ещё требуют обновления — таймер автопроверки сохранён")
+            log_event(
+                "mods",
+                "После рестарта моды всё ещё требуют обновления — таймер автопроверки сохранён",
+            )
     except Exception as e:  # noqa: BLE001 — RCON мог ещё не подняться после старта
         _POST_RESTART["tries"] += 1
         if _POST_RESTART["tries"] <= _RESCAN_RETRIES:
@@ -1794,7 +2021,9 @@ def overview():
         if st["running"] and st["startedAt"]:
             try:
                 started = datetime.fromisoformat(st["startedAt"].replace("Z", "+00:00"))
-                cont["uptimeSec"] = max(0, int((datetime.now(timezone.utc) - started).total_seconds()))
+                cont["uptimeSec"] = max(
+                    0, int((datetime.now(timezone.utc) - started).total_seconds())
+                )
             except ValueError:
                 pass
     return {
@@ -1822,7 +2051,7 @@ def overview():
 # ─────────────────────────── история метрик (1 ч) ───────────────────────────
 
 _STATS_LOCK = threading.Lock()
-_STATS = []            # [{"ts": iso, "cpu": float, "mem": float}]
+_STATS = []  # [{"ts": iso, "cpu": float, "mem": float}]
 _STATS_INTERVAL = 60
 
 
@@ -1832,9 +2061,13 @@ def record_stats_sample(stats):
         now = time.time()
         if _STATS and now - _parse_ts(_STATS[-1]["ts"]) < _STATS_INTERVAL:
             return
-        _STATS.append({"ts": now_iso(),
-                       "cpu": round(float(stats.get("cpuPct") or 0), 2),
-                       "mem": round(float(stats.get("memPct") or 0), 2)})
+        _STATS.append(
+            {
+                "ts": now_iso(),
+                "cpu": round(float(stats.get("cpuPct") or 0), 2),
+                "mem": round(float(stats.get("memPct") or 0), 2),
+            }
+        )
         del _STATS[:-120]
 
 
@@ -1847,8 +2080,8 @@ def get_stats_history():
 # ─────────────────────────── история онлайна (24 ч) ───────────────────────────
 
 _PH_LOCK = threading.Lock()
-_PH = None                       # [{"ts": iso, "count": n}]
-_PH_INTERVAL = 240               # семпл не чаще, чем раз в 4 минуты
+_PH = None  # [{"ts": iso, "count": n}]
+_PH_INTERVAL = 240  # семпл не чаще, чем раз в 4 минуты
 
 
 def _ph_file():
@@ -1904,8 +2137,14 @@ def get_players_history():
 
 # ─────────────────────────── watchdog RCON ───────────────────────────
 
-_WD = {"lastProbeAt": None, "lastResult": None, "lastError": None,
-       "consecutiveFailures": 0, "alerted": False, "lastRestartAt": None}
+_WD = {
+    "lastProbeAt": None,
+    "lastResult": None,
+    "lastError": None,
+    "consecutiveFailures": 0,
+    "alerted": False,
+    "lastRestartAt": None,
+}
 
 
 def watchdog_state():
@@ -1918,14 +2157,17 @@ def _watchdog_probe(wd):
     st = container_state() if docker_ok_cached(ttl=120) else None
     if op_busy() or not st or not st["running"]:
         # сервер остановлен или идёт операция — это не зависание
-        _WD.update({"lastResult": "skipped", "lastError": None,
-                    "consecutiveFailures": 0, "alerted": False})
+        _WD.update(
+            {"lastResult": "skipped", "lastError": None, "consecutiveFailures": 0, "alerted": False}
+        )
         return
     try:
-        rconlib.run_command(config.CFG["rcon_host"], config.CFG["rcon_port"],
-                            config.CFG["rcon_password"], "players")
-        _WD.update({"lastResult": "ok", "lastError": None,
-                    "consecutiveFailures": 0, "alerted": False})
+        rconlib.run_command(
+            config.CFG["rcon_host"], config.CFG["rcon_port"], config.CFG["rcon_password"], "players"
+        )
+        _WD.update(
+            {"lastResult": "ok", "lastError": None, "consecutiveFailures": 0, "alerted": False}
+        )
     except rconlib.RCONError as e:
         _WD["lastResult"] = "fail"
         _WD["lastError"] = str(e)

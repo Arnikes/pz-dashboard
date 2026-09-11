@@ -1,11 +1,11 @@
 """Юнит-тесты ядра пульта: парсеры docker, RCON-протокол (с фейковым сервером),
 настройки, история онлайна, SSE-поток. Запуск: pytest -q tests (или из корня проекта)."""
+
 import http.client
 import io
 import json
 import struct
 import sys
-import tarfile
 import threading
 import time
 import urllib.error
@@ -27,9 +27,10 @@ import rcon  # noqa: E402
 
 # ───────────────────────── парсеры ─────────────────────────
 
+
 def test_parse_bytes():
     assert dockerlib.parse_bytes("123MiB") == 123 * 1024 * 1024
-    assert dockerlib.parse_bytes("1.9GiB") == int(1.9 * 1024 ** 3)
+    assert dockerlib.parse_bytes("1.9GiB") == int(1.9 * 1024**3)
     assert dockerlib.parse_bytes("1.20kB") == 1200
     assert dockerlib.parse_bytes("42B") == 42
     assert dockerlib.parse_bytes("мусор") == 0
@@ -43,20 +44,28 @@ def test_fmt_size():
 
 def test_stats_parse(monkeypatch):
     monkeypatch.setattr(
-        dockerlib, "sh",
+        dockerlib,
+        "sh",
         lambda args, timeout=120: (0, "12.34%|123MiB / 1.9GiB|6.29%|1.20kB / 3.40MB|17", ""),
     )
     s = dockerlib.container_stats("x")
     assert s["cpuPct"] == 12.34
     assert s["memUsed"] == 123 * 1024 * 1024
-    assert s["memLimit"] == int(1.9 * 1024 ** 3)
+    assert s["memLimit"] == int(1.9 * 1024**3)
     assert s["pids"] == 17
 
 
 def test_image_digests_parse(monkeypatch):
     """RepoDigests приходит как repo@sha256:... — хеш после @."""
-    monkeypatch.setattr(dockerlib, "sh", lambda args, timeout=120: (
-        0, "indifferentbroccoli/projectzomboid-server-docker@sha256:8e13816b92fdd\n", ""))
+    monkeypatch.setattr(
+        dockerlib,
+        "sh",
+        lambda args, timeout=120: (
+            0,
+            "indifferentbroccoli/projectzomboid-server-docker@sha256:8e13816b92fdd\n",
+            "",
+        ),
+    )
     assert dockerlib.image_digests("x") == "sha256:8e13816b92fdd"
     monkeypatch.setattr(dockerlib, "sh", lambda args, timeout=120: (0, "", ""))
     assert dockerlib.image_digests("x") is None
@@ -64,10 +73,16 @@ def test_image_digests_parse(monkeypatch):
 
 def test_effective_image(monkeypatch):
     """Образ для проверки обновлений берётся из контейнера, тег дописывается."""
-    monkeypatch.setattr(ops, "container_state", lambda: {
-        "status": "running", "running": True, "startedAt": None,
-        "image": "indifferentbroccoli/projectzomboid-server-docker",
-    })
+    monkeypatch.setattr(
+        ops,
+        "container_state",
+        lambda: {
+            "status": "running",
+            "running": True,
+            "startedAt": None,
+            "image": "indifferentbroccoli/projectzomboid-server-docker",
+        },
+    )
     assert ops._effective_image() == "indifferentbroccoli/projectzomboid-server-docker:latest"
     monkeypatch.setattr(ops, "container_state", lambda: None)
     assert ops._effective_image() == config.CFG["pz_image"]
@@ -76,7 +91,7 @@ def test_effective_image(monkeypatch):
 def test_stats_history_throttle():
     ops._STATS.clear()
     ops.record_stats_sample({"cpuPct": 1.5, "memPct": 10})
-    ops.record_stats_sample({"cpuPct": 2.5, "memPct": 11})   # троттлинг
+    ops.record_stats_sample({"cpuPct": 2.5, "memPct": 11})  # троттлинг
     h = ops.get_stats_history()
     assert len(h) == 1 and h[0]["cpu"] == 1.5 and h[0]["mem"] == 10
 
@@ -90,10 +105,16 @@ def test_local_digest_cache(monkeypatch):
         return "sha256:abc123"
 
     monkeypatch.setattr(ops.dockerlib, "image_digests", fake_digests)
-    monkeypatch.setattr(ops, "container_state", lambda: {
-        "status": "running", "running": True, "startedAt": None,
-        "image": "indifferentbroccoli/projectzomboid-server-docker",
-    })
+    monkeypatch.setattr(
+        ops,
+        "container_state",
+        lambda: {
+            "status": "running",
+            "running": True,
+            "startedAt": None,
+            "image": "indifferentbroccoli/projectzomboid-server-docker",
+        },
+    )
     ops._LOCAL_DIGEST["at"] = 0.0
     assert ops.local_digest_cached() == "sha256:abc123"
     assert ops.local_digest_cached() == "sha256:abc123"
@@ -111,7 +132,8 @@ def test_parse_mods_ini(tmp_path, monkeypatch):
         "Mods=tsarslib;my mod;SoloMod\n"
         "WorkshopItems=111111111;222222222\n"
         "Map=Muldraugh, KY\n",
-        encoding="utf-8")
+        encoding="utf-8",
+    )
     assert ops.list_server_inis() == ["servertest.ini"]
     parsed = ops.parse_mods_ini("servertest.ini")
     assert parsed["mods"] == ["tsarslib", "my mod", "SoloMod"]
@@ -145,7 +167,8 @@ def test_mods_disk_mapping(tmp_path, monkeypatch):
     server_dir = tmp_path / "Server"
     server_dir.mkdir()
     (server_dir / "srv.ini").write_text(
-        "Mods=libA;pluginB;localMod\nWorkshopItems=111\n", encoding="utf-8")
+        "Mods=libA;pluginB;localMod\nWorkshopItems=111\n", encoding="utf-8"
+    )
     ws_dir = tmp_path / "steamapps" / "workshop" / "content" / "108600" / "111" / "mods"
     (ws_dir / "tsar").mkdir(parents=True)
     (ws_dir / "tsar" / "mod.info").write_text("name=Big Pack\nmodID=libA\n", encoding="utf-8")
@@ -159,6 +182,7 @@ def test_mods_disk_mapping(tmp_path, monkeypatch):
 
 
 # ───────────────────────── фейковый RCON-сервер ─────────────────────────
+
 
 def _pkt(rid, ptype, body: bytes) -> bytes:
     payload = struct.pack("<ii", rid, ptype) + body + b"\x00\x00"
@@ -209,7 +233,7 @@ class FakeRcon(threading.Thread):
         try:
             rid, ptype, body = _read_pkt(conn)
             if self.reject or (ptype, body) != (3, self.password):
-                conn.sendall(_pkt(-1, 2, b""))   # AUTH_RESPONSE с id=-1: отказ
+                conn.sendall(_pkt(-1, 2, b""))  # AUTH_RESPONSE с id=-1: отказ
             else:
                 # пустой RESPONSE_VALUE + AUTH_RESPONSE — как отвечает PZ
                 conn.sendall(_pkt(rid, 0, b""))
@@ -241,6 +265,7 @@ def test_rcon_wrong_password():
 
 # ───────────────────────── настройки ─────────────────────────
 
+
 def test_settings_validation(tmp_path):
     config.CFG["settings_file"] = str(tmp_path / "settings.json")
     config.CFG["events_file"] = str(tmp_path / "events.jsonl")
@@ -248,7 +273,10 @@ def test_settings_validation(tmp_path):
     assert ops.get_settings()["watchdog"]["thresholdMin"] == 60
     assert ops.patch_settings({"autoUpdate": {"backupBeforeUpdate": False}}) is None
     assert ops.get_settings()["autoUpdate"]["backupBeforeUpdate"] is False
-    assert ops.patch_settings({"watchdog": {"enabled": "yes"}}) == "watchdog.enabled должен быть true/false"
+    assert (
+        ops.patch_settings({"watchdog": {"enabled": "yes"}})
+        == "watchdog.enabled должен быть true/false"
+    )
     assert ops.patch_settings({"modsUpdate": {"warnSeconds": 99999}}) is None
     assert ops.get_settings()["modsUpdate"]["warnSeconds"] == 3600
     assert ops.patch_settings({"modsUpdate": {"warnSeconds": -5}}) is None
@@ -258,15 +286,20 @@ def test_settings_validation(tmp_path):
 
 # ───────────────────────── история онлайна ─────────────────────────
 
+
 def test_players_history(tmp_path):
     config.CFG["dashboard_dir"] = str(tmp_path)
     ops._PH = None
     ops.record_players_sample(2)
-    ops.record_players_sample(7)          # троттлинг: второй семпл в тот же интервал игнорируется
+    ops.record_players_sample(7)  # троттлинг: второй семпл в тот же интервал игнорируется
     assert len(ops._PH) == 1 and ops._PH[0]["count"] == 2
 
     # уводим семпл на 25 часов назад: новый добавится, старый выпадет из окна 24 ч
-    old = (datetime.now(timezone.utc) - timedelta(hours=25)).astimezone().isoformat(timespec="seconds")
+    old = (
+        (datetime.now(timezone.utc) - timedelta(hours=25))
+        .astimezone()
+        .isoformat(timespec="seconds")
+    )
     ops._PH[0]["ts"] = old
     ops.record_players_sample(4)
     assert len(ops._PH) == 1 and ops._PH[0]["count"] == 4
@@ -277,12 +310,13 @@ def test_history_persisted(tmp_path):
     config.CFG["dashboard_dir"] = str(tmp_path)
     ops._PH = None
     ops.record_players_sample(5)
-    ops._PH = None                        # имитация перезапуска: загрузка из файла
+    ops._PH = None  # имитация перезапуска: загрузка из файла
     assert ops.get_players_history()[0]["count"] == 5
     assert json.loads((tmp_path / "players-history.json").read_text())[0]["count"] == 5
 
 
 # ───────────────────────── проверка обновлений модов ─────────────────────────
+
 
 def test_fresh_lines_respects_duplicates():
     before = "a\nb\na"
@@ -310,8 +344,12 @@ def test_parse_mods_check_states():
 
 
 def test_mods_items_extraction():
-    ws = {"2983905789": {"title": "Wandering Zombies",
-                         "url": "https://steamcommunity.com/sharedfiles/filedetails/?id=2983905789"}}
+    ws = {
+        "2983905789": {
+            "title": "Wandering Zombies",
+            "url": "https://steamcommunity.com/sharedfiles/filedetails/?id=2983905789",
+        }
+    }
     lines = [
         "2026Z LOG : Mod f:1 st:1> CheckModsNeedUpdate: MOD wanderingzombies 2983905789 need update",
         "2026Z LOG : Mod f:1 st:2> CheckModsNeedUpdate: MOD unknownmod need update",
@@ -326,9 +364,12 @@ def test_mods_items_extraction():
 def test_check_mods_update_flow(monkeypatch):
     calls = {"n": 0}
     base = "\n".join(
-        f"2026-09-08T12:0{i}.000000000Z LOG : General f:1 st:1> line{i}" for i in range(5))
-    result_line = ("2026-09-08T12:28:01.613439139Z LOG  : Mod          f:1 st:503,316,043> "
-                   "CheckModsNeedUpdate: Mods updated")
+        f"2026-09-08T12:0{i}.000000000Z LOG : General f:1 st:1> line{i}" for i in range(5)
+    )
+    result_line = (
+        "2026-09-08T12:28:01.613439139Z LOG  : Mod          f:1 st:503,316,043> "
+        "CheckModsNeedUpdate: Mods updated"
+    )
 
     def fake_logs(name, tail=250):
         calls["n"] += 1
@@ -358,14 +399,13 @@ def test_check_mods_update_inconclusive(monkeypatch):
 
 # ────────── авторестарт модов: защита от двойного рестарта ──────────
 
+
 def test_restarted_since(monkeypatch):
-    monkeypatch.setattr(ops, "container_state",
-                        lambda: {"running": True, "startedAt": "S2"})
+    monkeypatch.setattr(ops, "container_state", lambda: {"running": True, "startedAt": "S2"})
     assert ops._restarted_since("S1") == "restarted"
     assert ops._restarted_since("S2") is None
     assert ops._restarted_since(None) is None
-    monkeypatch.setattr(ops, "container_state",
-                        lambda: {"running": False, "startedAt": "S2"})
+    monkeypatch.setattr(ops, "container_state", lambda: {"running": False, "startedAt": "S2"})
     assert ops._restarted_since("S1") == "stopped"
 
 
@@ -375,13 +415,14 @@ def test_do_restart_guard_aborts_on_manual_restart(monkeypatch):
 
     def fake_broadcast(seconds, reason, abort_check=None):
         flips["n"] += 1
-        started["at"] = f"S{flips['n'] + 1}"   # сервер перезапустили в момент отсчёта
+        started["at"] = f"S{flips['n'] + 1}"  # сервер перезапустили в момент отсчёта
         return True
 
     monkeypatch.setattr(ops, "log_event", lambda *a, **k: None)
     monkeypatch.setattr(ops, "is_running", lambda: True)
-    monkeypatch.setattr(ops, "container_state",
-                        lambda: {"running": True, "startedAt": started["at"]})
+    monkeypatch.setattr(
+        ops, "container_state", lambda: {"running": True, "startedAt": started["at"]}
+    )
     monkeypatch.setattr(ops, "rcon_warn_broadcast", fake_broadcast)
     monkeypatch.setattr(ops, "graceful_stop", lambda hook=None: "stopped")
     monkeypatch.setattr(dockerlib, "container_start", lambda name: (0, "", ""))
@@ -396,8 +437,7 @@ def test_do_restart_guard_aborts_on_manual_restart(monkeypatch):
     assert flips["n"] == 2
 
     # с защитой: сервер остановлен вручную — тоже отменяемся
-    monkeypatch.setattr(ops, "container_state",
-                        lambda: {"running": False, "startedAt": "S3"})
+    monkeypatch.setattr(ops, "container_state", lambda: {"running": False, "startedAt": "S3"})
     assert ops._do_restart(600, guard_restarted=True) == "aborted"
 
 
@@ -408,8 +448,7 @@ def test_post_restart_rescan_resets_timer(monkeypatch, tmp_path):
     monkeypatch.setattr(ops, "log_event", lambda *a, **k: None)
     monkeypatch.setattr(ops, "op_busy", lambda: False)
     monkeypatch.setattr(ops, "docker_ok_cached", lambda ttl=60: True)
-    monkeypatch.setattr(ops, "container_state",
-                        lambda: {"running": True, "startedAt": "S1"})
+    monkeypatch.setattr(ops, "container_state", lambda: {"running": True, "startedAt": "S1"})
     assert ops.patch_settings({"modsUpdate": {"enabled": True}}) is None
 
     # первый тик: фиксируем StartedAt, рескан не планируется
@@ -418,16 +457,16 @@ def test_post_restart_rescan_resets_timer(monkeypatch, tmp_path):
     assert ops._POST_RESTART["dueAt"] is None
 
     # сервер перезапустился — рескан откладывается до загрузки
-    monkeypatch.setattr(ops, "container_state",
-                        lambda: {"running": True, "startedAt": "S2"})
+    monkeypatch.setattr(ops, "container_state", lambda: {"running": True, "startedAt": "S2"})
     ops._post_restart_rescan_tick(ops.get_settings())
     assert ops._POST_RESTART["dueAt"] is not None
 
     # время вышло, проверка: «актуально» — таймер сбрасывается на полный интервал
     ops._POST_RESTART["dueAt"] = time.time() - 1
     monkeypatch.setattr(ops, "is_running", lambda: True)
-    monkeypatch.setattr(ops, "check_mods_update",
-                        lambda source="manual", timeout=45: {"state": "up-to-date"})
+    monkeypatch.setattr(
+        ops, "check_mods_update", lambda source="manual", timeout=45: {"state": "up-to-date"}
+    )
     before = time.time()
     ops._post_restart_rescan_tick(ops.get_settings())
     assert ops._POST_RESTART["dueAt"] is None
@@ -437,8 +476,9 @@ def test_post_restart_rescan_resets_timer(monkeypatch, tmp_path):
     # обновления ещё нужны — таймер не трогаем
     ops._POST_RESTART["dueAt"] = time.time() - 1
     ops._SETTINGS["nextModsCheck"] = 12345.0
-    monkeypatch.setattr(ops, "check_mods_update",
-                        lambda source="manual", timeout=45: {"state": "needs-update"})
+    monkeypatch.setattr(
+        ops, "check_mods_update", lambda source="manual", timeout=45: {"state": "needs-update"}
+    )
     ops._post_restart_rescan_tick(ops.get_settings())
     assert ops._SETTINGS["nextModsCheck"] == 12345.0
     assert ops._POST_RESTART["dueAt"] is None
@@ -466,6 +506,7 @@ def test_post_restart_rescan_disabled_clears_state(monkeypatch):
 
 
 # ─────────────── остановка / рестарт: restart policy ───────────────
+
 
 def _run_state(**kwargs):
     st = {"status": "running", "running": True, "startedAt": "S1", "image": "img"}
@@ -505,8 +546,7 @@ def test_graceful_stop_resurrected_by_docker(monkeypatch):
     monkeypatch.setattr(dockerlib, "get_restart_policy", lambda name: "always")
     monkeypatch.setattr(dockerlib, "set_restart_policy", lambda name, policy: False)
     stops = []
-    monkeypatch.setattr(dockerlib, "container_stop",
-                        lambda name, seconds=180: stops.append(name))
+    monkeypatch.setattr(dockerlib, "container_stop", lambda name, seconds=180: stops.append(name))
 
     def quit_and_resurrect(cmd, quiet=False):
         st.update({"status": "running", "running": True, "startedAt": "S2"})
@@ -524,8 +564,9 @@ def test_graceful_stop_force_stop_when_quit_ignored(monkeypatch):
     monkeypatch.setattr(ops, "log_event", lambda *a, **k: None)
     monkeypatch.setattr(ops, "container_state", lambda: st)
     monkeypatch.setattr(dockerlib, "get_restart_policy", lambda name: "no")
-    monkeypatch.setattr(dockerlib, "set_restart_policy",
-                        lambda name, policy: calls.append(("set", policy)) or True)
+    monkeypatch.setattr(
+        dockerlib, "set_restart_policy", lambda name, policy: calls.append(("set", policy)) or True
+    )
 
     def fail_quit(cmd, quiet=False):
         raise rcon.RCONError("нет ответа")
@@ -545,13 +586,24 @@ def test_graceful_stop_force_stop_when_quit_ignored(monkeypatch):
 
 # ─────────────────────── telegram-уведомления ───────────────────────
 
+
 def test_telegram_settings_mask_and_patch(tmp_path):
     """Токен сохраняется на сервере, наружу уходит маской; пустое поле не затирает."""
     config.CFG["settings_file"] = str(tmp_path / "settings.json")
     config.CFG["events_file"] = str(tmp_path / "events.jsonl")
     ops._SETTINGS["telegram"].update({"enabled": False, "botToken": "", "chatId": ""})
-    assert ops.patch_settings({"telegram": {
-        "enabled": True, "botToken": "  123456:ABC-DEF1234  ", "chatId": " -100123 ", }}) is None
+    assert (
+        ops.patch_settings(
+            {
+                "telegram": {
+                    "enabled": True,
+                    "botToken": "  123456:ABC-DEF1234  ",
+                    "chatId": " -100123 ",
+                }
+            }
+        )
+        is None
+    )
     st = ops.get_settings()["telegram"]
     assert st["enabled"] is True and st["chatId"] == "-100123"
     assert st["botToken"] == "" and st["botTokenMasked"] == "•••1234"
@@ -559,8 +611,10 @@ def test_telegram_settings_mask_and_patch(tmp_path):
     # пустое/маскированное значение не затирает сохранённый токен
     assert ops.patch_settings({"telegram": {"botToken": "", "chatId": "-100123"}}) is None
     assert ops.get_settings()["telegram"]["botTokenMasked"] == "•••1234"
-    assert ops.patch_settings({"telegram": {"enabled": "yes"}}) == \
-        "telegram.enabled должен быть true/false"
+    assert (
+        ops.patch_settings({"telegram": {"enabled": "yes"}})
+        == "telegram.enabled должен быть true/false"
+    )
     assert ops.patch_settings({"telegram": {"groups": {"ops": False, "мусор": True}}}) is None
     assert ops.get_settings()["telegram"]["groups"] == {"ops": False}
 
@@ -568,15 +622,23 @@ def test_telegram_settings_mask_and_patch(tmp_path):
 def test_telegram_enqueue_filters(monkeypatch):
     """Группы подписки фильтруют события; сообщение без полного токена."""
     import notify
+
     sent = []
-    monkeypatch.setattr(ops, "telegram_settings_raw", lambda: {
-        "enabled": True, "botToken": "123456:SECRET", "chatId": "42",
-        "groups": {"ops": True, "backup": False, "update": True, "problems": True}})
+    monkeypatch.setattr(
+        ops,
+        "telegram_settings_raw",
+        lambda: {
+            "enabled": True,
+            "botToken": "123456:SECRET",
+            "chatId": "42",
+            "groups": {"ops": True, "backup": False, "update": True, "problems": True},
+        },
+    )
     monkeypatch.setattr(notify._QUEUE, "put_nowait", lambda m: sent.append(m))
-    notify.enqueue("restart", "Сервер перезапущен")      # ops → в очередь
-    notify.enqueue("backup", "Бэкап создан")             # backup → выключен
-    notify.enqueue("error", "Бэкап не удался")           # problems → в очередь
-    notify.enqueue("console", "команда")                 # без группы → мимо
+    notify.enqueue("restart", "Сервер перезапущен")  # ops → в очередь
+    notify.enqueue("backup", "Бэкап создан")  # backup → выключен
+    notify.enqueue("error", "Бэкап не удался")  # problems → в очередь
+    notify.enqueue("console", "команда")  # без группы → мимо
     assert len(sent) == 2
     assert sent[0].startswith("🔄") and sent[0].endswith("Сервер перезапущен")
     assert sent[1].startswith("❌")
@@ -593,15 +655,28 @@ def test_telegram_enqueue_filters(monkeypatch):
 def test_telegram_send_and_test(monkeypatch):
     """sendMessage уходит с токеном из настроек; ответ API уважается; тест-кнопка."""
     import notify
+
     calls = []
-    monkeypatch.setattr(ops, "telegram_settings_raw", lambda: {
-        "enabled": True, "botToken": "123456:SECRET", "chatId": "42",
-        "groups": {"ops": True, "backup": True, "update": True, "problems": True}})
+    monkeypatch.setattr(
+        ops,
+        "telegram_settings_raw",
+        lambda: {
+            "enabled": True,
+            "botToken": "123456:SECRET",
+            "chatId": "42",
+            "groups": {"ops": True, "backup": True, "update": True, "problems": True},
+        },
+    )
 
     class FakeResp:
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
-        def read(self): return json.dumps({"ok": True, "result": {}}).encode()
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return json.dumps({"ok": True, "result": {}}).encode()
 
     def fake_urlopen(req, timeout=10):
         calls.append((req.full_url, json.loads(req.data.decode())))
@@ -627,13 +702,19 @@ def test_telegram_send_uses_saved_token_not_mask(monkeypatch):
     токен незаданным, и «Проверить» всегда писала «не задан токен бота или chat id».
     Теперь отправка берёт telegram_settings_raw(): наружу маска, внутрь — токен."""
     import notify
+
     snap = json.loads(json.dumps(ops._SETTINGS))
     calls = []
 
     class FakeResp:
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
-        def read(self): return json.dumps({"ok": True}).encode()
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return json.dumps({"ok": True}).encode()
 
     def fake_urlopen(req, timeout=10):
         calls.append(req.full_url)
@@ -641,9 +722,14 @@ def test_telegram_send_uses_saved_token_not_mask(monkeypatch):
 
     monkeypatch.setattr(notify.urllib.request, "urlopen", fake_urlopen)
     try:
-        ops._SETTINGS["telegram"].update({
-            "enabled": True, "botToken": "123456:REAL-TOKEN", "chatId": "-10042",
-            "groups": {"ops": True, "backup": True, "update": True, "problems": True}})
+        ops._SETTINGS["telegram"].update(
+            {
+                "enabled": True,
+                "botToken": "123456:REAL-TOKEN",
+                "chatId": "-10042",
+                "groups": {"ops": True, "backup": True, "update": True, "problems": True},
+            }
+        )
         # наружу токен по-прежнему не уходит
         assert ops.get_settings()["telegram"]["botToken"] == ""
         assert ops.get_settings()["telegram"]["botTokenMasked"] == "•••OKEN"
@@ -665,9 +751,18 @@ def test_telegram_send_uses_saved_token_not_mask(monkeypatch):
 
 # ─────────────────────── watchdog: пробы RCON ───────────────────────
 
+
 def _wd_reset():
-    ops._WD.update({"lastProbeAt": None, "lastResult": None, "lastError": None,
-                    "consecutiveFailures": 0, "alerted": False, "lastRestartAt": None})
+    ops._WD.update(
+        {
+            "lastProbeAt": None,
+            "lastResult": None,
+            "lastError": None,
+            "consecutiveFailures": 0,
+            "alerted": False,
+            "lastRestartAt": None,
+        }
+    )
 
 
 def test_watchdog_skips_when_stopped_or_busy(monkeypatch):
@@ -677,18 +772,23 @@ def test_watchdog_skips_when_stopped_or_busy(monkeypatch):
     monkeypatch.setattr(ops, "log_event", lambda *a, **k: events.append(a))
     monkeypatch.setattr(ops, "op_busy", lambda: False)
     monkeypatch.setattr(ops, "docker_ok_cached", lambda ttl=60: True)
-    monkeypatch.setattr(ops, "container_state", lambda: {
-        "status": "exited", "running": False, "startedAt": "S1", "image": "img"})
+    monkeypatch.setattr(
+        ops,
+        "container_state",
+        lambda: {"status": "exited", "running": False, "startedAt": "S1", "image": "img"},
+    )
     probes = []
-    monkeypatch.setattr(ops.rconlib, "run_command",
-                        lambda *a, **k: probes.append(a))
+    monkeypatch.setattr(ops.rconlib, "run_command", lambda *a, **k: probes.append(a))
     ops._watchdog_probe({"enabled": True, "thresholdMin": 1, "autoRestart": True})
     assert ops._WD["lastResult"] == "skipped"
     assert ops._WD["consecutiveFailures"] == 0 and not probes
 
-    monkeypatch.setattr(ops, "op_busy", lambda: True)   # идёт операция
-    monkeypatch.setattr(ops, "container_state", lambda: {
-        "status": "running", "running": True, "startedAt": "S1", "image": "img"})
+    monkeypatch.setattr(ops, "op_busy", lambda: True)  # идёт операция
+    monkeypatch.setattr(
+        ops,
+        "container_state",
+        lambda: {"status": "running", "running": True, "startedAt": "S1", "image": "img"},
+    )
     ops._watchdog_probe({"enabled": True, "thresholdMin": 1, "autoRestart": True})
     assert ops._WD["lastResult"] == "skipped" and not probes
 
@@ -700,8 +800,11 @@ def test_watchdog_alert_and_autorestart(monkeypatch):
     monkeypatch.setattr(ops, "log_event", lambda *a, **k: events.append(a))
     monkeypatch.setattr(ops, "op_busy", lambda: False)
     monkeypatch.setattr(ops, "docker_ok_cached", lambda ttl=60: True)
-    monkeypatch.setattr(ops, "container_state", lambda: {
-        "status": "running", "running": True, "startedAt": "S1", "image": "img"})
+    monkeypatch.setattr(
+        ops,
+        "container_state",
+        lambda: {"status": "running", "running": True, "startedAt": "S1", "image": "img"},
+    )
     monkeypatch.setattr(ops, "is_running", lambda: True)
     monkeypatch.setattr(ops, "start_op", lambda op, fn: restarts.append(op))
 
@@ -710,7 +813,7 @@ def test_watchdog_alert_and_autorestart(monkeypatch):
 
     monkeypatch.setattr(ops.rconlib, "run_command", dead_rcon)
     wd = {"enabled": True, "thresholdMin": 1, "autoRestart": True}
-    for _ in range(2):                    # 2 × 30 с = 1 мин порога
+    for _ in range(2):  # 2 × 30 с = 1 мин порога
         ops._watchdog_probe(wd)
     assert ops._WD["consecutiveFailures"] == 2 and restarts == ["restart"]
     # ещё десять проб — рестарт не повторяется (кулдаун и alerted)
@@ -742,9 +845,9 @@ def test_ini_replace_value():
     """Замена значения с сохранением написания ключа; дописывание отсутствующего."""
     out = ops._ini_replace_value(INI, "WorkshopItems", ["111"])
     assert "WorkshopItems=111\n" in out and "[Other]" in out
-    out = ops._ini_replace_value(INI, "mods", ["a", "b"])          # регистр ключа файла
+    out = ops._ini_replace_value(INI, "mods", ["a", "b"])  # регистр ключа файла
     assert "Mods=a;b\n" in out and "Mods=" in out
-    out = ops._ini_replace_value(INI, "ClientMods", ["x"])          # нет строки — в конец
+    out = ops._ini_replace_value(INI, "ClientMods", ["x"])  # нет строки — в конец
     assert out.rstrip().endswith("ClientMods=x")
     # многострочное значение (перенос с отступом) глотается целиком
     text = "Mods=aaa;\n  bbb;\n  ccc\nWorkshopItems=1\n"
@@ -767,8 +870,11 @@ def test_mods_toggle_flow(tmp_path, monkeypatch):
     monkeypatch.setattr(ops, "log_event", lambda *a, **k: None)
     # локального тома нет, но контент находим docker exec'ом
     monkeypatch.setattr(ops, "_workshop_map_local", lambda items: {})
-    monkeypatch.setattr(ops, "_workshop_map_via_exec",
-                        lambda: {"2694464646": ["tsarslib"], "2804001857": ["commonpackage"]})
+    monkeypatch.setattr(
+        ops,
+        "_workshop_map_via_exec",
+        lambda: {"2694464646": ["tsarslib"], "2804001857": ["commonpackage"]},
+    )
 
     res = ops.set_mod_enabled("servertest.ini", "2694464646", enable=False)
     text = ini.read_text(encoding="utf-8")
@@ -815,12 +921,14 @@ def test_mods_toggle_blocked_without_mapping(tmp_path, monkeypatch):
 
 # ─────────────────────── регресс: SSE-поток ───────────────────────
 
+
 def test_sse_stream_serves_data(monkeypatch):
     """/api/stream должен реально слать кадры данных.
 
     Регресс: в обработчике было обращение к несуществующему self.STREAM_PLAN —
     поток падал сразу после retry-кадра, клиент бесконечно переподключался."""
     import app
+
     monkeypatch.setattr(app.Handler, "log_message", lambda *a, **k: None)
     srv = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
     srv.daemon_threads = True
@@ -837,7 +945,7 @@ def test_sse_stream_serves_data(monkeypatch):
         while b"event: ops" not in buf and ops.time.time() < deadline:
             chunk = resp.read1(512)
             if not chunk:
-                break   # соединение закрыто сервером — падение обработчика
+                break  # соединение закрыто сервером — падение обработчика
             buf += chunk
         assert b"event: ops" in buf, "SSE закрылся до первого кадра данных"
         conn.close()
@@ -847,6 +955,7 @@ def test_sse_stream_serves_data(monkeypatch):
 
 
 # ─────────────────────── регресс: бэкофф поиска модов ───────────────────────
+
 
 def test_workshop_exec_backoff(monkeypatch):
     """Пустой результат поиска в контейнере кэшируется: повторные вызовы
@@ -871,6 +980,7 @@ def test_workshop_exec_backoff(monkeypatch):
 
 # ─────────────────────── регресс: бэкап с остановкой ───────────────────────
 
+
 def test_backup_with_stop_aborts_on_resurrect(tmp_path, monkeypatch):
     """Если docker сам перезапустил контейнер посреди остановки — бэкап
     прерывается с ошибкой, а не снимает архив с полуживого мира."""
@@ -888,6 +998,7 @@ def test_backup_with_stop_aborts_on_resurrect(tmp_path, monkeypatch):
 
 
 # ─────────────────────── регресс: отложенная автопроверка ───────────────────────
+
 
 def test_defer_next_check_saves(tmp_path):
     """defer_next_check пишет в основной словарь и сохраняет файл —
@@ -910,17 +1021,23 @@ def test_defer_next_check_saves(tmp_path):
 
 # ─────────────────────── регресс: клампы settings.json ───────────────────────
 
+
 def test_load_settings_clamps(tmp_path):
     """Значения из старого/ручного settings.json клампятся, как в patch_settings:
     интервал 0 иначе превратил бы планировщик в проверки каждые 20 с."""
     config.CFG["settings_file"] = str(tmp_path / "settings.json")
     config.CFG["events_file"] = str(tmp_path / "events.jsonl")
-    (tmp_path / "settings.json").write_text(json.dumps({
-        "autoUpdate": {"intervalHours": 0, "warnSeconds": 99999},
-        "modsUpdate": {"intervalHours": -5},
-        "watchdog": {"thresholdMin": 1000},
-        "backup": {"maxBackups": -1},
-    }), encoding="utf-8")
+    (tmp_path / "settings.json").write_text(
+        json.dumps(
+            {
+                "autoUpdate": {"intervalHours": 0, "warnSeconds": 99999},
+                "modsUpdate": {"intervalHours": -5},
+                "watchdog": {"thresholdMin": 1000},
+                "backup": {"maxBackups": -1},
+            }
+        ),
+        encoding="utf-8",
+    )
     snap = json.loads(json.dumps(ops._SETTINGS))
     try:
         ops._load_settings()
@@ -937,11 +1054,16 @@ def test_load_settings_clamps(tmp_path):
 
 # ─────────────────────── регресс: маскирование токена ───────────────────────
 
+
 def test_notify_error_masks_token(monkeypatch):
     """Ошибка отправки не должна уносить токен наружу (UI, события)."""
     import notify
-    monkeypatch.setattr(ops, "telegram_settings_raw", lambda: {
-        "enabled": True, "botToken": "123456:SECRET", "chatId": "42"})
+
+    monkeypatch.setattr(
+        ops,
+        "telegram_settings_raw",
+        lambda: {"enabled": True, "botToken": "123456:SECRET", "chatId": "42"},
+    )
 
     def boom(req, timeout=10):
         raise OSError("connection failed for bot123456:SECRET (https url)")
@@ -955,6 +1077,7 @@ def test_notify_error_masks_token(monkeypatch):
 
 # ─────────────── регресс V19: восстановление при resurrected ───────────────
 
+
 def test_notify_error_surfaces_telegram_description(monkeypatch):
     """Регресс V20.3: HTTP-ошибка Telegram (400/401) показывалась безликим
     «HTTP Error 400: Bad Request», хотя в теле ответа Telegram пишет настоящую
@@ -963,13 +1086,22 @@ def test_notify_error_surfaces_telegram_description(monkeypatch):
 
     def boom(req, timeout=10):
         raise urllib.error.HTTPError(
-            req.full_url, 400, "Bad Request",
+            req.full_url,
+            400,
+            "Bad Request",
             {"Content-Type": "application/json"},
-            io.BytesIO(json.dumps({"ok": False, "error_code": 400,
-                                   "description": "Bad Request: chat not found"}).encode()))
+            io.BytesIO(
+                json.dumps(
+                    {"ok": False, "error_code": 400, "description": "Bad Request: chat not found"}
+                ).encode()
+            ),
+        )
 
-    monkeypatch.setattr(ops, "telegram_settings_raw", lambda: {
-        "enabled": True, "botToken": "123456:SECRET", "chatId": "42"})
+    monkeypatch.setattr(
+        ops,
+        "telegram_settings_raw",
+        lambda: {"enabled": True, "botToken": "123456:SECRET", "chatId": "42"},
+    )
     monkeypatch.setattr(notify.urllib.request, "urlopen", boom)
     ok, err = notify.send_message("x")
     assert ok is False
@@ -978,10 +1110,11 @@ def test_notify_error_surfaces_telegram_description(monkeypatch):
     # «Проверить» добавляет к ошибке сохранённый chat id — видно, что лежит в настройках
     ok, err = notify.test_message()
     assert ok is False and "chat not found" in err and "chat id: 42" in err
+
     # тело не-json/пустое → хотя бы безликая ошибка, без падения
     def boom_raw(req, timeout=10):
-        raise urllib.error.HTTPError(req.full_url, 500, "Internal Error",
-                                     {}, io.BytesIO(b""))
+        raise urllib.error.HTTPError(req.full_url, 500, "Internal Error", {}, io.BytesIO(b""))
+
     monkeypatch.setattr(notify.urllib.request, "urlopen", boom_raw)
     ok, err = notify.send_message("x")
     assert ok is False and err
@@ -994,17 +1127,32 @@ def test_notify_fetch_recent_chats(monkeypatch):
     import notify
 
     class FakeResp:
-        def __init__(self, payload): self._p = payload
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
-        def read(self): return json.dumps(self._p).encode()
+        def __init__(self, payload):
+            self._p = payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return json.dumps(self._p).encode()
 
     updates = [
         {"message": {"chat": {"id": -1001234567890, "title": "Тест-группа", "type": "supergroup"}}},
-        {"channel_post": {"chat": {"id": -1001234567890, "title": "Тест-группа", "type": "supergroup"}}},
+        {
+            "channel_post": {
+                "chat": {"id": -1001234567890, "title": "Тест-группа", "type": "supergroup"}
+            }
+        },
         {"message": {"chat": {"id": 42, "first_name": "Иван", "type": "private"}}},
-        {"my_chat_member": {"chat": {"id": -1009876543210, "title": "Вторая", "type": "supergroup"}}},
-        {"callback_query": {"id": "x"}},   # без чата — пропускается
+        {
+            "my_chat_member": {
+                "chat": {"id": -1009876543210, "title": "Вторая", "type": "supergroup"}
+            }
+        },
+        {"callback_query": {"id": "x"}},  # без чата — пропускается
     ]
     seen = {}
 
@@ -1012,8 +1160,11 @@ def test_notify_fetch_recent_chats(monkeypatch):
         seen["url"] = req.full_url
         return FakeResp({"ok": True, "result": updates})
 
-    monkeypatch.setattr(ops, "telegram_settings_raw", lambda: {
-        "enabled": True, "botToken": "123456:SECRET", "chatId": ""})
+    monkeypatch.setattr(
+        ops,
+        "telegram_settings_raw",
+        lambda: {"enabled": True, "botToken": "123456:SECRET", "chatId": ""},
+    )
     monkeypatch.setattr(notify.urllib.request, "urlopen", fake_urlopen)
     chats, err = notify.fetch_recent_chats()
     assert err is None
@@ -1022,18 +1173,35 @@ def test_notify_fetch_recent_chats(monkeypatch):
     assert chats[0]["title"] == "Тест-группа" and chats[1]["title"] == "Вторая"
     assert chats[2]["title"] == "Иван" and chats[2]["type"] == "private"
     # нет токена — честная ошибка без сети
-    monkeypatch.setattr(ops, "telegram_settings_raw", lambda: {
-        "enabled": True, "botToken": "", "chatId": ""})
+    monkeypatch.setattr(
+        ops, "telegram_settings_raw", lambda: {"enabled": True, "botToken": "", "chatId": ""}
+    )
     chats, err = notify.fetch_recent_chats()
     assert chats is None and "не задан токен" in err
     # ошибка Telegram с описанием и маской токена
-    monkeypatch.setattr(ops, "telegram_settings_raw", lambda: {
-        "enabled": True, "botToken": "123456:SECRET", "chatId": ""})
+    monkeypatch.setattr(
+        ops,
+        "telegram_settings_raw",
+        lambda: {"enabled": True, "botToken": "123456:SECRET", "chatId": ""},
+    )
+
     def boom(req, timeout=10):
-        raise urllib.error.HTTPError(req.full_url, 409, "Conflict", {},
-                                     io.BytesIO(json.dumps({
-                                         "ok": False, "error_code": 409,
-                                         "description": "Conflict: terminated by other getUpdates request"}).encode()))
+        raise urllib.error.HTTPError(
+            req.full_url,
+            409,
+            "Conflict",
+            {},
+            io.BytesIO(
+                json.dumps(
+                    {
+                        "ok": False,
+                        "error_code": 409,
+                        "description": "Conflict: terminated by other getUpdates request",
+                    }
+                ).encode()
+            ),
+        )
+
     monkeypatch.setattr(notify.urllib.request, "urlopen", boom)
     chats, err = notify.fetch_recent_chats()
     assert chats is None and "Conflict" in err and "SECRET" not in err
@@ -1043,9 +1211,11 @@ def test_telegram_chats_route_on_get(monkeypatch):
     """Регресс V20.4: маршрут /api/telegram-chats был объявлен в do_POST,
     а интерфейс дергает его GET'ом — «Нет такого маршрута». Теперь GET работает."""
     import app
+
     monkeypatch.setattr(app.Handler, "log_message", lambda *a, **k: None)
-    monkeypatch.setattr(ops, "telegram_settings_raw", lambda: {
-        "enabled": True, "botToken": "", "chatId": ""})
+    monkeypatch.setattr(
+        ops, "telegram_settings_raw", lambda: {"enabled": True, "botToken": "", "chatId": ""}
+    )
     srv = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
     srv.daemon_threads = True
     threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -1073,7 +1243,7 @@ def test_restore_aborts_on_resurrect(tmp_path, monkeypatch):
     (data / "keep.txt").write_text("x", encoding="utf-8")
     config.CFG["data_dir"] = str(data)
     bak = tmp_path / "pz-backup-20260909-120000.tar.gz"
-    bak.write_bytes(b"\\x1f\\x8b")   # имя валидно, до распаковки дело не дойдёт
+    bak.write_bytes(b"\\x1f\\x8b")  # имя валидно, до распаковки дело не дойдёт
     wiped = []
     monkeypatch.setattr(ops, "log_event", lambda *a, **k: None)
     monkeypatch.setattr(ops, "_set_phase", lambda *a, **k: None)
@@ -1089,6 +1259,7 @@ def test_restore_aborts_on_resurrect(tmp_path, monkeypatch):
 
 # ─────────────── регресс V19: спам rcon-error ───────────────
 
+
 def test_rcon_error_events_throttled(monkeypatch):
     """RCON недоступен: событие пишется на смену состояния и раз в 5 минут,
     а не на каждый опрос (SSE players каждые 5 с заливал журнал и Telegram)."""
@@ -1102,11 +1273,11 @@ def test_rcon_error_events_throttled(monkeypatch):
     ops._RCON_CACHE.update({"state": "ok", "error": None, "at": None})
     ops._RCON_LOG["at"] = 0.0
     try:
-        for _ in range(12):            # минута опросов каждые 5 с
+        for _ in range(12):  # минута опросов каждые 5 с
             with pytest.raises(rcon.RCONError):
                 ops.rcon("players")
         assert len(events) == 1, "на постоянный сбой — одна запись, не 12"
-        ops._RCON_LOG["at"] -= 301     # прошло 5 минут тишины
+        ops._RCON_LOG["at"] -= 301  # прошло 5 минут тишины
         with pytest.raises(rcon.RCONError):
             ops.rcon("players")
         assert len(events) == 2
@@ -1116,6 +1287,7 @@ def test_rcon_error_events_throttled(monkeypatch):
 
 
 # ─────────────── регресс V19: нечисловые значения в настройках ───────────────
+
 
 def test_patch_settings_non_numeric_is_error(tmp_path):
     """POST /api/settings с нечисловым интервалом раньше ронял обработчик
@@ -1136,10 +1308,16 @@ def test_load_settings_nextcheck_type_guard(tmp_path):
     каждые 20 с (спам «Планировщик: …»). Нечисловые метки сбрасываются в None."""
     config.CFG["settings_file"] = str(tmp_path / "settings.json")
     config.CFG["events_file"] = str(tmp_path / "events.jsonl")
-    (tmp_path / "settings.json").write_text(json.dumps({
-        "nextCheck": "скоро", "nextModsCheck": [1],
-        "autoUpdate": {"enabled": True},
-    }), encoding="utf-8")
+    (tmp_path / "settings.json").write_text(
+        json.dumps(
+            {
+                "nextCheck": "скоро",
+                "nextModsCheck": [1],
+                "autoUpdate": {"enabled": True},
+            }
+        ),
+        encoding="utf-8",
+    )
     snap = json.loads(json.dumps(ops._SETTINGS))
     try:
         ops._load_settings()
@@ -1147,7 +1325,8 @@ def test_load_settings_nextcheck_type_guard(tmp_path):
         assert ops._SETTINGS["nextModsCheck"] is None
         # валидное число сохраняется; true/false — не метка
         (tmp_path / "settings.json").write_text(
-            json.dumps({"nextCheck": 123.5, "nextModsCheck": True}), encoding="utf-8")
+            json.dumps({"nextCheck": 123.5, "nextModsCheck": True}), encoding="utf-8"
+        )
         ops._load_settings()
         assert ops._SETTINGS["nextCheck"] == 123.5
         assert ops._SETTINGS["nextModsCheck"] is None
@@ -1157,6 +1336,7 @@ def test_load_settings_nextcheck_type_guard(tmp_path):
 
 
 # ─────────────── регресс V19: предупреждение не кратно 10 с ───────────────
+
 
 def test_warn_broadcast_non_multiple_of_ten(monkeypatch):
     """Отсчёт 45 с раньше не отправлял ни одного сообщения (шаг 10 не попадал
@@ -1177,6 +1357,7 @@ def test_warn_broadcast_non_multiple_of_ten(monkeypatch):
 
 
 # ─────────────── регресс V19: кэш compose version ───────────────
+
 
 def test_compose_version_cached(monkeypatch):
     """compose_ok_cached: docker compose version не гоняется на каждом
@@ -1199,10 +1380,12 @@ def test_compose_version_cached(monkeypatch):
 
 # ─────────────── регресс V19: таймаут tar ───────────────
 
+
 def test_backup_tar_timeout_readable(tmp_path, monkeypatch):
     """Зависший tar даёт понятную OpsError, а не «Внутренняя ошибка:
     Command … timed out» из общего перехватчика."""
     import subprocess as sp
+
     config.CFG["backup_dir"] = str(tmp_path)
     data = tmp_path / "data"
     (data / "w").mkdir(parents=True)
@@ -1221,36 +1404,52 @@ def test_backup_tar_timeout_readable(tmp_path, monkeypatch):
 
 # ─────────────── регресс V19: stats-кадр при остановленном сервере ───────────────
 
+
 def test_stats_payload_error_is_ok_false(monkeypatch):
     """Кадр stats без контейнера — ok:false + error (интерфейс показывает
     состояние ошибки), а не ok:true с фиктивными нулями."""
     import app
+
     monkeypatch.setattr(ops, "container_state", lambda: None)
     data = app.stats_payload()
     assert data["ok"] is False and "error" in data
     # живые данные не сломались
-    monkeypatch.setattr(ops, "container_state", lambda: {
-        "status": "running", "running": True, "startedAt": None, "image": "img"})
-    monkeypatch.setattr(dockerlib, "container_stats", lambda name: {
-        "cpuPct": 1.0, "memUsed": 1, "memLimit": 2, "memPct": 1,
-        "netIn": 1, "netOut": 1, "pids": 1})
+    monkeypatch.setattr(
+        ops,
+        "container_state",
+        lambda: {"status": "running", "running": True, "startedAt": None, "image": "img"},
+    )
+    monkeypatch.setattr(
+        dockerlib,
+        "container_stats",
+        lambda name: {
+            "cpuPct": 1.0,
+            "memUsed": 1,
+            "memLimit": 2,
+            "memPct": 1,
+            "netIn": 1,
+            "netOut": 1,
+            "pids": 1,
+        },
+    )
     data = app.stats_payload()
     assert data["ok"] is True and data["cpuPct"] == 1.0
 
 
 # ─────────────── регресс V19: скачивание исчезнувшего бэкапа ───────────────
 
+
 def test_backup_download_missing_file_404(monkeypatch):
     """Файл удалён prune'ом между проверкой и чтением → честный 404 JSON,
     а не необработанное исключение и разрыв соединения."""
     import app
+
     monkeypatch.setattr(app.Handler, "log_message", lambda *a, **k: None)
     srv = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
     srv.daemon_threads = True
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:
-        monkeypatch.setattr(ops, "backup_download_path",
-                            lambda name: "/несуществующий/путь.tar.gz")
+        monkeypatch.setattr(ops, "backup_download_path", lambda name: "/несуществующий/путь.tar.gz")
         port = srv.server_address[1]
         conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
         conn.request("GET", "/api/backup/download?name=x.tar.gz")
@@ -1265,6 +1464,7 @@ def test_backup_download_missing_file_404(monkeypatch):
 
 
 # ─────────────────────── бэкапы по расписанию (V20) ───────────────────────
+
 
 def _bk_fixture(tmp_path, monkeypatch):
     """Обвязка: временные каталоги данных/бэкапов/журнала, тихие события, сервер «стоит»."""
@@ -1328,10 +1528,15 @@ def test_auto_backup_settings_validation(tmp_path):
 def test_load_settings_bad_time_falls_back(tmp_path):
     """Мусор в settings.json (время 99:99, метка-строка) не роняет пульт."""
     config.CFG["settings_file"] = str(tmp_path / "settings.json")
-    (tmp_path / "settings.json").write_text(json.dumps({
-        "autoBackup": {"enabled": True, "time": "99:99"},
-        "nextBackupRun": "мусор",
-    }), encoding="utf-8")
+    (tmp_path / "settings.json").write_text(
+        json.dumps(
+            {
+                "autoBackup": {"enabled": True, "time": "99:99"},
+                "nextBackupRun": "мусор",
+            }
+        ),
+        encoding="utf-8",
+    )
     snap = _bk_snap()
     try:
         ops._load_settings()
@@ -1449,8 +1654,16 @@ def test_rotation_prunes_old_backups(tmp_path, monkeypatch):
 def test_backup_journal_roundtrip_file(tmp_path, monkeypatch):
     """Журнал — файл backups.jsonl: записи читаются новыми сверху с нужными полями."""
     _bk_fixture(tmp_path, monkeypatch)
-    ops._journal_append({"trigger": "manual", "name": "a.tar.gz", "size": 10,
-                         "path": "/backups/a.tar.gz", "status": "success", "duration": 1.0})
+    ops._journal_append(
+        {
+            "trigger": "manual",
+            "name": "a.tar.gz",
+            "size": 10,
+            "path": "/backups/a.tar.gz",
+            "status": "success",
+            "duration": 1.0,
+        }
+    )
     ops._journal_append({"trigger": "scheduled", "status": "error", "error": "tar не удался"})
     path = tmp_path / "dd" / "backups.jsonl"
     assert path.exists()

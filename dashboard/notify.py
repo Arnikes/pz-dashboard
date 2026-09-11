@@ -6,6 +6,7 @@
 новых событий (иначе цикл «ошибка отправки → событие → отправка»).
 Токен бота живёт в настройках на сервере пульта и наружу отдаётся маской.
 """
+
 import json
 import queue
 import threading
@@ -17,16 +18,36 @@ import config
 
 # Каждому типу события — группа подписки и значок в сообщении.
 KIND_GROUP = {
-    "start": "ops", "stop": "ops", "restart": "ops", "docker": "ops",
-    "backup": "backup", "restore": "backup", "backup-delete": "backup",
-    "update": "update", "update-check": "update", "auto": "update", "mods": "update",
-    "error": "problems", "warn": "problems", "rcon-error": "problems",
+    "start": "ops",
+    "stop": "ops",
+    "restart": "ops",
+    "docker": "ops",
+    "backup": "backup",
+    "restore": "backup",
+    "backup-delete": "backup",
+    "update": "update",
+    "update-check": "update",
+    "auto": "update",
+    "mods": "update",
+    "error": "problems",
+    "warn": "problems",
+    "rcon-error": "problems",
 }
 KIND_ICON = {
-    "start": "▶️", "stop": "⏹", "restart": "🔄", "docker": "🐳",
-    "backup": "💾", "restore": "♻️", "backup-delete": "🗑",
-    "update": "⬆️", "update-check": "🔎", "auto": "🤖", "mods": "🧩",
-    "error": "❌", "warn": "⚠️", "rcon-error": "🔌",
+    "start": "▶️",
+    "stop": "⏹",
+    "restart": "🔄",
+    "docker": "🐳",
+    "backup": "💾",
+    "restore": "♻️",
+    "backup-delete": "🗑",
+    "update": "⬆️",
+    "update-check": "🔎",
+    "auto": "🤖",
+    "mods": "🧩",
+    "error": "❌",
+    "warn": "⚠️",
+    "rcon-error": "🔌",
 }
 
 _QUEUE = queue.Queue(maxsize=50)
@@ -46,6 +67,7 @@ def _telegram_settings():
     маской и пустым botToken — отправка через него считала токен незаданным
     («не задан токен бота или chat id») при сохранённом токене."""
     import ops  # noqa: PLC0415
+
     return ops.telegram_settings_raw()
 
 
@@ -82,8 +104,7 @@ def fetch_recent_chats():
     token = (tg.get("botToken") or "").strip()
     if not token:
         return None, "не задан токен бота"
-    req = urllib.request.Request(
-        f"https://api.telegram.org/bot{token}/getUpdates?limit=100")
+    req = urllib.request.Request(f"https://api.telegram.org/bot{token}/getUpdates?limit=100")
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
@@ -101,8 +122,13 @@ def fetch_recent_chats():
     chats = {}
     for upd in payload.get("result") or []:
         chat = None
-        for key in ("message", "edited_message", "channel_post",
-                    "edited_channel_post", "my_chat_member"):
+        for key in (
+            "message",
+            "edited_message",
+            "channel_post",
+            "edited_channel_post",
+            "my_chat_member",
+        ):
             evt = upd.get(key)
             if isinstance(evt, dict) and isinstance(evt.get("chat"), dict):
                 chat = evt["chat"]
@@ -110,10 +136,8 @@ def fetch_recent_chats():
         cid = chat.get("id") if chat else None
         if cid is None:
             continue
-        title = (chat.get("title") or chat.get("first_name")
-                 or chat.get("username") or str(cid))
-        chats[str(cid)] = {"id": str(cid), "title": title,
-                           "type": str(chat.get("type") or "")}
+        title = chat.get("title") or chat.get("first_name") or chat.get("username") or str(cid)
+        chats[str(cid)] = {"id": str(cid), "title": title, "type": str(chat.get("type") or "")}
     return sorted(chats.values(), key=lambda c: c["id"]), None
 
 
@@ -128,7 +152,9 @@ def send_message(text):
         body = json.dumps({"chat_id": chat, "text": text[:3500]}).encode("utf-8")
         req = urllib.request.Request(
             f"https://api.telegram.org/bot{token}/sendMessage",
-            data=body, headers={"Content-Type": "application/json"})
+            data=body,
+            headers={"Content-Type": "application/json"},
+        )
         with urllib.request.urlopen(req, timeout=10) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
         if payload.get("ok"):

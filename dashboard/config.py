@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Конфигурация пульта PZ. Все параметры задаются переменными окружения
 (см. .env.example в корне проекта)."""
+
 import os
 
 
@@ -24,9 +25,9 @@ CFG = {
     "rcon_host": os.getenv("RCON_HOST", "pzserver"),
     "rcon_port": _int("RCON_PORT", 27015),
     "rcon_password": os.getenv("RCON_PASSWORD", ""),
-    "compose_file": os.getenv("COMPOSE_FILE", ""),          # путь в контейнере, можно :склейка
+    "compose_file": os.getenv("COMPOSE_FILE", ""),  # путь в контейнере, можно :склейка
     "compose_project": os.getenv("COMPOSE_PROJECT_NAME", ""),
-    "data_dir": os.getenv("DATA_DIR", "/data"),             # смонтированные данные PZ
+    "data_dir": os.getenv("DATA_DIR", "/data"),  # смонтированные данные PZ
     "backup_dir": os.getenv("BACKUP_DIR", "/backups"),
     "dashboard_dir": os.getenv("DASHBOARD_DIR", "/dashboard-data"),
     "server_name": os.getenv("PZ_SERVER_NAME", "Project Zomboid"),

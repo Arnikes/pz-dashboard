@@ -5,6 +5,7 @@ RCON PZ слушает TCP-порт 27015 по умолчанию. Каждое 
 создаётся заново — на LAN это надёжнее, чем держать соединение
 (сервер может упасть/перезапуститься в любой момент).
 """
+
 import socket
 import struct
 import time
@@ -25,7 +26,9 @@ def _pack(rid, ptype, body):
 
 
 class RCON:
-    def __init__(self, host, port, password, connect_timeout=4.0, idle_timeout=0.35, total_timeout=8.0):
+    def __init__(
+        self, host, port, password, connect_timeout=4.0, idle_timeout=0.35, total_timeout=8.0
+    ):
         self.host = host
         self.port = port
         self.password = password
@@ -54,14 +57,14 @@ class RCON:
             # Разбираем всё, что уже накопилось в буфере.
             while len(self._buf) >= 4:
                 size = struct.unpack("<i", self._buf[:4])[0]
-                if size <= 0 or size > MAX_PACKET:      # мусор — сдвигаемся
+                if size <= 0 or size > MAX_PACKET:  # мусор — сдвигаемся
                     self._buf = self._buf[4:]
                     continue
                 if len(self._buf) < 4 + size:
                     break
-                pkt = self._buf[4:4 + size]
-                self._buf = self._buf[4 + size:]
-                if len(pkt) < 10:   # минимальный валидный пакет: id+type+2 нуля = 10 байт
+                pkt = self._buf[4 : 4 + size]
+                self._buf = self._buf[4 + size :]
+                if len(pkt) < 10:  # минимальный валидный пакет: id+type+2 нуля = 10 байт
                     continue
                 rid, typ = struct.unpack("<ii", pkt[:8])
                 body = pkt[8:-2].decode("utf-8", "replace") if len(pkt) >= 10 else ""
@@ -105,7 +108,10 @@ class RCON:
                 if not packets:
                     break
                 for p_rid, p_typ, body in packets:
-                    if p_rid == rid and p_typ in (SERVERDATA_RESPONSE_VALUE, SERVERDATA_EXECCOMMAND):
+                    if p_rid == rid and p_typ in (
+                        SERVERDATA_RESPONSE_VALUE,
+                        SERVERDATA_EXECCOMMAND,
+                    ):
                         parts.append(body)
             text = "".join(parts)
             if not text.strip():

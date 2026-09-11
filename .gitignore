@@ -2,6 +2,10 @@
 __pycache__/
 *.pyc
 .venv/
+.venv-linux/
+.pytest_cache/
+.ruff_cache/
+test-results/
 
 # секреты и локальные данные
 .env

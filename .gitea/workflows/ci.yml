@@ -13,17 +13,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Python — компиляция всех модулей
-        run: python3 -m compileall -q dashboard
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
-      - name: Python — юнит-тесты
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Зависимости разработки и Chromium
         run: |
           python3 -m venv .venv
-          ./.venv/bin/pip install --quiet pytest
-          ./.venv/bin/pytest -q tests
+          ./.venv/bin/python -m pip install -r requirements-dev.txt
+          ./.venv/bin/python -m playwright install --with-deps chromium
 
-      - name: JS — синтаксис интерфейса
-        run: node --check dashboard/static/app.js
+      - name: Единая проверка качества
+        run: ./.venv/bin/python scripts/check.py
 
   image:
     name: Сборка образа и smoke-запуск

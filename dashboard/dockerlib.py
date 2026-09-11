@@ -4,6 +4,7 @@
 Все команды выполняются списком аргументов (shell=False), параметры
 проходят валидацию в ops.py.
 """
+
 import re
 import subprocess
 
@@ -41,10 +42,16 @@ def _compose_prefix(cfg):
 
 def inspect_container(name):
     """(status, running, started_at, image) или None, если контейнер не найден."""
-    code, out, err = sh([
-        "docker", "inspect", name,
-        "--format", "{{.State.Status}}|{{.State.Running}}|{{.State.StartedAt}}|{{.Config.Image}}",
-    ], timeout=30)
+    code, out, err = sh(
+        [
+            "docker",
+            "inspect",
+            name,
+            "--format",
+            "{{.State.Status}}|{{.State.Running}}|{{.State.StartedAt}}|{{.Config.Image}}",
+        ],
+        timeout=30,
+    )
     if code != 0 or not out:
         return None
     parts = out.split("|")
@@ -62,10 +69,17 @@ def image_digests(image):
     """Первый RepoDigest образа (sha256:...) или None.
 
     Важно: RepoDigests хранится в виде repo@sha256:... — парсим хеш после @."""
-    code, out, err = sh([
-        "docker", "image", "inspect", image,
-        "--format", "{{range .RepoDigests}}{{println .}}{{end}}",
-    ], timeout=30)
+    code, out, err = sh(
+        [
+            "docker",
+            "image",
+            "inspect",
+            image,
+            "--format",
+            "{{range .RepoDigests}}{{println .}}{{end}}",
+        ],
+        timeout=30,
+    )
     if code != 0 or not out:
         return None
     for line in out.splitlines():
@@ -96,16 +110,23 @@ def parse_bytes(raw):
     if not unit:
         return int(num)
     if iec:
-        return int(num * {"k": 1024, "m": 1024 ** 2, "g": 1024 ** 3}[unit.lower()])
+        return int(num * {"k": 1024, "m": 1024**2, "g": 1024**3}[unit.lower()])
     return int(num * {"k": 1e3, "m": 1e6, "g": 1e9}[unit.lower()])
 
 
 def container_stats(name):
     """{cpuPct, memUsed, memLimit, memPct, netIn, netOut, pids} или None."""
-    code, out, err = sh([
-        "docker", "stats", "--no-stream", "--format",
-        "{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}|{{.NetIO}}|{{.PIDs}}", name,
-    ], timeout=30)
+    code, out, err = sh(
+        [
+            "docker",
+            "stats",
+            "--no-stream",
+            "--format",
+            "{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}|{{.NetIO}}|{{.PIDs}}",
+            name,
+        ],
+        timeout=30,
+    )
     if code != 0 or not out:
         return None
     try:
@@ -140,10 +161,16 @@ def container_exec(name, command, timeout=60):
 
 def get_restart_policy(name):
     """Имя политики рестарта ("no", "always", "unless-stopped", "on-failure") или None."""
-    code, out, err = sh([
-        "docker", "inspect", name,
-        "--format", "{{.HostConfig.RestartPolicy.Name}}",
-    ], timeout=30)
+    code, out, err = sh(
+        [
+            "docker",
+            "inspect",
+            name,
+            "--format",
+            "{{.HostConfig.RestartPolicy.Name}}",
+        ],
+        timeout=30,
+    )
     if code != 0:
         return None
     return (out or "").strip() or "no"

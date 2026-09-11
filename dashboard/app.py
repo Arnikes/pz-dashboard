@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """HTTP-сервер пульта PZ: статика + JSON API. Только стандартная библиотека."""
+
 import json
 import mimetypes
 import os
@@ -65,10 +66,13 @@ def stats_payload():
 
 def backups_payload():
     s = ops.get_settings()
-    return {"ok": True, "items": ops.list_backups(),
-            "maxBackups": s["backup"]["maxBackups"],
-            "autoBackup": ops.auto_backup_state(),
-            "journal": ops.get_backup_journal(30)}
+    return {
+        "ok": True,
+        "items": ops.list_backups(),
+        "maxBackups": s["backup"]["maxBackups"],
+        "autoBackup": ops.auto_backup_state(),
+        "journal": ops.get_backup_journal(30),
+    }
 
 
 def events_payload(limit=100):
@@ -184,7 +188,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "application/gzip")
             self.send_header("Content-Length", str(size))
-            self.send_header("Content-Disposition", f'attachment; filename="{os.path.basename(path)}"')
+            self.send_header(
+                "Content-Disposition", f'attachment; filename="{os.path.basename(path)}"'
+            )
             self.end_headers()
             with open(path, "rb") as f:
                 while True:
@@ -238,8 +244,9 @@ class Handler(BaseHTTPRequestHandler):
                         data = stream_payload(name)
                     except Exception as e:  # noqa: BLE001
                         data = {"ok": False, "error": str(e)}
-                    frame = (f"event: {name}\ndata: "
-                             + json.dumps(data, ensure_ascii=False) + "\n\n").encode("utf-8")
+                    frame = (
+                        f"event: {name}\ndata: " + json.dumps(data, ensure_ascii=False) + "\n\n"
+                    ).encode("utf-8")
                     self._sse_write(frame)
                     last[name] = now
                 if now - last_beat >= 15.0:
@@ -264,7 +271,7 @@ class Handler(BaseHTTPRequestHandler):
         if path in ("/", "/index.html"):
             self._static_file("index.html")
         elif path.startswith("/static/"):
-            self._static_file(path[len("/static/"):])
+            self._static_file(path[len("/static/") :])
         elif path == "/favicon.ico":
             self._static_file("favicon.svg")
         elif path == "/api/health":
@@ -346,8 +353,8 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/mods-config":
             try:
                 result = ops.set_mod_enabled(
-                    data.get("file"), str(data.get("workshopId") or ""),
-                    bool(data.get("enable")))
+                    data.get("file"), str(data.get("workshopId") or ""), bool(data.get("enable"))
+                )
                 self._send_json({"ok": True, **result})
             except ops.OpsError as e:
                 self._send_json({"ok": False, "error": str(e)})
@@ -379,9 +386,18 @@ class Handler(BaseHTTPRequestHandler):
         except (TypeError, ValueError):
             warn = warn_default
 
-        known = {"start", "stop", "restart", "check-update", "apply-update",
-                 "check-mods-update", "apply-mods-update", "backup", "restore",
-                 "verify-backup"}
+        known = {
+            "start",
+            "stop",
+            "restart",
+            "check-update",
+            "apply-update",
+            "check-mods-update",
+            "apply-mods-update",
+            "backup",
+            "restore",
+            "verify-backup",
+        }
         if action not in known:
             self._send_error_json(400, "Неизвестная операция")
             return
@@ -403,14 +419,13 @@ class Handler(BaseHTTPRequestHandler):
                 # после ручного обновления откладываем автопроверку на интервал:
                 # get_settings() возвращает копию, мутация копии не сохраняется
                 ops.defer_next_check(settings["autoUpdate"]["intervalHours"])
-                ops.start_op("apply-update",
-                             lambda: ops._do_apply_update(warn, "Обновление сервера"))
+                ops.start_op(
+                    "apply-update", lambda: ops._do_apply_update(warn, "Обновление сервера")
+                )
             elif action == "check-mods-update":
-                ops.start_op("check-mods-update",
-                             lambda: ops.check_mods_update(source="manual"))
+                ops.start_op("check-mods-update", lambda: ops.check_mods_update(source="manual"))
             elif action == "apply-mods-update":
-                ops.start_op("apply-mods-update",
-                             lambda: ops._do_apply_mods_update(warn))
+                ops.start_op("apply-mods-update", lambda: ops._do_apply_mods_update(warn))
             elif action == "backup":
                 stop_flag = bool(data.get("stopServer", False))
                 ops.start_op("backup", lambda: ops.run_backup_job("manual", stop_flag))
@@ -436,8 +451,11 @@ def main():
     docker_ok = dockerlib.docker_version()
     compose_ok = dockerlib.compose_version() if docker_ok else False
     if not docker_ok:
-        ops.log_event("docker", "Docker недоступен — пульт в удалённом режиме: активны RCON-консоль, "
-                                "игроки и сохранение мира; контейнер, бэкапы и обновление — при запуске на хосте сервера")
+        ops.log_event(
+            "docker",
+            "Docker недоступен — пульт в удалённом режиме: активны RCON-консоль, "
+            "игроки и сохранение мира; контейнер, бэкапы и обновление — при запуске на хосте сервера",
+        )
     elif not compose_ok:
         ops.log_event("docker", "Плагин docker compose не найден — автообновление не сработает")
 
@@ -463,8 +481,10 @@ def main():
 
     server = ThreadingHTTPServer(("0.0.0.0", cfg["port"]), Handler)
     server.daemon_threads = True
-    print(f"PZ Dashboard: http://0.0.0.0:{cfg['port']}  "
-          f"docker={'ok' if docker_ok else 'FAIL'} compose={'ok' if compose_ok else 'FAIL'}")
+    print(
+        f"PZ Dashboard: http://0.0.0.0:{cfg['port']}  "
+        f"docker={'ok' if docker_ok else 'FAIL'} compose={'ok' if compose_ok else 'FAIL'}"
+    )
     server.serve_forever()
 
 
