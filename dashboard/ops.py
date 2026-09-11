@@ -1348,6 +1348,12 @@ def fetch_players():
         line = line.strip()
         if not line:
             continue
+        if line.startswith("-"):
+            # RCON prefixes player entries with one list marker, not part of the name.
+            name = line[1:]
+            if name:
+                names.append(name)
+            continue
         low = line.lower()
         if any(k in low for k in ("online", "players", ":", "none")):
             continue

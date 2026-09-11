@@ -53,6 +53,7 @@ def dashboard(page, static_url):
         "backupsCount": 0,
     }
     actions = []
+    players = {"ok": True, "names": [], "count": 0, "raw": ""}
 
     def route_api(route):
         path = route.request.url.split("/api/", 1)[1].split("?", 1)[0]
@@ -61,7 +62,10 @@ def dashboard(page, static_url):
 
             route.fulfill(
                 content_type="text/event-stream",
-                body=f"event: overview\ndata: {json.dumps(overview)}\n\n",
+                body=(
+                    f"event: overview\ndata: {json.dumps(overview)}\n\n"
+                    f"event: players\ndata: {json.dumps(players)}\n\n"
+                ),
             )
         elif path == "action":
             actions.append(route.request.post_data_json)
@@ -72,5 +76,5 @@ def dashboard(page, static_url):
             route.fulfill(json={"ok": True, "items": [], "points": [], "names": []})
 
     page.route("**/api/**", route_api)
-    yield {"url": static_url, "actions": actions}
+    yield {"url": static_url, "actions": actions, "players": players}
     assert not errors, f"Uncaught browser errors: {errors}"

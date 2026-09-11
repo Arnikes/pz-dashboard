@@ -28,6 +28,33 @@ import rcon  # noqa: E402
 # ───────────────────────── парсеры ─────────────────────────
 
 
+@pytest.mark.parametrize(
+    "raw,names",
+    [
+        (
+            "Players connected (6):\r\n-Alice\r\n--Bob\r\n-Katya-V\r\n"
+            "-Дмитрий\r\n-players_online\r\n-none\r\n",
+            ["Alice", "-Bob", "Katya-V", "Дмитрий", "players_online", "none"],
+        ),
+        ("Players connected (0):\n", []),
+        ("Players connected (2):\nAlice\nKatya-V\n", ["Alice", "Katya-V"]),
+    ],
+)
+def test_fetch_players_strips_only_rcon_list_marker(monkeypatch, raw, names):
+    commands = []
+    samples = []
+
+    def fake_rcon(command):
+        commands.append(command)
+        return raw
+
+    monkeypatch.setattr(ops, "rcon", fake_rcon)
+    monkeypatch.setattr(ops, "record_players_sample", samples.append)
+    assert ops.fetch_players() == {"names": names, "raw": raw, "count": len(names)}
+    assert commands == ["players"]
+    assert samples == [len(names)]
+
+
 def test_parse_bytes():
     assert dockerlib.parse_bytes("123MiB") == 123 * 1024 * 1024
     assert dockerlib.parse_bytes("1.9GiB") == int(1.9 * 1024**3)

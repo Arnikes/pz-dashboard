@@ -35,6 +35,34 @@ def test_stop_requires_confirmation_and_shows_api_error(page, dashboard):
     assert dashboard["actions"] == [{"op": "stop", "warnSeconds": 60}]
 
 
+@pytest.mark.parametrize("action", ["kick", "ban"])
+@pytest.mark.parametrize("name", ["Alice", "-Дмитрий-V"])
+def test_player_buttons_send_exact_name(page, dashboard, action, name):
+    commands = []
+    dashboard["players"].update(names=[name], count=1, raw=f"-{name}")
+    page.route(
+        "**/api/players",
+        lambda route: route.fulfill(
+            json={"ok": True, "names": [name], "count": 1, "raw": f"-{name}"}
+        ),
+    )
+
+    def handle_rcon(route):
+        commands.append(route.request.post_data_json)
+        route.fulfill(json={"ok": True, "output": "OK"})
+
+    page.route("**/api/rcon", handle_rcon)
+    page.goto(dashboard["url"])
+    page.locator('.nav [data-route="players"]').click()
+    expect(page.locator(".p-name")).to_have_text(name)
+    page.locator(f'[data-p="{action}"]').click()
+    expect(page.get_by_role("alertdialog")).to_contain_text(name)
+    assert commands == []
+    page.locator("#modalOk").click()
+    expect(page.locator("#toasts")).to_contain_text(name)
+    assert commands == [{"command": f'{action}user "{name}"'}]
+
+
 def test_unavailable_api_enters_demo(page, dashboard):
     page.route("**/api/health", lambda route: route.fulfill(status=503, json={"ok": False}))
     page.goto(dashboard["url"])
