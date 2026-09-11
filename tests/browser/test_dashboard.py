@@ -1,7 +1,81 @@
+from pathlib import Path
+from urllib.parse import urlsplit
+
 import pytest
 from playwright.sync_api import expect
 
 pytestmark = pytest.mark.browser
+
+
+@pytest.mark.parametrize("mode", ["local", "http", "denied"])
+def test_copy_field_writes_full_text_to_clipboard(page, dashboard, mode):
+    url = dashboard["url"]
+    if mode == "http":
+        # Keep a non-loopback HTTP origin, serving the real static assets.
+        origin = "http://pz-console.test"
+        static = Path(__file__).resolve().parents[2] / "dashboard" / "static"
+
+        def remote_assets(route):
+            if "/api/" in route.request.url:
+                route.fallback()
+            else:
+                path = urlsplit(route.request.url).path.removeprefix("/static/").lstrip("/")
+                asset = static / (path or "index.html")
+                if asset.is_file():
+                    route.fulfill(path=asset)
+                else:
+                    route.fulfill(status=404)
+
+        page.route(f"{origin}/**", remote_assets)
+        page.goto(origin)
+        assert page.evaluate("!isSecureContext && !navigator.clipboard")
+    else:
+        page.goto(url)
+        assert page.evaluate("isSecureContext && !!navigator.clipboard")
+        if mode == "denied":
+            page.evaluate("""() => {
+                navigator.clipboard.writeText = async () => {
+                    throw new DOMException('Denied', 'NotAllowedError');
+                };
+            }""")
+
+    expect(page.locator("#btnStop")).to_be_enabled()
+    value = f"sha256:0123456789abcdef — полный текст ({mode})\nвторая строка"
+    page.evaluate(
+        """value => {
+        const field = document.getElementById('mImage');
+        field.textContent = 'sha256:012…';
+        field.dataset.copy = value;
+    }""",
+        value,
+    )
+    page.locator("#mImage").click()
+    expect(page.locator('#toasts .toast[data-kind="ok"]')).to_contain_text("Скопировано:")
+    # Paste via the browser to check the actual clipboard, not a mocked API call.
+    page.evaluate("""() => {
+        const target = document.createElement('textarea');
+        target.id = 'pasteTarget';
+        document.body.appendChild(target);
+    }""")
+    target = page.locator("#pasteTarget")
+    target.focus()
+    target.press("ControlOrMeta+V")
+    expect(target).to_have_value(value)
+
+
+def test_failed_copy_shows_error_and_restores_focus(page, dashboard):
+    page.goto(dashboard["url"])
+    expect(page.locator("#btnStop")).to_be_enabled()
+    page.evaluate("""() => {
+        Object.defineProperty(navigator, 'clipboard', { value: undefined });
+        document.execCommand = () => false;
+        document.getElementById('btnStop').focus();
+    }""")
+    count = page.locator("textarea").count()
+    page.evaluate("copyText('test')")
+    expect(page.locator('#toasts .toast[data-kind="error"]')).to_have_text("Не удалось скопировать")
+    expect(page.locator("#btnStop")).to_be_focused()
+    assert page.locator("textarea").count() == count
 
 
 @pytest.mark.parametrize("width,height", [(1440, 900), (390, 844)])

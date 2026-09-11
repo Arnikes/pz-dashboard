@@ -67,9 +67,44 @@ function relTime(iso) {
   return fmtTime(iso);
 }
 
+function copyTextFallback(text) {
+  const active = document.activeElement;
+  const selection = window.getSelection();
+  const ranges = selection
+    ? Array.from({ length: selection.rangeCount }, (_, i) => selection.getRangeAt(i).cloneRange())
+    : [];
+  const field = document.createElement("textarea");
+  field.value = text;
+  field.readOnly = true;
+  field.style.cssText = "position:fixed;top:0;left:0;opacity:0;pointer-events:none;font-size:16px";
+  document.body.appendChild(field);
+  try {
+    field.focus({ preventScroll: true });
+    field.select();
+    if (!document.execCommand("copy")) throw new Error("Copy command failed");
+  } finally {
+    field.remove();
+    if (active && active.isConnected) active.focus({ preventScroll: true });
+    if (selection) {
+      selection.removeAllRanges();
+      ranges.forEach((range) => selection.addRange(range));
+    }
+  }
+}
+
 async function copyText(text, label) {
   try {
-    await navigator.clipboard.writeText(text);
+    // Clipboard API доступен на HTTPS и loopback, но отсутствует на обычном HTTP в LAN.
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (e) {
+        copyTextFallback(text);
+      }
+    } else {
+      // Выполняем синхронно в обработчике клика, сохраняя пользовательскую активацию.
+      copyTextFallback(text);
+    }
     toast(`Скопировано: ${label || String(text).slice(0, 42)}`, "ok", 2000);
   } catch (e) {
     toast("Не удалось скопировать", "error", 2000);
