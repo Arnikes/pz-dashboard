@@ -17,6 +17,13 @@ def dispatch(data):
     action = data.get("op")
     if not isinstance(action, str):
         raise ActionError(400, "Неизвестная операция")
+    # Отмена относится к занятой операции и не запускает нового worker.
+    if action == "cancel-mods-update":
+        try:
+            ops.cancel_mods_update()
+        except ops.OpsError as error:
+            raise ActionError(409, str(error)) from error
+        return {"ok": True, "cancelRequested": True}
     settings = ops.get_settings()
     warn_default = settings["autoUpdate"]["warnSeconds"]
     try:

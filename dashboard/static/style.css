@@ -609,6 +609,7 @@ select:focus-visible,
 
 .opbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   margin-top: 14px;
@@ -630,7 +631,8 @@ select:focus-visible,
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.op-text { display: flex; flex-direction: column; min-width: 0; }
+.op-text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 180px; }
+.opbar .btn { white-space: normal; }
 .op-text strong { font-size: 13px; color: var(--warn); }
 .op-text span { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

@@ -663,6 +663,11 @@ function updateButtons() {
   $("btnApplyUpd").disabled = busy || remote || (o && o.compose === false);
   $("btnCheckMods").disabled = busy || remote;
   $("btnApplyMods").disabled = busy || remote;
+  const modsRestart = S.op?.active?.op === "mods-restart";
+  const cancelPending = modsRestart && !!S.op.active.cancelRequested;
+  $("btnCancelMods").hidden = !modsRestart || (!S.op.active.cancellable && !cancelPending);
+  $("btnCancelMods").disabled = remote || cancelPending || !S.op?.active?.cancellable;
+  $("btnCancelMods").textContent = cancelPending ? "Отмена…" : "Отменить обновление модов";
   // автонастройки и watchdog пишут в настройки и работают только с хоста —
   // в remote-режиме они тихо ничего не делают, честно их глушим
   const hostOnly = busy || remote;
@@ -708,7 +713,7 @@ function renderOp(op) {
   }
   if (S.lastOpActive && !active && op && op.history && op.history[0]) {
     const h = op.history[0];
-    toast(h.ok ? `Готово: ${h.message || h.op}` : `Не удалось: ${h.message || h.op}`, h.ok ? "ok" : "error", 8000);
+    toast(h.cancelled ? h.message : h.ok ? `Готово: ${h.message || h.op}` : `Не удалось: ${h.message || h.op}`, h.ok ? "ok" : "error", 8000);
     refreshAll();
   }
   S.lastOpActive = !!(active);
@@ -1575,6 +1580,23 @@ const WARN_OPTIONS = `
   </label>`;
 
 $("btnStart").addEventListener("click", () => action("start"));
+$("btnCancelMods").addEventListener("click", async () => {
+  const btn = $("btnCancelMods");
+  btn.disabled = true;
+  try {
+    const res = await api("/api/action", { method: "POST", body: { op: "cancel-mods-update" } });
+    if (res.error) throw new Error(res.error);
+    if (S.op?.active?.op === "mods-restart") {
+      S.op.active.cancelRequested = true;
+      S.op.active.cancellable = false;
+    }
+    toast("Запрошена отмена автообновления модов", "ok");
+  } catch (e) {
+    toast(e.message || String(e), "error");
+  } finally {
+    updateButtons();
+  }
+});
 $("btnStop").addEventListener("click", () => {
   modal.open({
     title: "Остановить сервер?",

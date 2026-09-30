@@ -9,10 +9,11 @@ import sys
 import threading
 import time
 import urllib.error
-from collections import Counter
+from collections import Counter, deque
 from datetime import datetime, timedelta, timezone
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
@@ -491,6 +492,183 @@ def test_do_restart_guard_aborts_on_manual_restart(monkeypatch):
     # с защитой: сервер остановлен вручную — тоже отменяемся
     monkeypatch.setattr(ops, "container_state", lambda: {"running": False, "startedAt": "S3"})
     assert ops._do_restart(600, guard_restarted=True) == "aborted"
+
+
+@pytest.fixture
+def mods_restart_env(monkeypatch):
+    monkeypatch.setattr(
+        ops,
+        "_ACTIVE",
+        {
+            "op": None,
+            "phase": "",
+            "message": "",
+            "startedAt": None,
+            "cancellable": False,
+            "cancelRequested": False,
+        },
+    )
+    monkeypatch.setattr(ops, "_OP_CANCEL", threading.Event())
+    monkeypatch.setattr(ops, "_OP_HISTORY", deque())
+    monkeypatch.setattr(ops, "is_running", lambda: True)
+    monkeypatch.setattr(ops, "container_state", lambda: {"running": True, "startedAt": "S1"})
+    monkeypatch.setattr(ops, "log_event", Mock())
+    monkeypatch.setattr(ops, "rcon", Mock(return_value=""))
+    stop = Mock(return_value="stopped")
+    start = Mock(return_value=(0, "", ""))
+    monkeypatch.setattr(ops, "graceful_stop", stop)
+    monkeypatch.setattr(dockerlib, "container_start", start)
+    monkeypatch.setattr(ops, "wait_until_running", Mock())
+    threads = []
+    original_thread = threading.Thread
+
+    def record_thread(*args, **kwargs):
+        thread = original_thread(*args, **kwargs)
+        threads.append(thread)
+        return thread
+
+    monkeypatch.setattr(ops.threading, "Thread", record_thread)
+    yield stop, start, threads
+    ops._OP_CANCEL.set()
+    for thread in threads:
+        thread.join(timeout=3)
+        assert not thread.is_alive()
+
+
+@pytest.mark.parametrize("notify_fails", [False, True])
+def test_cancel_mods_restart_wakes_countdown_and_preserves_server(
+    mods_restart_env, monkeypatch, notify_fails
+):
+    stop, start, threads = mods_restart_env
+    warned = threading.Event()
+    messages = []
+
+    def broadcast(command, quiet=False):
+        messages.append(command)
+        warned.set()
+        if notify_fails and "отменено" in command:
+            raise rcon.RCONError("Нет связи")
+        return ""
+
+    monkeypatch.setattr(ops, "rcon", broadcast)
+    ops.start_op(
+        "mods-restart",
+        lambda: ops._do_restart(600, "Обновление модов", guard_restarted=True, cancellable=True),
+    )
+    assert warned.wait(timeout=3)
+    assert ops.op_state()["active"]["cancellable"]
+    ops.cancel_mods_update()
+    threads[0].join(timeout=3)
+    assert not threads[0].is_alive(), "Отмена должна прервать ожидание десятисекундного шага"
+    stop.assert_not_called()
+    start.assert_not_called()
+    assert any("отменено" in message for message in messages)
+    state = ops.op_state()
+    assert state["active"] is None
+    assert state["history"][0]["cancelled"] is True
+    assert state["history"][0]["ok"] is True
+    ops.log_event.assert_called_once_with("auto", "Автообновление модов отменено администратором")
+    assert not ops._OP_CANCEL.is_set()
+    # Отмена завершённой операции не должна влиять на следующий авторестарт.
+    ops.start_op("mods-restart", lambda: ops._do_restart(0, cancellable=True))
+    threads[-1].join(timeout=3)
+    stop.assert_called_once()
+    start.assert_called_once()
+    assert not ops.op_state()["history"][0].get("cancelled")
+
+
+@pytest.mark.parametrize("warn_seconds", [0, 10])
+def test_cancel_mods_restart_before_stop(mods_restart_env, monkeypatch, warn_seconds):
+    stop, start, threads = mods_restart_env
+    ready = threading.Event()
+    proceed = threading.Event()
+
+    def worker():
+        ready.set()
+        assert proceed.wait(timeout=3)
+        return ops._do_restart(warn_seconds, cancellable=True)
+
+    # Отмена на последнем шаге предупреждения тоже должна предотвратить остановку.
+    if warn_seconds:
+        monkeypatch.setattr(
+            ops, "rcon_warn_broadcast", lambda *args, **kwargs: ops.cancel_mods_update()
+        )
+    ops.start_op("mods-restart", worker)
+    assert ready.wait(timeout=3)
+    if not warn_seconds:
+        ops.cancel_mods_update()
+        ops.cancel_mods_update()  # повторный запрос безопасен
+        assert ops.op_state()["active"]["cancelRequested"]
+    proceed.set()
+    threads[0].join(timeout=3)
+    stop.assert_not_called()
+    start.assert_not_called()
+    assert ops.op_state()["history"][0]["cancelled"] is True
+
+
+@pytest.mark.parametrize("operation", [None, "restart", "apply-mods-update", "backup"])
+def test_cancel_mods_update_rejects_other_operations(mods_restart_env, operation):
+    ops._ACTIVE.update(op=operation, cancellable=True)
+    with pytest.raises(ops.OpsError, match="сейчас не выполняется"):
+        ops.cancel_mods_update()
+    assert not ops._OP_CANCEL.is_set()
+
+
+def test_mods_restart_rejects_late_cancel_and_completes(mods_restart_env, monkeypatch):
+    stop, start, threads = mods_restart_env
+
+    def stopping(hook):
+        assert ops.op_state()["active"]["cancellable"] is False
+        with pytest.raises(ops.OpsError, match="уже останавливается"):
+            ops.cancel_mods_update()
+        return "stopped"
+
+    stop.side_effect = stopping
+    ops.start_op("mods-restart", lambda: ops._do_restart(0, cancellable=True))
+    threads[0].join(timeout=3)
+    stop.assert_called_once()
+    start.assert_called_once()
+    state = ops.op_state()
+    assert state["active"] is None
+    assert state["history"][0]["ok"] is True
+    assert not state["history"][0].get("cancelled")
+
+
+def test_scheduler_cancel_keeps_next_mods_check(mods_restart_env, monkeypatch):
+    stop, start, threads = mods_restart_env
+    settings = {
+        "autoUpdate": {"enabled": False},
+        "modsUpdate": {
+            "enabled": True,
+            "restartOnUpdate": True,
+            "intervalHours": 6,
+            "warnSeconds": 600,
+        },
+        "nextModsCheck": 999,
+    }
+    monkeypatch.setattr(ops, "_SETTINGS", settings)
+    monkeypatch.setattr(ops, "get_settings", lambda: settings.copy())
+    monkeypatch.setattr(ops, "_save_settings", Mock())
+    monkeypatch.setattr(ops, "_post_restart_rescan_tick", Mock())
+    monkeypatch.setattr(ops, "_auto_backup_tick", Mock())
+    check = Mock(return_value={"state": "needs-update"})
+    monkeypatch.setattr(ops, "check_mods_update", check)
+    monkeypatch.setattr(ops.time, "time", lambda: 1000)
+    monkeypatch.setattr(ops.time, "sleep", Mock(side_effect=StopIteration))
+    with pytest.raises(StopIteration):
+        ops._scheduler_loop()
+    ops.cancel_mods_update()
+    threads[0].join(timeout=3)
+    assert ops.op_state()["history"][0]["cancelled"] is True
+    assert settings["nextModsCheck"] == 1000 + 6 * 3600
+    ops._save_settings.assert_called_once()
+    # Следующий тик не должен снова запускать только что отменённый рестарт.
+    with pytest.raises(StopIteration):
+        ops._scheduler_loop()
+    check.assert_called_once_with(source="auto")
+    assert len(threads) == 1
+    stop.assert_not_called()
+    start.assert_not_called()
 
 
 def test_post_restart_rescan_resets_timer(monkeypatch, tmp_path):

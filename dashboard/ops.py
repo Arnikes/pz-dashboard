@@ -414,11 +414,12 @@ def rcon(command, quiet=False):
         raise
 
 
-def rcon_warn_broadcast(seconds, reason, abort_check=None):
+def rcon_warn_broadcast(seconds, reason, abort_check=None, abort_wait=None):
     """Отправляет игрокам отсчёт перед остановкой. Возвращает False при сбое RCON.
 
     abort_check — вызывается перед каждым шагом отсчёта; истинный результат
-    прерывает рассылку (например, сервер уже перезапустили вручную)."""
+    прерывает рассылку (например, сервер уже перезапустили вручную).
+    abort_wait — прерываемое ожидание шага, возвращающее True при отмене."""
     if seconds <= 0:
         return True
     thresholds = {30, 10}
@@ -443,7 +444,11 @@ def rcon_warn_broadcast(seconds, reason, abort_check=None):
             except rconlib.RCONError:
                 ok = False
                 break
-        time.sleep(min(10, left))
+        if abort_wait is not None:
+            if abort_wait(min(10, left)):
+                return ok
+        else:
+            time.sleep(min(10, left))
     return ok
 
 
@@ -580,7 +585,15 @@ class OpsErrorReported(OpsError):
 
 
 _OP_LOCK = threading.Lock()
-_ACTIVE = {"op": None, "phase": "", "message": "", "startedAt": None}
+_ACTIVE = {
+    "op": None,
+    "phase": "",
+    "message": "",
+    "startedAt": None,
+    "cancellable": False,
+    "cancelRequested": False,
+}
+_OP_CANCEL = threading.Event()
 _OP_HISTORY = deque(maxlen=10)
 
 _NAME_RE = re.compile(r"^[A-Za-z0-9._-]+$")
@@ -599,6 +612,22 @@ def op_busy():
         return _ACTIVE["op"] is not None
 
 
+def cancel_mods_update():
+    """Отменить текущий авторестарт модов до начала остановки сервера."""
+    with _OP_LOCK:
+        if _ACTIVE["op"] != "mods-restart":
+            raise OpsError("Автообновление модов сейчас не выполняется")
+        if _ACTIVE["cancelRequested"]:
+            return
+        if not _ACTIVE["cancellable"]:
+            raise OpsError("Сервер уже останавливается — отменить обновление модов нельзя")
+        _ACTIVE["cancelRequested"] = True
+        _ACTIVE["cancellable"] = False
+        _ACTIVE["phase"] = "Отмена"
+        _ACTIVE["message"] = "Отмена автообновления модов…"
+        _OP_CANCEL.set()
+
+
 def _set_phase(phase, message=""):
     with _OP_LOCK:
         _ACTIVE["phase"] = phase
@@ -608,10 +637,16 @@ def _set_phase(phase, message=""):
 def _start_worker(op, fn):
     def worker():
         try:
-            fn()
+            result = fn()
             with _OP_LOCK:
                 _OP_HISTORY.appendleft(
-                    {"op": op, "ok": True, "message": _ACTIVE["message"], "finishedAt": now_iso()}
+                    {
+                        "op": op,
+                        "ok": True,
+                        "message": _ACTIVE["message"],
+                        "finishedAt": now_iso(),
+                        **({"cancelled": True} if result == "cancelled" else {}),
+                    }
                 )
         except OpsErrorReported as e:
             # событие уже записал источник (run_backup_job) — фиксируем только статус
@@ -639,11 +674,24 @@ def _start_worker(op, fn):
                 _ACTIVE["op"] = None
                 _ACTIVE["phase"] = ""
                 _ACTIVE["startedAt"] = None
+                _ACTIVE["cancellable"] = False
+                _ACTIVE["cancelRequested"] = False
+                _OP_CANCEL.clear()
 
     with _OP_LOCK:
         if _ACTIVE["op"]:
             raise OpsError("Уже выполняется другая операция, подождите")
-        _ACTIVE.update({"op": op, "phase": "Подготовка…", "message": "", "startedAt": now_iso()})
+        _OP_CANCEL.clear()
+        _ACTIVE.update(
+            {
+                "op": op,
+                "phase": "Подготовка…",
+                "message": "",
+                "startedAt": now_iso(),
+                "cancellable": op == "mods-restart",
+                "cancelRequested": False,
+            }
+        )
     t = threading.Thread(target=worker, daemon=True, name=f"op-{op}")
     t.start()
 
@@ -692,7 +740,9 @@ def _restarted_since(started_at):
     return None
 
 
-def _do_restart(warn_seconds, reason="Перезапуск сервера", guard_restarted=False):
+def _do_restart(
+    warn_seconds, reason="Перезапуск сервера", guard_restarted=False, cancellable=False
+):
     if not is_running():
         raise OpsError("Сервер не запущен — сначала запустите его")
     # guard_restarted: авторестарт (моды) не должен дублировать ручной рестарт
@@ -700,11 +750,33 @@ def _do_restart(warn_seconds, reason="Перезапуск сервера", guar
     guard_at = (container_state() or {}).get("startedAt") if guard_restarted else None
 
     def _guard_tripped():
+        if cancellable and _OP_CANCEL.is_set():
+            return True
         return _restarted_since(guard_at) if guard_restarted else None
 
     if warn_seconds > 0:
         _set_phase("Предупреждение игроков", f"отсчёт {warn_seconds} с")
-        rcon_warn_broadcast(warn_seconds, reason, abort_check=_guard_tripped)
+        wait_options = {"abort_wait": _OP_CANCEL.wait} if cancellable else {}
+        rcon_warn_broadcast(warn_seconds, reason, abort_check=_guard_tripped, **wait_options)
+    if cancellable:
+        # Запрос отмены и переход к остановке используют один замок:
+        # принятая отмена гарантирует, что graceful_stop не будет вызван.
+        with _OP_LOCK:
+            cancelled = _OP_CANCEL.is_set()
+            _ACTIVE["cancellable"] = False
+        if cancelled:
+            msg = "Автообновление модов отменено администратором"
+            log_event("auto", msg)
+            if warn_seconds > 0:
+                try:
+                    rcon(
+                        'servermsg "Обновление модов отменено. Сервер продолжает работу."',
+                        quiet=True,
+                    )
+                except rconlib.RCONError:
+                    pass
+            _set_phase("Отменено", msg)
+            return "cancelled"
     if guard_restarted:
         verdict = _restarted_since(guard_at)
         if verdict:
@@ -1280,7 +1352,10 @@ def _scheduler_loop():
                                     start_op(
                                         "mods-restart",
                                         lambda w=warn_s: _do_restart(
-                                            w, reason="Обновление модов", guard_restarted=True
+                                            w,
+                                            reason="Обновление модов",
+                                            guard_restarted=True,
+                                            cancellable=True,
                                         ),
                                     )
                                 else:

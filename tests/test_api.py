@@ -135,6 +135,23 @@ def test_action_rejections(api, monkeypatch, operation_env):
     )
 
 
+def test_cancel_mods_update_allowed_while_busy(api, monkeypatch, operation_env):
+    monkeypatch.setattr(ops, "op_busy", lambda: True)
+    cancel = Mock()
+    monkeypatch.setattr(ops, "cancel_mods_update", cancel)
+    assert api("POST", "/api/action", {"op": "cancel-mods-update"}) == (
+        200,
+        {"ok": True, "cancelRequested": True},
+    )
+    cancel.assert_called_once_with()
+    operation_env[0].assert_not_called()
+    cancel.side_effect = ops.OpsError("Остановка уже началась")
+    assert api("POST", "/api/action", {"op": "cancel-mods-update"}) == (
+        409,
+        {"ok": False, "error": "Остановка уже началась"},
+    )
+
+
 def test_polling_and_streaming_payloads(api, monkeypatch):
     providers = {
         "overview": ("overview", {"running": True}, {"ok": True, "running": True}),
