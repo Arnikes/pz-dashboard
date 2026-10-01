@@ -335,7 +335,10 @@ class Handler(BaseHTTPRequestHandler):
             self._editor_request(lambda: configeditor.restore_history(data))
         elif path == "/api/workshop-resolve":
             self._editor_request(
-                lambda: {"ok": True, "items": configeditor.workshop.resolve(data.get("input"))}
+                lambda: {
+                    "ok": True,
+                    **configeditor.workshop.resolve(data.get("input"), with_source=True),
+                }
             )
         elif path == "/api/modpack":
             self._editor_request(lambda: configeditor.modpack(data))

@@ -1728,6 +1728,8 @@ def verify_running(data):
             status=stage or "applied",
             savedRevision=revision(current),
             appliedRevision=revision(current),
+            snapshots={"saved": current.copy()},
+            allowRuntimeReset=allow_reset,
             startedAt=container.get("startedAt"),
             verifiedAt=ops.now_iso(),
             verificationProblems=current_mods["problems"],

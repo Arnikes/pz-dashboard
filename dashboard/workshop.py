@@ -617,7 +617,46 @@ def steam_call(method, ids):
         return json.loads(response.read(2_000_000)).get("response", {})
 
 
-def resolve(value):
+def _steam_records(method, ids, key):
+    """Match every response to its requested ID; Steam may return another order."""
+    records = {}
+    for offset in range(0, len(ids), 100):
+        batch = ids[offset : offset + 100]
+        response = steam_call(method, batch).get(key, [])
+        if not isinstance(response, list):
+            raise ValueError("Steam вернул некорректный список items")
+        for record in response:
+            if not isinstance(record, dict):
+                raise ValueError("Steam вернул некорректные метаданные item")
+            wid = str(record.get("publishedfileid", ""))
+            if wid not in batch or wid in records:
+                raise ValueError("Steam вернул неполный или неоднозначный список items")
+            records[wid] = record
+    if len(records) != len(ids):
+        raise ValueError("Steam вернул неполный или неоднозначный список items")
+    return [records[wid] for wid in ids]
+
+
+def _published_items(ids):
+    details = _steam_records("GetPublishedFileDetails", ids, "publishedfiledetails")
+    if any(
+        r.get("result") != 1 or r.get("consumer_app_id") != 108600 or r.get("banned")
+        for r in details
+    ):
+        raise ValueError("Steam item недоступен или не принадлежит Project Zomboid")
+    return details
+
+
+def _collections(ids):
+    # The public legacy details endpoint omits file_type even for collections.
+    # CollectionDetails returns result=9 for an ordinary published file.
+    records = _steam_records("GetCollectionDetails", ids, "collectiondetails")
+    if any(r.get("result") not in (1, 9) for r in records):
+        raise ValueError("Не удалось проверить коллекции Steam")
+    return records
+
+
+def resolve(value, with_source=False):
     if not isinstance(value, str):
         raise ValueError("Нужна Steam-ссылка или Workshop ID")
     if value.strip().isdigit():
@@ -639,39 +678,38 @@ def resolve(value):
         wid = urllib.parse.parse_qs(url.query).get("id", [""])[0]
     if not wid.isdigit() or len(wid) > 20:
         raise ValueError("Некорректный Workshop ID")
-    details = steam_call("GetPublishedFileDetails", [wid]).get("publishedfiledetails", [])
-    if not details or details[0].get("result") != 1 or details[0].get("consumer_app_id") != 108600:
-        raise ValueError("Steam item недоступен или не принадлежит Project Zomboid")
-    if details[0].get("file_type") == 2:
-        collections = steam_call("GetCollectionDetails", [wid]).get("collectiondetails", [])
-        if not collections or collections[0].get("result") != 1:
-            raise ValueError("Не удалось прочитать коллекцию Steam")
-        ids = [str(r["publishedfileid"]) for r in collections[0].get("children", [])]
+    details = _published_items([wid])
+    collection = _collections([wid])[0]
+    is_collection = collection["result"] == 1
+    source = {
+        "kind": "collection" if is_collection else "item",
+        "workshopId": wid,
+        "title": details[0].get("title", ""),
+    }
+    if is_collection:
+        children = collection.get("children")
+        if not isinstance(children, list):
+            raise ValueError("Не удалось прочитать содержимое коллекции Steam")
+        if any(not isinstance(child, dict) for child in children):
+            raise ValueError("Коллекция содержит некорректные метаданные item")
+        ids = [str(r.get("publishedfileid", "")) for r in children]
         if len(ids) > 300:
             raise ValueError("В одной операции поддерживается до 300 Steam items")
-        details = (
-            steam_call("GetPublishedFileDetails", ids).get("publishedfiledetails", [])
-            if ids
-            else []
-        )
-        if any(
-            r.get("result") != 1 or r.get("consumer_app_id") != 108600 or r.get("file_type") == 2
-            for r in details
-        ) or len(details) != len(ids):
-            raise ValueError(
-                "Коллекция содержит недоступные items, вложенные коллекции или другую игру"
-            )
-    return [{"workshopId": str(r["publishedfileid"]), "title": r.get("title", "")} for r in details]
+        if any(not child.isdigit() or len(child) > 20 for child in ids):
+            raise ValueError("Коллекция содержит некорректный Workshop ID")
+        ids = list(dict.fromkeys(ids))
+        details = _published_items(ids)
+        if any(r["result"] == 1 for r in _collections(ids)):
+            raise ValueError("Коллекция содержит вложенные коллекции; добавьте их отдельно")
+    items = [
+        {"workshopId": str(r["publishedfileid"]), "title": r.get("title", "")} for r in details
+    ]
+    return {"items": items, "source": source} if with_source else items
 
 
 def validate_items(ids):
     if not ids:
         return
-    details = steam_call("GetPublishedFileDetails", ids).get("publishedfiledetails", [])
-    if len(details) != len(ids) or any(
-        r.get("result") != 1 or r.get("consumer_app_id") != 108600 or r.get("file_type") == 2
-        for r in details
-    ):
-        raise ValueError(
-            "Новые Workshop items недоступны, содержат коллекцию или относятся к другой игре"
-        )
+    _published_items(ids)
+    if any(r["result"] == 1 for r in _collections(ids)):
+        raise ValueError("WorkshopItems содержит коллекцию; выберите пакеты внутри неё")

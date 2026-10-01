@@ -381,6 +381,33 @@ window.ConfigEditor = (() => {
     $(kind + "Source").addEventListener("scroll", () => highlight(kind));
   }
   $("sourceSave").addEventListener("click", () => flushSources().catch(e => error(e.message)));
+  function selectWorkshopCandidates(result, profile) {
+    const current = new Set(mods.workshop.map(w => w.workshopId));
+    const candidates = [...new Map(result.items.map(w => [w.workshopId, w])).values()];
+    modal.open({ title: result.source?.title || "Пакеты Steam-коллекции", okLabel: "Добавить выбранные", bodyHTML: `<p>Выберите пакеты для черновика <strong>${esc(profile)}</strong>. ModID выберете после загрузки.</p><div class="collection-tools"><label for="collectionQuery">Поиск пакета</label><input type="search" id="collectionQuery" placeholder="Название или Workshop ID…" /><div class="editor-toolbar"><button type="button" class="btn small" id="collectionSelect">Выбрать найденные</button><button type="button" class="btn small" id="collectionClear">Снять найденные</button></div><p id="collectionCount" class="hint" role="status"></p></div><div id="collectionCandidates">${candidates.map(w => `<label class="collection-candidate" data-candidate-query="${esc(`${w.title} ${w.workshopId}`.toLowerCase())}"><input type="checkbox" value="${esc(w.workshopId)}" ${current.has(w.workshopId) ? "disabled" : ""} /><span><strong>${esc(w.title || w.workshopId)}</strong><code>${esc(w.workshopId)}</code>${current.has(w.workshopId) ? '<span class="hint">Уже в конфигурации</span>' : ""}</span></label>`).join("") || '<p class="hint">В коллекции нет пакетов для добавления.</p>'}</div><p id="collectionEmpty" class="hint" hidden>Нет пакетов, соответствующих поиску.</p>`, onConfirm: async () => {
+      if (file !== profile) throw new Error("Профиль изменился. Проверьте коллекцию заново.");
+      const selected = [...$("collectionCandidates").querySelectorAll("input:checked:not(:disabled)")].map(input => input.value);
+      if (!selected.length) throw new Error("Выберите хотя бы один пакет");
+      await patch(() => ({ mods: { items: [...new Set([...mods.workshop.map(w => w.workshopId), ...selected])] } }));
+      $("workshopInput").value = "";
+    } });
+    const rows = [...$("collectionCandidates").querySelectorAll(".collection-candidate")];
+    function updateCandidates() {
+      const query = $("collectionQuery").value.trim().toLowerCase();
+      rows.forEach(row => { row.hidden = !row.dataset.candidateQuery.includes(query); });
+      const selected = rows.filter(row => row.querySelector("input").checked).length;
+      const found = rows.filter(row => !row.hidden).length;
+      $("collectionCount").textContent = `Выбрано пакетов: ${selected} · найдено ${found} из ${candidates.length}${current.size && candidates.some(w => current.has(w.workshopId)) ? ` · уже в конфигурации ${candidates.filter(w => current.has(w.workshopId)).length}` : ""}`;
+      $("collectionEmpty").hidden = found > 0;
+      $("modalOk").disabled = !selected;
+    }
+    $("collectionQuery").addEventListener("input", updateCandidates);
+    $("collectionCandidates").addEventListener("change", updateCandidates);
+    for (const [id, checked] of [["collectionSelect", true], ["collectionClear", false]]) $(id).addEventListener("click", () => {
+      rows.filter(row => !row.hidden).forEach(row => { const input = row.querySelector("input"); if (!input.disabled) input.checked = checked; }); updateCandidates();
+    });
+    updateCandidates(); $("collectionQuery").focus();
+  }
   $("workshopAdd").addEventListener("submit", async e => {
     e.preventDefault(); if (!draft || !mods) return;
     const profile = file;
@@ -388,6 +415,7 @@ window.ConfigEditor = (() => {
     try {
       const result = await call("/api/workshop-resolve", { input: $("workshopInput").value });
       if (file !== profile) throw new Error("Профиль изменился во время проверки Steam. Добавьте пакет в нужном профиле заново.");
+      if (result.source?.kind === "collection" || result.items.length > 1) { selectWorkshopCandidates(result, profile); return; }
       await patch(() => ({ mods: { items: [...new Set([...mods.workshop.map(w => w.workshopId), ...result.items.map(w => w.workshopId)])] } }));
       $("workshopInput").value = "";
     } catch (err) { error(err.message); } finally { button.disabled = false; }

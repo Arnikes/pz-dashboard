@@ -144,6 +144,7 @@ const modal = (() => {
     $("modalTitle").classList.toggle("danger", danger);
     $("modalBody").innerHTML = bodyHTML;
     const okBtn = $("modalOk");
+    okBtn.disabled = false;
     okBtn.textContent = okLabel;
     okBtn.className = "btn " + (danger ? "solid-danger" : "primary");
     onOk = onConfirm || null;
@@ -166,7 +167,7 @@ const modal = (() => {
   root.addEventListener("keydown", (e) => {
     if (root.hidden || e.key !== "Tab") return;
     const els = [...root.querySelectorAll("button, input, select, textarea, a[href]")]
-      .filter((el) => !el.disabled);
+      .filter((el) => !el.disabled && el.getClientRects().length);
     if (!els.length) return;
     const first = els[0], last = els[els.length - 1];
     if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }

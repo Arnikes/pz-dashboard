@@ -717,6 +717,111 @@ def test_steam_response_after_profile_switch_does_not_change_other_profile(
     assert dashboard["actions"] == []
 
 
+@pytest.mark.parametrize("width", [320, 390, 1440])
+def test_collection_candidates_filter_and_add_only_selected_packages(
+    page, dashboard, editing, width
+):
+    data, _ = editing
+    original_lua = (data / "Server/world_SandboxVars.lua").read_bytes()
+    original_draft_lua = editor.draft("world.ini")["texts"]["sandbox"]
+    items = [
+        {"workshopId": "111", "title": "Already installed"},
+        {"workshopId": "222", "title": "Choose this package"},
+        {"workshopId": "333", "title": "<script>window.executed=1</script> Another package"},
+    ]
+    page.route(
+        "**/api/workshop-resolve",
+        lambda route: route.fulfill(
+            json={
+                "ok": True,
+                "source": {"kind": "collection", "title": "Collection candidates"},
+                "items": items,
+            }
+        ),
+    )
+    page.set_viewport_size({"width": width, "height": 568})
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "mods", width <= 740)
+    page.locator("#workshopInput").fill("999")
+    page.locator("#workshopAdd button").click()
+    expect(page.locator("#collectionQuery")).to_be_focused()
+    expect(page.locator('#collectionCandidates input[value="111"]')).to_be_disabled()
+    expect(page.locator("#modalOk")).to_be_disabled()
+    assert not editor.draft("world.ini")["changed"]
+    page.locator("#collectionQuery").fill("222")
+    page.locator("#collectionSelect").click()
+    expect(page.locator("#collectionCount")).to_contain_text("Выбрано пакетов: 1")
+    page.locator("#collectionQuery").fill("not-found")
+    expect(page.locator("#collectionEmpty")).to_be_visible()
+    # Hidden selections persist and invisible controls are excluded from the focus trap.
+    page.locator("#modalOk").focus()
+    page.keyboard.press("Tab")
+    expect(page.locator("#collectionQuery")).to_be_focused()
+    page.locator("#collectionQuery").fill("333")
+    page.locator("#collectionSelect").click()
+    expect(page.locator("#collectionCount")).to_contain_text("Выбрано пакетов: 2")
+    page.locator("#collectionClear").click()
+    expect(page.locator("#collectionCount")).to_contain_text("Выбрано пакетов: 1")
+    assert page.evaluate("window.executed") is None
+    dialog = page.get_by_role("alertdialog").bounding_box()
+    button = page.locator("#modalOk").bounding_box()
+    assert dialog["y"] >= 0 and dialog["y"] + dialog["height"] <= 568
+    assert button["y"] + button["height"] <= 568
+    assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
+    page.locator("#modalOk").click()
+    expect(page.locator("#modalRoot")).to_be_hidden()
+    expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
+    saved = editor.draft("world.ini")
+    assert "WorkshopItems=111;222\r\n" in saved["texts"]["ini"]
+    assert "Mods=\\library;\\plugin\r\n" in saved["texts"]["ini"]
+    assert saved["texts"]["sandbox"] == original_draft_lua
+    assert (data / "Server/world_SandboxVars.lua").read_bytes() == original_lua
+    assert (data / "Server/world.ini").read_bytes() == INI.encode()
+    assert dashboard["actions"] == []
+
+
+@pytest.mark.parametrize("count", [0, 1, 210])
+def test_collection_cancel_keeps_draft_and_next_modal_usable(page, dashboard, editing, count):
+    page.route(
+        "**/api/workshop-resolve",
+        lambda route: route.fulfill(
+            json={
+                "ok": True,
+                "source": {"kind": "collection", "title": "Collection"},
+                "items": [
+                    {"workshopId": str(1000 + i), "title": "Длинное название пакета " * 8}
+                    for i in range(count)
+                ],
+            }
+        ),
+    )
+    page.set_viewport_size({"width": 390, "height": 568})
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "mods", True)
+    page.locator("#workshopInput").fill("999")
+    page.locator("#workshopAdd button").click()
+    expect(page.locator("#collectionQuery")).to_be_visible()
+    expect(page.locator("#modalOk")).to_be_disabled()
+    if count:
+        page.locator("#collectionQuery").fill(str(999 + count))
+        expect(page.locator(".collection-candidate:visible")).to_have_count(1)
+        assert page.locator("#modalCancel").bounding_box()["y"] < 568
+    assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
+    page.screenshot(path=str(editing[0].parent / f"collection-candidates-{count}.png"))
+    page.keyboard.press("Escape")
+    expect(page.locator("#modalRoot")).to_be_hidden()
+    assert not editor.draft("world.ini")["changed"]
+    # Collection's disabled confirmation must not leak into another modal.
+    page.locator('.workshop-package[data-item="111"] summary').click()
+    page.locator('[data-remove-item="111"]').click()
+    expect(page.locator("#modalOk")).to_be_enabled()
+    page.locator("#modalCancel").click()
+    assert not editor.draft("world.ini")["changed"]
+    assert dashboard["actions"] == []
+
+
 @pytest.mark.parametrize("width", [390, 1440])
 def test_verify_external_restart_clears_install_notice_and_old_error_without_action(
     page, dashboard, editing, monkeypatch, width

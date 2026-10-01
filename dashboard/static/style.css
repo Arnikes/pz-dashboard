@@ -1422,6 +1422,14 @@ input[type=checkbox] { accent-color:var(--ok); flex-shrink:0; }
 .order-move-dialog input { min-height:44px; width:100%; padding:10px 12px; border:1px solid var(--line-strong); border-radius:6px; background:var(--bg-deep); color:var(--ink); font:inherit; }
 .order-quick { display:flex; flex-wrap:wrap; gap:10px; }
 .order-quick .btn { flex:1; min-height:44px; }
+.collection-tools { position:sticky; top:-1px; z-index:1; padding:12px; background:var(--surface-2); border:1px solid var(--line-strong); border-radius:8px; }
+.collection-tools label { display:block; margin-bottom:8px; }
+.collection-tools input { width:100%; min-height:44px; padding:10px; background:var(--bg-deep); color:var(--ink); border:1px solid var(--line-strong); border-radius:6px; font:inherit; }
+.collection-tools .editor-toolbar { margin:10px 0; }
+.collection-candidate { display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--line); cursor:pointer; min-height:64px; }
+.collection-candidate input { width:20px; height:20px; flex-shrink:0; align-self:flex-start; margin-top:2px; }
+.collection-candidate > span { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.collection-candidate strong, .collection-candidate code { overflow-wrap:anywhere; }
 @media (max-width:740px) {
   .order-toolbar { top:8px; }
   .order-row { grid-template-columns:44px 36px minmax(0,1fr); gap:8px; scroll-margin-top:150px; }

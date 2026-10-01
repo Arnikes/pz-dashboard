@@ -761,14 +761,21 @@ def test_workshop_url_is_restricted(value):
 def test_steam_collection_items_are_verified(monkeypatch):
     def steam(method, ids):
         if method == "GetCollectionDetails":
-            return {"collectiondetails": [{"result": 1, "children": [{"publishedfileid": "2"}]}]}
+            return {
+                "collectiondetails": [
+                    {
+                        "publishedfileid": ids[0],
+                        "result": 1 if ids[0] == "1" else 9,
+                        "children": [{"publishedfileid": "2", "filetype": 0}],
+                    }
+                ]
+            }
         return {
             "publishedfiledetails": [
                 {
                     "publishedfileid": ids[0],
                     "result": 1,
                     "consumer_app_id": 108600,
-                    "file_type": 2 if ids[0] == "1" else 0,
                     "title": "Title",
                 }
             ]
@@ -1524,6 +1531,60 @@ def test_verification_uses_saved_snapshot_after_rebase_and_preserves_pending_set
     assert "Pending personal setting" in after["texts"]["ini"]
     assert after["state"]["status"] == "applied" and "snapshots" not in after["state"]
     assert "topsecret" not in json.dumps(after) and "hidden-token" not in json.dumps(after)
+
+
+@pytest.mark.parametrize("baseline", ["draft", "snapshot", "history"])
+def test_external_verification_can_repeat_after_adopting_game_serialization(
+    env, monkeypatch, baseline
+):
+    data, request = saved_verification(env, monkeypatch)
+    root = editor.state_dir("world.ini")
+    state_path = root / "state.json"
+    if baseline != "draft":
+        state = editor.load_json(state_path)
+        expected = editor.load_json(root / "draft.json")["base"].copy()
+        state["snapshots"] = {"saved": expected}
+        if baseline == "history":
+            state.pop("allowRuntimeReset")
+            state["historyId"] = "previous-operation"
+            history = root / "history" / state["historyId"]
+            history.mkdir(parents=True)
+            (history / "ini").write_text(expected["ini"], encoding="utf-8", newline="")
+        editor.save_json(state_path, state)
+    path = data / "Server/world_SandboxVars.lua"
+    path.write_bytes(path.read_bytes().replace(b"Zombies = 4", b"Zombies = 4.0"))
+    pending = change(ini={"PublicName": "Keep pending changes"})
+    request.update(
+        draftRevision=pending["draftRevision"],
+        currentRevision=editor.revision(editor.read_profile("world.ini")),
+    )
+    original = editor.read_profile("world.ini")
+    first = editor.verify_running(request)
+    second = editor.verify_running(
+        {
+            "file": "world.ini",
+            "draftRevision": first["draftRevision"],
+            "currentRevision": first["currentRevision"],
+        }
+    )
+    assert second["state"]["status"] == "applied" and second["changed"]
+    assert "Keep pending changes" in second["texts"]["ini"]
+    state = editor.load_json(state_path)
+    assert editor.revision(state["snapshots"]["saved"]) == state["savedRevision"]
+    assert editor.read_profile("world.ini") == original
+    assert "snapshots" not in second["state"]
+    assert state["allowRuntimeReset"] is True
+    path = data / "Server/world.ini"
+    path.write_bytes(path.read_bytes().replace(b"ResetID=2748676", b"ResetID=347912"))
+    third = editor.verify_running(
+        {
+            "file": "world.ini",
+            "draftRevision": second["draftRevision"],
+            "currentRevision": editor.revision(editor.read_profile("world.ini")),
+        }
+    )
+    assert third["state"]["status"] == "applied" and third["changed"]
+    assert "Keep pending changes" in third["texts"]["ini"]
 
 
 @pytest.mark.parametrize(

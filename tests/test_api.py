@@ -87,6 +87,36 @@ def test_invalid_operation_log_range_never_reaches_docker(api, monkeypatch, quer
     logs.assert_not_called()
 
 
+def test_workshop_resolve_http_exposes_single_child_collection(api, monkeypatch):
+    def steam(method, ids):
+        if method == "GetCollectionDetails":
+            return {
+                "collectiondetails": [
+                    {
+                        "publishedfileid": ids[0],
+                        "result": 1 if ids[0] == "1" else 9,
+                        **({"children": [{"publishedfileid": "2"}]} if ids[0] == "1" else {}),
+                    }
+                ]
+            }
+        return {
+            "publishedfiledetails": [
+                {
+                    "publishedfileid": ids[0],
+                    "result": 1,
+                    "consumer_app_id": 108600,
+                    "title": "Title " + ids[0],
+                }
+            ]
+        }
+
+    monkeypatch.setattr(configeditor.workshop, "steam_call", steam)
+    status, result = api("POST", "/api/workshop-resolve", {"input": "1"})
+    assert status == 200 and result["ok"]
+    assert result["source"] == {"kind": "collection", "workshopId": "1", "title": "Title 1"}
+    assert result["items"] == [{"workshopId": "2", "title": "Title 2"}]
+
+
 def test_config_http_revisions_and_secrets(api, editor_env):  # noqa: F811
     status, profiles = api("GET", "/api/server-configs")
     assert status == 200 and profiles["activeFile"] == "world.ini"
