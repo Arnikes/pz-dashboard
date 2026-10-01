@@ -147,6 +147,11 @@ docker compose --env-file .tmp-b42-acceptance/secrets.env -f docker-compose.acce
 | Отдельные ModID | Выключение / включение в черновике сохранило Workshop item, выбранное подмножество и Sandbox-параметры |
 | Набор модов | Импорт заново проверил пакет в настоящем Steam API; после исправления имён штатных параметров экспорт содержит 98 настроек мода, без VERSION, настроек мира и секретов |
 | Ошибка бэкапа | Том бэкапов стенда временно подключён только для чтения; операция завершилась ошибкой до записи; SHA-256 обоих файлов не изменились; сервер остался остановленным |
+| Частичная запись на Linux | В отдельном контейнере UID 1000 запись второго файла отклонена ядром после смены прав каталога; восстановлены оба файла, BOM, CRLF, владелец и разные режимы `640` / `600` |
+| Отказ отката и авария процесса | При продолжающемся отказе прав журнал сохранён; после возврата доступа пара восстановлена. Завершение процесса с кодом 73 после первой замены также оставило пригодный журнал и исходные снимки |
+| Недоступный Steam | В отдельном контейнере без сети настоящий resolver завершился `URLError` и не вернул кандидатов |
+| Повреждённые метаданные | Изменён только словарь с копией скачанного `mod.info`: без `id=` получены `metadata` / `unknown`, имя папки не стало ModID; исходные файлы не менялись, после возврата данных поставщик восстановился |
+| Новый неизвестный ModID | Живой API отклонил применение с `400` до остановки; SHA-256 пары и время старта PZ не изменились; тестовый черновик отменён |
 | Восстановление после отказа | Том возвращён в режим записи; отменён тестовый черновик выключения; прежняя конфигурация успешно сохранена |
 | Финальное состояние | Повторное применение после восстановления доступа: `applied`, PZ/RCON готовы, нет черновика и конфликта; стенд оставлен запущенным |
 | Живой интерфейс | Проверены ширины 390 и 1440 px: шапка, активный профиль, меню, формы, реальные подсказки и панель действий; горизонтального переполнения и обрезанных контролов не обнаружено |
@@ -165,5 +170,70 @@ JavaScript прошли. Затем отдельно прошли **3 прове
 Остаётся отдельная проверка игровым клиентом: эффект Sandbox в старой и новой
 области существующего мира. Восстановление мира сервером и успешная запись Lua
 не доказывают этот эффект. Автоматические проверки недоступного Steam, повреждённых
-метаданных, частичной записи и таймаута готовности выполнены; управляемая живая
-инъекция отказа второго файла и проверка поведения игры в клиенте пока не выполнены.
+метаданных, частичной записи и таймаута готовности выполнены. Проверка поведения
+игры в клиенте пока не выполнена.
+
+### Воспроизводимая проверка Linux-транзакций
+
+`scripts/verify_linux_transactions.py` запускается на коде собранного образа панели
+в одноразовом контейнере без сети и Docker-сокета, с UID 1000 и без capabilities.
+Он использует только собственные временные файлы. Граница Docker/RCON заменена
+явной фикстурой остановленного сервера; операции файловой системы, `fsync`, отказ
+прав, аварийное завершение процесса и восстановление настоящие.
+
+Три сценария выполнены как на tmpfs, так и на отдельном новом томе Docker с
+драйвером `local`. Том проверки после завершения удалён; тома игры и панели не
+подключались к контейнеру проверки. Использован образ панели
+`sha256:8ec574175af3003be6dfe351f9820627f493cac7606caabcdc995de2f79f32a2`.
+Это проверка аварии процесса; она не имитирует потерю питания Docker-хоста.
+
+Повтор на tmpfs в локальном Docker Desktop из PowerShell:
+
+```powershell
+$acceptancePanel = docker --context desktop-linux inspect pz-console-acceptance-panel | ConvertFrom-Json
+if ($acceptancePanel.Config.Labels.'pz-console.acceptance' -ne 'true') {
+    throw 'Ожидался контейнер отдельного стенда'
+}
+$acceptanceVerifier = (Resolve-Path -LiteralPath scripts/verify_linux_transactions.py).Path
+docker --context desktop-linux run --rm `
+    --name pz-console-acceptance-verifier --label pz-console.acceptance=true `
+    --user 1000:1000 --network none --read-only --cap-drop ALL `
+    --security-opt no-new-privileges `
+    --tmpfs /verification:rw,noexec,nosuid,mode=1777 `
+    --mount "type=bind,source=$acceptanceVerifier,target=/verify.py,readonly" `
+    --env PYTHONDONTWRITEBYTECODE=1 $acceptancePanel.Image python /verify.py
+```
+
+Успех — завершение с кодом 0 и три результата JSON с восстановленными байтами
+и правами. Сценарий `processCrash` дополнительно подтверждает сохранение журнала
+и снимков после аварийного завершения процесса, записывающего первый файл.
+
+### Недоступный Steam и повреждённые метаданные
+
+`scripts/verify_workshop_failures.py` использует сетевую изоляцию отдельного
+контейнера и читает настоящий скачанный пакет стенда через том только для чтения.
+Повреждение создаётся в копии словаря метаданных в памяти. Кеш Steam и файлы игры
+не изменяются. Восстановление здесь проверяет возвращение поставщика ModID в индекс;
+проверка отказа применения нового неизвестного ModID дополнительно выполнена через
+живой API стенда.
+
+Этот сценарий привязан к записанным выше пакету и версии. Если Steam обновил пакет,
+сначала сверить новую структуру, затем обновить ожидания сценария после анализа.
+Из корня репозитория в локальном Docker Desktop, с `$acceptancePanel` из предыдущего
+примера:
+
+```powershell
+$acceptanceFiles = 'pz-console-acceptance_acceptance-server-files'
+$acceptanceFilesMeta = docker --context desktop-linux volume inspect $acceptanceFiles | ConvertFrom-Json
+if ($acceptanceFilesMeta.Labels.'com.docker.compose.project' -ne 'pz-console-acceptance') {
+    throw 'Ожидался том отдельного стенда'
+}
+$acceptanceWorkshopVerifier = (Resolve-Path -LiteralPath scripts/verify_workshop_failures.py).Path
+docker --context desktop-linux run --rm `
+    --name pz-console-acceptance-workshop-verifier --label pz-console.acceptance=true `
+    --user 1000:1000 --network none --read-only --cap-drop ALL `
+    --security-opt no-new-privileges `
+    --mount "type=volume,source=$acceptanceFiles,target=/server-files,readonly" `
+    --mount "type=bind,source=$acceptanceWorkshopVerifier,target=/verify.py,readonly" `
+    --env PYTHONDONTWRITEBYTECODE=1 $acceptancePanel.Image python /verify.py
+```
