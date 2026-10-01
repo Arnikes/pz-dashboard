@@ -159,6 +159,42 @@ def test_mod_json_translations_and_enum_value_translation():
 
 
 @pytest.mark.parametrize(
+    "key,kind",
+    [
+        ("MultiplierConfig.Aiming", "double"),
+        ("MultiplierConfig.Blacksmith", "double"),
+        ("ZombieConfig.ZombiesCountBeforeDelete", "integer"),
+    ],
+)
+def test_serialized_stock_names_are_distinct_from_java_field_names(key, kind):
+    field = configschema.field(key, 2, sandbox=True)
+    assert field["stock"] and field["type"] == kind
+    assert not configschema.field("MultiplierConfig.UnconfirmedModSkill", 2, sandbox=True).get(
+        "stock"
+    )
+
+
+def test_modpack_never_exports_or_imports_stock_lua_aliases():
+    path = Path(config.CFG["data_dir"]) / "Server/world_SandboxVars.lua"
+    path.write_text(
+        "SandboxVars={VERSION=5, MultiplierConfig={Aiming=2.0}, ZombieConfig={ZombiesCountBeforeDelete=300}, Mod={Count=2}}",
+        encoding="utf-8",
+    )
+    current = editor.draft("world.ini")
+    pack = editor.modpack({"file": "world.ini"})["pack"]
+    assert pack["sandbox"] == {"Mod.Count": 2}
+    for key in ("MultiplierConfig.Aiming", "ZombieConfig.ZombiesCountBeforeDelete"):
+        with pytest.raises(editor.EditorError, match="штатные параметры мира"):
+            editor.modpack(
+                {
+                    "file": "world.ini",
+                    "draftRevision": current["draftRevision"],
+                    "pack": {**pack, "sandbox": {key: 1}},
+                }
+            )
+
+
+@pytest.mark.parametrize(
     "text",
     [
         "SandboxVars={end=5}",

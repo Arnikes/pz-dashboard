@@ -7,6 +7,29 @@ from playwright.sync_api import expect
 pytestmark = pytest.mark.browser
 
 
+@pytest.mark.parametrize("running,remote", [(False, False), (True, False), (False, True)])
+def test_rcon_header_distinguishes_stopped_server_from_connection_failure(
+    page, dashboard, running, remote
+):
+    page.goto(dashboard["url"])
+    expect(page.locator("#pillRcon")).to_have_text("RCON")
+    page.evaluate(
+        """({running,remote}) => renderOverview({...S.overview,
+        mode:remote?'remote':'local', docker:!remote,
+        containerInfo:{running,status:running?'running':'exited'},
+        rcon:{state:'error',error:'Connection refused'}})""",
+        {"running": running, "remote": remote},
+    )
+    inactive = not running and not remote
+    expect(page.locator("#pillRcon")).to_have_text("RCON не активен" if inactive else "RCON ошибка")
+    expect(page.locator("#pillRcon")).to_have_attribute(
+        "data-state", "unknown" if inactive else "bad"
+    )
+    page.evaluate("renderOverview({...S.overview,rcon:{state:'ok'},containerInfo:{running:true}})")
+    expect(page.locator("#pillRcon")).to_have_text("RCON")
+    expect(page.locator("#pillRcon")).to_have_attribute("title", "")
+
+
 def test_console_error_warning_search_and_offline_log_retention(page, dashboard):
     frame = {
         "ok": True,

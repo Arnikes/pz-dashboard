@@ -1385,7 +1385,7 @@ dd[data-copy] { text-decoration: underline dotted rgba(233, 226, 205, 0.35); tex
 .config-field input:not([type=checkbox]), .config-field select, .config-field textarea { width:100%; min-width:0; }
 .config-field textarea { resize:vertical; min-height:80px; white-space:pre-wrap; background:var(--bg-deep); border:1px solid var(--line-strong); border-radius:8px; color:var(--ink); padding:10px; font:inherit; }
 .config-field input[type=checkbox] { width:22px; height:22px; accent-color:var(--ok); }
-.config-field .hint { margin:8px 0; }
+.config-field .hint { margin:8px 0; white-space:pre-line; overflow-wrap:anywhere; }
 .editor-card input, .editor-card select, .profile-label select { background:var(--bg-deep); border:1px solid var(--line-strong); border-radius:8px; color:var(--ink); padding:10px; font:inherit; }
 .editor-card input:not([type=checkbox]):not([type=file]), .editor-card select, .profile-label select { height:auto; min-height:44px; }
 input[type=checkbox] { accent-color:var(--ok); flex-shrink:0; }

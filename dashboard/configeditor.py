@@ -160,6 +160,77 @@ def revision(texts):
     ).hexdigest()
 
 
+PZ_RESET_COMMENT = re.compile(
+    r"^(# Reset ID determines if the server has undergone a soft-reset\. "
+    r"If this number does match the client, the client must create a new character\. "
+    r"Used in conjunction with PlayerServerID\. It is strongly advised that you backup "
+    r"these IDs somewhere Min: 0 Max: 2147483647 Default: )\d+(?=\r?\nResetID=\d+\r?$)",
+    re.M,
+)
+
+
+def startup_profile_matches(expected, actual):
+    """PZ regenerates this comment's random default without changing ResetID.
+
+    Keep optimistic concurrency byte-exact everywhere else, including user
+    comments, secrets and Sandbox. Only the confirmed startup may adopt it.
+    """
+    if expected == actual:
+        return True
+    return expected["sandbox"] == actual["sandbox"] and PZ_RESET_COMMENT.sub(
+        r"\g<1><generated>", expected["ini"]
+    ) == PZ_RESET_COMMENT.sub(r"\g<1><generated>", actual["ini"])
+
+
+def adopt_startup_comment(text, actual):
+    generated = PZ_RESET_COMMENT.search(actual)
+    return PZ_RESET_COMMENT.sub(lambda _: generated[0], text) if generated else text
+
+
+def startup_sandbox_defaults(expected, actual, discovered, selected):
+    """Accept PZ's literal serialization and declared selected-mod defaults only."""
+    if expected == actual:
+        return {}
+    before, after = literal_table(expected), literal_table(actual)
+    if not before or not after or not before.values.keys() <= after.values.keys():
+        return None
+
+    def equal(left, right):
+        # Lua number serialization may change 2.0 to 2, but true is never 1.
+        return left == right and (
+            type(left) is type(right) or type(left) in (int, float) and type(right) in (int, float)
+        )
+
+    if any(
+        not equal(rec["value"], after.values[path]["value"]) for path, rec in before.values.items()
+    ):
+        return None
+    defaults, ambiguous = {}, set()
+    for records in discovered.values():
+        for rec in records:
+            if rec.get("modId") not in selected or rec.get("metadataStale"):
+                continue
+            for option in rec.get("options", []):
+                if "default" not in option:
+                    continue
+                path = tuple(option["key"].split("."))
+                if path in defaults and not equal(defaults[path], option["default"]):
+                    ambiguous.add(path)
+                defaults[path] = option["default"]
+    added = after.values.keys() - before.values.keys()
+    if any(
+        path not in defaults
+        or path in ambiguous
+        or not equal(after.values[path]["value"], defaults[path])
+        for path in added
+    ):
+        return None
+    tables = before.tables.keys() | {path[:i] for path in added for i in range(1, len(path))}
+    if after.tables.keys() != tables:
+        return None
+    return {".".join(path): after.values[path]["value"] for path in added}
+
+
 def remember_mod_order(memory, selected):
     """Reorder active slots while keeping positions of disabled IDs."""
     memory = list(dict.fromkeys(memory))
@@ -1188,7 +1259,10 @@ def run(data, prepare=False):
             if code != 0:
                 raise EditorError("Не удалось запустить контейнер", 500)
             wait_ready()
-            if revision(read_profile(file)) != revision(texts):
+            started_texts = read_profile(file)
+            if not startup_profile_matches(
+                {**texts, "sandbox": started_texts["sandbox"]}, started_texts
+            ):
                 raise EditorError(
                     "Конфигурация изменилась при запуске PZ. Проверьте перезапись настроек образом; применение не подтверждено",
                     409,
@@ -1202,6 +1276,39 @@ def run(data, prepare=False):
                     409,
                 )
             discovered = workshop.scan(actual_items, version, refresh=True)
+            added_defaults = startup_sandbox_defaults(
+                texts["sandbox"], started_texts["sandbox"], discovered, selected
+            )
+            if added_defaults is None:
+                raise EditorError(
+                    "SandboxVars изменился при запуске PZ: значения, неизвестные параметры или структура не совпадают; применение не подтверждено",
+                    409,
+                )
+            normalized_sandbox = texts["sandbox"] != started_texts["sandbox"]
+            if started_texts != texts:
+                if prepare:
+                    saved["texts"]["ini"] = adopt_startup_comment(
+                        saved["texts"]["ini"], started_texts["ini"]
+                    )
+                    if added_defaults:
+                        pending = literal_table(saved["texts"]["sandbox"])
+                        if not pending:
+                            raise EditorError(
+                                "Добавлены Sandbox-параметры PZ: объедините их с исходником черновика вручную",
+                                409,
+                            )
+                        saved["texts"]["sandbox"] = pending.edit(
+                            {
+                                key: value
+                                for key, value in added_defaults.items()
+                                if tuple(key.split(".")) not in pending.values
+                            }
+                        )
+                else:
+                    saved["texts"] = started_texts.copy()
+                texts = started_texts
+                saved.update(base=texts.copy(), baseRevision=revision(texts))
+                state["savedRevision"] = revision(texts)
             if prepare:
                 manifest = workshop.download_manifest(state["installation"]["addedItems"])
                 if manifest is not None and not all(manifest.values()):
@@ -1225,6 +1332,15 @@ def run(data, prepare=False):
             # Steam can update packages during either stage. Check the active
             # selection, not the draft selection awaiting stage two.
             issues = workshop.problems(discovered, selected, version)
+            if normalized_sandbox:
+                issues.append(
+                    {
+                        "severity": "info",
+                        "code": "serialization",
+                        "message": "PZ переписал оформление SandboxVars; заданные значения сохранены. "
+                        f"Добавлено значений по умолчанию выбранных модов: {len(added_defaults)}. Исходная версия доступна в истории.",
+                    }
+                )
             lua = literal_table(texts["sandbox"])
             if lua:
                 for records in discovered.values():

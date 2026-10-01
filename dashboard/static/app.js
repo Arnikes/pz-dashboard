@@ -338,7 +338,12 @@ function renderOverview(o) {
   setPill("pillDocker", o.docker ? "ok" : "bad", o.docker ? "Docker" : "Docker: вне хоста");
   setPill("pillCompose", o.compose ? "ok" : "bad", o.compose ? "compose" : "compose ✕");
   const rc = o.rcon || {};
+  $("pillRcon").title = "";
   if (!o.rconConfigured) setPill("pillRcon", "bad", "RCON: нет пароля");
+  else if (o.docker && o.mode !== "remote" && o.containerInfo?.running === false) {
+    setPill("pillRcon", "unknown", "RCON не активен");
+    $("pillRcon").title = "Сервер остановлен; RCON будет доступен после запуска";
+  }
   else if (rc.state === "ok") setPill("pillRcon", "ok", "RCON");
   else if (rc.state === "error") { setPill("pillRcon", "bad", "RCON ошибка"); $("pillRcon").title = rc.error || ""; }
   else setPill("pillRcon", "unknown", "RCON");

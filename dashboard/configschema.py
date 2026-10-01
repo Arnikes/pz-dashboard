@@ -377,6 +377,11 @@ def field(key, value, sandbox=False, custom=None, schema=None, translations=None
     if sandbox:
         parent, _, name = key.rpartition(".")
         stock_type = API_INVENTORY.get(parent, {}).get(name.casefold())
+        # Java field names in the API differ from serialized Lua option names.
+        if not stock_type and parent == "MultiplierConfig":
+            stock_type = API_INVENTORY[parent].get("xpmultiplier" + name.casefold())
+        if key == "ZombieConfig.ZombiesCountBeforeDelete":
+            stock_type = API_INVENTORY["ZombieConfig"].get("zombiescountbeforedeletion")
         if stock_type:
             rec.update(stock=True, type=stock_type, group="Другие настройки мира")
         if key in WORLD_LABELS:

@@ -110,6 +110,38 @@ def test_search_restores_collapsed_groups_and_shows_empty_result(page, dashboard
     expect(group).not_to_have_attribute("open", "")
 
 
+@pytest.mark.parametrize("width", [390, 1440])
+def test_game_tooltip_markup_is_readable_and_never_executed(page, dashboard, editing, width):
+    data, _ = editing
+    base = data / "steamapps/workshop/content/108600/111/mods/PluginFolder/42/media"
+    (base / "lua/shared/Translate/RU").mkdir(parents=True)
+    (base / "sandbox-options.txt").write_text(
+        "option Mod.Count { type=integer, min=1, max=100, default=2, page=ModPage, translation=Count, }",
+        encoding="utf-8",
+    )
+    (base / "lua/shared/Translate/RU/Sandbox.json").write_text(
+        json.dumps(
+            {
+                "Sandbox_Count_tooltip": "/AAAAFFStatic/FFFFFF: описание.<br><br><RGB:1,0,0>Вторая строка<LINE><script>window.executed=1</script>"
+            }
+        ),
+        encoding="utf-8",
+    )
+    editor.workshop.invalidate()
+    page.set_viewport_size({"width": width, "height": 844})
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "settings", width <= 740)
+    page.locator('#configTabs [data-tab="custom"]').click()
+    hint = page.locator('.config-field:has([data-key="Mod.Count"]) .hint')
+    expect(hint).to_contain_text("Static: описание.")
+    expect(hint).to_contain_text("Вторая строка")
+    assert "<br>" not in hint.inner_text() and "/AAAAFF" not in hint.inner_text()
+    assert page.evaluate("window.executed") is None
+    assert hint.evaluate("el => getComputedStyle(el).whiteSpace") == "pre-line"
+    assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
+
+
 def test_short_phone_diff_keeps_confirmation_buttons_reachable(page, dashboard, editing):
     page.set_viewport_size({"width": 390, "height": 568})
     page.goto(dashboard["url"])

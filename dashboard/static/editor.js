@@ -9,6 +9,10 @@ window.ConfigEditor = (() => {
   const groupStates = new Map();
   let fieldQuery = "";
   const SECRET = "__PZ_SECRET_UNCHANGED__";
+  function gameDescription(text) {
+    return String(text || "").replace(/<br\s*\/?\s*>|<LINE>/gi, "\n")
+      .replace(/\/[0-9A-F]{6}|<(?:RGB:[^>]*|SIZE:[^>]*|CENTRE|LEFT|RIGHT|H[12])>/g, "");
+  }
   const statuses = { draft: "Есть черновик", saved: "Сохранено, требуется запуск", applying: "Применение", applied: "Применено", error: "Ошибка", unconfirmed: "Применение не подтверждено", "select-mods": "Пакеты загружены; выберите ModID" };
   const call = async (path, body) => {
     const result = await api(path, body === undefined ? { timeout: 180000 } : { method: "POST", body, timeout: 180000 });
@@ -192,7 +196,7 @@ window.ConfigEditor = (() => {
     const groups = new Map();
     fields().filter(o => `${o.key} ${o.label}`.toLowerCase().includes(query)).forEach((rec, i) => {
       if (!groups.has(rec.group)) groups.set(rec.group, []);
-      groups.get(rec.group).push(`<div class="config-field"><label for="config-field-${i}"><strong>${esc(rec.label)}</strong>${rec.label !== rec.key ? `<code>${esc(rec.key)}</code>` : ""}</label><div class="config-control">${fieldControl(rec, i)}</div><p class="hint">${esc(rec.owner ? `Источник: ${rec.owner}. Измените параметр в окружении контейнера.` : rec.hint || "Применяется после запуска; влияние на существующий мир зависит от параметра")}${rec.absent ? " · Значение по умолчанию ещё не записано" : ""}</p><p class="field-error" data-error-key="${esc(rec.key)}" role="alert" hidden></p>${configTab !== "server" && rec.preserved ? `<button type="button" class="btn small" data-remove-option="${esc(rec.key)}">Удалить параметр…</button>` : ""}</div>`);
+      groups.get(rec.group).push(`<div class="config-field"><label for="config-field-${i}"><strong>${esc(rec.label)}</strong>${rec.label !== rec.key ? `<code>${esc(rec.key)}</code>` : ""}</label><div class="config-control">${fieldControl(rec, i)}</div><p class="hint">${esc(rec.owner ? `Источник: ${rec.owner}. Измените параметр в окружении контейнера.` : gameDescription(rec.hint) || "Применяется после запуска; влияние на существующий мир зависит от параметра")}${rec.absent ? " · Значение по умолчанию ещё не записано" : ""}</p><p class="field-error" data-error-key="${esc(rec.key)}" role="alert" hidden></p>${configTab !== "server" && rec.preserved ? `<button type="button" class="btn small" data-remove-option="${esc(rec.key)}">Удалить параметр…</button>` : ""}</div>`);
     });
     const order = ["Доступ и игроки", "PvP", "Чат", "Сохранение мира", "Безопасные дома", "Сеть", "Дополнительные параметры"];
     const ordered = [...groups].sort(([a], [b]) => configTab === "server" ? order.indexOf(a) - order.indexOf(b) : 0);
