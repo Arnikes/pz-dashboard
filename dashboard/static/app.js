@@ -136,8 +136,10 @@ function toast(text, kind = "info", ms = 5200) {
 const modal = (() => {
   const root = $("modalRoot");
   let onOk = null;
+  let returnFocus = null;
 
   function open({ title, bodyHTML, okLabel = "Подтвердить", danger = false, onConfirm }) {
+    returnFocus = document.activeElement;
     $("modalTitle").textContent = title;
     $("modalTitle").classList.toggle("danger", danger);
     $("modalBody").innerHTML = bodyHTML;
@@ -153,6 +155,8 @@ const modal = (() => {
     root.hidden = true;
     $("modalBody").innerHTML = "";
     onOk = null;
+    if (returnFocus?.isConnected && !returnFocus.disabled) returnFocus.focus({ preventScroll: true });
+    returnFocus = null;
   }
 
   $("modalCancel").addEventListener("click", close);

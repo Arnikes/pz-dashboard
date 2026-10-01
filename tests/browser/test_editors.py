@@ -9,7 +9,7 @@ import pytest
 from playwright.sync_api import expect
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from test_configeditor import env, editor, INI  # noqa: E402,F401
+from test_configeditor import env, editor, INI, saved_verification  # noqa: E402,F401
 
 
 @pytest.fixture
@@ -30,6 +30,8 @@ def editing(page, dashboard, env):  # noqa: F811 (imported pytest fixture)
                     prepare=body.get("prepare", False),
                     draft_revision=body.get("draftRevision"),
                 )
+            elif url.path == "/api/config-verify":
+                result = editor.verify_running(body)
             elif url.path == "/api/config-history":
                 result = editor.restore_history(body) if body else editor.history(file)
             elif url.path == "/api/mods":
@@ -494,6 +496,269 @@ def test_keyboard_tabs_and_mod_order(page, dashboard, editing, width):
     page.get_by_role("button", name="Поднять library", exact=True).click()
     expect(page.locator("#modOrder .order-row").first.locator("code")).to_have_text("library")
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+
+
+@pytest.fixture
+def long_order(editing):
+    data, _ = editing
+    ids = ["library", "plugin"] + [f"mod{i:03d}" for i in range(1, 209)]
+    base = data / "steamapps/workshop/content/108600/111/mods"
+    for mid in ids[2:]:
+        path = base / f"Folder_{mid}" / "42"
+        path.mkdir(parents=True)
+        (path / "mod.info").write_text(f"id={mid}\nname=Название {mid}\n", encoding="utf-8")
+    original = INI.replace("Mods=\\library;\\plugin", "Mods=" + ";".join("\\" + mid for mid in ids))
+    (data / "Server/world.ini").write_bytes(original.encode())
+    editor.workshop.invalidate()
+    return data, ids, original
+
+
+@pytest.mark.parametrize("width", [320, 390, 768, 1024, 1440])
+def test_long_order_moves_to_edges_and_position_without_server_write(
+    page, dashboard, long_order, width
+):
+    data, ids, original = long_order
+    page.set_viewport_size({"width": width, "height": 844})
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "mods")
+    page.get_by_role("tab", name="Порядок", exact=True).click()
+    expect(page.locator("#modOrderList .order-row")).to_have_count(210)
+    query = page.locator("#orderQuery")
+    query.fill("Название mod199")
+    row = page.locator('#modOrderList [data-order-id="mod199"]')
+    expect(row.locator(".order-position")).to_have_text("201")
+    expect(page.locator("#orderCount")).to_contain_text("Найдено 1 из 210")
+    row.locator("[data-position-id]").click()
+    expect(page.locator("#orderDestination")).to_be_focused()
+    page.get_by_role("button", name="В начало", exact=True).click()
+    expect(page.get_by_role("alertdialog")).to_be_hidden()
+    expect(row.locator(".order-position")).to_have_text("1")
+    expect(query).to_have_value("Название mod199")
+    expect(row.locator("[data-position-id]")).to_be_focused()
+    assert editor.mod_response("world.ini", draft_mode=True)["mods"] == [
+        "mod199",
+        *[mid for mid in ids if mid != "mod199"],
+    ]
+    row.locator("[data-position-id]").click()
+    page.get_by_role("button", name="В конец", exact=True).click()
+    expect(row.locator(".order-position")).to_have_text("210")
+    row.locator("[data-position-id]").click()
+    page.locator("#orderDestination").fill("105")
+    page.locator("#orderDestination").press("Enter")
+    expect(page.get_by_role("alertdialog")).to_be_hidden()
+    expect(row.locator(".order-position")).to_have_text("105")
+    expected = [mid for mid in ids if mid != "mod199"]
+    expected.insert(104, "mod199")
+    result = editor.mod_response("world.ini", draft_mode=True)
+    assert result["mods"] == expected and result["maps"] == ["Muldraugh, KY"]
+    assert [w["workshopId"] for w in result["workshop"]] == ["111"]
+    assert (data / "Server/world.ini").read_bytes() == original.encode()
+    assert dashboard["actions"] == []
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    query.fill("")
+    page.locator("#modOrderList .order-row").first.scroll_into_view_if_needed()
+    page.screenshot(path=str(data.parent / f"review-mod-order-{width}.png"), full_page=False)
+    page.get_by_role("button", name="Переместить library", exact=True).click()
+    page.screenshot(path=str(data.parent / f"review-mod-position-{width}.png"), full_page=False)
+    buttons = page.locator(".order-actions .btn").first
+    assert buttons.evaluate("el => el.getBoundingClientRect().height >= 44")
+
+
+def test_order_position_invalid_cancel_and_single_item(page, dashboard, editing):
+    data, _ = editing
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "mods")
+    page.get_by_role("tab", name="Порядок", exact=True).click()
+    page.get_by_role("button", name="Переместить library", exact=True).click()
+    revision = editor.draft("world.ini")["draftRevision"]
+    for invalid in ("0", "3", "1.5", ""):
+        page.locator("#orderDestination").fill(invalid)
+        page.locator("#modalOk").click()
+        expect(page.locator("#orderPositionError")).to_have_text("Укажите целую позицию от 1 до 2")
+        expect(page.locator("#orderDestination")).to_have_attribute("aria-invalid", "true")
+        assert editor.draft("world.ini")["draftRevision"] == revision
+    page.locator("#orderDestination").press("Escape")
+    expect(page.get_by_role("button", name="Переместить library", exact=True)).to_be_focused()
+    assert editor.draft("world.ini")["draftRevision"] == revision
+    # Editing after cancellation remains usable; single-item boundaries are disabled.
+    page.get_by_role("tab", name="Состав", exact=True).click()
+    page.locator("#modPackages summary").click()
+    page.locator('[data-modid="plugin"]').uncheck()
+    expect(page.locator("#modOrderList .order-row")).to_have_count(1)
+    page.get_by_role("tab", name="Порядок", exact=True).click()
+    expect(page.get_by_role("button", name="Поднять library", exact=True)).to_be_disabled()
+    expect(page.get_by_role("button", name="Опустить library", exact=True)).to_be_disabled()
+    page.get_by_role("button", name="Переместить library", exact=True).click()
+    expect(page.get_by_role("button", name="В начало", exact=True)).to_be_disabled()
+    expect(page.get_by_role("button", name="В конец", exact=True)).to_be_disabled()
+    assert (data / "Server/world.ini").read_bytes() == INI.encode()
+
+
+def test_queued_order_steps_use_current_order(page, dashboard, long_order):
+    _, ids, _ = long_order
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "mods")
+    page.get_by_role("tab", name="Порядок", exact=True).click()
+    page.get_by_role("button", name="Опустить library", exact=True).evaluate(
+        "button => { button.click(); button.click(); }"
+    )
+    row = page.locator('[data-order-id="library"]')
+    expect(row.locator(".order-position")).to_have_text("3")
+    assert editor.mod_response("world.ini", draft_mode=True)["mods"] == [
+        "plugin",
+        "mod001",
+        "library",
+        *ids[3:],
+    ]
+
+
+def test_drag_handle_inserts_before_and_after_without_off_by_one(page, dashboard, long_order):
+    _, ids, _ = long_order
+    page.set_viewport_size({"width": 1440, "height": 900})
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "mods")
+    page.get_by_role("tab", name="Порядок", exact=True).click()
+    row = page.locator('[data-order-id="mod001"]')
+    height = row.bounding_box()["height"]
+    page.get_by_role("button", name="Перетащить library", exact=True).drag_to(
+        row, target_position={"x": 160, "y": height - 4}
+    )
+    expect(page.locator('[data-order-id="library"] .order-position')).to_have_text("3")
+    assert editor.mod_response("world.ini", draft_mode=True)["mods"] == [
+        "plugin",
+        "mod001",
+        "library",
+        *ids[3:],
+    ]
+    page.get_by_role("button", name="Перетащить library", exact=True).drag_to(
+        page.locator('[data-order-id="plugin"]'), target_position={"x": 160, "y": 4}
+    )
+    expect(page.locator('[data-order-id="library"] .order-position')).to_have_text("1")
+    assert editor.mod_response("world.ini", draft_mode=True)["mods"] == ids
+    expect(page.locator("[data-drop], .order-row.dragging")).to_have_count(0)
+
+
+@pytest.mark.parametrize("width", [390, 1440])
+def test_select_chevron_inset_and_text_space(page, dashboard, editing, width):
+    page.set_viewport_size({"width": width, "height": 844})
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    for route in ("settings", "mods", "maintenance", "console"):
+        navigate(page, route, width <= 740)
+        styles = page.locator("select:visible").evaluate_all("""els => els.map(el => {
+            const s=getComputedStyle(el); return {appearance:s.appearance,padding:parseFloat(s.paddingRight),
+                position:s.backgroundPosition,image:s.backgroundImage,height:el.clientHeight,
+                textHeight:parseFloat(s.lineHeight)+parseFloat(s.paddingTop)+parseFloat(s.paddingBottom)};
+        })""")
+        assert styles
+        for style in styles:
+            assert style["appearance"] == "none" and style["padding"] >= 42
+            assert "14px" in style["position"] and "data:image/svg+xml" in style["image"]
+            assert style["height"] + 1 >= style["textHeight"]
+    assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
+
+
+def test_late_background_response_cannot_mark_own_change_as_conflict(page, dashboard, editing):
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "settings")
+    old = editor.draft("world.ini")
+    pending = []
+
+    def hold(route):
+        if route.request.method == "GET":
+            pending.append(route)
+        else:
+            route.fallback()
+
+    page.route("**/api/config-draft?file=world.ini", hold)
+    with page.expect_request("**/api/config-draft?file=world.ini"):
+        page.evaluate("ConfigEditor.background()")
+    page.wait_for_timeout(100)  # Request events precede delivery to the route handler.
+    assert pending
+    page.locator('[data-key="PublicName"]').fill("Own fresh revision")
+    page.locator('[data-key="PublicName"]').press("Tab")
+    expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
+    for route in pending:
+        route.fulfill(json=old)
+    page.wait_for_timeout(100)  # Let the stale response's promise callback run.
+    expect(page.locator("#configError")).to_be_hidden()
+    expect(page.locator("#configRebase")).to_be_hidden()
+    expect(page.locator('[data-key="PublicName"]')).to_have_value("Own fresh revision")
+
+
+def test_steam_response_after_profile_switch_does_not_change_other_profile(
+    page, dashboard, editing
+):
+    data, _ = editing
+    (data / "Server/another.ini").write_bytes(INI.encode())
+    pending = []
+    page.route("**/api/workshop-resolve", lambda route: pending.append(route))
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "mods")
+    page.locator("#workshopInput").fill("222")
+    page.locator("#workshopAdd button").click()
+    page.locator("#configProfile").select_option("another.ini")
+    expect(page.locator("#configActive")).to_have_text("Другой профиль")
+    expect(page.locator("#draftSaved")).not_to_have_text("Сохраняется черновик…")
+    page.wait_for_function("ConfigEditor.file === 'another.ini'")
+    assert pending
+    pending[0].fulfill(json={"ok": True, "items": [{"workshopId": "222"}]})
+    expect(page.locator("#configError")).to_contain_text(
+        "Профиль изменился во время проверки Steam"
+    )
+    assert not editor.draft("world.ini")["changed"]
+    assert not editor.draft("another.ini")["changed"]
+    assert dashboard["actions"] == []
+
+
+@pytest.mark.parametrize("width", [390, 1440])
+def test_verify_external_restart_clears_install_notice_and_old_error_without_action(
+    page, dashboard, editing, monkeypatch, width
+):
+    data, _ = saved_verification(editing, monkeypatch, installed=True)
+    original = (data / "Server/world.ini").read_bytes()
+    page.set_viewport_size({"width": width, "height": 844})
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "mods")
+    expect(page.locator("#installNotice")).to_contain_text("Загрузка требует проверки")
+    page.locator("#installNotice [data-verify-running]").click()
+    expect(page.locator("#installNotice")).to_be_hidden()
+    expect(page.locator("#configOperationResult > strong")).to_have_text("Проверено после запуска")
+    expect(page.locator("#configOperationResult .editor-error")).to_have_count(0)
+    expect(page.locator("#configOperationResult details")).not_to_have_attribute("open", "")
+    navigate(page, "settings", width <= 740)
+    expect(page.locator("#configStatus")).to_have_text("Применено")
+    expect(page.locator("#configError")).to_be_hidden()
+    assert (data / "Server/world.ini").read_bytes() == original
+    assert dashboard["actions"] == []
+    assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
+
+
+def test_result_card_does_not_claim_previous_verification_after_another_restart(
+    page, dashboard, editing, monkeypatch
+):
+    _, request = saved_verification(editing, monkeypatch)
+    editor.verify_running(request)
+    from test_configeditor import ops
+
+    monkeypatch.setattr(
+        ops, "container_state", lambda: {"running": True, "startedAt": "another-start"}
+    )
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "settings")
+    expect(page.locator("#configStatus")).to_have_text("Применение не подтверждено")
+    expect(page.locator("#configOperationResult > strong")).to_have_text(
+        "Применение не подтверждено"
+    )
+    expect(page.locator("#configOperationResult")).to_have_attribute("data-state", "warn")
 
 
 @pytest.mark.parametrize("width", [1440, 390])

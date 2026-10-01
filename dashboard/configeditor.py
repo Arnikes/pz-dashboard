@@ -242,22 +242,46 @@ PZ_RESET_COMMENT = re.compile(
 )
 
 
-def startup_profile_matches(expected, actual):
-    """PZ regenerates this comment's random default without changing ResetID.
+def startup_profile_matches(expected, actual, allow_runtime_reset=False):
+    """Accept only identified PZ startup metadata, never general disk changes.
 
-    Keep optimistic concurrency byte-exact everywhere else, including user
-    comments, secrets and Sandbox. Only the confirmed startup may adopt it.
+    B42 also generates ResetID after loading a world without z_outfits.bin.
+    Callers may accept it only when ResetID was not a requested edit and PZ/RCON
+    readiness was checked. Optimistic concurrency stays byte-exact everywhere.
     """
     if expected == actual:
         return True
+    actual_ini = actual["ini"]
+    if allow_runtime_reset:
+        old = ini_entries(expected["ini"]).get("ResetID", {}).get("value")
+        new = ini_entries(actual_ini).get("ResetID", {}).get("value")
+        if old and new and new.isdigit() and 0 <= int(new) < 100_000_000:
+            actual_ini = edit_ini(actual_ini, {"ResetID": old})
     return expected["sandbox"] == actual["sandbox"] and PZ_RESET_COMMENT.sub(
         r"\g<1><generated>", expected["ini"]
-    ) == PZ_RESET_COMMENT.sub(r"\g<1><generated>", actual["ini"])
+    ) == PZ_RESET_COMMENT.sub(r"\g<1><generated>", actual_ini)
 
 
 def adopt_startup_comment(text, actual):
     generated = PZ_RESET_COMMENT.search(actual)
     return PZ_RESET_COMMENT.sub(lambda _: generated[0], text) if generated else text
+
+
+def adopt_startup_ini(text, expected, actual):
+    text = adopt_startup_comment(text, actual)
+    before = ini_entries(expected).get("ResetID", {}).get("value")
+    pending = ini_entries(text).get("ResetID", {}).get("value")
+    current = ini_entries(actual).get("ResetID", {}).get("value")
+    return (
+        edit_ini(text, {"ResetID": current}) if before and pending == before and current else text
+    )
+
+
+def same_lua_value(left, right):
+    # Lua numbers may serialize as 2.0 or 2; true is never the number 1.
+    return left == right and (
+        type(left) is type(right) or type(left) in (int, float) and type(right) in (int, float)
+    )
 
 
 def startup_sandbox_defaults(expected, actual, discovered, selected):
@@ -268,14 +292,9 @@ def startup_sandbox_defaults(expected, actual, discovered, selected):
     if not before or not after or not before.values.keys() <= after.values.keys():
         return None
 
-    def equal(left, right):
-        # Lua number serialization may change 2.0 to 2, but true is never 1.
-        return left == right and (
-            type(left) is type(right) or type(left) in (int, float) and type(right) in (int, float)
-        )
-
     if any(
-        not equal(rec["value"], after.values[path]["value"]) for path, rec in before.values.items()
+        not same_lua_value(rec["value"], after.values[path]["value"])
+        for path, rec in before.values.items()
     ):
         return None
     defaults, ambiguous = {}, set()
@@ -287,14 +306,14 @@ def startup_sandbox_defaults(expected, actual, discovered, selected):
                 if "default" not in option:
                     continue
                 path = tuple(option["key"].split("."))
-                if path in defaults and not equal(defaults[path], option["default"]):
+                if path in defaults and not same_lua_value(defaults[path], option["default"]):
                     ambiguous.add(path)
                 defaults[path] = option["default"]
     added = after.values.keys() - before.values.keys()
     if any(
         path not in defaults
         or path in ambiguous
-        or not equal(after.values[path]["value"], defaults[path])
+        or not same_lua_value(after.values[path]["value"], defaults[path])
         for path in added
     ):
         return None
@@ -944,13 +963,15 @@ def validate(file, include_mods=True, prepare=False, draft_revision=None):
             for path, entry in lua.values.items():
                 destination = (
                     errors
-                    if not old_lua or entry["value"] != old_lua.values.get(path, {}).get("value")
+                    if not old_lua
+                    or not same_lua_value(entry["value"], old_lua.values.get(path, {}).get("value"))
                     else warnings
                 )
                 check_field(
                     configschema.field(".".join(path), entry["value"], sandbox=True, schema=schema),
                     entry["value"],
                     destination,
+                    lua=True,
                 )
         except FormatError:
             if texts["sandbox"] != base["sandbox"]:
@@ -990,13 +1011,23 @@ def validate(file, include_mods=True, prepare=False, draft_revision=None):
             for option in rec.get("options", [])
         }
         if texts["sandbox"] and literal_table(texts["sandbox"]):
+            base_lua = literal_table(base["sandbox"]) if base["sandbox"] else None
             for path, entry in LuaTable(texts["sandbox"]).values.items():
                 key = ".".join(path)
                 if key in custom:
+                    destination = (
+                        warnings
+                        if base_lua
+                        and same_lua_value(
+                            entry["value"], base_lua.values.get(path, {}).get("value")
+                        )
+                        else errors
+                    )
                     check_field(
                         configschema.field(key, entry["value"], sandbox=True, custom=custom[key]),
                         entry["value"],
-                        errors,
+                        destination,
+                        lua=True,
                     )
     if texts != base and not ctx["versionKnown"]:
         errors.append(
@@ -1089,14 +1120,14 @@ def syntax_check(text):
         os.unlink(path)
 
 
-def check_field(field, value, errors):
+def check_field(field, value, errors, lua=False):
     kind = field["type"]
     if kind == "boolean":
-        if not isinstance(value, bool) and value not in ("true", "false"):
+        if not isinstance(value, bool) and (lua or value not in ("true", "false")):
             errors.append({"key": field["key"], "message": "Нужно true или false"})
     elif kind in ("integer", "double", "enum"):
         try:
-            if isinstance(value, bool):
+            if isinstance(value, bool) or lua and type(value) not in (int, float):
                 raise ValueError
             number = float(value)
             if not math.isfinite(number):
@@ -1287,7 +1318,13 @@ def run(data, prepare=False):
     state.pop("worldBackup", None)
     state.pop("historyId", None)
     state.pop("operationCompletedAt", None)
+    state.pop("verifiedAt", None)
     state.update(status="applying", operationStartedAt=ops.now_iso())
+    state["allowRuntimeReset"] = bool(
+        before_mods.get("ResetID", {}).get("value")
+        and before_mods.get("ResetID", {}).get("value")
+        == ini_entries(saved["base"]["ini"]).get("ResetID", {}).get("value")
+    )
     save_json(root / "state.json", state)
     stopped = False
     committed = False
@@ -1323,6 +1360,7 @@ def run(data, prepare=False):
         state.update(
             status="applying" if restart else "saved", savedRevision=revision(texts), historyId=hid
         )
+        state["snapshots"] = {"saved": texts.copy()}
         if prepare:
             state["installation"] = {
                 "stage": "downloading",
@@ -1367,7 +1405,9 @@ def run(data, prepare=False):
             wait_ready()
             started_texts = read_profile(file)
             if not startup_profile_matches(
-                {**texts, "sandbox": started_texts["sandbox"]}, started_texts
+                {**texts, "sandbox": started_texts["sandbox"]},
+                started_texts,
+                allow_runtime_reset=state["allowRuntimeReset"],
             ):
                 raise EditorError(
                     "Конфигурация изменилась при запуске PZ. Проверьте перезапись настроек образом; применение не подтверждено",
@@ -1393,8 +1433,8 @@ def run(data, prepare=False):
             normalized_sandbox = texts["sandbox"] != started_texts["sandbox"]
             if started_texts != texts:
                 if prepare:
-                    saved["texts"]["ini"] = adopt_startup_comment(
-                        saved["texts"]["ini"], started_texts["ini"]
+                    saved["texts"]["ini"] = adopt_startup_ini(
+                        saved["texts"]["ini"], texts["ini"], started_texts["ini"]
                     )
                     if added_defaults:
                         pending = literal_table(saved["texts"]["sandbox"])
@@ -1415,6 +1455,7 @@ def run(data, prepare=False):
                 texts = started_texts
                 saved.update(base=texts.copy(), baseRevision=revision(texts))
                 state["savedRevision"] = revision(texts)
+                state["snapshots"] = {"saved": texts.copy()}
             if prepare:
                 manifest = workshop.download_manifest(state["installation"]["addedItems"])
                 if manifest is not None and not all(manifest.values()):
@@ -1442,6 +1483,17 @@ def run(data, prepare=False):
                 previous_issues,
                 result["modChanges"] and not prepare,
             )
+            if before_mods.get("ResetID", {}).get("value") != ini_entries(texts["ini"]).get(
+                "ResetID", {}
+            ).get("value"):
+                issues.append(
+                    {
+                        "severity": "info",
+                        "code": "runtime-reset",
+                        "message": "PZ сформировал новый служебный ResetID при загрузке мира. "
+                        "Панель сохранила значение сервера; остальные настройки проверены.",
+                    }
+                )
             if normalized_sandbox:
                 issues.append(
                     {
@@ -1461,10 +1513,20 @@ def run(data, prepare=False):
                             entry = lua.values.get(tuple(option["key"].split(".")))
                             if entry:
                                 option_errors = []
-                                check_field(option, entry["value"], option_errors)
+                                check_field(option, entry["value"], option_errors, lua=True)
                                 issues.extend(
                                     dict(
-                                        error, severity="error", code="sandbox", modId=rec["modId"]
+                                        error,
+                                        severity="warning"
+                                        if not result["modChanges"]
+                                        and any(
+                                            previous.get("key") == error.get("key")
+                                            and previous.get("message") == error.get("message")
+                                            for previous in result["warnings"]
+                                        )
+                                        else "error",
+                                        code="sandbox",
+                                        modId=rec["modId"],
                                     )
                                     for error in option_errors
                                 )
@@ -1524,6 +1586,165 @@ def run(data, prepare=False):
         ):
             dockerlib.container_start(config.CFG["pz_container"])
         raise
+
+
+def verify_running(data):
+    """Recheck a saved revision after an external restart; never write game files."""
+    file = choose(data.get("file"))
+    with LOCK:
+        if ops.op_busy():
+            raise EditorError("Дождитесь завершения операции", 409)
+        saved = load_json(state_dir(file) / "draft.json")
+        if not saved or saved["draftRevision"] != data.get("draftRevision"):
+            raise EditorError("Черновик изменился: загрузите профиль заново", 409)
+        state = load_json(state_dir(file) / "state.json")
+        expected = state.get("snapshots", {}).get("saved") or saved["base"]
+        if state.get("savedRevision") != revision(expected):
+            raise EditorError(
+                "Нет подтверждённой записанной ревизии для проверки. Просмотрите изменения и примените конфигурацию",
+                409,
+            )
+        ctx = context(refresh=True)
+        container = confirmed_container()
+        if (
+            ctx["activeFile"] != file
+            or not ctx["versionKnown"]
+            or not str(ctx["version"]).startswith("42.")
+            or not ctx["mountsKnown"]
+        ):
+            raise EditorError("Проверка доступна для подтверждённого активного профиля B42", 409)
+        if not container["running"]:
+            raise EditorError("Сервер остановлен: проверка запуска недоступна", 409)
+        try:
+            ready = ops.rcon("players", quiet=True)
+        except ops.rconlib.RCONError:
+            raise EditorError(
+                "PZ/RCON пока не готов. Проверьте логи и повторите проверку", 409
+            ) from None
+        if not isinstance(ready, str) or not re.search(
+            r"\bPlayers\s+connected\s*\(\d+\)", ready, re.I
+        ):
+            raise EditorError("PZ/RCON пока не подтвердил готовность", 409)
+        current = read_profile(file)
+        if data.get("currentRevision") != revision(current):
+            raise EditorError(
+                "Файлы изменились после загрузки страницы. Загрузите профиль заново", 409
+            )
+        # Older panel versions did not persist the permission. Recover it only
+        # from this operation's own pre-write backup, never from a guess.
+        allow_reset = state.get("allowRuntimeReset", False)
+        if "allowRuntimeReset" not in state and state.get("historyId"):
+            history = state_dir(file) / "history" / state["historyId"] / "ini"
+            if history.is_file():
+                old_reset = (
+                    ini_entries(history.read_text(encoding="utf-8")).get("ResetID", {}).get("value")
+                )
+                allow_reset = bool(
+                    old_reset
+                    and old_reset == ini_entries(expected["ini"]).get("ResetID", {}).get("value")
+                )
+        if not startup_profile_matches(
+            {**expected, "sandbox": current["sandbox"]}, current, allow_runtime_reset=allow_reset
+        ):
+            raise EditorError(
+                "Настройки на диске отличаются от записанных. Просмотрите различия; проверка не подтверждает применение",
+                409,
+            )
+        current_mods = mod_state(file, current, refresh=True)
+        discovered = {w["workshopId"]: w["available"] for w in current_mods["workshop"]}
+        defaults = startup_sandbox_defaults(
+            expected["sandbox"], current["sandbox"], discovered, current_mods["mods"]
+        )
+        if defaults is None:
+            raise EditorError(
+                "Значения SandboxVars отличаются от записанных. Просмотрите различия", 409
+            )
+        failures = [
+            p
+            for p in current_mods["problems"]
+            if p["severity"] == "error" or p["code"] in ("unknown", "cached")
+        ]
+        if failures:
+            raise EditorError(
+                "Состав модов не подтверждён: " + "; ".join(p["message"] for p in failures), 409
+            )
+        sandbox = literal_table(current["sandbox"]) if current["sandbox"] else None
+        if sandbox:
+            for records in discovered.values():
+                for rec in records:
+                    if rec.get("modId") not in current_mods["mods"]:
+                        continue
+                    for option in rec.get("options", []):
+                        entry = sandbox.values.get(tuple(option["key"].split(".")))
+                        if entry:
+                            check_field(option, entry["value"], failures, lua=True)
+        if failures:
+            raise EditorError(
+                "Настройки модов не подтверждены: " + "; ".join(p["message"] for p in failures), 409
+            )
+        installation = state.get("installation")
+        stage = None
+        if installation:
+            added = installation.get("addedItems", [])
+            manifest = workshop.download_manifest(added)
+            if manifest is not None and not all(manifest.get(w, False) for w in added):
+                raise EditorError("Steam-манифест не подтверждает загрузку пакетов", 409)
+            if any(
+                not discovered.get(w)
+                or not any(
+                    r.get("modId") and r.get("compatible") is not False for r in discovered[w]
+                )
+                for w in added
+            ):
+                raise EditorError("Не все новые пакеты содержат доступные ModID B42", 409)
+            stage = (
+                "select-mods"
+                if any(
+                    not any(r.get("modId") in current_mods["mods"] for r in discovered[w])
+                    for w in added
+                )
+                else None
+            )
+        merged = merge_profile(saved, current)
+        after_container = ops.container_state() or {}
+        if (
+            ops.op_busy()
+            or revision(read_profile(file)) != revision(current)
+            or not after_container.get("running")
+            or after_container.get("startedAt") != container.get("startedAt")
+        ):
+            raise EditorError("Сервер или файлы изменились во время проверки: повторите её", 409)
+        if state.get("error"):
+            state["lastFailure"] = {
+                k: state.get(k)
+                for k in ("error", "operationStartedAt", "operationCompletedAt", "historyId")
+            }
+        state.pop("error", None)
+        if stage:
+            installation.update(stage=stage, manifestVerified=manifest is not None)
+        else:
+            state.pop("installation", None)
+        state.update(
+            status=stage or "applied",
+            savedRevision=revision(current),
+            appliedRevision=revision(current),
+            startedAt=container.get("startedAt"),
+            verifiedAt=ops.now_iso(),
+            verificationProblems=current_mods["problems"],
+        )
+        saved.update(
+            base=current.copy(),
+            texts=merged,
+            baseRevision=revision(current),
+            draftRevision=uuid.uuid4().hex,
+        )
+        save_json(state_dir(file) / "draft.json", saved)
+        save_json(state_dir(file) / "state.json", state)
+        ops.log_event(
+            "mods",
+            f"Конфигурация {file}: готовность PZ/RCON и записанные настройки проверены без рестарта",
+        )
+        return response(saved, current)
 
 
 def queue(data, prepare=False):

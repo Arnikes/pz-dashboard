@@ -1332,3 +1332,256 @@ def test_unknown_version_blocks_changed_configuration(env):
     assert any(
         "Версия B42 неизвестна" in e["message"] for e in editor.validate("world.ini")["errors"]
     )
+
+
+def test_unchanged_invalid_custom_setting_warns_but_changed_value_blocks(env, monkeypatch):
+    data, _ = env
+    media = data / "steamapps/workshop/content/108600/111/mods/PluginFolder/42/media"
+    media.mkdir()
+    (media / "sandbox-options.txt").write_text(
+        "option Mod.Count { type=integer, min=1, max=1, default=1, }", encoding="utf-8"
+    )
+    current = change(ini={"PublicName": "Unrelated draft"})
+    result = editor.validate("world.ini")
+    assert result["valid"] and any(p.get("key") == "Mod.Count" for p in result["warnings"])
+    monkeypatch.setattr(editor.dockerlib, "container_start", lambda name: (0, "", ""))
+    monkeypatch.setattr(editor, "wait_ready", lambda: None)
+    editor.run({"file": "world.ini", "draftRevision": current["draftRevision"], "restart": True})
+    assert editor.draft("world.ini")["status"] == "applied"
+    change(sandbox={"Mod.Count": 3})
+    assert any(p.get("key") == "Mod.Count" for p in editor.validate("world.ini")["errors"])
+
+
+@pytest.mark.parametrize("prepare", [False, True])
+def test_pz_generated_reset_id_adopted_without_losing_deferred_edits(env, monkeypatch, prepare):
+    data, _ = env
+    path = data / "Server/world.ini"
+    path.write_bytes((INI + RESET_COMMENT).encode())
+    current = change(ini={"PublicName": "Deferred"}, mods={"items": ["111", "222"]})
+    if prepare:
+        monkeypatch.setattr(workshop, "scan", lambda *args, **kwargs: {"222": [{"modId": "new"}]})
+        monkeypatch.setattr(workshop, "problems", lambda *args: [])
+
+    def start(name):
+        path.write_bytes(
+            path.read_bytes()
+            .replace(b"Default: 123456", b"Default: 654321")
+            .replace(b"ResetID=471224", b"ResetID=2748676")
+        )
+        return 0, "", ""
+
+    monkeypatch.setattr(editor.dockerlib, "container_start", start)
+    monkeypatch.setattr(editor, "wait_ready", lambda: None)
+    editor.run(
+        {"file": "world.ini", "draftRevision": current["draftRevision"], "restart": True},
+        prepare=prepare,
+    )
+    after = editor.draft("world.ini")
+    assert not after["conflict"] and after["state"]["appliedRevision"] == after["currentRevision"]
+    assert "ResetID=2748676" in after["texts"]["ini"]
+    assert after["changed"] is prepare and "PublicName=Deferred" in after["texts"]["ini"]
+    assert any(p["code"] == "runtime-reset" for p in after["state"]["verificationProblems"])
+
+
+def test_requested_reset_id_overwrite_remains_an_error(env, monkeypatch):
+    data, _ = env
+    path = data / "Server/world.ini"
+    path.write_bytes((INI + RESET_COMMENT).encode())
+    current = change(ini={"ResetID": "111111"})
+
+    def start(name):
+        path.write_bytes(path.read_bytes().replace(b"ResetID=111111", b"ResetID=222222"))
+        return 0, "", ""
+
+    monkeypatch.setattr(editor.dockerlib, "container_start", start)
+    monkeypatch.setattr(editor, "wait_ready", lambda: None)
+    with pytest.raises(editor.EditorError, match="при запуске"):
+        editor.run(
+            {"file": "world.ini", "draftRevision": current["draftRevision"], "restart": True}
+        )
+    assert editor.draft("world.ini")["status"] == "error"
+
+
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("Mod.Enabled", 1),
+        ("Mod.Enabled", "true"),
+        ("Mod.Count", True),
+        ("Mod.Count", "2"),
+        ("Zombies", "4"),
+    ],
+)
+def test_sandbox_wrong_lua_types_cannot_be_treated_as_unchanged(env, key, value):
+    data, _ = env
+    media = data / "steamapps/workshop/content/108600/111/mods/PluginFolder/42/media"
+    media.mkdir()
+    (media / "sandbox-options.txt").write_text(
+        "option Mod.Enabled { type=boolean, default=true, }\noption Mod.Count { type=integer, min=1, max=10, default=2, }",
+        encoding="utf-8",
+    )
+    change(sandbox={key: value})
+    assert any(p.get("key") == key for p in editor.validate("world.ini")["errors"])
+
+
+def saved_verification(env, monkeypatch, installed=False):
+    """A failed historical operation followed by an externally started server."""
+    data, _ = env
+    path = data / "Server/world.ini"
+    path.write_bytes((INI + RESET_COMMENT).encode())
+    current = editor.draft("world.ini")
+    editor.save_json(
+        editor.state_dir("world.ini") / "state.json",
+        {
+            "status": "error",
+            "error": "Конфигурация изменилась при запуске PZ",
+            "savedRevision": current["baseRevision"],
+            "allowRuntimeReset": True,
+            "operationStartedAt": "2026-10-01T12:00:00Z",
+            "operationCompletedAt": "2026-10-01T12:01:00Z",
+            **({"installation": {"stage": "error", "addedItems": ["111"]}} if installed else {}),
+        },
+    )
+    path.write_bytes(
+        path.read_bytes()
+        .replace(b"ResetID=471224", b"ResetID=2748676")
+        .replace(b"Default: 123456", b"Default: 654321")
+    )
+    monkeypatch.setattr(
+        ops, "container_state", lambda: {"running": True, "startedAt": "external-start"}
+    )
+    monkeypatch.setattr(ops, "rcon", Mock(return_value="Players connected (0):"))
+    return data, {
+        "file": "world.ini",
+        "draftRevision": current["draftRevision"],
+        "currentRevision": editor.revision(editor.read_profile("world.ini")),
+    }
+
+
+def test_external_verification_clears_old_failure_and_finished_installation_without_game_write(
+    env, monkeypatch
+):
+    data, request = saved_verification(env, monkeypatch, installed=True)
+    paths = [data / "Server/world.ini", data / "Server/world_SandboxVars.lua"]
+    before = [p.read_bytes() for p in paths]
+    monkeypatch.setattr(editor.dockerlib, "container_start", Mock())
+    monkeypatch.setattr(ops, "graceful_stop", Mock())
+    result = editor.verify_running(request)
+    assert result["status"] == "applied" and not result["conflict"]
+    assert not result["state"].get("error") and not result["state"].get("installation")
+    assert result["state"]["lastFailure"]["error"] and result["state"]["verifiedAt"]
+    assert [p.read_bytes() for p in paths] == before
+    editor.dockerlib.container_start.assert_not_called()
+    ops.graceful_stop.assert_not_called()
+    ops.run_backup_job.assert_not_called()
+
+
+def test_external_verification_keeps_downloaded_unselected_package_as_stage_two(env, monkeypatch):
+    _, request = saved_verification(env, monkeypatch, installed=True)
+    state_path = editor.state_dir("world.ini") / "state.json"
+    state = editor.load_json(state_path)
+    state["installation"]["addedItems"] = ["222"]
+    editor.save_json(state_path, state)
+    original = editor.mod_state
+
+    def mods(*args, **kwargs):
+        result = original(*args, **kwargs)
+        result["workshop"].append(
+            {"workshopId": "222", "available": [{"modId": "new", "compatible": True}]}
+        )
+        return result
+
+    monkeypatch.setattr(editor, "mod_state", mods)
+    result = editor.verify_running(request)
+    assert result["state"]["installation"]["stage"] == "select-mods"
+    assert result["status"] == "select-mods"
+
+
+def test_verification_uses_saved_snapshot_after_rebase_and_preserves_pending_settings(
+    env, monkeypatch
+):
+    _, request = saved_verification(env, monkeypatch)
+    root = editor.state_dir("world.ini")
+    saved = editor.load_json(root / "draft.json")
+    state = editor.load_json(root / "state.json")
+    state["snapshots"] = {"saved": saved["base"].copy()}
+    editor.save_json(root / "state.json", state)
+    change(ini={"PublicName": "Pending personal setting"})
+    draft = editor.draft("world.ini")
+    rebased = editor.patch(
+        {
+            "file": "world.ini",
+            "draftRevision": draft["draftRevision"],
+            "currentRevision": draft["currentRevision"],
+            "rebase": True,
+        }
+    )
+    request.update(
+        draftRevision=rebased["draftRevision"], currentRevision=rebased["currentRevision"]
+    )
+    after = editor.verify_running(request)
+    assert after["changed"] and after["status"] == "draft" and not after["conflict"]
+    assert "Pending personal setting" in after["texts"]["ini"]
+    assert after["state"]["status"] == "applied" and "snapshots" not in after["state"]
+    assert "topsecret" not in json.dumps(after) and "hidden-token" not in json.dumps(after)
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "not-ready",
+        "stopped",
+        "wrong-profile",
+        "wrong-mounts",
+        "stale-draft",
+        "stale-file",
+        "ini",
+        "sandbox",
+        "manifest",
+        "restart",
+        "metadata",
+    ],
+)
+def test_external_verification_rejects_unconfirmed_state_without_clearing_error(
+    env, monkeypatch, failure
+):
+    data, request = saved_verification(env, monkeypatch, installed=True)
+    if failure == "not-ready":
+        monkeypatch.setattr(ops, "rcon", Mock(return_value=""))
+    elif failure == "stopped":
+        monkeypatch.setattr(ops, "container_state", lambda: {"running": False})
+    elif failure == "wrong-profile":
+        env[1]["activeFile"] = "other.ini"
+    elif failure == "wrong-mounts":
+        env[1]["mountsKnown"] = False
+    elif failure == "stale-draft":
+        request["draftRevision"] = "old"
+    elif failure == "stale-file":
+        request["currentRevision"] = "old"
+    elif failure == "ini":
+        path = data / "Server/world.ini"
+        path.write_bytes(path.read_bytes().replace(b"PublicName=", b"PublicName=unexpected "))
+        request["currentRevision"] = editor.revision(editor.read_profile("world.ini"))
+    elif failure == "sandbox":
+        path = data / "Server/world_SandboxVars.lua"
+        path.write_bytes(path.read_bytes().replace(b"Zombies = 4", b"Zombies = 3"))
+        request["currentRevision"] = editor.revision(editor.read_profile("world.ini"))
+    elif failure == "manifest":
+        monkeypatch.setattr(workshop, "download_manifest", lambda items: {"111": False})
+    elif failure == "restart":
+        monkeypatch.setattr(
+            ops,
+            "container_state",
+            Mock(
+                side_effect=[
+                    {"running": True, "startedAt": "a"},
+                    {"running": True, "startedAt": "b"},
+                ]
+            ),
+        )
+    elif failure == "metadata":
+        monkeypatch.setattr(workshop, "scan", lambda *args, **kwargs: {"111": []})
+    before = editor.load_json(editor.state_dir("world.ini") / "state.json")
+    with pytest.raises(editor.EditorError):
+        editor.verify_running(request)
+    assert editor.load_json(editor.state_dir("world.ini") / "state.json") == before

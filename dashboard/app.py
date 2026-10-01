@@ -329,6 +329,8 @@ class Handler(BaseHTTPRequestHandler):
                     draft_revision=data.get("draftRevision"),
                 )
             )
+        elif path == "/api/config-verify":
+            self._editor_request(lambda: configeditor.verify_running(data))
         elif path == "/api/config-history":
             self._editor_request(lambda: configeditor.restore_history(data))
         elif path == "/api/workshop-resolve":

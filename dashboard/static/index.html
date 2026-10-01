@@ -277,7 +277,18 @@
           <div id="modPackages" class="list"><p class="hint">Выберите профиль конфигурации.</p></div>
         </div>
         <div id="legacyMods" class="install-notice" hidden></div>
-        <div id="modOrder" hidden></div><div id="modProblems" hidden></div>
+        <div id="modOrder" hidden>
+          <h3>Порядок выбранных ModID</h3>
+          <p class="hint">Потяните за ручку слева или нажмите «Переместить…», чтобы выбрать начало, конец или номер позиции. Изменения сохраняются в черновике.</p>
+          <div class="order-toolbar">
+            <label for="orderQuery">Найти в порядке загрузки</label>
+            <input id="orderQuery" type="search" placeholder="ModID или название мода…" aria-describedby="orderCount" />
+            <span id="orderCount" class="hint"></span>
+          </div>
+          <p id="orderAnnouncement" class="sr-only" role="status" aria-live="polite"></p>
+          <div id="modOrderList"></div>
+          <div id="modMapEditor"></div>
+        </div><div id="modProblems" hidden></div>
       </section>
       <section class="card c-mods" id="sec-mods" data-od-id="mods" aria-labelledby="hMods" hidden>
         <header class="card-head">
@@ -364,6 +375,7 @@
         <header class="card-head"><h2 id="hConfig">Настройки сервера</h2><span id="configStatus" class="pill">Выберите профиль</span></header>
         <div id="configError" class="editor-error" role="alert" hidden></div>
         <p id="configSaveHint" class="hint">Правки полей сохраняются в черновике. Запись файлов доступна после остановки сервера.</p>
+        <div id="configVerifyHelp" class="editor-toolbar" hidden><button type="button" id="configVerify" class="btn">Проверить запущенный сервер</button><span class="hint">После ручного рестарта: проверка файлов, модов и готовности PZ/RCON без записи и остановки сервера.</span></div>
         <p id="configVersionDiagnostic" class="hint" role="status" hidden></p>
         <div class="editor-tabs" id="configTabs" role="tablist" aria-label="Настройки сервера">
           <button type="button" role="tab" aria-selected="true" data-tab="server">Сервер</button><button type="button" role="tab" aria-selected="false" data-tab="world">Мир</button><button type="button" role="tab" aria-selected="false" data-tab="custom">Настройки модов</button><button type="button" role="tab" aria-selected="false" data-tab="sources">Исходники</button><button type="button" role="tab" aria-selected="false" data-tab="history">История изменений</button>
