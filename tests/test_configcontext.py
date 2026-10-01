@@ -126,6 +126,7 @@ def test_streamed_version_probe_uses_current_launch_and_stops_reader(monkeypatch
         "--timestamps",
         "pz-test",
     ]
+    assert spawn.call_args.kwargs["stderr"] == dockerlib.subprocess.STDOUT
     process.kill.assert_called_once()
     assert process.stdout.closed
 

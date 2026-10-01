@@ -42,18 +42,22 @@
       <div class="brand-text">
         <span class="brand-name">PZ·ПУЛЬТ</span>
         <span class="brand-sub" id="serverName">Project Zomboid</span>
+        <span class="brand-version" id="configVersion">B42 · версия неизвестна</span>
       </div>
     </div>
     <div class="top-right">
-      <span class="pill" id="configVersion">B42 · версия неизвестна</span>
-      <label class="profile-label">Профиль <select id="configProfile" aria-label="Профиль конфигурации"><option value="">Загрузка…</option></select></label>
-      <span id="configActive" class="hint"></span>
+      <div class="config-context">
+        <div class="profile-label">
+          <div class="profile-meta"><label for="configProfile">Профиль</label><span id="configActive" class="profile-state" data-state="unknown">Не подтверждён</span></div>
+          <select id="configProfile" aria-label="Профиль конфигурации" aria-describedby="configActive"><option value="">Загрузка…</option></select>
+        </div>
+      </div>
+      <div class="connection-status">
       <span class="badge-demo" id="demoBadge" hidden>ДЕМО-РЕЖИМ</span>
-      <span class="top-lamp" id="topLamp" data-state="unknown" aria-hidden="true"></span>
       <span class="pill" id="pillDocker" data-state="unknown">Docker</span>
       <span class="pill" id="pillRcon" data-state="unknown">RCON</span>
-      <span class="fresh mono" id="freshness"></span>
-      <span class="clock mono" id="clock">--:--</span>
+      <span class="fresh" id="freshness"></span>
+      </div>
     </div>
   </header>
 
@@ -86,11 +90,11 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="m7 9.5 3 2.7-3 2.7M12.5 15H17"/></svg>
       <span>Консоль</span>
     </a>
-    <a href="#/settings" data-route="settings"><span>Настройки сервера</span></a>
+    <a href="#/settings" data-route="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2" fill="currentColor"/><circle cx="15" cy="12" r="2" fill="currentColor"/><circle cx="9" cy="17" r="2" fill="currentColor"/></svg><span>Настройки</span></a>
     <button type="button" class="nav-more" id="navMore" aria-expanded="false" aria-controls="moreMenu">Ещё</button>
   </nav>
   <div id="moreMenu" class="more-menu" hidden>
-    <a href="#/settings">Настройки сервера</a><a href="#/maintenance">Обслуживание</a>
+    <a href="#/settings">Настройки</a><a href="#/maintenance">Обслуживание</a>
     <a href="#/backups">Бэкапы</a><a href="#/events">События</a><a href="#/console">Консоль</a>
   </div>
 
@@ -268,7 +272,7 @@
             <select id="modFilter" aria-label="Состояние пакета"><option value="all">Все</option><option value="selected">Выбранные</option><option value="disabled">Выключенные</option><option value="pending">Ожидают загрузки</option><option value="problems">С проблемами</option><option value="updates">С обновлениями</option></select>
             <select id="modSortNew" aria-label="Порядок отображения"><option value="config">Как в конфиге</option><option value="title">По названию</option></select>
           </div>
-          <div class="editor-toolbar"><button type="button" id="modExport" class="btn small">Экспорт набора</button><label class="btn small">Импорт набора<input type="file" id="modImport" accept="application/json,.json" class="sr-only" /></label><button type="button" class="btn small" id="modRescan">Перечитать метаданные</button></div>
+          <div class="editor-toolbar"><button type="button" id="modExport" class="btn small">Экспорт набора</button><label class="btn small import-button">Импорт набора<input type="file" id="modImport" accept="application/json,.json" class="sr-only" /></label><button type="button" class="btn small" id="modRescan">Перечитать метаданные</button></div>
           <div id="installNotice" class="install-notice" hidden></div>
           <div id="modPackages" class="list"><p class="hint">Выберите профиль конфигурации.</p></div>
         </div>
@@ -364,7 +368,7 @@
           <button type="button" role="tab" aria-selected="true" data-tab="server">Сервер</button><button type="button" role="tab" aria-selected="false" data-tab="world">Мир</button><button type="button" role="tab" aria-selected="false" data-tab="custom">Настройки модов</button><button type="button" role="tab" aria-selected="false" data-tab="sources">Исходники</button><button type="button" role="tab" aria-selected="false" data-tab="history">История изменений</button>
         </div>
         <input id="configSearch" type="search" placeholder="Название или технический ключ…" aria-label="Поиск настройки" />
-        <p class="hint">Настройки существующего мира могут применяться только к новым областям или новым персонажам. Исходные неизвестные параметры сохраняются.</p>
+        <p id="configWorldNotice" class="hint" hidden>Настройки существующего мира могут применяться только к новым областям или новым персонажам. Исходные неизвестные параметры сохраняются.</p>
         <div id="configFields"></div>
         <div id="configSources" hidden>
           <p class="hint">Скрытые пароли обозначены __PZ_SECRET_UNCHANGED__. Оставьте маркер, чтобы сохранить пароль. Запись выполняется после проверки.</p>
@@ -598,8 +602,10 @@
   </main>
   <div class="draft-bar" id="draftBar" hidden role="region" aria-label="Изменения конфигурации">
     <button type="button" id="draftRetry" class="btn small" hidden>Повторить сохранение черновика</button>
-    <span id="draftLabel">Черновик</span><span id="draftSaved" class="hint" aria-live="polite"></span><button type="button" id="editorLogs" class="btn small">Логи операции</button>
-    <button type="button" id="configDiff" class="btn small">Посмотреть изменения</button><button type="button" id="configDiscard" class="btn small">Отменить</button><button type="button" id="configSave" class="btn small">Сохранить</button><button type="button" id="configApply" class="btn primary small">Применить с рестартом…</button>
+    <span id="draftLabel">Черновик</span><span id="draftSaved" class="hint" aria-live="polite"></span>
+    <div id="draftExtra" class="draft-extra"><button type="button" id="editorLogs" class="btn small">Логи операции</button><button type="button" id="configDiscard" class="btn small">Отменить</button><button type="button" id="configSave" class="btn small">Сохранить</button></div>
+    <button type="button" id="configDiff" class="btn small">Посмотреть изменения</button><button type="button" id="configApply" class="btn primary small">Применить с рестартом…</button>
+    <button type="button" id="draftMore" class="btn small draft-more" aria-label="Другие действия с черновиком" aria-expanded="false" aria-controls="draftExtra">⋯</button>
   </div>
 
   <footer class="foot" data-od-id="footer">

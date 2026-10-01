@@ -133,7 +133,7 @@ def container_startup_version(name, started_at, timeout=15):
         process = subprocess.Popen(
             ["docker", "logs", "--since", started_at, "--timestamps", name],
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
             text=True,
             encoding="utf-8",
             errors="replace",

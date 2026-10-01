@@ -6,6 +6,8 @@ window.ConfigEditor = (() => {
   let previousOp = false, lastRefresh = 0, dragId = null, pendingPatches = 0;
   let unsaved = [];
   let operationMarkup = "";
+  const groupStates = new Map();
+  let fieldQuery = "";
   const SECRET = "__PZ_SECRET_UNCHANGED__";
   const statuses = { draft: "Есть черновик", saved: "Сохранено, требуется запуск", applying: "Применение", applied: "Применено", error: "Ошибка", unconfirmed: "Применение не подтверждено", "select-mods": "Пакеты загружены; выберите ModID" };
   const call = async (path, body) => {
@@ -23,20 +25,24 @@ window.ConfigEditor = (() => {
     if (!draft) { $("draftBar").hidden = true; return; }
     const busy = !!S.op?.active;
     const editorView = ["settings", "mods"].includes(activeView);
-    $("draftBar").hidden = !editorView;
+    const needsAction = draft.changed || sourceDirty || fieldDirty || unsaved.length || draft.conflict || !$("configError").hidden || ["saved", "applying", "error", "select-mods"].includes(draft.status);
+    $("draftBar").hidden = !editorView || !needsAction;
     $("draftRetry").hidden = !unsaved.length;
     $("draftLabel").textContent = (statuses[draft.status] || "Конфигурация") + (draft.changed ? ` · изменённых строк: ${draft.changedLines || 1}` : "");
     $("configStatus").textContent = statuses[draft.status] || "Конфигурация";
-    $("configStatus").dataset.state = draft.conflict || draft.status === "error" ? "bad" : draft.changed ? "warn" : "ok";
-    $("configApply").disabled = busy || !draft.canApply || !draft.canWrite || S.demo || loading || fieldDirty;
+    $("configStatus").dataset.state = draft.conflict || draft.status === "error" ? "bad" : draft.changed || draft.status !== "applied" ? "warn" : "ok";
+    $("configApply").disabled = busy || !draft.canApply || !draft.canWrite || S.demo || loading || fieldDirty || !needsAction;
     $("configSave").disabled = busy || !draft.canWrite || !!S.overview?.containerInfo?.running || S.demo || loading || fieldDirty;
     $("configDiscard").disabled = busy || S.demo || loading;
     $("configApply").title = draft.canApply ? "" : "Выбран неактивный или неподтверждённый профиль";
     $("configSave").title = S.overview?.containerInfo?.running ? "Сначала остановите сервер" : "";
     if (busy) $("draftSaved").textContent = `${S.op.active.phase || "Операция"} · ${S.op.active.message || ""}`;
     $("configFields").querySelectorAll("[data-key]").forEach(el => { el.disabled = busy || S.demo || !!el.dataset.owner; });
-    $("configActive").textContent = draft.canApply ? "Активный профиль" : "Редактирование другого / неподтверждённого профиля";
-    $("configVersion").textContent = draft.version ? `Версия ${draft.version}` : "B42 · версия неизвестна";
+    const profileState = $("configActive");
+    profileState.textContent = draft.canApply ? "Активен на сервере" : draft.activeFile ? "Другой профиль" : "Не подтверждён";
+    profileState.dataset.state = draft.canApply ? "active" : draft.activeFile ? "other" : "unknown";
+    profileState.title = draft.activeFile ? `Сервер использует ${draft.activeFile}` : "Не удалось определить профиль запуска сервера";
+    $("configVersion").textContent = draft.version ? `PZ ${draft.version}` : "B42 · версия неизвестна";
     if (draft.conflict) {
       $("configError").textContent = "Рабочие файлы изменились. Посмотрите конфликт; отмена черновика загрузит свежие файлы.";
       $("configError").hidden = false;
@@ -52,7 +58,7 @@ window.ConfigEditor = (() => {
     result.hidden = !editorView || !state.operationStartedAt;
     if (!result.hidden) {
       const status = busy ? "applying" : state.status;
-      result.dataset.state = status === "error" ? "bad" : "ok";
+      result.dataset.state = status === "error" ? "bad" : status === "applied" ? "ok" : "warn";
       const markup = `<strong>${esc(statuses[status] || "Результат операции")}</strong><p class="hint">Профиль ${esc(file)} · ${esc(fmtTime(state.operationCompletedAt || state.operationStartedAt))}</p>${state.error ? `<p class="editor-error">${esc(state.error)}</p>` : ""}${(state.verificationProblems || []).filter(p => p.severity !== "error").map(p => `<p class="hint">${esc(p.message)}</p>`).join("")}${state.worldBackup ? `<p class="hint">Бэкап мира: ${esc(state.worldBackup)}</p>` : ""}<div class="editor-toolbar"><button type="button" class="btn small" data-operation-logs>Логи операции</button>${status === "error" && state.historyId ? '<button type="button" class="btn small" data-operation-restore>Восстановить прежнюю конфигурацию…</button>' : ""}</div>`;
       if (markup !== operationMarkup) { result.innerHTML = markup; operationMarkup = markup; }
     }
@@ -89,7 +95,7 @@ window.ConfigEditor = (() => {
     try {
       const data = await call("/api/server-configs");
       const profiles = data.profiles || [];
-      $("configProfile").innerHTML = `<option value="">Выберите профиль…</option>` + profiles.map(p => `<option value="${esc(p.file)}">${esc(p.file)}${p.active ? " · активный" : ""}</option>`).join("");
+      $("configProfile").innerHTML = `<option value="">Выберите профиль…</option>` + profiles.map(p => `<option value="${esc(p.file)}">${esc(p.file)}</option>`).join("");
       let preferred = "";
       try { preferred = localStorage.getItem("pz-config-profile") || ""; } catch (_) { /* optional preference */ }
       const next = profiles.some(p => p.file === preferred) ? preferred : data.activeFile || (profiles.length === 1 ? profiles[0].file : "");
@@ -166,22 +172,32 @@ window.ConfigEditor = (() => {
     return `<input ${attrs} type="${rec.secret ? "password" : numeric ? "number" : "text"}" value="${rec.secret ? "" : esc(rec.value)}" ${rec.secret ? 'placeholder="Сохранённый пароль скрыт" autocomplete="new-password"' : ""} ${numeric ? `step="${rec.type === "integer" ? "1" : "any"}"` : ""} ${rec.min !== undefined ? `min="${esc(rec.min)}"` : ""} ${rec.max !== undefined ? `max="${esc(rec.max)}"` : ""} />`;
   }
   function renderFields() {
+    if (!fieldQuery) $("configFields").querySelectorAll("details[data-group-key]").forEach(el => groupStates.set(el.dataset.groupKey, el.open));
     $("configFields").hidden = ["sources", "history"].includes(configTab);
     $("configSources").hidden = configTab !== "sources";
     $("configHistory").hidden = configTab !== "history";
     $("configSearch").hidden = ["sources", "history"].includes(configTab);
+    $("configWorldNotice").hidden = !["world", "custom"].includes(configTab);
     if (!draft || ["sources", "history"].includes(configTab)) return;
     if (configTab !== "server" && draft.sandboxDiagnostic) {
       $("configFields").innerHTML = `<p class="editor-error">${esc(draft.sandboxDiagnostic)}. Форма отключена. В исходнике все литералы скрыты маркерами __PZ_RAW_LITERAL_; оставьте маркеры для сохранения исходных значений. Lua проверяется без выполнения.</p>`;
       return;
     }
     const query = $("configSearch").value.toLowerCase();
+    fieldQuery = query;
     const groups = new Map();
     fields().filter(o => `${o.key} ${o.label}`.toLowerCase().includes(query)).forEach((rec, i) => {
       if (!groups.has(rec.group)) groups.set(rec.group, []);
-      groups.get(rec.group).push(`<div class="config-field"><label for="config-field-${i}"><strong>${esc(rec.label)}</strong><code>${esc(rec.key)}</code></label>${fieldControl(rec, i)}<p class="hint">${esc(rec.owner ? `Источник: ${rec.owner}. Измените параметр в окружении контейнера.` : rec.hint || "Применяется после запуска; влияние на существующий мир зависит от параметра")}${rec.absent ? " · Значение по умолчанию ещё не записано" : ""}</p><p class="field-error" data-error-key="${esc(rec.key)}" role="alert" hidden></p>${configTab !== "server" && rec.preserved ? `<button type="button" class="btn small" data-remove-option="${esc(rec.key)}">Удалить параметр…</button>` : ""}</div>`);
+      groups.get(rec.group).push(`<div class="config-field"><label for="config-field-${i}"><strong>${esc(rec.label)}</strong>${rec.label !== rec.key ? `<code>${esc(rec.key)}</code>` : ""}</label><div class="config-control">${fieldControl(rec, i)}</div><p class="hint">${esc(rec.owner ? `Источник: ${rec.owner}. Измените параметр в окружении контейнера.` : rec.hint || "Применяется после запуска; влияние на существующий мир зависит от параметра")}${rec.absent ? " · Значение по умолчанию ещё не записано" : ""}</p><p class="field-error" data-error-key="${esc(rec.key)}" role="alert" hidden></p>${configTab !== "server" && rec.preserved ? `<button type="button" class="btn small" data-remove-option="${esc(rec.key)}">Удалить параметр…</button>` : ""}</div>`);
     });
-    $("configFields").innerHTML = (configTab === "server" ? '<p><a href="#/mods">Mods, WorkshopItems и карты → редактор модов</a></p>' : "") + [...groups].map(([name, entries]) => `<details class="config-group" open><summary>${esc(name)} <span class="hint">${entries.length}</span></summary><div class="config-grid">${entries.join("")}</div></details>`).join("") || '<p class="hint">Нет настроек. При необходимости добавьте параметр в исходник.</p>';
+    const order = ["Доступ и игроки", "PvP", "Чат", "Сохранение мира", "Безопасные дома", "Сеть", "Дополнительные параметры"];
+    const ordered = [...groups].sort(([a], [b]) => configTab === "server" ? order.indexOf(a) - order.indexOf(b) : 0);
+    const html = ordered.map(([name, entries]) => {
+      const key = `${configTab}:${name}`;
+      const open = query || (groupStates.get(key) ?? name !== "Дополнительные параметры");
+      return `<details class="config-group" data-group-key="${esc(key)}" ${open ? "open" : ""}><summary>${esc(name)} <span class="group-count">${entries.length}</span></summary><div class="config-grid">${entries.join("")}</div></details>`;
+    }).join("");
+    $("configFields").innerHTML = (configTab === "server" ? '<p class="config-mod-link"><a href="#/mods">Mods, WorkshopItems и карты → редактор модов</a></p>' : "") + (html || '<p class="hint">Нет настроек, соответствующих поиску.</p>');
   }
   function highlight(kind) {
     const input = $(kind + "Source"), output = $(kind + "Highlight");
@@ -404,6 +420,13 @@ window.ConfigEditor = (() => {
     renderLogsFiltered(); location.hash = "#/console";
   }
   $("editorLogs").addEventListener("click", operationLogs);
+  $("draftMore").addEventListener("click", () => {
+    const open = $("draftMore").getAttribute("aria-expanded") !== "true";
+    $("draftMore").setAttribute("aria-expanded", String(open));
+    $("draftExtra").dataset.open = String(open);
+  });
+  document.addEventListener("click", e => { if (!e.target.closest("#draftExtra, #draftMore")) { $("draftExtra").dataset.open = "false"; $("draftMore").setAttribute("aria-expanded", "false"); } });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && $("draftExtra").dataset.open === "true") { $("draftExtra").dataset.open = "false"; $("draftMore").setAttribute("aria-expanded", "false"); $("draftMore").focus(); } });
   function restoreHistory(id) {
     modal.open({ title: "Восстановить версию в черновик?", bodyHTML: "Текущий черновик будет заменён. После загрузки просмотрите различия и отдельно примените изменения.", onConfirm: async () => {
       await chain;
@@ -435,7 +458,8 @@ window.ConfigEditor = (() => {
     const next = e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : (current + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
     tabs[next].focus(); tabs[next].click();
   });
-  document.addEventListener("keydown", e => { if (e.key === "Escape") { $("moreMenu").hidden = true; $("navMore").setAttribute("aria-expanded", "false"); } });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("moreMenu").hidden) { $("moreMenu").hidden = true; $("navMore").setAttribute("aria-expanded", "false"); $("navMore").focus(); } });
+  document.addEventListener("click", e => { if (!e.target.closest("#moreMenu, #navMore")) { $("moreMenu").hidden = true; $("navMore").setAttribute("aria-expanded", "false"); } });
   window.addEventListener("beforeunload", e => { if (sourceDirty || fieldDirty) { e.preventDefault(); e.returnValue = ""; } });
   window.addEventListener("hashchange", updateBar);
   setInterval(async () => {

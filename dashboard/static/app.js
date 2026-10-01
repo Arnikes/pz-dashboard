@@ -389,7 +389,6 @@ function renderOverview(o) {
   $("mContainer").dataset.copy = o.container || "";
   $("mImage").dataset.copy = o.image || "";
   if (o.update?.local) $("mDigest").dataset.copy = o.update.local; else $("mDigest").removeAttribute("data-copy");
-  $("topLamp").dataset.state = lamp.dataset.state;
 
   // блок обновлений
   const u = o.update || {};
@@ -1900,17 +1899,18 @@ function refreshAll() {
 function updateFreshness() {
   const el = $("freshness");
   if (!el) return;
-  if (S.demo || !S.lastDataOk) { el.textContent = ""; el.classList.remove("stale"); return; }
+  if (S.demo || !S.lastDataOk) { el.textContent = ""; el.title = ""; el.classList.remove("stale"); return; }
+  const updated = timeFullFmt.format(S.lastDataOk);
   const age = Date.now() - S.lastDataOk;
   if (age < 15000) {
     el.classList.remove("stale");
-    el.textContent = timeFullFmt.format(S.lastDataOk);
-    el.title = "Данные обновлены в " + timeFullFmt.format(S.lastDataOk);
+    el.textContent = "Данные обновлены " + updated;
+    el.title = "Время последнего успешного получения данных сервера";
   } else {
     el.classList.add("stale");
     const mins = Math.floor(age / 60000);
     el.textContent = "нет данных " + (mins >= 1 ? mins + " мин" : Math.floor(age / 1000) + " с");
-    el.title = "Пульт не получает свежие данные от бэкенда";
+    el.title = "Последние данные получены в " + updated;
   }
 }
 
@@ -1928,13 +1928,17 @@ function startPolling() {
   setInterval(refreshMods, 60000);
 }
 
-function startClock() {
-  const tick = () => { $("clock").textContent = new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }); };
-  tick();
-  setInterval(tick, 15000);
-}
-
 /* ───────────────────────── запуск ───────────────────────── */
+
+// Keep fixed navigation, draft controls and notifications clear of each other
+// when text wraps, the viewport changes or a device has a bottom safe area.
+const layoutObserver = new ResizeObserver(() => {
+  for (const [selector, variable] of [[".topbar", "--header-height"], [".nav", "--nav-height"], ["#draftBar", "--draft-height"]]) {
+    const height = document.querySelector(selector)?.getBoundingClientRect().height || 0;
+    document.documentElement.style.setProperty(variable, `${Math.ceil(height)}px`);
+  }
+});
+for (const selector of [".topbar", ".nav", "#draftBar"]) layoutObserver.observe(document.querySelector(selector));
 
 /* ───────────────────── роутер страниц ───────────────────── */
 
@@ -1966,6 +1970,8 @@ function applyRoute() {
     if (a.dataset.route === r) a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
   });
+  if (!["overview", "players", "mods"].includes(r)) $("navMore").setAttribute("aria-current", "page");
+  else $("navMore").removeAttribute("aria-current");
   document.title = `${VIEWS[r]} · PZ Пульт`;
   window.scrollTo(0, 0);
   const view = $("view-" + r);
@@ -2019,7 +2025,6 @@ function startSse() {
 }
 
 async function boot() {
-  startClock();
   // тикер свежести живёт всегда: в SSE-режиме при молчащем потоке шапка
   // честно показывает «нет данных N мин», а не замирает на старом времени
   setInterval(updateFreshness, 5000);

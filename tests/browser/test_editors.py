@@ -55,6 +55,208 @@ def navigate(page, route, mobile=False):
         page.locator(f'.nav [data-route="{route}"]').click()
 
 
+@pytest.mark.parametrize("width", [390, 768, 1440, 2048])
+def test_editor_layout_controls_and_draft_do_not_cover_content(page, dashboard, editing, width):
+    data, _ = editing
+    page.set_viewport_size({"width": width, "height": 844})
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "settings", width <= 740)
+    expect(page.locator("#draftBar")).to_be_hidden()
+    page.locator('[data-key="PublicName"]').fill("Layout draft")
+    page.locator('[data-key="PublicName"]').press("Tab")
+    expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
+    expect(page.locator("#draftBar")).to_be_visible()
+    metrics = page.evaluate("""() => {
+        const box = s => document.querySelector(s).getBoundingClientRect();
+        const bar = box('#draftBar'), nav = box('.nav'), header = box('.topbar');
+        const search = box('#configSearch'), card = box('#view-settings .card');
+        const columns = getComputedStyle(document.querySelector('.config-grid')).gridTemplateColumns.split(' ').length;
+        return {barTop:bar.top,barBottom:bar.bottom,navTop:nav.top,navBottom:nav.bottom,
+            headerBottom:header.bottom,headerHeight:header.height,searchWidth:search.width,cardWidth:card.width,
+            columns,overflow:document.documentElement.scrollWidth > innerWidth};
+    }""")
+    assert not metrics["overflow"] and metrics["columns"] <= 3
+    assert metrics["searchWidth"] >= min(500, metrics["cardWidth"] - 40)
+    if width <= 740:
+        assert metrics["headerHeight"] < 170
+        assert metrics["barBottom"] < metrics["navTop"]
+        assert metrics["barTop"] > 400
+        assert metrics["barBottom"] - metrics["barTop"] < 160
+    else:
+        assert metrics["navTop"] >= metrics["headerBottom"]
+        assert metrics["cardWidth"] <= 1500
+    # Scroll to the last field; the measured bottom space must clear the draft.
+    page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
+    last = page.locator("#configFields [data-key]:visible").last.bounding_box()
+    assert last["y"] + last["height"] < page.locator("#draftBar").bounding_box()["y"]
+    assert (data / "Server/world.ini").read_bytes() == INI.encode()
+    page.evaluate("scrollTo(0, 0)")
+    page.screenshot(path=str(data.parent / f"review-settings-{width}.png"), full_page=False)
+
+
+def test_search_restores_collapsed_groups_and_shows_empty_result(page, dashboard, editing):
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "settings")
+    group = page.locator('details[data-group-key="server:Доступ и игроки"]')
+    group.locator("summary").click()
+    expect(group).not_to_have_attribute("open", "")
+    page.locator("#configSearch").fill("PublicName")
+    expect(group).to_have_attribute("open", "")
+    page.locator("#configSearch").fill("no-match-setting")
+    expect(page.locator("#configFields")).to_contain_text("Нет настроек, соответствующих поиску")
+    page.locator("#configSearch").fill("")
+    expect(group).not_to_have_attribute("open", "")
+
+
+def test_short_phone_diff_keeps_confirmation_buttons_reachable(page, dashboard, editing):
+    page.set_viewport_size({"width": 390, "height": 568})
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "settings", True)
+    page.locator('[data-key="PublicName"]').fill("Diff draft")
+    page.locator('[data-key="PublicName"]').press("Tab")
+    expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
+    page.locator("#configDiff").click()
+    expect(page.get_by_role("alertdialog")).to_be_visible()
+    page.evaluate(
+        "document.querySelector('.modal-body').prepend(Object.assign(document.createElement('p'),{textContent:'Long diff '.repeat(800)}))"
+    )
+    dialog = page.get_by_role("alertdialog").bounding_box()
+    button = page.locator("#modalCancel").bounding_box()
+    assert dialog["y"] >= 0 and dialog["y"] + dialog["height"] <= 568
+    assert button["y"] + button["height"] <= 568
+    page.locator("#modalCancel").click()
+    assert dashboard["actions"] == []
+
+
+def test_more_menu_escape_restores_focus_and_marks_extra_page(page, dashboard, editing):
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "settings", True)
+    expect(page.locator("#navMore")).to_have_attribute("aria-current", "page")
+    page.locator("#navMore").click()
+    page.locator('#moreMenu a[href="#/settings"]').focus()
+    page.keyboard.press("Escape")
+    expect(page.locator("#moreMenu")).to_be_hidden()
+    expect(page.locator("#navMore")).to_be_focused()
+
+
+def test_phone_draft_secondary_actions_stay_available(page, dashboard, editing):
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "settings", True)
+    page.locator('[data-key="PublicName"]').fill("Compact draft")
+    page.locator('[data-key="PublicName"]').press("Tab")
+    expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
+    expect(page.locator("#editorLogs")).to_be_hidden()
+    page.locator("#draftMore").click()
+    expect(page.locator("#editorLogs")).to_be_visible()
+    expect(page.locator("#configDiscard")).to_be_visible()
+    page.locator("#configDiscard").click()
+    expect(page.get_by_role("alertdialog")).to_contain_text("Отменить черновик")
+    page.locator("#modalCancel").click()
+    page.locator("#draftMore").click()
+    page.locator("#editorLogs").focus()
+    page.keyboard.press("Escape")
+    expect(page.locator("#editorLogs")).to_be_hidden()
+    expect(page.locator("#draftMore")).to_be_focused()
+
+
+@pytest.mark.parametrize("width", [390, 1440])
+def test_control_text_fits_and_settings_has_navigation_icon(page, dashboard, editing, width):
+    page.set_viewport_size({"width": width, "height": 844})
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    settings = page.locator('.nav [data-route="settings"]')
+    expect(settings).to_have_text("Настройки")
+    expect(settings.locator("svg")).to_have_count(1)
+    for route in ("settings", "mods", "maintenance", "backups", "console"):
+        navigate(page, route, width <= 740)
+        clipped = page.evaluate("""() => [...document.querySelectorAll('input:not([type=checkbox]):not([type=file]), select, button.btn, label.btn')].filter(el => {
+            const r = el.getBoundingClientRect();
+            if (!r.width || !r.height) return false;
+            const s = getComputedStyle(el);
+            if (el.matches('input,select')) return el.clientHeight - parseFloat(s.paddingTop) - parseFloat(s.paddingBottom) + 1 < parseFloat(s.lineHeight);
+            const range = document.createRange(); range.selectNodeContents(el);
+            const text = range.getBoundingClientRect();
+            return text.height > 0 && (text.top < r.top || text.bottom > r.bottom);
+        }).map(el => el.id || el.textContent.trim())""")
+        assert not clipped, f"Text is vertically clipped on {route}: {clipped}"
+    assert dashboard["actions"] == []
+
+
+@pytest.mark.parametrize("width", [390, 768, 1440])
+def test_header_profile_context_is_clear_and_aligned(page, dashboard, editing, width):
+    data, _ = editing
+    other = "Life Before - альтернативный профиль.ini"
+    (data / "Server" / other).write_bytes(INI.encode())
+    page.set_viewport_size({"width": width, "height": 844})
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    expect(page.locator("#configActive")).to_have_text("Активен на сервере")
+    expect(page.locator("#configActive")).to_have_attribute("data-state", "active")
+    expect(page.locator("#configVersion")).to_have_text("PZ 42.15.1")
+    expect(page.locator("#configProfile option:checked")).to_have_text("world.ini")
+    expect(page.locator("#clock, #topLamp")).to_have_count(0)
+    page.locator("#configProfile").select_option(other)
+    expect(page.locator("#configActive")).to_have_text("Другой профиль")
+    expect(page.locator("#configActive")).to_have_attribute("title", "Сервер использует world.ini")
+    expect(page.locator("#configApply")).to_be_disabled()
+    geometry = page.evaluate("""() => {
+        const box = s => document.querySelector(s).getBoundingClientRect();
+        const label = box('.profile-meta label'), state = box('#configActive');
+        const select = box('#configProfile'), header = box('.topbar');
+        return {labelBottom:label.bottom,stateBottom:state.bottom,selectTop:select.top,
+            labelLeft:label.left,selectLeft:select.left,stateRight:state.right,selectRight:select.right,
+            height:header.height,overflow:document.documentElement.scrollWidth > innerWidth};
+    }""")
+    assert abs(geometry["labelBottom"] - geometry["stateBottom"]) <= 3
+    assert geometry["selectTop"] > max(geometry["labelBottom"], geometry["stateBottom"])
+    assert geometry["labelLeft"] == geometry["selectLeft"]
+    assert geometry["stateRight"] <= geometry["selectRight"]
+    assert not geometry["overflow"]
+    if width <= 740:
+        assert geometry["height"] < 170
+    page.locator("#configProfile").select_option("world.ini")
+    expect(page.locator("#configActive")).to_have_text("Активен на сервере")
+    page.locator(".topbar").screenshot(path=str(data.parent / f"review-header-{width}.png"))
+    assert dashboard["actions"] == []
+
+
+def test_header_does_not_claim_unknown_profile_is_active(page, dashboard, editing):
+    _, context = editing
+    context["activeFile"] = None
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    expect(page.locator("#configActive")).to_have_text("Не подтверждён")
+    expect(page.locator("#configActive")).to_have_attribute("data-state", "unknown")
+    expect(page.locator("#configApply")).to_be_disabled()
+
+
+def test_header_time_describes_data_freshness_and_preserves_last_update(page, dashboard, editing):
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    result = page.evaluate("""() => {
+        S.demo = false;
+        const lastUpdate = Date.now(); S.lastDataOk = lastUpdate;
+        updateFreshness();
+        const fresh = document.querySelector('#freshness').textContent;
+        S.lastDataOk = lastUpdate - 120000; updateFreshness();
+        const el = document.querySelector('#freshness');
+        return {fresh,stale:el.textContent,lastUpdate:el.title,warning:el.classList.contains('stale'),
+            expectedTime:timeFullFmt.format(S.lastDataOk)};
+    }""")
+    assert result["fresh"].startswith("Данные обновлены ")
+    assert result["stale"] == "нет данных 2 мин"
+    assert result["lastUpdate"] == "Последние данные получены в " + result["expectedTime"]
+    assert result["warning"]
+    expect(page.locator("#clock, #topLamp")).to_have_count(0)
+
+
 @pytest.mark.parametrize("width", [1440, 390])
 def test_real_form_draft_mod_selection_and_sources(page, dashboard, editing, width):
     data, _ = editing
@@ -91,7 +293,7 @@ def test_background_refresh_preserves_profile_focus_and_draft(page, dashboard, e
     page.goto(dashboard["url"])
     expect(page.locator("#configProfile")).to_have_value("world.ini")
     page.locator("#configProfile").select_option("another.ini")
-    expect(page.locator("#configActive")).to_contain_text("другого")
+    expect(page.locator("#configActive")).to_have_text("Другой профиль")
     navigate(page, "settings")
     field = page.locator('[data-key="PublicName"]')
     field.fill("Other draft")
