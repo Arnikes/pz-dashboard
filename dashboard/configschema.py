@@ -92,11 +92,46 @@ SANDBOX = {
     "WeaponLootNew": {"label": "Добыча оружия", "group": "Добыча", "min": 0},
     "AmmoLootNew": {"label": "Добыча патронов", "group": "Добыча", "min": 0},
     "MultiHitZombies": {"label": "Мультиудар", "group": "Персонажи"},
-    "StarterKit": {"label": "Стартовый набор", "group": "Персонажи", "newWorld": True},
+    "StarterKit": {"label": "Стартовый набор", "group": "Персонажи"},
     "EnableVehicles": {"label": "Транспорт", "group": "Транспорт"},
     "VehicleEasyUse": {"label": "Простое использование транспорта", "group": "Транспорт"},
     "AnimalSoundAttractZombies": {"label": "Звуки животных привлекают зомби", "group": "Животные"},
     "PlantGrowingSeasons": {"label": "Сезоны роста растений", "group": "Природа"},
+}
+
+# Applicability is separate from translated descriptions and numeric bounds.
+# Verified against the installed B42.21 sources; do not infer it from key names.
+SANDBOX_APPLICABILITY = {
+    "StartYear": "world",
+    "StartMonth": "world",
+    "StartDay": "world",
+    "StartTime": "world",
+    "StarterKit": "character",
+    "CarSpawnRate": "areas",
+    "InitialGas": "vehicles",
+    "ChanceHasGas": "vehicles",
+}
+APPLICATION_SCOPES = {
+    "world": {
+        "kind": "world",
+        "label": "Начало нового мира",
+        "hint": "Задаёт начальную дату или время. Рестарт не переводит существующий мир к началу.",
+    },
+    "character": {
+        "kind": "character",
+        "label": "Новые персонажи",
+        "hint": "Стартовый набор при появлении персонажа. Инвентарь существующих персонажей не меняется.",
+    },
+    "areas": {
+        "kind": "areas",
+        "label": "Новые области",
+        "hint": "Количество машин при первом заполнении области. Уже созданные машины не добавляются и не удаляются.",
+    },
+    "vehicles": {
+        "kind": "vehicles",
+        "label": "Новые машины",
+        "hint": "Начальное топливо при создании машины. Запас топлива существующих машин не меняется.",
+    },
 }
 
 # Presentation metadata does not invent numeric limits. Game-generated comments
@@ -395,6 +430,8 @@ def field(key, value, sandbox=False, custom=None, schema=None, translations=None
         rec.update(SANDBOX.get(key, {}))
         if key in SANDBOX:
             rec["stock"] = True
+        if rec.get("stock") and rec["hint"] == "Параметр вне каталога: ограничения не определены":
+            rec["hint"] = "Штатная настройка B42"
         if key not in SANDBOX and key not in WORLD_LABELS:
             prefix = key.split(".")[0]
             rec["group"] = next(
@@ -470,6 +507,6 @@ def field(key, value, sandbox=False, custom=None, schema=None, translations=None
                 break
     if rec["type"] == "boolean" and isinstance(value, str):
         rec["value"] = value.lower() == "true"
-    if sandbox and rec.get("newWorld"):
-        rec["hint"] = "Начальные условия: существующий мир может не измениться"
+    if sandbox and not custom and key in SANDBOX_APPLICABILITY:
+        rec["applicationScope"] = APPLICATION_SCOPES[SANDBOX_APPLICABILITY[key]].copy()
     return rec

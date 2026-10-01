@@ -61,6 +61,56 @@ def test_stock_boolean_and_nested_fields_are_not_orphaned_mod_options():
         configschema.field("Map.AllowWorldMap", True, sandbox=True)["group"] == "Карта и интерфейс"
     )
     assert not configschema.field("AbsentMod.Setting", 4, sandbox=True).get("stock")
+    assert "вне каталога" not in configschema.field("StartYear", 1, sandbox=True)["hint"]
+
+
+@pytest.mark.parametrize(
+    "key,kind",
+    [
+        ("StartYear", "world"),
+        ("StartMonth", "world"),
+        ("StartDay", "world"),
+        ("StartTime", "world"),
+        ("StarterKit", "character"),
+        ("CarSpawnRate", "areas"),
+        ("InitialGas", "vehicles"),
+        ("ChanceHasGas", "vehicles"),
+    ],
+)
+def test_applicability_retains_installed_description_and_does_not_change_validation(key, kind):
+    original_hint = "Описание установленной версии игры"
+    field = configschema.field(
+        key,
+        True if key == "StarterKit" else 2,
+        sandbox=True,
+        translations={
+            f"Sandbox_{key}": "Переведённое имя",
+            f"Sandbox_{key}_tooltip": original_hint,
+        },
+    )
+    assert field["applicationScope"]["kind"] == kind
+    assert field["hint"] == original_hint and field["label"] == "Переведённое имя"
+    if key == "StarterKit":
+        assert field["type"] == "boolean" and not field.get("newWorld")
+    field["applicationScope"]["hint"] = "Changed by a caller"
+    assert (
+        configschema.field(key, 2, sandbox=True)["applicationScope"]["hint"]
+        != "Changed by a caller"
+    )
+
+
+def test_applicability_does_not_guess_scope_of_runtime_or_mod_settings():
+    for key in (
+        "DayLength",
+        "LootRespawn",
+        "CarGasConsumption",
+        "Mod.StartYear",
+        "UnknownCarOption",
+    ):
+        assert "applicationScope" not in configschema.field(key, 2, sandbox=True)
+    custom = configschema.field("StarterKit", True, sandbox=True, custom={"label": "Custom"})
+    assert "applicationScope" not in custom
+    assert "applicationScope" not in configschema.field("StartYear", "1993")
 
 
 def test_stock_strong_enum_serializes_numeric_index_not_text():

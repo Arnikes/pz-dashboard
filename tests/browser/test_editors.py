@@ -144,6 +144,60 @@ def test_game_tooltip_markup_is_readable_and_never_executed(page, dashboard, edi
     assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
 
 
+@pytest.mark.parametrize("width", [320, 390, 1440])
+def test_sandbox_applicability_is_separate_accessible_and_keeps_fields_aligned(
+    page, dashboard, editing, monkeypatch, width
+):
+    data, _ = editing
+    path = data / "Server/world_SandboxVars.lua"
+    path.write_text(
+        "SandboxVars={VERSION=5, StartYear=1, StarterKit=true, CarSpawnRate=3, InitialGas=2, DayLength=4}",
+        encoding="utf-8",
+    )
+    original = path.read_bytes()
+    monkeypatch.setattr(
+        editor.workshop,
+        "vanilla_translations",
+        lambda *args, **kwargs: {
+            "Sandbox_StarterKit": "Стартовый набор",
+            "Sandbox_StarterKit_tooltip": "Описание набора из установленной игры",
+        },
+    )
+    page.set_viewport_size({"width": width, "height": 844})
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "settings", width <= 740)
+    page.get_by_role("tab", name="Мир", exact=True).click()
+    for key, kind in (
+        ("StartYear", "world"),
+        ("StarterKit", "character"),
+        ("CarSpawnRate", "areas"),
+        ("InitialGas", "vehicles"),
+    ):
+        field = page.locator(f'.config-field:has([data-key="{key}"])')
+        scope = field.locator(".config-scope")
+        expect(scope).to_be_visible()
+        expect(scope).to_have_attribute("data-scope", kind)
+        described = field.locator("[data-key]").get_attribute("aria-describedby").split()
+        assert scope.get_attribute("id") in described
+        assert field.locator(".hint").get_attribute("id") in described
+        metrics = field.evaluate("""el => {
+            const field = el.getBoundingClientRect(), scope = el.querySelector('.config-scope').getBoundingClientRect();
+            const control = el.querySelector('.config-control').getBoundingClientRect();
+            return {left:scope.left >= field.left,right:scope.right <= field.right,
+                below:scope.top >= control.bottom};
+        }""")
+        assert all(metrics.values())
+    starter = page.locator('.config-field:has([data-key="StarterKit"])')
+    expect(starter.locator(".hint")).to_have_text("Описание набора из установленной игры")
+    expect(starter.locator(".config-scope")).to_contain_text("Новые персонажи")
+    assert page.locator('.config-field:has([data-key="DayLength"]) .config-scope').count() == 0
+    assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
+    page.screenshot(path=str(data.parent / f"sandbox-applicability-{width}.png"), full_page=True)
+    assert not editor.draft("world.ini")["changed"] and path.read_bytes() == original
+    assert dashboard["actions"] == []
+
+
 def test_short_phone_diff_keeps_confirmation_buttons_reachable(page, dashboard, editing):
     page.set_viewport_size({"width": 390, "height": 568})
     page.goto(dashboard["url"])

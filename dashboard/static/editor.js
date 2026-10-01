@@ -178,7 +178,7 @@ window.ConfigEditor = (() => {
     return combined.filter(o => configTab === "custom" ? o.custom || o.preserved : !o.custom && !o.preserved);
   }
   function fieldControl(rec, i) {
-    const attrs = `id="config-field-${i}" data-key="${esc(rec.key)}" data-owner="${esc(rec.owner || "")}" data-kind="${configTab === "server" ? "ini" : "sandbox"}" data-type="${esc(rec.type)}" ${rec.owner || S.demo ? "disabled" : ""}`;
+    const attrs = `id="config-field-${i}" data-key="${esc(rec.key)}" data-owner="${esc(rec.owner || "")}" data-kind="${configTab === "server" ? "ini" : "sandbox"}" data-type="${esc(rec.type)}" aria-describedby="config-hint-${i}${rec.applicationScope ? ` config-scope-${i}` : ""}" ${rec.owner || S.demo ? "disabled" : ""}`;
     if (rec.type === "boolean") return `<input type="checkbox" ${attrs} ${rec.value === true ? "checked" : ""} />`;
     if (rec.type === "multiline" || rec.type === "string" && typeof rec.value === "string" && (rec.value.includes("\n") || rec.value.length > 140)) {
       const value = rec.lineSeparator ? String(rec.value).split(rec.lineSeparator).join("\n") : rec.value;
@@ -209,7 +209,7 @@ window.ConfigEditor = (() => {
     const groups = new Map();
     fields().filter(o => `${o.key} ${o.label}`.toLowerCase().includes(query)).forEach((rec, i) => {
       if (!groups.has(rec.group)) groups.set(rec.group, []);
-      groups.get(rec.group).push(`<div class="config-field"><label for="config-field-${i}"><strong>${esc(rec.label)}</strong>${rec.label !== rec.key ? `<code>${esc(rec.key)}</code>` : ""}</label><div class="config-control">${fieldControl(rec, i)}</div><p class="hint">${esc(rec.owner ? `Источник: ${rec.owner}. Измените параметр в окружении контейнера.` : gameDescription(rec.hint) || "Применяется после запуска; влияние на существующий мир зависит от параметра")}${rec.absent ? " · Значение по умолчанию ещё не записано" : ""}</p><p class="field-error" data-error-key="${esc(rec.key)}" role="alert" hidden></p>${configTab !== "server" && rec.preserved ? `<button type="button" class="btn small" data-remove-option="${esc(rec.key)}">Удалить параметр…</button>` : ""}</div>`);
+      groups.get(rec.group).push(`<div class="config-field"><label for="config-field-${i}"><strong>${esc(rec.label)}</strong>${rec.label !== rec.key ? `<code>${esc(rec.key)}</code>` : ""}</label><div class="config-control">${fieldControl(rec, i)}</div>${rec.applicationScope ? `<p id="config-scope-${i}" class="config-scope" data-scope="${esc(rec.applicationScope.kind)}"><strong>${esc(rec.applicationScope.label)}</strong><span>${esc(rec.applicationScope.hint)}</span></p>` : ""}<p class="hint" id="config-hint-${i}">${esc(rec.owner ? `Источник: ${rec.owner}. Измените параметр в окружении контейнера.` : gameDescription(rec.hint) || "Применяется после запуска; влияние на существующий мир зависит от параметра")}${rec.absent ? " · Значение по умолчанию ещё не записано" : ""}</p><p class="field-error" data-error-key="${esc(rec.key)}" role="alert" hidden></p>${configTab !== "server" && rec.preserved ? `<button type="button" class="btn small" data-remove-option="${esc(rec.key)}">Удалить параметр…</button>` : ""}</div>`);
     });
     const order = ["Доступ и игроки", "PvP", "Чат", "Сохранение мира", "Безопасные дома", "Сеть", "Дополнительные параметры"];
     const ordered = [...groups].sort(([a], [b]) => configTab === "server" ? order.indexOf(a) - order.indexOf(b) : 0);
