@@ -1977,6 +1977,12 @@ const layoutObserver = new ResizeObserver(() => {
     const height = document.querySelector(selector)?.getBoundingClientRect().height || 0;
     document.documentElement.style.setProperty(variable, `${Math.ceil(height)}px`);
   }
+  const focused = document.activeElement, draftBar = $("draftBar");
+  if (!draftBar.hidden && focused?.matches("#configFields [data-key], #mapList")) {
+    const focusArea = focused.closest("#mapEdit") || focused;
+    const overlap = focusArea.getBoundingClientRect().bottom - draftBar.getBoundingClientRect().top + 12;
+    if (overlap > 0) window.scrollBy({ top: overlap, behavior: "instant" });
+  }
 });
 for (const selector of [".topbar", ".nav", "#draftBar"]) layoutObserver.observe(document.querySelector(selector));
 

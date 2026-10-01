@@ -161,7 +161,9 @@ window.ConfigEditor = (() => {
         while (updates.length) {
           draft = await call("/api/config-draft", { file, draftRevision: draft.draftRevision, ...updates[0] });
           for (const [id, field] of pendingFields) {
-            if (field.checkValidity() && updates[0][field.dataset.kind]?.[field.dataset.key] === formValue(field)) pendingFields.delete(id);
+            const sent = updates[0][field.dataset.kind]?.[field.dataset.key], value = formValue(field);
+            const savedValue = Array.isArray(value) ? Array.isArray(sent) && sent.length === value.length && value.every((v, i) => v === sent[i]) : sent === value;
+            if (field.checkValidity() && savedValue) pendingFields.delete(id);
           }
           updates.shift();
         }
@@ -220,6 +222,7 @@ window.ConfigEditor = (() => {
     return `<input ${attrs} type="${rec.secret ? "password" : numeric ? "number" : "text"}" value="${rec.secret ? "" : esc(rec.value)}" ${rec.secret ? 'placeholder="Сохранённый пароль скрыт" autocomplete="new-password"' : ""} ${numeric ? `step="${rec.type === "integer" ? "1" : "any"}"` : ""} ${rec.min !== undefined ? `min="${esc(rec.min)}"` : ""} ${rec.max !== undefined ? `max="${esc(rec.max)}"` : ""} />`;
   }
   function formValue(field) {
+    if (field.dataset.type === "map-list") return field.value.split(";").map(v => v.trim()).filter(Boolean);
     return field.type === "checkbox" ? field.checked : ["integer", "double", "enum"].includes(field.dataset.type) ? Number(field.value) : field.dataset.lineSeparator ? field.value.replace(/\r?\n/g, field.dataset.lineSeparator) : field.dataset.listDelimiter ? field.value.split(/\r?\n/).map(v => v.trim()).filter(Boolean).join(field.dataset.listDelimiter) : field.value;
   }
   async function flushFields() {
@@ -230,7 +233,7 @@ window.ConfigEditor = (() => {
       if (!field.checkValidity()) { field.reportValidity(); throw new Error("Проверьте значение и допустимый диапазон поля: " + field.dataset.key); }
       (update[field.dataset.kind] ||= {})[field.dataset.key] = formValue(field);
     }
-    await patch(update, false);
+    await patch(update, !!update.mods);
   }
   function renderFields() {
     if (pendingFields.size) { deferredFields = true; return; }
@@ -306,8 +309,10 @@ window.ConfigEditor = (() => {
     if ($("modSortNew").value === "title") packets = [...packets].sort((a, b) => a.title.localeCompare(b.title, "ru"));
     $("modPackages").innerHTML = packets.map(w => `<details class="workshop-package" data-item="${esc(w.workshopId)}" ${openIds.has(w.workshopId) ? "open" : ""}><summary><strong>${esc(w.title)}</strong><code>${esc(w.workshopId)}</code><span class="pill" data-state="${w.status === "pending" ? "warn" : "ok"}">${w.status === "pending" ? "Ожидает загрузки" : `${w.selected.length} / ${w.mods.length} ModID`}</span></summary><div class="package-content"><div class="editor-toolbar"><a href="${esc(w.url)}" target="_blank" rel="noopener">Steam Workshop ↗</a><button type="button" class="btn small" data-remove-item="${esc(w.workshopId)}">Удалить пакет из конфигурации…</button></div>${(w.available || []).map(r => r.modId ? `<div class="mod-option"><label><input type="checkbox" data-modid="${esc(r.modId)}" ${mods.mods.includes(r.modId) ? "checked" : ""} ${S.demo || r.compatible === false && !mods.mods.includes(r.modId) ? "disabled" : ""} /><strong>${esc(r.name)}</strong><code>${esc(r.modId)}</code></label><p class="hint">Версия ${esc(r.branch)} · папка ${esc(r.folder)}${r.compatible === false ? " · Нет подходящего каталога B42" : ""}${r.versionMin ? ` · От версии ${esc(r.versionMin)}` : ""}${r.versionMax ? ` · До версии ${esc(r.versionMax)}` : ""}${r.require?.length ? ` · Требует: ${esc(r.require.join(", "))}` : ""}</p>${r.options?.length ? '<a href="#/settings" data-open-custom>Настройки мода →</a>' : ""}</div>` : `<p class="editor-error">${esc(r.error)}</p>`).join("") || '<p class="hint">Сначала загрузите пакет через сервер, затем выберите ModID. Название Steam не определяет идентификаторы.</p>'}</div></details>`).join("") || '<p class="hint">Пакеты не найдены. Добавьте Steam-ссылку или измените фильтр.</p>';
     renderOrder();
-    $("modMapEditor").innerHTML = `<h3>Карты · Map=</h3><p class="hint">Порядок карт сохраняется. Добавление карты не изменяет уже исследованные области мира.</p><ol>${mods.maps.map(m => `<li><code>${esc(m)}</code></li>`).join("")}</ol><form id="mapEdit" class="editor-toolbar"><input id="mapList" value="${esc(mods.maps.join(";"))}" aria-label="Порядок карт через точку с запятой" /><button class="btn" type="submit">В черновик</button></form><p class="hint">Найденные карты: ${esc([...new Set(mods.workshop.flatMap(w => w.available || []).flatMap(r => r.maps || []))].join(", ") || "нет")}</p>`;
-    $("mapEdit").addEventListener("submit", e => { e.preventDefault(); patch({ mods: { maps: $("mapList").value.split(";").map(v => v.trim()).filter(Boolean) } }).catch(() => {}); });
+    if (!pendingFields.has("mods:maps")) {
+      $("modMapEditor").innerHTML = `<h3>Карты · Map=</h3><p class="hint">Порядок карт сохраняется. Добавление карты не изменяет уже исследованные области мира.</p><ol>${mods.maps.map(m => `<li><code>${esc(m)}</code></li>`).join("")}</ol><form id="mapEdit" class="editor-toolbar"><input id="mapList" data-key="maps" data-kind="mods" data-type="map-list" value="${esc(mods.maps.join(";"))}" aria-label="Порядок карт через точку с запятой" /><button class="btn" type="submit">В черновик</button></form><p class="hint">Найденные карты: ${esc([...new Set(mods.workshop.flatMap(w => w.available || []).flatMap(r => r.maps || []))].join(", ") || "нет")}</p>`;
+      $("mapEdit").addEventListener("submit", e => { e.preventDefault(); patch({ mods: { maps: formValue($("mapList")) } }).catch(() => {}); });
+    }
     $("modProblems").innerHTML = (mods.problems || []).map(p => `<div class="problem-row"><strong>${p.severity === "error" ? "Ошибка" : "Непроверено"}</strong><p>${esc(p.message)}</p>${p.code === "dependency" ? `<button type="button" class="btn small" data-add-dependency="${esc(p.dependency)}">Добавить зависимость ${esc(p.dependency)}</button>` : ""}</div>`).join("") || '<p class="hint">По доступным метаданным проблем не найдено. Это не проверка конфликтов Lua-кода.</p>';
     installNotice();
     $("legacyMods").hidden = !(draft?.legacyDisabled || []).length;
@@ -418,12 +423,14 @@ window.ConfigEditor = (() => {
     updateModTab();
   });
   $("configSearch").addEventListener("input", () => { chain.then(renderFields); });
-  $("configFields").addEventListener("input", e => {
+  function trackField(e) {
     const field = e.target.closest("[data-key]"); if (!field) return;
     pendingFields.set(`${field.dataset.kind}:${field.dataset.key}`, field);
     $("draftSaved").textContent = "Поле ещё не сохранено в черновик";
     updateBar();
-  });
+  }
+  $("configFields").addEventListener("input", trackField);
+  $("modMapEditor").addEventListener("input", trackField);
   $("configFields").addEventListener("change", e => {
     const field = e.target.closest("[data-key]"); if (!field) return;
     pendingFields.set(`${field.dataset.kind}:${field.dataset.key}`, field);
@@ -628,7 +635,7 @@ window.ConfigEditor = (() => {
     } catch (e) { error(e.message); }
   });
   $("draftRetry").addEventListener("click", () => flushFields().then(() => patch({})).catch(e => error(e.message)));
-  $("configDiscard").addEventListener("click", () => modal.open({ title: "Отменить черновик?", bodyHTML: "Будет загружена текущая конфигурация с диска. Уже записанные настройки и скачанные пакеты сохранятся.", onConfirm: async () => { unsaved = []; await patch({ discard: true }); pendingFields.clear(); sourceDirty = false; renderFields(); renderSources(); } }));
+  $("configDiscard").addEventListener("click", () => modal.open({ title: "Отменить черновик?", bodyHTML: "Будет загружена текущая конфигурация с диска. Уже записанные настройки и скачанные пакеты сохранятся.", onConfirm: async () => { unsaved = []; await patch({ discard: true }); pendingFields.clear(); sourceDirty = false; renderFields(); renderSources(); renderMods(); } }));
   $("configSave").addEventListener("click", () => confirmApply(false, false));
   $("configApply").addEventListener("click", () => confirmApply(false, true));
   async function verifyRunning() {

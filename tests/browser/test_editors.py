@@ -1450,3 +1450,128 @@ def test_missing_server_state_does_not_offer_stopped_server_save(page, dashboard
     expect(page.locator("#configSaveHint")).to_contain_text("Сервер работает")
     assert not editor.draft("world.ini")["changed"]
     assert dashboard["actions"] == []
+
+
+@pytest.fixture
+def map_editing(editing):
+    data, _ = editing
+    path = data / "steamapps/workshop/content/108600/111/mods/PluginFolder/42/media/maps/TestTown"
+    path.mkdir(parents=True)
+    (path / "map.info").write_text("title=Test town\n", encoding="utf-8")
+    return editing
+
+
+@pytest.mark.parametrize("width", [390, 1440])
+def test_unsaved_map_input_survives_mod_controls_before_explicit_save(
+    page, dashboard, map_editing, width
+):
+    data, _ = map_editing
+    page.set_viewport_size({"width": width, "height": 844})
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "mods")
+    page.get_by_role("tab", name="Порядок", exact=True).click()
+    maps = page.locator("#mapList")
+    maps.fill("TestTown;Muldraugh, KY")
+    page.get_by_role("tab", name="Состав", exact=True).click()
+    page.locator("#modQuery").fill("library")
+    expect(maps).to_have_value("TestTown;Muldraugh, KY")
+    page.locator("#modSortNew").select_option("title")
+    expect(maps).to_have_value("TestTown;Muldraugh, KY")
+    # Saving a ModID must not recreate the separate, still pending map field.
+    page.locator("#modPackages summary").click()
+    page.locator('[data-modid="plugin"]').uncheck()
+    expect(page.locator("#modSummary")).to_contain_text("1 выбранных ModID")
+    expect(maps).to_have_value("TestTown;Muldraugh, KY")
+    page.locator('[data-modid="plugin"]').check()
+    expect(page.locator("#modSummary")).to_contain_text("2 выбранных ModID")
+    page.get_by_role("tab", name="Порядок", exact=True).click()
+    maps.focus()
+    maps.evaluate("el => el.protectedNode = true")
+    with page.expect_response("**/api/mods?*refresh=1"):
+        page.evaluate("document.querySelector('#modRescan').click()")
+    page.wait_for_timeout(100)
+    expect(maps).to_be_focused()
+    assert maps.evaluate("el => el.protectedNode")
+    maps.scroll_into_view_if_needed()
+    field_box = maps.bounding_box()
+    assert field_box["y"] + field_box["height"] < page.locator("#draftBar").bounding_box()["y"]
+    form_box = page.locator("#mapEdit").bounding_box()
+    assert form_box["y"] + form_box["height"] < page.locator("#draftBar").bounding_box()["y"]
+    assert "Map=Muldraugh, KY\r\n" in editor.draft("world.ini")["texts"]["ini"]
+    page.locator("#mapEdit button").click()
+    expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
+    assert "Map=TestTown;Muldraugh, KY\r\n" in editor.draft("world.ini")["texts"]["ini"]
+    assert (data / "Server/world.ini").read_bytes() == INI.encode()
+    page.wait_for_function("""() => {
+        const event = new Event('beforeunload', {cancelable:true});
+        window.dispatchEvent(event); return !event.defaultPrevented;
+    }""")
+    assert dashboard["actions"] == []
+
+
+def test_map_and_server_field_share_one_review_draft(page, dashboard, map_editing):
+    data, _ = map_editing
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "mods")
+    page.get_by_role("tab", name="Порядок", exact=True).click()
+    page.locator("#mapList").fill("TestTown;Muldraugh, KY")
+    navigate(page, "settings")
+    page.locator('[data-key="PublicName"]').fill("Shared map draft")
+    page.locator("#configDiff").click()
+    expect(page.get_by_role("alertdialog")).to_contain_text("+Map=TestTown;Muldraugh, KY")
+    expect(page.get_by_role("alertdialog")).to_contain_text("+PublicName=Shared map draft")
+    page.locator("#modalCancel").click()
+    navigate(page, "mods")
+    expect(page.locator("#modMapEditor ol")).to_contain_text("TestTown")
+    assert "Mods=\\library;\\plugin\r\n" in editor.draft("world.ini")["texts"]["ini"]
+    assert (data / "Server/world.ini").read_bytes() == INI.encode()
+    assert dashboard["actions"] == []
+
+
+def test_discard_removes_pending_map_input_and_unload_warning(page, dashboard, map_editing):
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "mods")
+    page.get_by_role("tab", name="Порядок", exact=True).click()
+    page.locator("#mapList").fill("TestTown;Muldraugh, KY")
+    page.locator("#configDiscard").click()
+    page.locator("#modalOk").click()
+    expect(page.get_by_role("alertdialog")).to_be_hidden()
+    expect(page.locator("#mapList")).to_have_value("Muldraugh, KY")
+    expect(page.locator("#draftBar")).to_be_hidden()
+    assert not editor.draft("world.ini")["changed"]
+    assert not page.evaluate("""() => {
+        const event = new Event('beforeunload', {cancelable:true});
+        window.dispatchEvent(event); return event.defaultPrevented;
+    }""")
+    assert dashboard["actions"] == []
+
+
+def test_map_save_failure_keeps_input_for_retry(page, dashboard, map_editing):
+    def reject_post(route):
+        if route.request.method == "POST":
+            route.fulfill(status=500, json={"ok": False, "error": "Ошибка сохранения карт"})
+        else:
+            route.fallback()
+
+    page.route("**/api/config-draft", reject_post)
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "mods")
+    page.get_by_role("tab", name="Порядок", exact=True).click()
+    page.locator("#mapList").fill("TestTown;Muldraugh, KY")
+    page.locator("#mapEdit button").click()
+    expect(page.locator("#configError")).to_contain_text("Ошибка сохранения карт")
+    page.evaluate(
+        "document.querySelector('#modQuery').value='library'; document.querySelector('#modQuery').dispatchEvent(new Event('input'))"
+    )
+    expect(page.locator("#mapList")).to_have_value("TestTown;Muldraugh, KY")
+    assert "Map=Muldraugh, KY\r\n" in editor.draft("world.ini")["texts"]["ini"]
+    page.unroute("**/api/config-draft", reject_post)
+    page.locator("#draftRetry").click()
+    expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
+    expect(page.locator("#modMapEditor ol")).to_contain_text("TestTown")
+    assert "Map=TestTown;Muldraugh, KY\r\n" in editor.draft("world.ini")["texts"]["ini"]
+    assert dashboard["actions"] == []
