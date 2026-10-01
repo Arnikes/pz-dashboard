@@ -21,10 +21,11 @@ window.ConfigEditor = (() => {
   };
   function error(message) {
     $("configError").textContent = message;
+    $("configError").dataset.source = "operation";
     $("configError").hidden = false;
     toast(message, "error");
   }
-  function clearError() { $("configError").hidden = true; }
+  function clearError() { $("configError").hidden = true; delete $("configError").dataset.source; }
   function updateBar() {
     if (!draft) { $("draftBar").hidden = true; return; }
     const busy = !!S.op?.active;
@@ -49,10 +50,14 @@ window.ConfigEditor = (() => {
     profileState.dataset.state = draft.canApply ? "active" : draft.activeFile ? "other" : "unknown";
     profileState.title = draft.activeFile ? `Сервер использует ${draft.activeFile}` : "Не удалось определить профиль запуска сервера";
     $("configVersion").textContent = draft.version ? `PZ ${draft.version}` : "B42 · версия неизвестна";
-    if (draft.conflict) {
-      $("configError").textContent = "Рабочие файлы изменились. Посмотрите различия и объедините черновик с диском. Совпадающие правки потребуют ручного разрешения.";
+    if (draft.conflict && ($("configError").hidden || $("configError").dataset.source === "conflict")) {
+      $("configError").textContent = "Рабочие файлы изменились. Нажмите «Посмотреть изменения», затем «Обновить основу черновика». Пересекающиеся правки нужно разрешить вручную.";
+      $("configError").dataset.source = "conflict";
       $("configError").hidden = false;
     }
+    $("configSaveHint").textContent = S.overview?.containerInfo?.running
+      ? "Сервер работает. Правки полей сохраняются в черновике. Для записи файлов используйте «Применить с рестартом…» или сначала остановите сервер."
+      : "Правки полей сохраняются в черновике. «Сохранить» запишет файлы при остановленном сервере; запуск выполняется отдельно.";
     if (draft.dataDiagnostic) {
       $("configError").textContent = draft.dataDiagnostic;
       $("configError").hidden = false;
@@ -287,11 +292,28 @@ window.ConfigEditor = (() => {
   function diffHtml(result) {
     return `${(result.errors || []).map(e => `<p class="editor-error">${esc(e.message)}</p>`).join("")}${(result.warnings || []).some(e => e.existing) ? '<p class="hint">Состав модов не меняется. Его существующие проблемы не блокируют сохранение других настроек.</p>' : ""}${(result.warnings || []).map(e => `<p class="hint">${esc(e.message)}</p>`).join("")}${Object.entries(result.conflictDiff || {}).map(([kind, diff]) => `<h4>Изменения на диске · ${esc(kind)}</h4><pre class="config-diff">${esc(diff || "Нет изменений")}</pre>`).join("")}${Object.entries(result.diff || {}).map(([kind, diff]) => `<h4>Ваш черновик · ${esc(kind)}</h4><pre class="config-diff">${esc(diff || "Нет изменений")}</pre>`).join("")}`;
   }
+  function showConflict(result, compact = false) {
+    const canRebase = result.rebaseAvailable;
+    const reviewed = result.draftRevision;
+    const explanation = canRebase
+      ? '<p>«Обновить основу черновика» устранит конфликт с диском и сохранит ваши непересекающиеся правки. Это действие обновляет только черновик. Файлы сервера и его состояние останутся без изменений. Затем отдельно сохраните или примените настройки.</p>'
+      : `<p class="editor-error">${esc(result.rebaseError || "Загрузите профиль заново для проверки конфликта.")}</p>`;
+    const preview = canRebase ? Object.entries(result.rebaseDiff || {}).map(([kind, diff]) => `<h4>Правки после объединения · ${esc(kind)}</h4><pre class="config-diff">${esc(diff || "Нет пользовательских правок")}</pre>`).join("") : "";
+    modal.open({ title: "Обновление основы черновика", okLabel: canRebase ? "Обновить основу черновика" : "Закрыть", bodyHTML: `${explanation}${compact ? "" : diffHtml(result)}${preview}`, onConfirm: canRebase ? async () => {
+      if (draft.draftRevision !== reviewed || sourceDirty || fieldDirty || unsaved.length) throw new Error("Черновик изменился после просмотра. Проверьте объединение заново.");
+      draft = await call("/api/config-draft", { file, draftRevision: reviewed, currentRevision: result.currentRevision, rebase: true });
+      clearError(); renderFields(); renderSources(); await loadMods(); updateBar();
+      toast("Основа черновика обновлена. Теперь можно проверить и сохранить настройки.", "ok");
+    } : undefined });
+  }
   async function confirmApply(prepare = false, restart = true) {
     if (!draft || S.demo) return;
     try {
       const result = await validate(prepare);
-      if (!result.valid) { error(result.errors.map(e => e.message).join("; ")); return; }
+      if (!result.valid) {
+        if (Object.keys(result.conflictDiff || {}).length) { showConflict(result); return; }
+        error(result.errors.map(e => e.message).join("; ")); return;
+      }
       const revisionAtReview = result.draftRevision;
       modal.open({ title: prepare ? "Загрузить Workshop items?" : restart ? "Применить конфигурацию?" : "Сохранить файлы?", bodyHTML: `<p>${prepare ? "Первый рестарт загрузит пакеты. Прежние ModID и остальные настройки останутся без изменений." : restart ? "Сервер сохранит мир, остановится, применит конфигурацию и запустится." : "Файлы будут записаны при остановленном сервере."}${result.modChanges || prepare ? " Перед изменением модов обязателен бэкап мира." : ""}</p>${diffHtml(result)}${restart ? '<label class="field">Предупредить игроков<select id="editorWarn"><option value="300">За 5 минут</option><option value="600">За 10 минут</option><option value="60">За 1 минуту</option><option value="0">Без предупреждения</option></select></label>' : ""}`, onConfirm: async () => {
         if (draft.draftRevision !== revisionAtReview || sourceDirty || fieldDirty) throw new Error("Черновик изменился после просмотра. Проверьте изменения заново");
@@ -418,19 +440,17 @@ window.ConfigEditor = (() => {
     } catch (err) { error(err.message); } finally { e.target.value = ""; }
   });
   $("configDiff").addEventListener("click", async () => {
-    try { modal.open({ title: draft?.conflict ? "Конфликт / изменения конфигурации" : "Изменения конфигурации", bodyHTML: diffHtml(await validate()), onConfirm: async () => {} }); } catch (e) { error(e.message); }
+    try {
+      const result = await validate();
+      if (Object.keys(result.conflictDiff || {}).length) { showConflict(result); return; }
+      modal.open({ title: "Изменения конфигурации", okLabel: "Закрыть", bodyHTML: diffHtml(result) });
+    } catch (e) { error(e.message); }
   });
   $("configRebase").addEventListener("click", async () => {
     try {
       const result = await validate();
       if (!result.rebaseAvailable) throw new Error(result.rebaseError || "Нет конфликта для объединения. Загрузите профиль заново.");
-      const reviewed = draft.draftRevision;
-      modal.open({ title: "Объединить черновик с диском?", bodyHTML: `<p>Рабочие файлы сервера останутся без изменений. Черновик получит текущую основу с диска и сохранит ваши правки. После объединения проверьте его и отдельно сохраните или примените.</p>${Object.entries(result.rebaseDiff || {}).map(([kind, diff]) => `<h4>Правки после объединения · ${esc(kind)}</h4><pre class="config-diff">${esc(diff || "Нет пользовательских правок")}</pre>`).join("")}`, onConfirm: async () => {
-        if (draft.draftRevision !== reviewed || sourceDirty || fieldDirty || unsaved.length) throw new Error("Черновик изменился после просмотра. Проверьте объединение заново.");
-        draft = await call("/api/config-draft", { file, draftRevision: reviewed, currentRevision: result.currentRevision, rebase: true });
-        clearError(); renderFields(); renderSources(); await loadMods(); updateBar();
-        toast("Черновик объединён. Рабочие файлы не изменены.", "ok");
-      } });
+      showConflict(result, true);
     } catch (e) { error(e.message); }
   });
   $("draftRetry").addEventListener("click", () => patch({}).catch(() => {}));

@@ -218,6 +218,60 @@ def test_rebase_overlap_keeps_draft_and_reports_manual_resolution(page, dashboar
     assert path.read_bytes() == external.encode() and dashboard["actions"] == []
 
 
+@pytest.mark.parametrize("width", [390, 1440])
+@pytest.mark.parametrize("entry", ["configDiff", "configApply"])
+def test_conflict_review_action_updates_draft_and_then_allows_apply_review(
+    page, dashboard, editing, width, entry
+):
+    data, _ = editing
+    path = data / "Server/world.ini"
+    original = INI + "ResetID=4742151\r\n"
+    path.write_bytes(original.encode())
+    current = editor.draft("world.ini")
+    editor.patch(
+        {
+            "file": "world.ini",
+            "draftRevision": current["draftRevision"],
+            "ini": {"PublicName": "Keep draft"},
+        }
+    )
+    external = original.replace("ResetID=4742151", "ResetID=1701740")
+    path.write_bytes(external.encode())
+    page.set_viewport_size({"width": width, "height": 844})
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "settings", width <= 740)
+    expect(page.locator("#configSaveHint")).to_contain_text("Сервер работает")
+    page.locator(f"#{entry}").click()
+    expect(page.get_by_role("alertdialog")).to_contain_text("Сейчас на диске")
+    expect(page.locator("#modalOk")).to_have_text("Обновить основу черновика")
+    page.locator("#modalOk").click()
+    expect(page.locator("#modalRoot")).to_be_hidden()
+    expect(page.locator("#configError")).to_be_hidden()
+    assert editor.validate("world.ini")["valid"]
+    assert "ResetID=1701740" in editor.draft("world.ini")["texts"]["ini"]
+    expect(page.locator('[data-key="PublicName"]')).to_have_value("Keep draft")
+    page.locator("#configApply").click()
+    expect(page.get_by_role("alertdialog")).to_contain_text("Применить конфигурацию?")
+    page.locator("#modalCancel").click()
+    assert path.read_bytes() == external.encode() and dashboard["actions"] == []
+    assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
+
+
+def test_diff_without_conflict_has_close_action(page, dashboard, editing):
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "settings")
+    page.locator('[data-key="PublicName"]').fill("New name")
+    page.locator('[data-key="PublicName"]').press("Tab")
+    expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
+    page.locator("#configDiff").click()
+    expect(page.locator("#modalOk")).to_have_text("Закрыть")
+    page.locator("#modalOk").click()
+    expect(page.locator("#modalRoot")).to_be_hidden()
+    assert editor.draft("world.ini")["changed"] and dashboard["actions"] == []
+
+
 def test_more_menu_escape_restores_focus_and_marks_extra_page(page, dashboard, editing):
     page.set_viewport_size({"width": 390, "height": 844})
     page.goto(dashboard["url"])
