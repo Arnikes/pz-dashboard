@@ -230,13 +230,37 @@ def test_changing_a_version_comment_does_not_change_service_field():
     assert any(e.get("key") == "VERSION" for e in editor.validate("world.ini")["errors"])
 
 
-@pytest.mark.parametrize("branch", ["common", "42.99"])
-def test_common_only_and_future_content_cannot_supply_compatible_b42_ids(branch):
+def test_future_content_cannot_supply_compatible_b42_ids():
+    branch = "42.99"
     files = {f"111/mods/Folder/{branch}/mod.info": "id=real-id\nname=Future mod"}
     record = workshop.build_index(files, ["111"], "42.20.4")["111"][0]
     assert record["modId"] == "real-id" and record["compatible"] is False
     issues = workshop.problems({"111": [record]}, ["real-id"], "42.20.4")
     assert any(p["severity"] == "error" and p["code"] == "version" for p in issues)
+
+
+def test_common_only_metadata_is_valid_b42_content():
+    files = {
+        "111/mods/Folder/common/mod.info": "id=real-id\nname=Common mod",
+        "111/mods/Folder/common/media/sandbox-options.txt": "option Common.Value {type=integer, default=2,}",
+    }
+    record = workshop.build_index(files, ["111"], "42.21.0")["111"][0]
+    assert record["modId"] == "real-id" and record["compatible"] is True
+    assert record["branch"] == "common" and record["options"][0]["default"] == 2
+    assert not workshop.problems({"111": [record]}, ["real-id"], "42.21.0")
+
+
+def test_versioned_content_inherits_common_metadata_and_overrides_options():
+    files = {
+        "111/mods/Folder/common/mod.info": "id=real-id\nrequire=library",
+        "111/mods/Folder/common/media/sandbox-options.txt": "option Common.Value {type=integer, default=2,}",
+        "111/mods/Folder/42.20/media/sandbox-options.txt": "option Common.Value {type=integer, default=3,}",
+        "111/mods/Folder/42.99/media/sandbox-options.txt": "option Common.Value {type=integer, default=99,}",
+    }
+    record = workshop.build_index(files, ["111"], "42.21.0")["111"][0]
+    assert record["compatible"] is True and record["branch"] == "42.20"
+    assert record["path"].endswith("common/mod.info")
+    assert record["require"] == ["library"] and record["options"][0]["default"] == 3
 
 
 def test_invalid_metadata_is_visible_even_without_selected_mod_ids():

@@ -270,14 +270,15 @@ def build_index(files, items, version):
     game = version_tuple(version)
     groups = {}
     for path in files:
-        if not path.endswith("/mod.info"):
-            continue
         parts = path.split("/")
         if len(parts) < 4 or parts[1] != "mods":
             continue
         folder = "/".join(parts[:3])
         branch = parts[3] if len(parts) > 4 else "root"
-        groups.setdefault(folder, {})[branch] = path
+        variants = groups.setdefault(folder, {})
+        variants.setdefault(branch, None)
+        if path.endswith("/mod.info"):
+            variants[branch] = path
     for folder, variants in groups.items():
         compatible = [
             b
@@ -296,8 +297,11 @@ def build_index(files, items, version):
         )
         if branch is None:
             continue
-        compatible_version = bool(compatible) if game else None
-        info = metadata(files[variants[branch]])
+        compatible_version = bool(compatible or branch == "common") if game else None
+        info_path = variants[branch] or variants.get("common")
+        if not info_path:
+            continue
+        info = metadata(files[info_path])
         mid = info.get("id", "").strip()
         if not mid:
             records.append(
@@ -306,7 +310,7 @@ def build_index(files, items, version):
                     "modId": "",
                     "name": info.get("name", ""),
                     "error": "В mod.info отсутствует id=",
-                    "path": variants[branch],
+                    "path": info_path,
                 }
             )
             continue
@@ -333,7 +337,7 @@ def build_index(files, items, version):
                 "modId": mid,
                 "name": info.get("name", mid),
                 "folder": folder.split("/")[-1],
-                "path": variants[branch],
+                "path": info_path,
                 "branch": branch,
                 "compatible": compatible_version,
                 "versionMin": info.get("versionmin", ""),

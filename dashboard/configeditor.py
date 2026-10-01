@@ -160,6 +160,79 @@ def revision(texts):
     ).hexdigest()
 
 
+def merge_source(base, desired, current):
+    """Merge disjoint line edits without evaluating Lua or rewriting secrets."""
+    if desired == base or desired == current:
+        return current
+    if current == base:
+        return desired
+    lines = base.splitlines(keepends=True)
+
+    def edits(text):
+        target = text.splitlines(keepends=True)
+        return [
+            (i1, i2, target[j1:j2])
+            for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(
+                None, lines, target, autojunk=False
+            ).get_opcodes()
+            if tag != "equal"
+        ]
+
+    working, pending = edits(current), edits(desired)
+    combined = working.copy()
+    for change in pending:
+        if change in working:
+            continue
+        start, end, _ = change
+        for left, right, _ in working:
+            # Insertions at a replacement boundary are deliberately ambiguous.
+            overlap = (
+                left <= start <= right
+                if start == end
+                else start <= left <= end
+                if left == right
+                else max(start, left) < min(end, right)
+            )
+            if overlap:
+                raise EditorError(
+                    f"Обе версии изменяют строки {start + 1}–{max(start + 1, end)}. Объедините исходник вручную",
+                    409,
+                )
+        combined.append(change)
+    for start, end, replacement in sorted(combined, key=lambda edit: edit[:2], reverse=True):
+        lines[start:end] = replacement
+    return "".join(lines)
+
+
+def merge_profile(saved, current):
+    merged = {}
+    for kind in ("ini", "sandbox"):
+        try:
+            merged[kind] = merge_source(saved["base"][kind], saved["texts"][kind], current[kind])
+        except EditorError as error:
+            raise EditorError(f"{kind}: {error}", 409) from None
+    return merged
+
+
+def issue_identity(issue):
+    return tuple(issue.get(key) for key in ("code", "modId", "dependency", "message"))
+
+
+def preserve_existing_issues(issues, previous, mod_changes):
+    """Existing composition defects must not block unrelated setting edits."""
+    known = {issue_identity(issue) for issue in previous}
+    return [
+        {
+            **issue,
+            "severity": "warning",
+            "existing": True,
+        }
+        if not mod_changes and issue["severity"] == "error" and issue_identity(issue) in known
+        else issue
+        for issue in issues
+    ]
+
+
 PZ_RESET_COMMENT = re.compile(
     r"^(# Reset ID determines if the server has undergone a soft-reset\. "
     r"If this number does match the client, the client must create a new character\. "
@@ -690,10 +763,17 @@ def patch(data):
         if data.get("draftRevision") != saved["draftRevision"]:
             raise EditorError("Черновик изменён другой вкладкой. Загрузите его заново", 409)
         current = read_profile(file)
-        if revision(current) != saved["baseRevision"] and not data.get("discard"):
-            raise EditorError(
-                "Рабочие файлы изменились. Сначала просмотрите конфликт или отмените черновик", 409
-            )
+        if "rebase" in data and type(data["rebase"]) is not bool:
+            raise EditorError("rebase должен быть boolean")
+        if data.get("rebase"):
+            if data.get("currentRevision") != revision(current):
+                raise EditorError(
+                    "Рабочие файлы снова изменились. Просмотрите конфликт заново", 409
+                )
+            if set(data) - {"file", "draftRevision", "currentRevision", "rebase"}:
+                raise EditorError("Объединение выполняется отдельно от изменений полей")
+            merged = merge_profile(saved, current)
+            saved.update(base=current, texts=merged, baseRevision=revision(current))
         if data.get("discard") is True:
             saved.update(base=current, texts=current.copy(), baseRevision=revision(current))
         else:
@@ -891,12 +971,17 @@ def validate(file, include_mods=True, prepare=False, draft_revision=None):
         for issue in mods["problems"]:
             if (
                 issue["severity"] == "error"
+                and mod_changes
                 or issue.get("code") == "unknown"
                 and issue.get("modId") not in base_selected
             ):
                 errors.append(issue)
             else:
-                warnings.append(issue)
+                warnings.append(
+                    {**issue, "severity": "warning", "existing": True}
+                    if issue["severity"] == "error"
+                    else issue
+                )
         custom = {
             option["key"]: option
             for packet in mods["workshop"]
@@ -936,6 +1021,7 @@ def validate(file, include_mods=True, prepare=False, draft_revision=None):
     }
     current = read_profile(file)
     conflict_diff = {}
+    rebase_available, rebase_error, rebase_diff = False, None, {}
     if revision(current) != saved["baseRevision"]:
         for kind in before:
             latest = mask_ini(current[kind]) if kind == "ini" else mask_lua(current[kind])
@@ -947,6 +1033,21 @@ def validate(file, include_mods=True, prepare=False, draft_revision=None):
                     tofile="Сейчас на диске",
                 )
             )
+        try:
+            merged = merge_profile(saved, current)
+            rebase_available = True
+            for kind in before:
+                mask = mask_ini if kind == "ini" else mask_lua
+                rebase_diff[kind] = "".join(
+                    difflib.unified_diff(
+                        mask(current[kind]).splitlines(True),
+                        mask(merged[kind]).splitlines(True),
+                        fromfile="Сейчас на диске",
+                        tofile="После объединения (черновик)",
+                    )
+                )
+        except EditorError as merge_error:
+            rebase_error = str(merge_error)
     return {
         "ok": True,
         "valid": not errors,
@@ -954,6 +1055,10 @@ def validate(file, include_mods=True, prepare=False, draft_revision=None):
         "warnings": warnings,
         "diff": diffs,
         "conflictDiff": conflict_diff,
+        "rebaseAvailable": rebase_available,
+        "rebaseError": rebase_error,
+        "rebaseDiff": rebase_diff,
+        "currentRevision": revision(current),
         "modChanges": mod_changes,
         "changed": texts != base,
         "draftRevision": saved["draftRevision"],
@@ -1173,6 +1278,7 @@ def run(data, prepare=False):
         for rec in records
         if rec.get("modId")
     }
+    previous_issues = mod_state(file, saved["base"])["problems"] if prepare else result["warnings"]
     root = state_dir(file)
     state = load_json(root / "state.json")
     prior_installation = state.get("installation")
@@ -1331,7 +1437,11 @@ def run(data, prepare=False):
                     )
             # Steam can update packages during either stage. Check the active
             # selection, not the draft selection awaiting stage two.
-            issues = workshop.problems(discovered, selected, version)
+            issues = preserve_existing_issues(
+                workshop.problems(discovered, selected, version),
+                previous_issues,
+                result["modChanges"] and not prepare,
+            )
             if normalized_sandbox:
                 issues.append(
                     {

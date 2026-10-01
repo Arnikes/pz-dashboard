@@ -175,6 +175,132 @@ def test_external_and_other_tab_changes_are_conflicts(env):
     assert not fresh["conflict"] and not fresh["changed"]
 
 
+def test_explicit_rebase_keeps_new_reset_id_secrets_and_pending_settings(env):
+    data, _ = env
+    path = data / "Server/world.ini"
+    original = INI + "ResetID=4742151\r\n"
+    path.write_bytes(original.encode())
+    current = change(ini={"PublicName": "My draft"})
+    external = original.replace("ResetID=4742151", "ResetID=1701740").replace(
+        "Password=topsecret", "Password=external-secret"
+    )
+    path.write_bytes(external.encode())
+    result = editor.validate("world.ini")
+    assert not result["valid"] and result["rebaseAvailable"]
+    assert "external-secret" not in json.dumps(result)
+    rebased = editor.patch(
+        {
+            "file": "world.ini",
+            "draftRevision": current["draftRevision"],
+            "currentRevision": result["currentRevision"],
+            "rebase": True,
+        }
+    )
+    assert not rebased["conflict"] and rebased["changed"]
+    assert "ResetID=1701740\r\n" in rebased["texts"]["ini"]
+    assert "PublicName=My draft" in rebased["texts"]["ini"]
+    assert path.read_bytes() == external.encode()
+    saved = editor.load_json(editor.state_dir("world.ini") / "draft.json")
+    assert "Password=external-secret" in saved["texts"]["ini"]
+    assert editor.validate("world.ini")["valid"]
+
+
+def test_conflicted_draft_can_be_edited_without_writing_server_files(env):
+    data, _ = env
+    current = editor.draft("world.ini")
+    path = data / "Server/world.ini"
+    external = INI + "ResetID=1701740\r\n"
+    path.write_bytes(external.encode())
+    result = editor.patch(
+        {"file": "world.ini", "draftRevision": current["draftRevision"], "ini": {"PVP": False}}
+    )
+    assert result["changed"] and result["conflict"]
+    assert path.read_bytes() == external.encode()
+    assert not editor.validate("world.ini")["valid"]
+
+
+def test_clean_conflicted_draft_has_explicit_refresh_with_no_file_write(env):
+    data, _ = env
+    current = editor.draft("world.ini")
+    path = data / "Server/world.ini"
+    external = INI.replace("Сервер", "Changed on disk")
+    path.write_bytes(external.encode())
+    result = editor.validate("world.ini")
+    assert result["rebaseAvailable"] and not any(result["rebaseDiff"].values())
+    refreshed = editor.patch(
+        {
+            "file": "world.ini",
+            "draftRevision": current["draftRevision"],
+            "currentRevision": result["currentRevision"],
+            "rebase": True,
+        }
+    )
+    assert not refreshed["conflict"] and not refreshed["changed"]
+    assert "PublicName=Changed on disk" in refreshed["texts"]["ini"]
+    assert path.read_bytes() == external.encode()
+
+
+def test_rebase_rejects_overlapping_edits_and_stale_disk_or_draft_revision(env):
+    data, _ = env
+    current = change(ini={"Password": "draft-secret"})
+    path = data / "Server/world.ini"
+    path.write_bytes(INI.replace("topsecret", "other-secret").encode())
+    result = editor.validate("world.ini")
+    assert not result["rebaseAvailable"] and result["rebaseError"]
+    assert "other-secret" not in json.dumps(result) and "draft-secret" not in json.dumps(result)
+    payload = {
+        "file": "world.ini",
+        "draftRevision": current["draftRevision"],
+        "currentRevision": result["currentRevision"],
+        "rebase": True,
+    }
+    original_draft = (editor.state_dir("world.ini") / "draft.json").read_bytes()
+    with pytest.raises(editor.EditorError, match="Обе версии"):
+        editor.patch(payload)
+    assert (editor.state_dir("world.ini") / "draft.json").read_bytes() == original_draft
+    with pytest.raises(editor.EditorError, match="снова изменились"):
+        editor.patch({**payload, "currentRevision": "stale"})
+    with pytest.raises(editor.EditorError, match="другой вкладкой"):
+        editor.patch({**payload, "draftRevision": "stale"})
+
+
+@pytest.mark.parametrize(
+    "base,pending,current,expected",
+    [
+        ("a\r\nb\r\nc\r\n", "A\r\nb\r\nc\r\n", "a\r\nb\r\nC\r\n", "A\r\nb\r\nC\r\n"),
+        ("a\nb\nc\n", "a\nextra\nb\nc\n", "a\nb\nC\n", "a\nextra\nb\nC\n"),
+        ("a\nb\nc\n", "a\nc\n", "a\nb\nC\n", "a\nC\n"),
+        ("a\nb\nc\n", "A\nb\nc\n", "A\nb\nC\n", "A\nb\nC\n"),
+    ],
+)
+def test_rebase_line_merge_preserves_insertions_deletions_and_newlines(
+    base, pending, current, expected
+):
+    assert editor.merge_source(base, pending, current) == expected
+
+
+def test_rebase_is_atomic_across_ini_and_sandbox_conflicts(env):
+    data, _ = env
+    current = change(ini={"PublicName": "Draft"}, sandbox={"Mod.Count": 3})
+    (data / "Server/world.ini").write_bytes((INI + "ResetID=1701740\r\n").encode())
+    (data / "Server/world_SandboxVars.lua").write_text(
+        LUA.replace("Count = 2", "Count = 4"), encoding="utf-8"
+    )
+    result = editor.validate("world.ini")
+    assert not result["rebaseAvailable"] and result["rebaseError"].startswith("sandbox:")
+    before = (editor.state_dir("world.ini") / "draft.json").read_bytes()
+    with pytest.raises(editor.EditorError, match="sandbox:"):
+        editor.patch(
+            {
+                "file": "world.ini",
+                "draftRevision": current["draftRevision"],
+                "currentRevision": result["currentRevision"],
+                "rebase": True,
+            }
+        )
+    assert (editor.state_dir("world.ini") / "draft.json").read_bytes() == before
+
+
 def test_profiles_never_choose_first_when_ambiguous(env):
     data, ctx = env
     (data / "Server/another.ini").write_bytes(INI.encode())
@@ -413,6 +539,44 @@ def test_unknown_existing_mod_survives_as_warning(env):
     editor.draft("world.ini")
     result = editor.validate("world.ini")
     assert result["valid"] and any(p.get("code") == "unknown" for p in result["warnings"])
+
+
+@pytest.mark.parametrize("defect", ["dependency", "order", "version", "incompatible"])
+def test_existing_mod_defects_allow_settings_but_block_composition_edits(env, defect):
+    data, _ = env
+    info = data / "steamapps/workshop/content/108600/111/mods/PluginFolder/42/mod.info"
+    extra = {
+        "dependency": "require=missing\n",
+        "order": "loadModBefore=library\n",
+        "version": "versionMin=42.99\n",
+        "incompatible": "incompatible=library\n",
+    }[defect]
+    info.write_text("id=plugin\n" + extra, encoding="utf-8")
+    current = change(ini={"PublicName": "Changed setting"})
+    result = editor.validate("world.ini")
+    assert result["valid"] and not result["modChanges"]
+    assert any(p.get("code") == defect and p.get("existing") for p in result["warnings"])
+    assert info.exists() and current["changed"]
+    change(mods={"maps": ["Explicit map change"]})
+    result = editor.validate("world.ini")
+    assert not result["valid"] and result["modChanges"]
+    assert any(p.get("code") == defect for p in result["errors"])
+
+
+def test_existing_mod_dependency_is_preserved_as_warning_after_restart(env, monkeypatch):
+    data, _ = env
+    info = data / "steamapps/workshop/content/108600/111/mods/PluginFolder/42/mod.info"
+    info.write_text("id=plugin\nrequire=missing\n", encoding="utf-8")
+    current = change(ini={"PublicName": "Setting only"})
+    monkeypatch.setattr(editor.dockerlib, "container_start", lambda name: (0, "", ""))
+    monkeypatch.setattr(editor, "wait_ready", lambda: None)
+    editor.run({"file": "world.ini", "draftRevision": current["draftRevision"], "restart": True})
+    result = editor.draft("world.ini")
+    assert result["status"] == "applied"
+    assert any(
+        p["code"] == "dependency" and p["severity"] == "warning" and p["existing"]
+        for p in result["state"]["verificationProblems"]
+    )
 
 
 def test_dependency_cycle_ambiguity_and_incompatibility():

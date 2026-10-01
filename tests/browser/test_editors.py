@@ -163,6 +163,61 @@ def test_short_phone_diff_keeps_confirmation_buttons_reachable(page, dashboard, 
     assert dashboard["actions"] == []
 
 
+@pytest.mark.parametrize("width", [390, 1440])
+def test_explicit_rebase_keeps_settings_and_fresh_reset_id_without_server_write(
+    page, dashboard, editing, width
+):
+    data, _ = editing
+    path = data / "Server/world.ini"
+    original = INI + "ResetID=4742151\r\n"
+    path.write_bytes(original.encode())
+    page.set_viewport_size({"width": width, "height": 844})
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "settings", width <= 740)
+    page.locator('[data-key="PublicName"]').fill("Keep my draft")
+    page.locator('[data-key="PublicName"]').press("Tab")
+    expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
+    external = original.replace("ResetID=4742151", "ResetID=1701740")
+    path.write_bytes(external.encode())
+    page.reload()
+    expect(page.locator("#configError")).to_contain_text("Рабочие файлы изменились")
+    if width <= 740:
+        page.locator("#draftMore").click()
+    page.locator("#configRebase").click()
+    expect(page.get_by_role("alertdialog")).to_contain_text("Keep my draft")
+    page.locator("#modalOk").click()
+    expect(page.locator("#configError")).to_be_hidden()
+    expect(page.locator('[data-key="PublicName"]')).to_have_value("Keep my draft")
+    assert not editor.draft("world.ini")["conflict"]
+    assert "ResetID=1701740" in editor.draft("world.ini")["texts"]["ini"]
+    assert path.read_bytes() == external.encode() and dashboard["actions"] == []
+    assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
+    page.screenshot(path=str(data.parent / f"rebase-{width}.png"))
+
+
+def test_rebase_overlap_keeps_draft_and_reports_manual_resolution(page, dashboard, editing):
+    data, _ = editing
+    path = data / "Server/world.ini"
+    current = editor.draft("world.ini")
+    editor.patch(
+        {
+            "file": "world.ini",
+            "draftRevision": current["draftRevision"],
+            "ini": {"PublicName": "Draft"},
+        }
+    )
+    external = INI.replace("Сервер", "External")
+    path.write_bytes(external.encode())
+    page.goto(dashboard["url"] + "/#/settings")
+    expect(page.locator("#configError")).to_contain_text("Рабочие файлы изменились")
+    page.locator("#configRebase").click()
+    expect(page.locator("#configError")).to_contain_text("Обе версии изменяют строки")
+    assert editor.draft("world.ini")["conflict"]
+    assert "PublicName=Draft" in editor.draft("world.ini")["texts"]["ini"]
+    assert path.read_bytes() == external.encode() and dashboard["actions"] == []
+
+
 def test_more_menu_escape_restores_focus_and_marks_extra_page(page, dashboard, editing):
     page.set_viewport_size({"width": 390, "height": 844})
     page.goto(dashboard["url"])

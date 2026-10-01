@@ -38,6 +38,8 @@ window.ConfigEditor = (() => {
     $("configApply").disabled = busy || !draft.canApply || !draft.canWrite || S.demo || loading || fieldDirty || !needsAction;
     $("configSave").disabled = busy || !draft.canWrite || !!S.overview?.containerInfo?.running || S.demo || loading || fieldDirty;
     $("configDiscard").disabled = busy || S.demo || loading;
+    $("configRebase").hidden = !draft.conflict;
+    $("configRebase").disabled = busy || S.demo || loading || fieldDirty;
     $("configApply").title = draft.canApply ? "" : "Выбран неактивный или неподтверждённый профиль";
     $("configSave").title = S.overview?.containerInfo?.running ? "Сначала остановите сервер" : "";
     if (busy) $("draftSaved").textContent = `${S.op.active.phase || "Операция"} · ${S.op.active.message || ""}`;
@@ -48,7 +50,7 @@ window.ConfigEditor = (() => {
     profileState.title = draft.activeFile ? `Сервер использует ${draft.activeFile}` : "Не удалось определить профиль запуска сервера";
     $("configVersion").textContent = draft.version ? `PZ ${draft.version}` : "B42 · версия неизвестна";
     if (draft.conflict) {
-      $("configError").textContent = "Рабочие файлы изменились. Посмотрите конфликт; отмена черновика загрузит свежие файлы.";
+      $("configError").textContent = "Рабочие файлы изменились. Посмотрите различия и объедините черновик с диском. Совпадающие правки потребуют ручного разрешения.";
       $("configError").hidden = false;
     }
     if (draft.dataDiagnostic) {
@@ -283,7 +285,7 @@ window.ConfigEditor = (() => {
     return result;
   }
   function diffHtml(result) {
-    return `${(result.errors || []).map(e => `<p class="editor-error">${esc(e.message)}</p>`).join("")}${(result.warnings || []).map(e => `<p class="hint">${esc(e.message)}</p>`).join("")}${Object.entries(result.conflictDiff || {}).map(([kind, diff]) => `<h4>Изменения на диске · ${esc(kind)}</h4><pre class="config-diff">${esc(diff || "Нет изменений")}</pre>`).join("")}${Object.entries(result.diff || {}).map(([kind, diff]) => `<h4>Ваш черновик · ${esc(kind)}</h4><pre class="config-diff">${esc(diff || "Нет изменений")}</pre>`).join("")}`;
+    return `${(result.errors || []).map(e => `<p class="editor-error">${esc(e.message)}</p>`).join("")}${(result.warnings || []).some(e => e.existing) ? '<p class="hint">Состав модов не меняется. Его существующие проблемы не блокируют сохранение других настроек.</p>' : ""}${(result.warnings || []).map(e => `<p class="hint">${esc(e.message)}</p>`).join("")}${Object.entries(result.conflictDiff || {}).map(([kind, diff]) => `<h4>Изменения на диске · ${esc(kind)}</h4><pre class="config-diff">${esc(diff || "Нет изменений")}</pre>`).join("")}${Object.entries(result.diff || {}).map(([kind, diff]) => `<h4>Ваш черновик · ${esc(kind)}</h4><pre class="config-diff">${esc(diff || "Нет изменений")}</pre>`).join("")}`;
   }
   async function confirmApply(prepare = false, restart = true) {
     if (!draft || S.demo) return;
@@ -417,6 +419,19 @@ window.ConfigEditor = (() => {
   });
   $("configDiff").addEventListener("click", async () => {
     try { modal.open({ title: draft?.conflict ? "Конфликт / изменения конфигурации" : "Изменения конфигурации", bodyHTML: diffHtml(await validate()), onConfirm: async () => {} }); } catch (e) { error(e.message); }
+  });
+  $("configRebase").addEventListener("click", async () => {
+    try {
+      const result = await validate();
+      if (!result.rebaseAvailable) throw new Error(result.rebaseError || "Нет конфликта для объединения. Загрузите профиль заново.");
+      const reviewed = draft.draftRevision;
+      modal.open({ title: "Объединить черновик с диском?", bodyHTML: `<p>Рабочие файлы сервера останутся без изменений. Черновик получит текущую основу с диска и сохранит ваши правки. После объединения проверьте его и отдельно сохраните или примените.</p>${Object.entries(result.rebaseDiff || {}).map(([kind, diff]) => `<h4>Правки после объединения · ${esc(kind)}</h4><pre class="config-diff">${esc(diff || "Нет пользовательских правок")}</pre>`).join("")}`, onConfirm: async () => {
+        if (draft.draftRevision !== reviewed || sourceDirty || fieldDirty || unsaved.length) throw new Error("Черновик изменился после просмотра. Проверьте объединение заново.");
+        draft = await call("/api/config-draft", { file, draftRevision: reviewed, currentRevision: result.currentRevision, rebase: true });
+        clearError(); renderFields(); renderSources(); await loadMods(); updateBar();
+        toast("Черновик объединён. Рабочие файлы не изменены.", "ok");
+      } });
+    } catch (e) { error(e.message); }
   });
   $("draftRetry").addEventListener("click", () => patch({}).catch(() => {}));
   $("configDiscard").addEventListener("click", () => modal.open({ title: "Отменить черновик?", bodyHTML: "Будет загружена текущая конфигурация с диска. Уже записанные настройки и скачанные пакеты сохранятся.", onConfirm: async () => { unsaved = []; await patch({ discard: true }); sourceDirty = false; renderSources(); } }));
