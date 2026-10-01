@@ -1575,3 +1575,86 @@ def test_map_save_failure_keeps_input_for_retry(page, dashboard, map_editing):
     expect(page.locator("#modMapEditor ol")).to_contain_text("TestTown")
     assert "Map=TestTown;Muldraugh, KY\r\n" in editor.draft("world.ini")["texts"]["ini"]
     assert dashboard["actions"] == []
+
+
+@pytest.fixture
+def profile_history(editing):
+    data, _ = editing
+    (data / "Server/another.ini").write_bytes(INI.replace("Сервер", "Другой сервер").encode())
+    ids = {}
+    for file in ("world.ini", "another.ini"):
+        ids[file] = editor.commit(file, editor.read_profile(file), "История " + file)
+    return data, ids
+
+
+@pytest.mark.parametrize("width", [390, 1440])
+def test_history_switches_with_profile_and_restores_its_own_version(
+    page, dashboard, profile_history, width
+):
+    data, ids = profile_history
+    page.set_viewport_size({"width": width, "height": 844})
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "settings", width <= 740)
+    page.get_by_role("tab", name="История изменений", exact=True).click()
+    expect(page.locator("#configHistory")).to_contain_text("История world.ini")
+    page.locator("#configProfile").select_option("another.ini")
+    expect(page.locator("#configHistory")).to_contain_text("История another.ini")
+    expect(page.locator(f'[data-restore-config="{ids["world.ini"]}"]')).to_have_count(0)
+    page.locator(f'[data-restore-config="{ids["another.ini"]}"]').click()
+    expect(page.get_by_role("alertdialog")).to_contain_text("another.ini")
+    page.locator("#modalOk").click()
+    expect(page.get_by_role("alertdialog")).to_contain_text("Изменения при восстановлении")
+    page.locator("#modalCancel").click()
+    page.get_by_role("tab", name="Сервер", exact=True).click()
+    expect(page.locator('[data-key="PublicName"]')).to_have_value("Другой сервер")
+    assert (data / "Server/world.ini").read_bytes() == INI.encode()
+    assert (data / "Server/another.ini").read_bytes() == INI.replace(
+        "Сервер", "Другой сервер"
+    ).encode()
+    assert dashboard["actions"] == []
+
+
+@pytest.mark.parametrize("failure", [False, True])
+def test_late_history_response_does_not_replace_new_profile(
+    page, dashboard, profile_history, failure
+):
+    held = []
+    old = editor.history("world.ini")
+    page.route("**/api/config-history?file=world.ini", lambda route: held.append(route))
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "settings")
+    page.get_by_role("tab", name="История изменений", exact=True).click()
+    page.locator("#configProfile").select_option("another.ini")
+    expect(page.locator("#configHistory")).to_contain_text("История another.ini")
+    assert held
+    held[0].fulfill(
+        status=500 if failure else 200,
+        json={"ok": False, "error": "Ошибка истории прежнего профиля"} if failure else old,
+    )
+    page.wait_for_timeout(100)
+    expect(page.locator("#configHistory")).to_contain_text("История another.ini")
+    expect(page.locator("#configHistory")).not_to_contain_text("История world.ini")
+    expect(page.locator("#configError")).to_be_hidden()
+    assert dashboard["actions"] == []
+
+
+def test_history_failure_can_be_retried_without_switching_profile(page, dashboard, profile_history):
+    def reject(route):
+        route.fulfill(status=500, json={"ok": False, "error": "Ошибка загрузки истории"})
+
+    page.route("**/api/config-history?file=world.ini", reject)
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "settings")
+    page.get_by_role("tab", name="История изменений", exact=True).click()
+    expect(page.locator("#configHistory")).to_contain_text("Ошибка загрузки истории")
+    expect(page.locator("#configHistory button")).to_have_count(0)
+    page.unroute("**/api/config-history?file=world.ini", reject)
+    page.get_by_role("tab", name="История изменений", exact=True).click()
+    expect(page.locator("#configHistory")).to_contain_text("История world.ini")
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    expect(page.locator("#configError")).to_be_hidden()
+    assert not editor.draft("world.ini")["changed"]
+    assert dashboard["actions"] == []

@@ -10,6 +10,7 @@ window.ConfigEditor = (() => {
   let fieldSaveFailed = false;
   let unsaved = [];
   let operationMarkup = "";
+  let historyRequest = 0;
   const groupStates = new Map();
   let fieldQuery = "";
   const SECRET = "__PZ_SECRET_UNCHANGED__";
@@ -118,7 +119,11 @@ window.ConfigEditor = (() => {
     updateBar();
     try {
       const data = await call(`/api/config-draft?file=${encodeURIComponent(next)}`);
-      if (file !== data.file) { mods = null; renderMods(); }
+      if (file !== data.file) {
+        historyRequest++;
+        $("configHistory").replaceChildren();
+        mods = null; renderMods();
+      }
       file = data.file;
       draft = data;
       $("configProfile").value = file;
@@ -128,6 +133,7 @@ window.ConfigEditor = (() => {
       renderSources();
       await loadMods();
     } finally { loading = false; updateBar(); }
+    if (configTab === "history") await history();
   }
   async function init() {
     try {
@@ -391,8 +397,19 @@ window.ConfigEditor = (() => {
   }
   async function history() {
     if (!file) return;
-    const data = await call(`/api/config-history?file=${encodeURIComponent(file)}`);
-    $("configHistory").innerHTML = (data.items || []).map(r => `<div class="history-row"><strong>${esc(fmtTime(r.at))}</strong><span>${esc(r.reason)}</span><button type="button" class="btn small" data-restore-config="${esc(r.id)}">Посмотреть / восстановить…</button></div>`).join("") || '<p class="hint">История появится после первого сохранения конфигурации.</p>';
+    const profile = file, request = ++historyRequest;
+    $("configHistory").innerHTML = '<p class="hint">Загружается история выбранного профиля…</p>';
+    try {
+      const data = await call(`/api/config-history?file=${encodeURIComponent(profile)}`);
+      if (request !== historyRequest || file !== profile || configTab !== "history") return;
+      if ($("configError").dataset.source === "history") clearError();
+      $("configHistory").innerHTML = (data.items || []).map(r => `<div class="history-row"><strong>${esc(fmtTime(r.at))}</strong><span>${esc(r.reason)}</span><button type="button" class="btn small" data-profile="${esc(profile)}" data-restore-config="${esc(r.id)}">Посмотреть / восстановить…</button></div>`).join("") || '<p class="hint">История появится после первого сохранения конфигурации.</p>';
+    } catch (failure) {
+      if (request !== historyRequest || file !== profile || configTab !== "history") return;
+      $("configHistory").textContent = "Не удалось загрузить историю: " + failure.message;
+      error(failure.message);
+      $("configError").dataset.source = "history";
+    }
     updateBar();
   }
   $("configProfile").addEventListener("change", async () => {
@@ -670,9 +687,11 @@ window.ConfigEditor = (() => {
   document.addEventListener("click", e => { if (!e.target.closest("#draftExtra, #draftMore")) { $("draftExtra").dataset.open = "false"; $("draftMore").setAttribute("aria-expanded", "false"); } });
   document.addEventListener("keydown", e => { if (e.key === "Escape" && $("draftExtra").dataset.open === "true") { $("draftExtra").dataset.open = "false"; $("draftMore").setAttribute("aria-expanded", "false"); $("draftMore").focus(); } });
   function restoreHistory(id) {
-    modal.open({ title: "Восстановить версию в черновик?", bodyHTML: "Текущий черновик будет заменён. После загрузки просмотрите различия и отдельно примените изменения.", onConfirm: async () => {
+    const profile = file;
+    modal.open({ title: "Восстановить версию в черновик?", bodyHTML: `Профиль <strong>${esc(profile)}</strong>. Текущий черновик будет заменён. После загрузки просмотрите различия и отдельно примените изменения.`, onConfirm: async () => {
       await chain;
-      draft = await call("/api/config-history", { file, historyId: id, draftRevision: draft.draftRevision });
+      if (file !== profile || loading || S.op?.active) throw new Error("Профиль или состояние сервера изменились. Откройте восстановление заново.");
+      draft = await call("/api/config-history", { file: profile, historyId: id, draftRevision: draft.draftRevision });
       pendingFields.clear();
       unsaved = []; sourceDirty = fieldDirty = false;
       renderFields(); renderSources(); await loadMods(); updateBar();
@@ -687,6 +706,7 @@ window.ConfigEditor = (() => {
   });
   $("configHistory").addEventListener("click", e => {
     const button = e.target.closest("[data-restore-config]"); if (!button) return;
+    if (button.dataset.profile !== file || loading || S.op?.active) return;
     restoreHistory(button.dataset.restoreConfig);
   });
   $("navMore").addEventListener("click", () => {
