@@ -1362,6 +1362,8 @@ dd[data-copy] { text-decoration: underline dotted rgba(233, 226, 205, 0.35); tex
 .editor-tabs button[aria-selected=true] { background:var(--surface-3); color:var(--ink); border-color:var(--ok); }
 .editor-tabs button { flex-shrink:0; white-space:nowrap; min-height:44px; }
 .editor-tabs button:focus-visible, summary:focus-visible, textarea:focus-visible, .import-button:focus-within { outline:2px solid var(--ink); outline-offset:2px; }
+.import-button[aria-disabled="true"] { opacity:0.42; cursor:not-allowed; }
+.import-button[aria-disabled="true"]:hover { background:var(--surface-2); }
 .editor-card .card-head .hint { margin:0; }
 #configSearch { width:100%; max-width:640px; margin:0 0 16px; }
 .config-mod-link { margin:16px 0; }

@@ -732,6 +732,7 @@ function renderOp(op) {
   S.lastOpActive = !!(active);
   S.op = op;
   updateButtons();
+  window.ConfigEditor?.operationChanged();
 }
 
 /* человеческие названия операций для полосы прогресса и тостов */

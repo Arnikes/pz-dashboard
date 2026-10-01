@@ -1273,3 +1273,180 @@ def test_new_mod_password_is_masked_before_first_save(page, dashboard, editing):
     page.get_by_role("tab", name="Исходники", exact=True).click()
     assert "private-editor-token" not in page.locator("#sandboxSource").input_value()
     assert "Mod.NewPassword" not in editor.modpack({"file": "world.ini"})["pack"]["sandbox"]
+
+
+@pytest.mark.parametrize("width", [390, 1440])
+def test_operation_locks_mod_changes_but_keeps_inspection_and_restores_constraints(
+    page, dashboard, editing, width
+):
+    data, _ = editing
+    path = data / "steamapps/workshop/content/108600/111/mods/Future/42.99"
+    path.mkdir(parents=True)
+    (path / "mod.info").write_text("id=future\nname=Future only", encoding="utf-8")
+    editor.workshop.invalidate()
+    page.set_viewport_size({"width": width, "height": 844})
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "mods")
+    page.locator("#modPackages summary").click()
+    expect(page.locator('[data-modid="plugin"]')).to_be_enabled()
+    original = editor.draft("world.ini")
+    page.evaluate(
+        "renderOp({active:{op:'apply-config',phase:'Запуск',message:'Приёмка блокировки'},history:[]})"
+    )
+    expect(page.locator('[data-modid="plugin"]')).to_be_disabled(timeout=3000)
+    for selector in (
+        "#workshopInput",
+        "#workshopAdd button",
+        '[data-remove-item="111"]',
+        "#modImport",
+        "#modExport",
+        "#modRescan",
+        "#mapList",
+        "#mapEdit button",
+    ):
+        expect(page.locator(selector)).to_be_disabled()
+    expect(page.locator(".import-button")).to_have_attribute("aria-disabled", "true")
+    # Read controls remain useful; a redraw must not recreate enabled edit buttons.
+    page.locator("#modQuery").fill("library")
+    page.locator("#modSortNew").select_option("title")
+    expect(page.locator('[data-modid="plugin"]')).to_be_disabled()
+    expect(page.locator("#mapEdit button")).to_be_disabled()
+    page.get_by_role("tab", name="Порядок", exact=True).click()
+    page.locator("#orderQuery").fill("library")
+    expect(page.locator('[data-position-id="library"]')).to_be_disabled()
+    navigate(page, "settings", width <= 740)
+    expect(page.locator('[data-key="PublicName"]')).to_be_disabled()
+    page.get_by_role("tab", name="Исходники", exact=True).click()
+    expect(page.locator("#iniSource")).to_have_attribute("readonly", "")
+    expect(page.locator("#sourceSave")).to_be_disabled()
+    page.evaluate("renderOp({active:null,history:[]})")
+    expect(page.locator("#sourceSave")).to_be_enabled()
+    navigate(page, "mods")
+    page.get_by_role("tab", name="Состав", exact=True).click()
+    expect(page.locator('[data-modid="plugin"]')).to_be_enabled()
+    expect(page.locator('[data-modid="future"]')).to_be_disabled()
+    expect(page.locator("#modImport")).to_be_enabled()
+    expect(page.locator(".import-button")).to_have_attribute("aria-disabled", "false")
+    page.get_by_role("tab", name="Порядок", exact=True).click()
+    expect(page.locator('[aria-label="Поднять library"]')).to_be_disabled()
+    expect(page.locator('[data-position-id="library"]')).to_be_enabled()
+    assert editor.draft("world.ini")["draftRevision"] == original["draftRevision"]
+    assert dashboard["actions"] == []
+
+
+@pytest.mark.parametrize("entry", ["configDiff", "configApply"])
+@pytest.mark.parametrize("width", [390, 1440])
+def test_first_click_flushes_focused_field_before_review(page, dashboard, editing, entry, width):
+    page.set_viewport_size({"width": width, "height": 844})
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "settings", width <= 740)
+    field = page.locator('[data-key="PublicName"]')
+    field.fill("First click draft")
+    expect(page.locator("#draftLabel")).to_contain_text("Есть несохранённые поля")
+    assert page.evaluate("""() => {
+        const event = new Event('beforeunload', {cancelable:true});
+        window.dispatchEvent(event); return event.defaultPrevented;
+    }""")
+    page.locator(f"#{entry}").click()
+    expect(page.get_by_role("alertdialog")).to_contain_text("+PublicName=First click draft")
+    assert "PublicName=First click draft" in editor.draft("world.ini")["texts"]["ini"]
+    assert dashboard["actions"] == []
+
+
+def test_metadata_refresh_keeps_unblurred_mod_setting_and_focus(page, dashboard, editing):
+    data, _ = editing
+    media = data / "steamapps/workshop/content/108600/111/mods/PluginFolder/42/media"
+    media.mkdir()
+    (media / "sandbox-options.txt").write_text(
+        "option Mod.Count { type=integer, min=1, max=100, default=2, }", encoding="utf-8"
+    )
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "settings")
+    page.get_by_role("tab", name="Настройки модов", exact=True).click()
+    field = page.locator('[data-key="Mod.Count"]')
+    field.fill("37")
+    field.evaluate("el => el.protectedNode = true")
+    with page.expect_response("**/api/mods?*refresh=1"):
+        page.evaluate("document.querySelector('#modRescan').click()")
+    page.wait_for_timeout(100)  # Complete metadata rendering without blurring the field.
+    expect(field).to_have_value("37")
+    expect(field).to_be_focused()
+    assert field.evaluate("el => el.protectedNode")
+    assert not editor.draft("world.ini")["changed"]
+    page.evaluate("document.querySelector('#configDiff').click()")
+    expect(page.get_by_role("alertdialog")).to_contain_text("Count = 37")
+    assert "Count = 37" in editor.draft("world.ini")["texts"]["sandbox"]
+
+
+@pytest.mark.parametrize("switch_profile", [False, True])
+def test_late_mod_metadata_cannot_replace_profile_or_new_selection(
+    page, dashboard, editing, switch_profile
+):
+    data, _ = editing
+    (data / "Server/another.ini").write_bytes(INI.replace("\\library;\\plugin", "").encode())
+    pending = []
+    page.route("**/api/mods?*refresh=1", lambda route: pending.append(route))
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "mods")
+    old = editor.mod_response("world.ini", draft_mode=True)
+    page.locator("#modRescan").click()
+    if switch_profile:
+        page.locator("#configProfile").select_option("another.ini")
+        count = "0 выбранных ModID"
+    else:
+        page.locator("#modPackages summary").click()
+        page.locator('[data-modid="plugin"]').uncheck()
+        count = "1 выбранных ModID"
+    expect(page.locator("#modSummary")).to_contain_text(count)
+    assert pending
+    pending[0].fulfill(json=old)
+    page.wait_for_timeout(100)  # Run the delayed response's promise callback.
+    expect(page.locator("#modSummary")).to_contain_text(count)
+    expect(page.locator("#configError")).to_be_hidden()
+    assert dashboard["actions"] == []
+
+
+def test_failed_field_save_preserves_input_and_blocks_review(page, dashboard, editing):
+    def reject_post(route):
+        if route.request.method == "POST":
+            route.fulfill(status=500, json={"ok": False, "error": "Ошибка сохранения черновика"})
+        else:
+            route.fallback()
+
+    page.route("**/api/config-draft", reject_post)
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "settings")
+    field = page.locator('[data-key="PublicName"]')
+    field.fill("Unsaved field survives")
+    page.locator("#configApply").click()
+    expect(page.locator("#configError")).to_contain_text("Ошибка сохранения черновика")
+    expect(page.get_by_role("alertdialog")).to_be_hidden()
+    expect(field).to_have_value("Unsaved field survives")
+    expect(page.locator("#draftRetry")).to_be_visible()
+    page.unroute("**/api/config-draft", reject_post)
+    page.locator("#draftRetry").click()
+    expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
+    assert "PublicName=Unsaved field survives" in editor.draft("world.ini")["texts"]["ini"]
+    assert dashboard["actions"] == []
+
+
+def test_missing_server_state_does_not_offer_stopped_server_save(page, dashboard, editing):
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "settings")
+    page.evaluate("S.overview = null; ConfigEditor.route('settings')")
+    expect(page.locator("#configSave")).to_be_disabled()
+    expect(page.locator("#configSaveHint")).to_contain_text("Ожидаем состояние сервера")
+    page.evaluate("S.overview = {containerInfo:{running:false}}; ConfigEditor.route('settings')")
+    expect(page.locator("#configSave")).to_be_enabled()
+    expect(page.locator("#configSaveHint")).to_contain_text("при остановленном сервере")
+    page.evaluate("S.overview = {containerInfo:{running:true}}; ConfigEditor.route('settings')")
+    expect(page.locator("#configSave")).to_be_disabled()
+    expect(page.locator("#configSaveHint")).to_contain_text("Сервер работает")
+    assert not editor.draft("world.ini")["changed"]
+    assert dashboard["actions"] == []
