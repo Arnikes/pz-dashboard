@@ -3,10 +3,13 @@
 планировщик автообновления. Всё на стандартной библиотеке."""
 
 import json
+import math
 import os
 import re
 import shutil
 import subprocess
+import tarfile
+import tempfile
 import threading
 import time
 import urllib.error
@@ -151,7 +154,7 @@ def _clamp_int(value, lo, hi):
         return None
     try:
         return max(lo, min(hi, int(value)))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
 
@@ -187,8 +190,10 @@ def _load_settings():
     try:
         with open(config.CFG["settings_file"], encoding="utf-8") as f:
             data = json.load(f)
+        if not isinstance(data, dict):
+            raise ValueError("Настройки должны быть объектом")
         for k, v in data.items():
-            if k in _SETTINGS and isinstance(v, dict) and k != "modsDisabled":
+            if isinstance(_DEFAULTS.get(k), dict) and isinstance(v, dict) and k != "modsDisabled":
                 _SETTINGS[k].update(v)
             elif k == "modsDisabled" and isinstance(v, dict):
                 _SETTINGS["modsDisabled"] = v
@@ -196,7 +201,11 @@ def _load_settings():
                 # метка планировщика — только число; строка/список из рук
                 # иначе роняли бы планировщик TypeError'ом каждые 20 с
                 _SETTINGS[k] = (
-                    v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+                    v
+                    if isinstance(v, (int, float))
+                    and not isinstance(v, bool)
+                    and not (isinstance(v, float) and not math.isfinite(v))
+                    else None
                 )
     except (OSError, ValueError):
         pass
@@ -211,10 +220,23 @@ def _load_settings():
         ("backup", "maxBackups", 0, 200),
     ):
         val = _SETTINGS[section].get(key)
-        if isinstance(val, bool) or not isinstance(val, (int, float)):
-            _SETTINGS[section][key] = _DEFAULTS[section][key]
-        else:
-            _SETTINGS[section][key] = max(lo, min(hi, int(val)))
+        normalized = _clamp_int(val, lo, hi) if isinstance(val, (int, float)) else None
+        _SETTINGS[section][key] = _DEFAULTS[section][key] if normalized is None else normalized
+    for section, defaults in _DEFAULTS.items():
+        if not isinstance(defaults, dict):
+            continue
+        for key, default in defaults.items():
+            if isinstance(default, bool) and not isinstance(_SETTINGS[section].get(key), bool):
+                _SETTINGS[section][key] = default
+            elif isinstance(default, str) and not isinstance(_SETTINGS[section].get(key), str):
+                _SETTINGS[section][key] = default
+    groups = _SETTINGS["telegram"].get("groups")
+    _SETTINGS["telegram"]["groups"] = {
+        key: groups[key]
+        if isinstance(groups, dict) and isinstance(groups.get(key), bool)
+        else default
+        for key, default in _DEFAULTS["telegram"]["groups"].items()
+    }
     # время автобэкапа — строка «ЧЧ:ММ»; мусор из рук заменяется значением по умолчанию
     if not _valid_hhmm(_SETTINGS["autoBackup"].get("time")):
         _SETTINGS["autoBackup"]["time"] = _DEFAULTS["autoBackup"]["time"]
@@ -1019,19 +1041,22 @@ def list_backups():
                 continue
             st = os.stat(path)
             items.append(
-                {
-                    "name": name,
-                    "size": st.st_size,
-                    "sizeText": fmt_size(st.st_size),
-                    "mtime": datetime.fromtimestamp(st.st_mtime)
-                    .astimezone()
-                    .isoformat(timespec="seconds"),
-                }
+                (
+                    st.st_mtime_ns,
+                    {
+                        "name": name,
+                        "size": st.st_size,
+                        "sizeText": fmt_size(st.st_size),
+                        "mtime": datetime.fromtimestamp(st.st_mtime)
+                        .astimezone()
+                        .isoformat(timespec="seconds"),
+                    },
+                )
             )
     except OSError:
         return []
-    items.sort(key=lambda x: x["mtime"], reverse=True)
-    return items
+    items.sort(key=lambda x: x[0], reverse=True)
+    return [item for _, item in items]
 
 
 def _prune_backups(max_keep):
@@ -1046,6 +1071,55 @@ def _prune_backups(max_keep):
         except OSError:
             pass
     return removed
+
+
+def _create_backup_archive(bdir, ddir):
+    """Публиковать архив только после успешного tar, сохраняя предыдущие копии."""
+    base = time.strftime("pz-backup-%Y%m%d-%H%M%S")
+    name = base + ".tar.gz"
+    suffix = 1
+    while os.path.lexists(os.path.join(bdir, name)):
+        name = f"{base}-{suffix}.tar.gz"
+        suffix += 1
+    dest = os.path.join(bdir, name)
+    temp_path = None
+    _set_phase("Создание архива", name)
+    try:
+        fd, temp_path = tempfile.mkstemp(prefix=".pz-backup-", suffix=".tmp", dir=bdir)
+        os.close(fd)
+        proc = subprocess.run(
+            [
+                "tar",
+                "-czf",
+                temp_path,
+                "--exclude=Logs",
+                "--exclude=logs",
+                "--exclude=*.log",
+                "-C",
+                ddir,
+                ".",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=2400,
+        )
+        if proc.returncode != 0:
+            raise OpsError(f"tar не удался: {(proc.stderr or proc.stdout)[:200]}")
+        size = os.path.getsize(temp_path)
+        os.replace(temp_path, dest)
+        return name, dest, size
+    except subprocess.TimeoutExpired as error:
+        raise OpsError("Архив не создан: tar не уложился в таймаут (2400 с)") from error
+    except OSError as error:
+        raise OpsError(f"Архив не создан: {error}") from error
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except OSError as error:
+                log_event("warn", f"Не удалось удалить временный архив: {error}")
 
 
 def _do_backup(stop_server, trigger="manual", started=None):
@@ -1073,35 +1147,24 @@ def _do_backup(stop_server, trigger="manual", started=None):
                 log_event("warn", "Не удалось выполнить save через RCON — бэкап без сохранения")
             _set_phase("Ожидание записи", "10 с на сохранение")
             time.sleep(10)
-    name = time.strftime("pz-backup-%Y%m%d-%H%M%S.tar.gz")
-    dest = os.path.join(bdir, name)
-    _set_phase("Создание архива", name)
+    archive_error = None
     try:
-        proc = subprocess.run(
-            [
-                "tar",
-                "-czf",
-                dest,
-                "--exclude=Logs",
-                "--exclude=logs",
-                "--exclude=*.log",
-                "-C",
-                ddir,
-                ".",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=2400,
-        )
-    except subprocess.TimeoutExpired:
-        raise OpsError("Архив не создан: tar не уложился в таймаут (2400 с)")
-    if proc.returncode != 0:
-        raise OpsError(f"tar не удался: {(proc.stderr or proc.stdout)[:200]}")
-    if stop_server and was_running:
-        _set_phase("Запуск сервера", "docker start")
-        dockerlib.container_start(config.CFG["pz_container"])
-        wait_until_running(150)
-    size = os.path.getsize(dest)
+        name, dest, size = _create_backup_archive(bdir, ddir)
+    except OpsError as error:
+        archive_error = error
+        raise
+    finally:
+        if stop_server and was_running:
+            _set_phase("Запуск сервера", "docker start")
+            code, out, err = dockerlib.container_start(config.CFG["pz_container"])
+            restart_error = None
+            if code != 0:
+                restart_error = f"Не удалось запустить сервер после бэкапа: {err or out}"
+            elif not wait_until_running(150):
+                restart_error = "Сервер не запустился после бэкапа за 150 с"
+            if restart_error:
+                message = f"{archive_error}. {restart_error}" if archive_error else restart_error
+                raise OpsError(message) from archive_error
     pruned = _prune_backups(get_settings()["backup"]["maxBackups"])
     label = "по расписанию" if trigger == "scheduled" else "вручную"
     log_event("backup", f"Бэкап создан ({label}): {name} ({fmt_size(size)})")
@@ -1129,7 +1192,7 @@ def run_backup_job(trigger, stop_server):
     started = time.time()
     try:
         return _do_backup(stop_server, trigger=trigger, started=started)
-    except OpsError as e:
+    except (OpsError, OSError) as e:
         label = "по расписанию" if trigger == "scheduled" else "вручную"
         _journal_append(
             {
@@ -1144,21 +1207,47 @@ def run_backup_job(trigger, stop_server):
 
 
 def _validate_backup_name(name):
-    if not name or not _NAME_RE.match(name) or not name.endswith(".tar.gz"):
+    if not isinstance(name, str) or not _NAME_RE.fullmatch(name) or not name.endswith(".tar.gz"):
         raise OpsError("Некорректное имя бэкапа")
     path = os.path.join(config.CFG["backup_dir"], name)
     real = os.path.realpath(path)
-    if os.path.realpath(config.CFG["backup_dir"]) + os.sep not in real + os.sep:
+    if not real.startswith(os.path.realpath(config.CFG["backup_dir"]) + os.sep):
         raise OpsError("Некорректный путь бэкапа")
     if not os.path.isfile(real):
         raise OpsError("Файл бэкапа не найден")
     return real
 
 
-def _do_restore(name):
-    path = _validate_backup_name(name)
-    if not os.path.isdir(config.CFG["data_dir"]):
-        raise OpsError("Каталог данных PZ не смонтирован")
+def _extract_backup(path, dest):
+    """Проверить весь gzip и распаковать только безопасные члены архива."""
+
+    def backup_filter(member, target):
+        safe = tarfile.data_filter(member, target)
+        # Мир должен сохранить числовых владельцев файлов из бэкапа.
+        return safe.replace(uid=member.uid, gid=member.gid, uname=None, gname=None)
+
+    try:
+        proc = subprocess.run(
+            ["tar", "-tzf", path],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=900,
+        )
+        if proc.returncode != 0:
+            raise OpsError(f"Архив повреждён: {(proc.stderr or proc.stdout)[:200]}")
+        with tarfile.open(path, "r:gz") as archive:
+            archive.extractall(dest, filter=backup_filter)
+        if not any(files for _, _, files in os.walk(dest)):
+            raise OpsError("Архив пуст — восстанавливаться из него нечем")
+    except subprocess.TimeoutExpired as error:
+        raise OpsError("Проверка не удалась: tar не уложился в таймаут (900 с)") from error
+    except (tarfile.TarError, OSError, EOFError, ValueError) as error:
+        raise OpsError(f"Архив повреждён или небезопасен: {error}") from error
+
+
+def _restore_prepared(dest, name):
     if is_running():
         _set_phase("Предупреждение игроков", "отсчёт 60 с")
         rcon_warn_broadcast(60, "Восстановление из бэкапа")
@@ -1172,31 +1261,43 @@ def _do_restore(name):
     for entry in os.listdir(config.CFG["data_dir"]):
         full = os.path.join(config.CFG["data_dir"], entry)
         if os.path.isdir(full) and not os.path.islink(full):
-            shutil.rmtree(full, ignore_errors=True)
+            shutil.rmtree(full)
         else:
-            try:
-                os.remove(full)
-            except OSError:
-                pass
-    _set_phase("Распаковка архива", name)
-    try:
-        proc = subprocess.run(
-            ["tar", "-xzf", path, "-C", config.CFG["data_dir"]],
-            capture_output=True,
-            text=True,
-            timeout=2400,
-        )
-    except subprocess.TimeoutExpired:
-        raise OpsError("Распаковка не удалась: tar не уложился в таймаут (2400 с)")
-    if proc.returncode != 0:
-        raise OpsError(f"Распаковка не удалась: {(proc.stderr or proc.stdout)[:200]}")
+            os.remove(full)
+    _set_phase("Восстановление файлов", name)
+    shutil.copytree(dest, config.CFG["data_dir"], symlinks=True, dirs_exist_ok=True)
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
+        # copytree сохраняет режимы и даты, но не uid/gid при переносе между volumes.
+        for root, dirs, files in os.walk(dest):
+            for entry in [".", *dirs, *files]:
+                source = os.path.join(root, entry)
+                target = os.path.join(config.CFG["data_dir"], os.path.relpath(source, dest))
+                stat = os.stat(source, follow_symlinks=False)
+                os.chown(target, stat.st_uid, stat.st_gid, follow_symlinks=False)
     _set_phase("Запуск сервера", "docker start")
     code, out, err = dockerlib.container_start(config.CFG["pz_container"])
     if code != 0:
         raise OpsError(f"Данные восстановлены, но запуск не удался: {err or out}")
-    wait_until_running(180)
+    if not wait_until_running(180):
+        raise OpsError("Данные восстановлены, но сервер не запустился за 180 с")
     log_event("restore", f"Мир восстановлен из {name}")
     _set_phase("Готово", f"Восстановлено из {name}")
+
+
+def _do_restore(name):
+    path = _validate_backup_name(name)
+    if not os.path.isdir(config.CFG["data_dir"]):
+        raise OpsError("Каталог данных PZ не смонтирован")
+    os.makedirs(config.CFG["dashboard_dir"], exist_ok=True)
+    try:
+        with tempfile.TemporaryDirectory(
+            prefix="restore-tmp-", dir=config.CFG["dashboard_dir"]
+        ) as dest:
+            _set_phase("Проверка архива перед восстановлением", name)
+            _extract_backup(path, dest)
+            _restore_prepared(dest, name)
+    except OSError as error:
+        raise OpsError(f"Восстановление не удалось: {error}") from error
 
 
 def delete_backup(name):
@@ -1214,27 +1315,10 @@ def verify_backup(name):
     временную папку с подсчётом файлов. Данные сервера не затрагивает."""
     path = _validate_backup_name(name)
     started = time.time()
-    _set_phase("Проверка целостности", name)
-    try:
-        proc = subprocess.run(["tar", "-tzf", path], capture_output=True, text=True, timeout=900)
-    except subprocess.TimeoutExpired:
-        raise OpsError("Проверка не удалась: tar не уложился в таймаут (900 с)")
-    if proc.returncode != 0:
-        raise OpsError(f"Архив повреждён: {(proc.stderr or proc.stdout)[:200]}")
-    if not any(ln.strip() for ln in proc.stdout.splitlines()):
-        raise OpsError("Архив пуст — восстанавливаться из него нечем")
-    _set_phase("Распаковка в песочницу", name)
-    dest = os.path.join(config.CFG["dashboard_dir"], f"verify-tmp-{int(time.time())}")
-    os.makedirs(dest, exist_ok=True)
-    try:
-        try:
-            proc = subprocess.run(
-                ["tar", "-xzf", path, "-C", dest], capture_output=True, text=True, timeout=900
-            )
-        except subprocess.TimeoutExpired:
-            raise OpsError("Распаковка не удалась: tar не уложился в таймаут (900 с)")
-        if proc.returncode != 0:
-            raise OpsError(f"Архив повреждён (распаковка): {(proc.stderr or proc.stdout)[:200]}")
+    _set_phase("Проверка и распаковка в песочницу", name)
+    os.makedirs(config.CFG["dashboard_dir"], exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="verify-tmp-", dir=config.CFG["dashboard_dir"]) as dest:
+        _extract_backup(path, dest)
         files = total = 0
         has_ini = has_map = False
         for root, _dirs, fnames in os.walk(dest):
@@ -1273,8 +1357,6 @@ def verify_backup(name):
         )
         _set_phase("Готово", f"Проверка {name}: OK")
         return res
-    finally:
-        shutil.rmtree(dest, ignore_errors=True)
 
 
 # ─────────────────────────── планировщик автообновления ───────────────────────────
@@ -1325,7 +1407,12 @@ def _scheduler_loop():
                         st = update_state()
                         if st.get("available"):
                             log_event("auto", "Автообновление: найдена новая версия")
-                            _do_apply_update(au["warnSeconds"], "Автообновление сервера")
+                            start_op(
+                                "apply-update",
+                                lambda w=au["warnSeconds"]: _do_apply_update(
+                                    w, "Автообновление сервера"
+                                ),
+                            )
                     except OpsError as e:
                         log_event("error", "Автообновление: " + str(e))
                     _SETTINGS["nextCheck"] = time.time() + au["intervalHours"] * 3600

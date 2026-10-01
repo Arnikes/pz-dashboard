@@ -6,6 +6,7 @@ import io
 import json
 import struct
 import sys
+import tarfile
 import threading
 import time
 import urllib.error
@@ -1473,17 +1474,27 @@ def test_restore_aborts_on_resurrect(tmp_path, monkeypatch):
     (data / "keep.txt").write_text("x", encoding="utf-8")
     config.CFG["data_dir"] = str(data)
     bak = tmp_path / "pz-backup-20260909-120000.tar.gz"
-    bak.write_bytes(b"\\x1f\\x8b")  # имя валидно, до распаковки дело не дойдёт
+    with tarfile.open(bak, "w:gz") as archive:
+        archive.add(data / "keep.txt", arcname="keep.txt")
+    monkeypatch.setitem(config.CFG, "dashboard_dir", str(tmp_path / "dd"))
     wiped = []
     monkeypatch.setattr(ops, "log_event", lambda *a, **k: None)
     monkeypatch.setattr(ops, "_set_phase", lambda *a, **k: None)
     monkeypatch.setattr(ops, "is_running", lambda: True)
     monkeypatch.setattr(ops, "rcon_warn_broadcast", lambda s, r: True)
-    monkeypatch.setattr(ops, "graceful_stop", lambda hook=None: "resurrected")
-    monkeypatch.setattr(ops.shutil, "rmtree", lambda p, ignore_errors=False: wiped.append(str(p)))
-    with pytest.raises(ops.OpsError):
+    stop = Mock(return_value="resurrected")
+    monkeypatch.setattr(ops, "graceful_stop", stop)
+    original_rmtree = ops.shutil.rmtree
+
+    def track_rmtree(path, **kwargs):
+        wiped.append(str(path))
+        return original_rmtree(path, **kwargs)
+
+    monkeypatch.setattr(ops.shutil, "rmtree", track_rmtree)
+    with pytest.raises(ops.OpsError, match="Docker сам перезапустил"):
         ops._do_restore(bak.name)
-    assert wiped == [], "каталог данных не должен очищаться при resurrected"
+    stop.assert_called_once()
+    assert not any(Path(path).is_relative_to(data) for path in wiped)
     assert (data / "keep.txt").exists(), "файлы мира не должны удаляться"
 
 
@@ -1864,7 +1875,7 @@ def test_restore_roundtrip_returns_source(tmp_path, monkeypatch):
     res = ops.run_backup_job("manual", False)
     (data / "Server" / "test.ini").write_text("ПОРЧА\n", encoding="utf-8")
     monkeypatch.setattr(dockerlib, "container_start", lambda name: (0, "", ""))
-    monkeypatch.setattr(ops, "wait_until_running", lambda timeout=120: None)
+    monkeypatch.setattr(ops, "wait_until_running", lambda timeout=120: True)
     ops._do_restore(res["name"])
     assert (data / "Server" / "test.ini").read_text(encoding="utf-8") == "Mods=\n"
     assert (data / "Maps" / "TestMap" / "region.bin").read_bytes() == b"x" * 2048
