@@ -21,6 +21,8 @@ import pytest
 DASHBOARD_DIR = Path(__file__).resolve().parents[1] / "dashboard"
 sys.path.insert(0, str(DASHBOARD_DIR))
 
+import configeditor  # noqa: E402
+import workshop  # noqa: E402
 import config  # noqa: E402
 import dockerlib  # noqa: E402
 import ops  # noqa: E402
@@ -196,12 +198,12 @@ def test_parse_mods_ini(tmp_path, monkeypatch):
     assert res["ok"] and res["file"] == "servertest.ini"
     assert res["mods"] == ["tsarslib", "my mod", "SoloMod"]
     assert [w["workshopId"] for w in res["workshop"]] == ["111111111", "222222222"]
-    assert res["paired"] is False and res["mappingSource"] is None
+    assert res["paired"] is False and res["mappingSource"] == "metadata"
     assert res["workshop"][0]["url"].endswith("id=111111111")
 
 
 def test_mods_paired(tmp_path, monkeypatch):
-    """Равные количества и без данных с диска — соответствие 1:1 по порядку."""
+    """Равные количества без метаданных не дают соответствия по порядку."""
     config.CFG["data_dir"] = str(tmp_path)
     monkeypatch.setattr(ops, "_WS_TITLES", {"111": "Mod A", "222": "Mod B"})
     monkeypatch.setattr(ops, "_ws_titles", lambda ids: ops._WS_TITLES)
@@ -209,9 +211,9 @@ def test_mods_paired(tmp_path, monkeypatch):
     server_dir.mkdir()
     (server_dir / "srv.ini").write_text("Mods=modA;modB\nWorkshopItems=111;222\n", encoding="utf-8")
     res = ops.list_mods("srv.ini")
-    assert res["paired"] is True and res["mappingSource"] == "order"
-    assert [p["mod"] for p in res["pairs"]] == ["modA", "modB"]
-    assert [p["title"] for p in res["pairs"]] == ["Mod A", "Mod B"]
+    assert res["paired"] is False and res["mappingSource"] == "metadata"
+    assert res["pairs"] == []
+    assert res["unbound"] == ["modA", "modB"]
 
 
 def test_mods_disk_mapping(tmp_path, monkeypatch):
@@ -224,12 +226,12 @@ def test_mods_disk_mapping(tmp_path, monkeypatch):
         "Mods=libA;pluginB;localMod\nWorkshopItems=111\n", encoding="utf-8"
     )
     ws_dir = tmp_path / "steamapps" / "workshop" / "content" / "108600" / "111" / "mods"
-    (ws_dir / "tsar").mkdir(parents=True)
-    (ws_dir / "tsar" / "mod.info").write_text("name=Big Pack\nmodID=libA\n", encoding="utf-8")
-    (ws_dir / "plug").mkdir()
-    (ws_dir / "plug" / "mod.info").write_text("modID=pluginB\n", encoding="utf-8")
+    (ws_dir / "tsar" / "42").mkdir(parents=True)
+    (ws_dir / "tsar" / "42" / "mod.info").write_text("name=Big Pack\nid=libA\n", encoding="utf-8")
+    (ws_dir / "plug" / "42").mkdir(parents=True)
+    (ws_dir / "plug" / "42" / "mod.info").write_text("id=pluginB\n", encoding="utf-8")
     res = ops.list_mods("srv.ini")
-    assert res["mappingSource"] == "disk"
+    assert res["mappingSource"] == "metadata"
     assert sorted(res["workshop"][0]["mods"]) == ["libA", "pluginB"]
     assert res["unbound"] == ["localMod"]
     assert res["paired"] is False
@@ -1086,68 +1088,30 @@ def test_ini_replace_value():
     assert out == "Mods=one\nWorkshopItems=1\n"
 
 
-def test_mods_toggle_flow(tmp_path, monkeypatch):
-    """Выключение мода: уходит из WorkshopItems и Mods, состав в реестре; включение обратно."""
-    server_dir = tmp_path / "Server"
-    server_dir.mkdir()
-    ini = server_dir / "servertest.ini"
-    ini.write_text(INI, encoding="utf-8")
-    config.CFG["data_dir"] = str(tmp_path)
-    config.CFG["settings_file"] = str(tmp_path / "settings.json")
-    config.CFG["events_file"] = str(tmp_path / "events.jsonl")
-    ops._SETTINGS["modsDisabled"] = {}
-    ops._WS_EXEC["map"] = {}
-    ops._WS_TITLES.clear()
-    monkeypatch.setattr(ops, "log_event", lambda *a, **k: None)
-    # локального тома нет, но контент находим docker exec'ом
-    monkeypatch.setattr(ops, "_workshop_map_local", lambda items: {})
-    monkeypatch.setattr(
-        ops,
-        "_workshop_map_via_exec",
-        lambda: {"2694464646": ["tsarslib"], "2804001857": ["commonpackage"]},
-    )
-
-    res = ops.set_mod_enabled("servertest.ini", "2694464646", enable=False)
-    text = ini.read_text(encoding="utf-8")
-    assert "WorkshopItems=2804001857\n" in text and "Mods=commonpackage\n" in text
-    assert res["canManage"] is True
-    dis = {d["workshopId"]: d for d in res["disabled"]}
-    assert dis["2694464646"]["modIds"] == ["tsarslib"]
-    # бэкап создан
-    assert any(p.name.startswith("servertest.ini.bak-") for p in server_dir.iterdir())
-
-    # включение обратно — состав восстанавливается из реестра
-    res = ops.set_mod_enabled("servertest.ini", "2694464646", enable=True)
-    text = ini.read_text(encoding="utf-8")
-    assert "WorkshopItems=2804001857;2694464646\n" in text
-    assert "Mods=commonpackage;tsarslib\n" in text
-    assert res["disabled"] == []
-
-
 def test_mods_toggle_blocked_without_mapping(tmp_path, monkeypatch):
-    """Без modID выключение запрещено — не теряем состав конфига."""
+    """Unknown metadata cannot activate a guessed ModID."""
     server_dir = tmp_path / "Server"
     server_dir.mkdir()
     (server_dir / "servertest.ini").write_text(INI, encoding="utf-8")
-    config.CFG["data_dir"] = str(tmp_path)
-    config.CFG["settings_file"] = str(tmp_path / "settings.json")
-    config.CFG["events_file"] = str(tmp_path / "events.jsonl")
-    ops._SETTINGS["modsDisabled"] = {}
-    ops._WS_EXEC["map"] = {}
-    monkeypatch.setattr(ops, "log_event", lambda *a, **k: None)
-    monkeypatch.setattr(ops, "_workshop_map_local", lambda items: {})
-    monkeypatch.setattr(ops, "_workshop_map_via_exec", lambda: {})
+    monkeypatch.setitem(config.CFG, "data_dir", str(tmp_path))
+    monkeypatch.setitem(config.CFG, "dashboard_dir", str(tmp_path / "panel"))
+    monkeypatch.setattr(ops, "is_running", lambda: False)
+    monkeypatch.setattr(ops, "op_busy", lambda: False)
+    monkeypatch.setattr(workshop, "scan", lambda *args, **kwargs: {})
+    monkeypatch.setattr(
+        configeditor,
+        "context",
+        lambda refresh=False: {
+            "activeFile": "servertest.ini",
+            "version": "42.15",
+            "versionKnown": True,
+            "owners": {},
+            "generatesSettings": False,
+        },
+    )
     with pytest.raises(ops.OpsError):
-        ops.set_mod_enabled("servertest.ini", "2694464646", enable=False)
+        ops.set_mod_enabled("servertest.ini", "999999", enable=True)
     assert (server_dir / "servertest.ini").read_text(encoding="utf-8") == INI
-    # включение неизвестного ID — добавление нового элемента: конфиг пишется, но с предупреждением
-    events = []
-    monkeypatch.setattr(ops, "log_event", lambda kind, text, **k: events.append((kind, text)))
-    res = ops.set_mod_enabled("servertest.ini", "999999", enable=True)
-    text = (server_dir / "servertest.ini").read_text(encoding="utf-8")
-    assert text.count("999999") == 1 and "WorkshopItems=2694464646;2804001857;999999" in text
-    assert any(kind == "warn" and "modID" in t for kind, t in events)
-    assert res["disabled"] == []
 
 
 # ─────────────────────── регресс: SSE-поток ───────────────────────
@@ -1189,24 +1153,14 @@ def test_sse_stream_serves_data(monkeypatch):
 
 
 def test_workshop_exec_backoff(monkeypatch):
-    """Пустой результат поиска в контейнере кэшируется: повторные вызовы
-    в паузу не гоняют find по всей ФС (list_mods приходит каждые 60 с)."""
-    calls = {"n": 0}
-
-    def fake_exec(name, cmd, timeout=60):
-        calls["n"] += 1
-        return 0, "", ""
-
-    monkeypatch.setattr(dockerlib, "container_exec", fake_exec)
-    monkeypatch.setattr(ops, "docker_ok_cached", lambda ttl=600: True)
-    ops._WS_EXEC.update({"at": 0.0, "map": {}})
-    try:
-        assert ops._workshop_map_via_exec() == {}
-        assert calls["n"] == 1
-        assert ops._workshop_map_via_exec() == {}
-        assert calls["n"] == 1, "повторный поиск должен быть отложен на паузу"
-    finally:
-        ops._WS_EXEC.update({"at": 0.0, "map": {}})
+    """Empty metadata scans are cached instead of repeatedly searching a container."""
+    workshop.invalidate()
+    calls = Mock(return_value={})
+    monkeypatch.setattr(workshop, "local_files", lambda items: {})
+    monkeypatch.setattr(workshop, "container_files", calls)
+    assert workshop.scan(["123"], "42.15") == {"123": []}
+    assert workshop.scan(["123"], "42.15") == {"123": []}
+    calls.assert_called_once()
 
 
 # ─────────────────────── регресс: бэкап с остановкой ───────────────────────

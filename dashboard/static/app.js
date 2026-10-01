@@ -648,7 +648,7 @@ function renderSummaries() {
 
 function updateButtons() {
   const o = S.overview;
-  const busy = !!(S.op && S.op.active);
+  const busy = !!(S.op && S.op.active) || S.demo;
   const remote = !!(o && o.mode === "remote");
   const rconOk = !!(o && o.rcon && o.rcon.state === "ok");
   const running = !remote && !!(o && o.containerInfo && o.containerInfo.running);
@@ -656,13 +656,13 @@ function updateButtons() {
   const hostHint = "Доступно только при запуске пульта на хосте сервера";
   const consoleLive = busy ? false : (remote ? rconOk : running);
   $("btnStart").disabled = busy || remote || !found || running;
-  $("btnStop").disabled = busy || remote || !running;
-  $("btnRestart").disabled = busy || remote || !running;
+  $("btnStop").disabled = busy || S.demo || remote || !running;
+  $("btnRestart").disabled = busy || S.demo || remote || !running;
   $("btnSaveWorld").disabled = !consoleLive;
-  $("btnCheckUpd").disabled = busy || remote;
+  $("btnCheckUpd").disabled = busy || S.demo || remote;
   $("btnApplyUpd").disabled = busy || remote || (o && o.compose === false);
-  $("btnCheckMods").disabled = busy || remote;
-  $("btnApplyMods").disabled = busy || remote;
+  $("btnCheckMods").disabled = busy || S.demo || remote;
+  $("btnApplyMods").disabled = busy || S.demo || remote;
   const modsRestart = S.op?.active?.op === "mods-restart";
   const cancelPending = modsRestart && !!S.op.active.cancelRequested;
   $("btnCancelMods").hidden = !modsRestart || (!S.op.active.cancellable && !cancelPending);
@@ -670,7 +670,7 @@ function updateButtons() {
   $("btnCancelMods").textContent = cancelPending ? "Отмена…" : "Отменить обновление модов";
   // автонастройки и watchdog пишут в настройки и работают только с хоста —
   // в remote-режиме они тихо ничего не делают, честно их глушим
-  const hostOnly = busy || remote;
+  const hostOnly = busy || S.demo || remote;
   $("autoSwitch").disabled = hostOnly;
   $("autoInterval").disabled = hostOnly;
   $("autoWarn").disabled = hostOnly;
@@ -692,11 +692,11 @@ function updateButtons() {
     $(id).title = remote ? hostHint : (id === "btnApplyUpd" && o && o.compose === false
       ? "Недоступен плагин docker compose в контейнере пульта" : "");
   }
-  $("btnBackup").disabled = busy || remote;
+  $("btnBackup").disabled = busy || S.demo || remote;
   $("logsDownload").style.display = (remote || S.demo) ? "none" : "";
   $("logsFilter").disabled = remote || S.demo;
   document.querySelectorAll("#playersBody .p-actions .icon-btn").forEach((b) => { b.disabled = !consoleLive; });
-  document.querySelectorAll("#backupsBody .icon-btn").forEach((b) => { b.disabled = busy || remote; });
+  document.querySelectorAll("#backupsBody .icon-btn").forEach((b) => { b.disabled = busy || S.demo || remote; });
   document.querySelectorAll("#quickCmds .chip").forEach((b) => { b.disabled = !consoleLive; });
   $("consoleInput").disabled = !consoleLive;
   $("consoleForm").querySelector("button").disabled = !consoleLive;
@@ -935,6 +935,7 @@ const _wsSwitch = (wsId, checked, title) => `
   </label>`;
 
 function _renderMods(data) {
+  if (window.ConfigEditor) { window.ConfigEditor.background(data); return; }
   const body = $("modsBody");
   const sel = $("modsFile");
   if (!data.ok) {
@@ -1169,6 +1170,7 @@ $("modsSort").addEventListener("change", () => {
 
 async function refreshMods(file) {
   try {
+    file = file || window.ConfigEditor?.file;
     const q = file ? `?file=${encodeURIComponent(file)}` : "";
     renderMods(await api(`/api/mods${q}`));
   } catch (e) { /* тихо */ }
@@ -1539,7 +1541,8 @@ function renderLogsFiltered() {
   const f = ($("logsFilter")?.value || "").trim().toLowerCase();
   const level = S.logsLevel || "all";
   const lines = (S.logsLines || []).filter((l) =>
-    (level === "all" || l.level === level) && (!f || l.view.toLowerCase().includes(f)));
+    (level === "all" || l.level === level) && (!f || l.view.toLowerCase().includes(f)) &&
+    (!S.logsSince || Date.parse(l.raw.slice(0, l.raw.indexOf(" "))) >= S.logsSince));
   // подряд идущий спам (WARN с разными счётчиками/секундами) сжимается в одну строку с бейджем ×N:
   // ключ игнорирует ведущее время и числовые ряды ≥3 цифр
   const merged = [];
@@ -1939,6 +1942,7 @@ const VIEWS = {
   overview: "Обзор",
   players: "Игроки",
   mods: "Моды",
+  settings: "Настройки сервера",
   maintenance: "Обслуживание",
   backups: "Бэкапы",
   events: "События",
@@ -1967,6 +1971,7 @@ function applyRoute() {
   const view = $("view-" + r);
   if (view) view.focus({ preventScroll: true });
   if (r === "mods" && modsPending) renderModsFiltered();
+  window.ConfigEditor?.route(r);
 }
 
 window.addEventListener("hashchange", applyRoute);
@@ -2020,7 +2025,7 @@ async function boot() {
   setInterval(updateFreshness, 5000);
   consoleBootLine = consoleAppend("Пульт подключается к серверу…", "c-dim");
   applyRoute();
-  if (location.protocol === "file:") {
+  if (location.protocol === "file:" || new URLSearchParams(location.search).get("demo") === "1") {
     enterDemo();
     return;
   }
@@ -2028,7 +2033,9 @@ async function boot() {
     const h = await api("/api/health", { timeout: 3500 });
     if (!h.ok) throw new Error("no health");
   } catch (e) {
-    enterDemo();
+    $("connBanner").hidden = false;
+    $("connBanner").textContent = "Нет связи с пультом. Последние данные сохраняются; повторное подключение идёт автоматически.";
+    startPolling();
     return;
   }
   startSse();

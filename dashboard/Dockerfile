@@ -3,10 +3,11 @@ FROM python:3.12-alpine
 
 # docker-cli и docker-cli-compose нужны для управления соседним контейнером,
 # tar — для бэкапов, tzdata — для корректного времени.
-RUN apk add --no-cache docker-cli docker-cli-compose tar tzdata
+RUN apk add --no-cache docker-cli docker-cli-compose tar tzdata lua5.1
 
 WORKDIR /app
 COPY *.py ./
+COPY schemas ./schemas
 COPY static ./static
 
 EXPOSE 8080

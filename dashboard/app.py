@@ -13,6 +13,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import actions
 import config
+import configeditor
+from configformats import FormatError
 import dockerlib
 import notify
 import ops
@@ -29,8 +31,14 @@ def _read_json(handler):
         length = int(handler.headers.get("Content-Length") or 0)
     except ValueError:
         raise ValueError("Некорректный Content-Length") from None
-    if length < 0 or length > 65536:
-        raise ValueError("Размер JSON должен быть не больше 65536 байт")
+    limit = (
+        2_500_000
+        if urllib.parse.urlparse(getattr(handler, "path", "")).path
+        in ("/api/config-draft", "/api/modpack")
+        else 65536
+    )
+    if length < 0 or length > limit:
+        raise ValueError(f"Размер JSON должен быть не больше {limit} байт")
     if length == 0:
         return {}
     try:
@@ -135,7 +143,7 @@ class Handler(BaseHTTPRequestHandler):
         # это не ошибка сервера, тихо закрываем вместо трейсбека в лог
         try:
             super().handle_one_request()
-        except ConnectionResetError:
+        except (ConnectionResetError, ConnectionAbortedError):
             self.close_connection = True
 
     # ── SSE-поток: живые данные одним соединением вместо серии опросов ──
@@ -212,7 +220,19 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/logs/full":
             self._send_full_logs()
         elif path == "/api/mods":
-            self._send_json(ops.mods_config_state((qs.get("file", [None])[0])))
+            self._editor_request(
+                lambda: configeditor.mod_response(
+                    qs.get("file", [None])[0],
+                    draft_mode=qs.get("draft", [""])[0] == "1",
+                    refresh=qs.get("refresh", [""])[0] == "1",
+                )
+            )
+        elif path == "/api/server-configs":
+            self._editor_request(configeditor.profiles)
+        elif path == "/api/config-draft":
+            self._editor_request(lambda: configeditor.draft(qs.get("file", [None])[0]))
+        elif path == "/api/config-history":
+            self._editor_request(lambda: configeditor.history(qs.get("file", [None])[0]))
         elif path == "/api/telegram-chats":
             chats, err = notify.fetch_recent_chats()
             if err:
@@ -278,17 +298,48 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._send_json({"ok": False, "error": err})
         elif path == "/api/mods-config":
-            try:
-                result = ops.set_mod_enabled(
-                    data.get("file"), str(data.get("workshopId") or ""), bool(data.get("enable"))
+            self._editor_request(lambda: configeditor.legacy_toggle(data))
+        elif path == "/api/config-draft":
+            self._editor_request(lambda: configeditor.patch(data))
+        elif path == "/api/config-validate":
+            self._editor_request(
+                lambda: configeditor.validate(
+                    data.get("file"),
+                    prepare=data.get("prepare", False),
+                    draft_revision=data.get("draftRevision"),
                 )
-                self._send_json({"ok": True, **result})
-            except ops.OpsError as e:
-                self._send_json({"ok": False, "error": str(e)})
+            )
+        elif path == "/api/config-history":
+            self._editor_request(lambda: configeditor.restore_history(data))
+        elif path == "/api/workshop-resolve":
+            self._editor_request(
+                lambda: {"ok": True, "items": configeditor.workshop.resolve(data.get("input"))}
+            )
+        elif path == "/api/modpack":
+            self._editor_request(lambda: configeditor.modpack(data))
         elif path == "/api/action":
-            self._handle_action(data)
+            if data.get("op") in ("prepare-workshop", "apply-config"):
+                self._editor_request(
+                    lambda: configeditor.queue(data, prepare=data["op"] == "prepare-workshop")
+                )
+            else:
+                self._handle_action(data)
         else:
             self._send_error_json(404, "Нет такого маршрута")
+
+    def _editor_request(self, callback):
+        try:
+            self._send_json(callback())
+        except configeditor.EditorError as error:
+            self._send_error_json(error.status, str(error))
+        except (FormatError, ValueError, TypeError) as error:
+            self._send_error_json(400, str(error))
+        except ops.OpsError as error:
+            self._send_error_json(409, str(error))
+        except OSError:
+            self._send_error_json(
+                503, "Файлы или Steam недоступны; проверьте подключение и права доступа"
+            )
 
     # ── DELETE ──
     def do_DELETE(self):

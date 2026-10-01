@@ -1601,121 +1601,16 @@ def parse_mods_ini(filename):
     }
 
 
-def _workshop_dir():
-    """Где скачан Workshop-контент внутри /data (расположение зависит от образа)."""
-    for candidate in (
-        os.path.join(config.CFG["data_dir"], "steamapps", "workshop", "content", "108600"),
-        os.path.join(config.CFG["data_dir"], "workshop", "content", "108600"),
-    ):
-        if os.path.isdir(candidate):
-            return candidate
-    return None
-
-
-_WS_EXEC = {"at": 0.0, "map": {}}  # кэш поиска mod.info внутри контейнера
-_WS_EXEC_TTL = 1800.0
-_WS_EXEC_RETRY = 300.0  # пауза после пустого результата (find — не дешёвый)
-
-
-def _workshop_map_via_exec():
-    """workshop id -> [modID,...] поиском внутри контейнера (docker exec).
-
-    Путь к Workshop-контенту зависит от образа — если в томе /data его нет,
-    находим каталог 108600 по всей ФС контейнера и читаем mod.info оттуда.
-    Результат кэшируется на полчаса: find по миру — не самая дешёвая операция."""
-    now = time.time()
-    if _WS_EXEC["map"]:
-        if now - _WS_EXEC["at"] < _WS_EXEC_TTL:
-            return _WS_EXEC["map"]
-    elif now - _WS_EXEC["at"] < _WS_EXEC_RETRY:
-        return {}  # недавний пустой поиск: не гоняем find по всей ФС каждую минуту
-    if not docker_ok_cached(ttl=600):
-        return {}
-    name = config.CFG["pz_container"]
-    code, out, _ = dockerlib.container_exec(
-        name, "find / -maxdepth 8 -type d -name 108600 2>/dev/null | head -5", timeout=120
-    )
-    if code != 0:
-        _WS_EXEC["at"] = now - _WS_EXEC_TTL + 300.0  # повторить через 5 мин
-        return {}
-    mapping = {}
-    for root in [ln.strip() for ln in out.splitlines() if ln.strip()][:3]:
-        cmd = (
-            'find "{root}" -maxdepth 4 -name mod.info 2>/dev/null | head -400 | '
-            "while IFS= read -r f; do "
-            'w=$(basename "$(dirname "$(dirname "$(dirname "$f")")")"); '
-            'm=$(basename "$(dirname "$f")"); '
-            "id=$(sed -n 's/^[Mm]od[Ii][Dd]=[ \\t\\r]*//p' \"$f\" | head -1); "
-            'printf \'%s\\t%s\\t%s\\n\' "$w" "$m" "$id"; done'
-        ).format(root=root)
-        code, out, _ = dockerlib.container_exec(name, cmd, timeout=180)
-        if code != 0:
-            continue
-        for ln in out.splitlines():
-            parts = ln.split("\t")
-            if len(parts) != 3:
-                continue
-            wid, folder, mid = [p.strip() for p in parts]
-            if not wid.isdigit():
-                continue
-            lst = mapping.setdefault(wid, [])
-            mod_id = mid or folder
-            if mod_id and mod_id not in lst:
-                lst.append(mod_id)
-    if mapping:
-        _WS_EXEC["map"] = mapping
-        _WS_EXEC["at"] = now
-        return mapping
-    _WS_EXEC["map"] = {}
-    _WS_EXEC["at"] = now
-    return {}
-
-
-def _mod_info_id(path):
-    """modID= из mod.info скачанного Workshop-мода."""
-    try:
-        with open(path, encoding="utf-8", errors="replace") as f:
-            for line in f:
-                if line.lower().startswith("modid"):
-                    return line.partition("=")[2].strip()
-    except OSError:
-        pass
-    return ""
-
-
-def _workshop_map_local(items):
-    """workshop id -> [modID,...] из mod.info скачанных элементов (если контент на диске)."""
-    wdir = _workshop_dir()
-    mapping = {}
-    if not wdir:
-        return mapping
-    for wid in items:
-        mods_dir = os.path.join(wdir, str(wid), "mods")
-        found = []
-        if os.path.isdir(mods_dir):
-            try:
-                for entry in sorted(os.listdir(mods_dir)):
-                    info = os.path.join(mods_dir, entry, "mod.info")
-                    if os.path.isfile(info):
-                        found.append(_mod_info_id(info) or entry)
-            except OSError:
-                pass
-        if found:
-            mapping[str(wid)] = found
-    return mapping
-
-
 def _workshop_map(items):
-    """workshop id -> [modID,...]: сначала том /data, затем поиск внутри контейнера."""
-    wmap = _workshop_map_local(items)
-    missing = [w for w in items if str(w) not in wmap]
-    if missing:
-        exec_map = _workshop_map_via_exec()
-        for wid in missing:
-            got = exec_map.get(str(wid))
-            if got:
-                wmap[str(wid)] = list(got)
-    return wmap
+    import configeditor
+    import workshop
+
+    index = workshop.scan(items, configeditor.context()["version"])
+    return {
+        wid: [rec["modId"] for rec in records if rec.get("modId")]
+        for wid, records in index.items()
+        if records
+    }
 
 
 def _ws_titles(ids):
@@ -1750,91 +1645,24 @@ def _ws_titles(ids):
 
 
 def list_mods(filename=None):
-    files = list_server_inis()
-    if not files:
+    # Lazy import avoids a cycle: editor operations use the shared operation worker.
+    import configeditor
+
+    try:
+        return configeditor.mod_state(filename)
+    except (configeditor.EditorError, ValueError, OSError) as error:
         return {
             "ok": False,
-            "error": "В /data/Server не найдено .ini файлов — проверьте монтирование каталога данных",
-            "files": [],
-            "file": None,
-            "mods": [],
-            "workshop": [],
-            "pairs": [],
-            "paired": False,
-            "unbound": [],
-            "mappingSource": None,
-        }
-    if filename not in files:
-        filename = files[0]
-    parsed = parse_mods_ini(filename)
-    if parsed is None:
-        return {
-            "ok": False,
-            "error": "Файл конфигурации не найден",
-            "files": files,
+            "error": str(error),
+            "files": list_server_inis(),
             "file": filename,
-            "mods": [],
             "workshop": [],
+            "mods": [],
             "pairs": [],
             "paired": False,
             "unbound": [],
             "mappingSource": None,
         }
-    mods, items = parsed["mods"], parsed["items"]
-    _ws_titles(items)
-    local_map = _workshop_map_local(items)
-    wmap = dict(local_map)
-    exec_used = False
-    for wid in items:
-        if str(wid) not in wmap:
-            got = _workshop_map_via_exec().get(str(wid))
-            if got:
-                wmap[str(wid)] = list(got)
-                exec_used = True
-
-    workshop = []
-    for wid in items:
-        workshop.append(
-            {
-                "workshopId": wid,
-                "url": f"https://steamcommunity.com/sharedfiles/filedetails/?id={wid}"
-                if wid.isdigit()
-                else "",
-                "title": _WS_TITLES.get(wid, ""),
-                "mods": wmap.get(wid, []),
-            }
-        )
-
-    bound = {m for lst in wmap.values() for m in lst}
-    unbound = [m for m in mods if m not in bound]
-    paired = len(mods) == len(items) and not wmap
-    pairs = []
-    if paired:
-        for i, wid in enumerate(items):
-            pairs.append(
-                {
-                    "mod": mods[i],
-                    "workshopId": wid,
-                    "url": f"https://steamcommunity.com/sharedfiles/filedetails/?id={wid}"
-                    if wid.isdigit()
-                    else "",
-                    "title": _WS_TITLES.get(wid, ""),
-                }
-            )
-    return {
-        "ok": True,
-        "files": files,
-        "file": filename,
-        "workshop": workshop,
-        "mods": mods,
-        "unbound": unbound,
-        "pairs": pairs,
-        "paired": paired,
-        "mappingSource": (
-            ("disk" if local_map else ("container" if exec_used else None))
-            or ("order" if paired else None)
-        ),
-    }
 
 
 # ───────────────────── управление составом модов ─────────────────────
@@ -1843,20 +1671,7 @@ _MODS_LOCK = threading.Lock()
 
 
 def mods_config_state(filename=None):
-    """list_mods + реестр выключенных модов + доступность управления."""
-    data = list_mods(filename)
-    with _SET_LOCK:
-        disabled = json.loads(json.dumps(_SETTINGS.get("modsDisabled") or {}))
-    data["disabled"] = [
-        {
-            "workshopId": wid,
-            "title": (rec or {}).get("title") or "",
-            "modIds": list((rec or {}).get("modIds") or []),
-        }
-        for wid, rec in disabled.items()
-    ]
-    data["canManage"] = bool(data.get("ok") and data.get("file"))
-    return data
+    return list_mods(filename)
 
 
 def _ini_replace_value(text, key, values):
@@ -1890,98 +1705,10 @@ def _ini_replace_value(text, key, values):
     return "\n".join(out) + ("\n" if text.endswith("\n") else "")
 
 
-def _write_mods_ini(filename, mods, items):
-    """Обновляет Mods= и WorkshopItems= с .bak-копией оригинала (храним 5 последних)."""
-    path = os.path.join(config.CFG["data_dir"], "Server", filename)
-    with open(path, encoding="utf-8", errors="replace") as f:
-        text = f.read()
-    new_text = _ini_replace_value(_ini_replace_value(text, "Mods", mods), "WorkshopItems", items)
-    try:
-        shutil.copy2(path, f"{path}.bak-{time.strftime('%Y%m%d-%H%M%S')}")
-        baks = sorted(
-            p for p in os.listdir(os.path.dirname(path)) if p.startswith(filename + ".bak-")
-        )
-        for old in baks[:-5]:
-            try:
-                os.remove(os.path.join(os.path.dirname(path), old))
-            except OSError:
-                pass
-    except OSError:
-        pass
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        f.write(new_text)
-    os.replace(tmp, path)
-
-
 def set_mod_enabled(filename, ws_id, enable):
-    """Включить/выключить Workshop-элемент в конфиге сервера.
+    import configeditor
 
-    Выключение убирает его из WorkshopItems= и связанные modID из Mods=,
-    запоминая состав в реестре пульта; включение возвращает всё обратно
-    (состав берём из реестра или заново с диска/контейнера).
-    Конфиг применяется рестартом сервера — пульт этого не скрывает."""
-    ws_id = str(ws_id).strip()
-    if not ws_id.isdigit():
-        raise OpsError("Workshop ID должен быть числом")
-    files = list_server_inis()
-    if filename not in files:
-        filename = files[0] if files else None
-    if not filename:
-        raise OpsError("Конфиг сервера не найден — управление модами недоступно")
-    parsed = parse_mods_ini(filename)
-    if parsed is None:
-        raise OpsError("Не удалось прочитать конфиг сервера")
-    with _MODS_LOCK:
-        items = [str(x) for x in parsed["items"]]
-        mods = list(parsed["mods"])
-        with _SET_LOCK:
-            disabled = dict(_SETTINGS.get("modsDisabled") or {})
-        title = _WS_TITLES.get(ws_id) or ws_id
-        if enable:
-            if ws_id in items:
-                disabled.pop(ws_id, None)
-                with _SET_LOCK:
-                    _SETTINGS["modsDisabled"] = disabled
-                    _save_settings()
-                return mods_config_state(filename)
-            rec = disabled.get(ws_id) or {}
-            mod_ids = list(rec.get("modIds") or [])
-            if not mod_ids:
-                mod_ids = list(_workshop_map([ws_id]).get(ws_id) or [])
-            new_items = items + [ws_id]
-            new_mods = mods + [m for m in mod_ids if m not in mods]
-            if not mod_ids:
-                log_event(
-                    "warn",
-                    f"Мод «{title}»: modID не определён — в конфиг "
-                    f"добавлен только Workshop-элемент, проверьте загрузку",
-                )
-            disabled.pop(ws_id, None)
-        else:
-            if ws_id not in items:
-                raise OpsError("Этого Workshop-элемента нет в конфиге сервера")
-            mod_ids = list(_workshop_map([ws_id]).get(ws_id) or []) or list(
-                (disabled.get(ws_id) or {}).get("modIds") or []
-            )
-            if not mod_ids:
-                raise OpsError(
-                    "Не удалось определить modID элемента (контент не найден) — "
-                    "выключение заблокировано, чтобы не потерять состав"
-                )
-            new_items = [x for x in items if x != ws_id]
-            new_mods = [m for m in mods if m not in mod_ids]
-            disabled[ws_id] = {"title": title, "modIds": mod_ids, "at": now_iso()}
-        _write_mods_ini(filename, new_mods, new_items)
-        with _SET_LOCK:
-            _SETTINGS["modsDisabled"] = disabled
-            _save_settings()
-    log_event(
-        "mods",
-        f"Мод «{title}» {'включён' if enable else 'выключен'} в конфиге — "
-        f"применится рестартом сервера",
-    )
-    return mods_config_state(filename)
+    return configeditor.legacy_toggle({"file": filename, "workshopId": ws_id, "enable": enable})
 
 
 # ─────────────────────── обновления модов (RCON) ───────────────────────

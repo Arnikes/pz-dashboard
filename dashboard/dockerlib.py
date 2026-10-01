@@ -6,7 +6,10 @@
 """
 
 import re
+import queue
 import subprocess
+import threading
+import time
 
 SIZE_RE = re.compile(r"^([\d.]+)\s*([kKmMgG]?)(i?)([bB])$")
 
@@ -108,6 +111,84 @@ def container_logs(name, tail=250):
     if code != 0:
         return None, err or out
     return out, None
+
+
+def parse_startup_version(line):
+    # PZ emits this header before loading mods. A mod title or player message
+    # mentioning a version must not override the game version.
+    match = re.search(
+        r"^(?:\d{4}-\d\d-\d\dT\S+\s+)?LOG\s*:\s*General\b[^>\r\n]*>\s*"
+        r"version\s*=\s*(\d{2}\.\d+(?:\.\d+)?)\b",
+        line,
+        re.I,
+    )
+    return match[1] if match else None
+
+
+def container_startup_version(name, started_at, timeout=15):
+    """Read the current launch's first PZ header, with bounded memory and time."""
+    if not started_at or started_at.startswith("0001-"):
+        return None
+    try:
+        process = subprocess.Popen(
+            ["docker", "logs", "--since", started_at, "--timestamps", name],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except OSError:
+        return None
+    messages = queue.Queue(maxsize=16)
+    stopped = threading.Event()
+
+    def read():
+        try:
+            while not stopped.is_set():
+                line = process.stdout.readline(65536)
+                while not stopped.is_set():
+                    try:
+                        messages.put(line or None, timeout=0.1)
+                        break
+                    except queue.Full:
+                        continue
+                if not line:
+                    break
+        except (OSError, ValueError):
+            pass
+
+    reader = threading.Thread(target=read, daemon=True)
+    reader.start()
+    deadline, size = time.monotonic() + timeout, 0
+    try:
+        while (remaining := deadline - time.monotonic()) > 0 and size < 2_000_000:
+            try:
+                line = messages.get(timeout=remaining)
+            except queue.Empty:
+                break
+            if line is None:
+                break
+            size += len(line)
+            version = parse_startup_version(line)
+            if version:
+                return version
+        return None
+    finally:
+        stopped.set()
+        if process.poll() is None:
+            try:
+                process.kill()
+            except OSError:
+                pass  # The docker log reader may have exited since poll().
+        try:
+            process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            pass
+        reader.join(timeout=2)
+        if not reader.is_alive():
+            process.stdout.close()
 
 
 def parse_bytes(raw):

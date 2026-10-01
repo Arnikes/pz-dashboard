@@ -20,6 +20,7 @@ def main():
         [sys.executable, "-m", "ruff", "check", "."],
         [sys.executable, "-m", "ruff", "format", "--check", "."],
         ["node", "--check", "dashboard/static/app.js"],
+        ["node", "--check", "dashboard/static/editor.js"],
         [
             sys.executable,
             "-m",

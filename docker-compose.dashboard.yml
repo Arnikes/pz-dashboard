@@ -29,6 +29,8 @@ services:
       - PZ_SERVICE=pzserver
       - PZ_IMAGE=indifferentbrokkoli/pzserver:latest
       - PZ_SERVER_NAME=${PZ_SERVER_NAME:-Project Zomboid}
+      - PZ_CONFIG_FILE=${PZ_CONFIG_FILE:-}
+      - PZ_VERSION=${PZ_VERSION:-}
       # имя проекта compose = имени каталога; задайте явно, чтобы пульт
       # управлял именно вашим проектом
       - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-pz}

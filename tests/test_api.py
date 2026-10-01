@@ -14,9 +14,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "dashboard"))
 
 import actions  # noqa: E402
 import app  # noqa: E402
+import configeditor  # noqa: E402
 import ops  # noqa: E402
 import payloads  # noqa: E402
 import rcon  # noqa: E402
+from test_configeditor import env as editor_env  # noqa: E402, F401
 
 
 @pytest.fixture
@@ -56,6 +58,74 @@ def operation_env(monkeypatch):
     monkeypatch.setattr(ops, "start_op", start)
     monkeypatch.setattr(ops, "defer_next_check", defer)
     return start, defer
+
+
+def test_config_http_revisions_and_secrets(api, editor_env):  # noqa: F811
+    status, profiles = api("GET", "/api/server-configs")
+    assert status == 200 and profiles["activeFile"] == "world.ini"
+    status, current = api("GET", "/api/config-draft?file=world.ini")
+    assert status == 200 and "topsecret" not in json.dumps(current)
+    body = {
+        "file": "world.ini",
+        "draftRevision": current["draftRevision"],
+        "ini": {"PublicName": "HTTP draft"},
+    }
+    status, draft = api("POST", "/api/config-draft", body)
+    assert status == 200 and draft["changed"]
+    assert api("POST", "/api/config-draft", body)[0] == 409
+    status, result = api("POST", "/api/config-validate", {"file": "world.ini"})
+    assert status == 200 and result["valid"]
+    assert "HTTP draft" in result["diff"]["ini"] and "topsecret" not in json.dumps(result)
+
+
+def test_config_http_running_and_boolean_errors(api, editor_env, monkeypatch):  # noqa: F811
+    current = configeditor.draft("world.ini")
+    monkeypatch.setattr(ops, "is_running", lambda: True)
+    assert (
+        api(
+            "POST",
+            "/api/action",
+            {
+                "op": "apply-config",
+                "file": "world.ini",
+                "draftRevision": current["draftRevision"],
+                "restart": False,
+            },
+        )[0]
+        == 409
+    )
+    assert (
+        api(
+            "POST",
+            "/api/mods-config",
+            {"file": "world.ini", "workshopId": "111", "enable": "false"},
+        )[0]
+        == 400
+    )
+
+
+@pytest.mark.parametrize("operation,prepare", [("apply-config", False), ("prepare-workshop", True)])
+def test_config_http_action_binds_profile_and_operation(
+    api,
+    editor_env,  # noqa: F811
+    monkeypatch,
+    operation,
+    prepare,
+):  # noqa: F811
+    draft = configeditor.draft("world.ini")
+    start, run = Mock(), Mock()
+    monkeypatch.setattr(ops, "start_op", start)
+    monkeypatch.setattr(configeditor, "run", run)
+    body = {
+        "op": operation,
+        "file": "world.ini",
+        "draftRevision": draft["draftRevision"],
+        "restart": False,
+    }
+    assert api("POST", "/api/action", body) == (200, {"ok": True, "operation": operation})
+    run.assert_not_called()
+    start.call_args.args[1]()
+    run.assert_called_once_with(body, prepare)
 
 
 @pytest.mark.parametrize(
@@ -173,13 +243,13 @@ def test_parameterized_routes(api, monkeypatch):
     events = Mock(return_value=[])
     mods = Mock(return_value={"ok": True, "settings": {}})
     monkeypatch.setattr(ops, "get_events", events)
-    monkeypatch.setattr(ops, "mods_config_state", mods)
+    monkeypatch.setattr(configeditor, "mod_response", mods)
     monkeypatch.setattr(ops, "list_mods", lambda filename: {"ok": True, "items": []})
     for query, limit in (("", 100), ("?limit=0", 1), ("?limit=999", 200), ("?limit=x", 100)):
         assert api("GET", "/api/events" + query) == (200, {"ok": True, "items": []})
         events.assert_called_with(limit)
     assert api("GET", "/api/mods?file=world.ini") == (200, {"ok": True, "settings": {}})
-    mods.assert_called_once_with("world.ini")
+    mods.assert_called_once_with("world.ini", draft_mode=False, refresh=False)
     assert payloads.stream_payload("mods") == {"ok": True, "items": []}
     assert payloads.stream_payload("unknown")["ok"] is False
 
@@ -205,7 +275,7 @@ def test_invalid_json_is_rejected(api, monkeypatch, raw):
 
 @pytest.mark.parametrize("length", ["invalid", "-1", "65537"])
 def test_invalid_content_length_is_rejected(api, length):
-    status, body = api("POST", "/api/action", raw="{}", headers={"Content-Length": length})
+    status, body = api("POST", "/api/action", raw="", headers={"Content-Length": length})
     assert status == 400 and body["ok"] is False
 
 

@@ -44,6 +44,8 @@ services:
       - PZ_SERVICE=pzserver
       - PZ_IMAGE=indifferentbrokkoli/pzserver:latest
       - PZ_SERVER_NAME=${PZ_SERVER_NAME:-Project Zomboid}
+      - PZ_CONFIG_FILE=${PZ_CONFIG_FILE:-}
+      - PZ_VERSION=${PZ_VERSION:-}
       - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-pz}
       - COMPOSE_FILE=/compose/docker-compose.yml
       - TZ=${TZ:-Europe/Moscow}
