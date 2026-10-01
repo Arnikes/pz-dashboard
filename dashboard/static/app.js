@@ -192,6 +192,10 @@ const S = {
   lastOpActive: false,
   logsLevel: "all",
   logsLines: [],
+  logsUpdatedAt: 0,
+  logsSince: 0,
+  logsUntil: 0,
+  logsProfile: "",
   backupsItems: [],
   phPoints: [],
   lastDataOk: 0,
@@ -1503,7 +1507,7 @@ const LOG_LEVEL_ERR = /ERROR|SEVERE|Exception/i;
 const LOG_LEVEL_WARN = /WARN/i;
 
 function classifyLog(line) {
-  if (LOG_LEVEL_ERR.test(line)) return "err";
+  if (LOG_LEVEL_ERR.test(line)) return "error";
   if (LOG_LEVEL_WARN.test(line)) return "warn";
   return "";
 }
@@ -1527,21 +1531,30 @@ function renderLogs(data) {
     return;
   }
   if (!data.ok) {
-    $("logsOut").textContent = data.error || "Логи недоступны";
+    $("logsError").textContent = (data.error || "Логи недоступны") + (S.logsUpdatedAt ? ` · последние данные: ${fmtTime(S.logsUpdatedAt)}` : "");
+    $("logsError").hidden = false;
+    if (!S.logsUpdatedAt) $("logsOut").textContent = "Нет данных логов";
     return;
   }
+  $("logsError").hidden = true;
+  $("logsLimit").hidden = !data.truncated;
+  S.logsUpdatedAt = Date.now();
   S.logsLines = parseLogs(data.text);
   renderLogsFiltered();
 }
 
 function renderLogsFiltered() {
   const pre = $("logsOut");
+  const scrollTop = pre.scrollTop;
   const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 30;
   const f = ($("logsFilter")?.value || "").trim().toLowerCase();
   const level = S.logsLevel || "all";
   const lines = (S.logsLines || []).filter((l) =>
     (level === "all" || l.level === level) && (!f || l.view.toLowerCase().includes(f)) &&
-    (!S.logsSince || Date.parse(l.raw.slice(0, l.raw.indexOf(" "))) >= S.logsSince));
+    (!S.logsSince || Date.parse(l.raw.slice(0, l.raw.indexOf(" "))) >= S.logsSince) &&
+    (!S.logsUntil || Date.parse(l.raw.slice(0, l.raw.indexOf(" "))) <= S.logsUntil));
+  $("logsScope").hidden = !S.logsSince;
+  $("logsPeriod").textContent = S.logsSince ? `Логи операции${S.logsProfile ? ` · ${S.logsProfile}` : ""} · ${fmtTime(S.logsSince)}${S.logsUntil ? ` — ${fmtTime(S.logsUntil)}` : " · продолжается"}` : "";
   // подряд идущий спам (WARN с разными счётчиками/секундами) сжимается в одну строку с бейджем ×N:
   // ключ игнорирует ведущее время и числовые ряды ≥3 цифр
   const merged = [];
@@ -1552,15 +1565,22 @@ function renderLogsFiltered() {
     else merged.push({ view: l.view, level: l.level, key, n: 1 });
   }
   pre.innerHTML = merged.map((l) => {
-    const cls = l.level === "err" ? ' class="l-err"' : l.level === "warn" ? ' class="l-warn"' : "";
+    const cls = l.level === "error" ? ' class="l-err"' : l.level === "warn" ? ' class="l-warn"' : "";
     const dup = l.n > 1 ? `<span class="l-dup">× ${l.n}</span>` : "";
     return `<span${cls}>${esc(l.view)}${dup}</span>`;
   }).join("\n");
   if (atBottom && S.logsAuto) pre.scrollTop = pre.scrollHeight;
+  else pre.scrollTop = scrollTop;
 }
 
 $("logsFilter").addEventListener("input", renderLogsFiltered);
 $("logsAuto").addEventListener("change", () => { S.logsAuto = $("logsAuto").checked; });
+$("logsClearPeriod").addEventListener("click", () => {
+  S.logsSince = S.logsUntil = 0;
+  S.logsProfile = "";
+  renderLogsFiltered();
+  refreshLogs();
+});
 $("logLevels").addEventListener("click", (e) => {
   const btn = e.target.closest(".chip[data-level]");
   if (!btn) return;
@@ -1858,7 +1878,6 @@ const applyEvents = renderEvents;
 const applyMods = renderMods;
 
 function applyLogs(data) {
-  if (!S.logsAuto && !$("logsOut").textContent.startsWith("Загрузка")) return;
   renderLogs(data);
 }
 
@@ -1876,7 +1895,17 @@ async function refreshStats() {
 }
 
 async function refreshLogs() {
-  try { applyLogs(await api("/api/logs")); } catch (e) { /* тихо */ }
+  const since = S.logsSince, until = S.logsUntil;
+  const params = new URLSearchParams();
+  if (since) params.set("since", new Date(since).toISOString());
+  if (until) params.set("until", new Date(until).toISOString());
+  if (since) params.set("tail", "10000");
+  try {
+    const data = await api("/api/logs" + (params.size ? `?${params}` : ""));
+    if (since === S.logsSince && until === S.logsUntil) applyLogs(data);
+  } catch (e) {
+    if (since === S.logsSince && until === S.logsUntil) applyLogs({ ok: false, error: "Не удалось получить логи. Повторное подключение идёт автоматически." });
+  }
 }
 
 async function refreshBackups() {
@@ -2008,7 +2037,7 @@ function startSse() {
   bind("overview", applyOverview);
   bind("players", applyPlayers);
   bind("stats", applyStats);
-  bind("logs", applyLogs);
+  bind("logs", data => { if (S.logsSince) refreshLogs(); else applyLogs(data); });
   bind("backups", applyBackups);
   bind("events", applyEvents);
   bind("ops", applyOps);

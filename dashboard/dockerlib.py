@@ -12,6 +12,7 @@ import threading
 import time
 
 SIZE_RE = re.compile(r"^([\d.]+)\s*([kKmMgG]?)(i?)([bB])$")
+STARTUP_LOG_BYTES_LIMIT = 64_000_000
 
 
 def sh(args, timeout=120, merge_stderr=False):
@@ -102,9 +103,15 @@ def image_digests(image):
     return None
 
 
-def container_logs(name, tail=250):
+def container_logs(name, tail=250, since=None, until=None):
+    args = ["docker", "logs", "--tail", str(tail), "--timestamps"]
+    if since:
+        args += ["--since", since]
+    if until:
+        args += ["--until", until]
+    args.append(name)
     code, out, err = sh(
-        ["docker", "logs", "--tail", str(tail), "--timestamps", name],
+        args,
         timeout=30,
         merge_stderr=True,
     )
@@ -163,7 +170,7 @@ def container_startup_version(name, started_at, timeout=15):
     reader.start()
     deadline, size = time.monotonic() + timeout, 0
     try:
-        while (remaining := deadline - time.monotonic()) > 0 and size < 2_000_000:
+        while (remaining := deadline - time.monotonic()) > 0 and size < STARTUP_LOG_BYTES_LIMIT:
             try:
                 line = messages.get(timeout=remaining)
             except queue.Empty:

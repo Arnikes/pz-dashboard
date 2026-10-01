@@ -2,6 +2,7 @@
 """HTTP-сервер пульта PZ: статика + JSON API. Только стандартная библиотека."""
 
 import json
+from datetime import datetime
 import mimetypes
 import os
 import posixpath
@@ -214,7 +215,26 @@ class Handler(BaseHTTPRequestHandler):
                     tail = min(10000, max(1, int(qs.get("tail", [config.CFG["log_lines"]])[0])))
                 except ValueError:
                     tail = config.CFG["log_lines"]
-                self._send_json(payloads.logs_payload(tail))
+                scope = {}
+                try:
+                    dates = {}
+                    for key in ("since", "until"):
+                        if key in qs:
+                            value = qs[key][0]
+                            date = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                            if date.tzinfo is None:
+                                raise ValueError("timezone required")
+                            dates[key] = date
+                            scope[key] = value
+                    if "since" in dates and "until" in dates and dates["until"] < dates["since"]:
+                        raise ValueError("invalid range")
+                except ValueError:
+                    self._send_error_json(
+                        400,
+                        "Период логов: укажите ISO-время с часовым поясом и конец не раньше начала",
+                    )
+                    return
+                self._send_json(payloads.logs_payload(tail, **scope))
             else:
                 self._send_json(payloads.stream_payload(payloads.GET_CHANNELS[path]))
         elif path == "/api/logs/full":

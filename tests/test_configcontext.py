@@ -132,6 +132,7 @@ def test_streamed_version_probe_uses_current_launch_and_stops_reader(monkeypatch
 
 
 def test_streamed_probe_is_bounded_and_handles_missing_docker(monkeypatch):
+    monkeypatch.setattr(dockerlib, "STARTUP_LOG_BYTES_LIMIT", 2_000_000)
     process = Mock(
         stdout=io.StringIO("unrelated output\n" * 140000 + "LOG : General > version=42.15.1\n")
     )
@@ -146,6 +147,15 @@ def test_streamed_probe_is_bounded_and_handles_missing_docker(monkeypatch):
     spawn.assert_not_called()
     spawn.side_effect = FileNotFoundError()
     assert dockerlib.container_startup_version("pz-test", "launch") is None
+
+
+def test_first_install_noise_does_not_hide_the_game_version(monkeypatch):
+    noise = ("Steam installation: " + "x" * 20000 + "\n") * 200
+    process = Mock(stdout=io.StringIO(noise + "LOG : General f:0, t:1> version=42.21.0 build\n"))
+    process.poll.return_value = 0
+    monkeypatch.setattr(dockerlib.subprocess, "Popen", Mock(return_value=process))
+    assert dockerlib.container_startup_version("pz-test", "launch", timeout=2) == "42.21.0"
+    assert process.stdout.closed
 
 
 def test_observed_version_overrides_hint_and_cache_is_launch_scoped(docker_context, monkeypatch):

@@ -1,0 +1,77 @@
+# Isolated B42 acceptance server. Do not copy production data or secrets here.
+# Run with --env-file .tmp-b42-acceptance/secrets.env; see docs/acceptance-b42.md.
+name: pz-console-acceptance
+
+services:
+  acceptance-server:
+    image: indifferentbroccoli/projectzomboid-server-docker:latest
+    container_name: pz-console-acceptance-server
+    restart: "no"
+    stop_grace_period: 240s
+    labels:
+      pz-console.acceptance: "true"
+    environment:
+      SERVER_NAME: pz-acceptance
+      SERVER_BRANCH: unstable
+      UPDATE_ON_START: "false"
+      GENERATE_SETTINGS: "false"
+      ADMIN_USERNAME: acceptance-admin
+      ADMIN_PASSWORD: ${ACCEPTANCE_ADMIN_PASSWORD:?Set a separate acceptance admin password}
+      RCON_PASSWORD: ${ACCEPTANCE_RCON_PASSWORD:?Set a separate acceptance RCON password}
+      RCON_PORT: "27015"
+      DEFAULT_PORT: "17261"
+      UDP_PORT: "17262"
+      # Small acceptance world, two players at most; not a production heap size.
+      MEMORY_XMX_GB: "2"
+      MEMORY_XMS_GB: "1"
+      MAX_PLAYERS: "2"
+      PUID: "1000"
+      PGID: "1000"
+    ports:
+      - "127.0.0.1:17261:17261/udp"
+      - "127.0.0.1:17262:17262/udp"
+    volumes:
+      - acceptance-server-files:/project-zomboid
+      - acceptance-server-data:/project-zomboid-config
+
+  acceptance-panel:
+    build: ./dashboard
+    container_name: pz-console-acceptance-panel
+    restart: "no"
+    depends_on:
+      - acceptance-server
+    labels:
+      pz-console.acceptance: "true"
+    ports:
+      - "127.0.0.1:18081:8080"
+    environment:
+      PZ_CONTAINER: pz-console-acceptance-server
+      PZ_SERVICE: acceptance-server
+      PZ_IMAGE: indifferentbroccoli/projectzomboid-server-docker:latest
+      PZ_SERVER_NAME: B42 acceptance
+      RCON_HOST: acceptance-server
+      RCON_PORT: "27015"
+      RCON_PASSWORD: ${ACCEPTANCE_RCON_PASSWORD:?Set a separate acceptance RCON password}
+      COMPOSE_PROJECT_NAME: pz-console-acceptance
+      COMPOSE_FILE: /compose/docker-compose.acceptance.yml
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./docker-compose.acceptance.yml:/compose/docker-compose.acceptance.yml:ro
+      - acceptance-server-files:/server-files:ro
+      - acceptance-server-data:/data
+      - acceptance-panel-data:/dashboard-data
+      - acceptance-backups:/backups
+
+volumes:
+  acceptance-server-files:
+    labels:
+      pz-console.acceptance: "true"
+  acceptance-server-data:
+    labels:
+      pz-console.acceptance: "true"
+  acceptance-panel-data:
+    labels:
+      pz-console.acceptance: "true"
+  acceptance-backups:
+    labels:
+      pz-console.acceptance: "true"

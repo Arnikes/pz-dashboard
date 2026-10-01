@@ -54,6 +54,10 @@ window.ConfigEditor = (() => {
     $("configVersionDiagnostic").hidden = !draft.versionDiagnostic;
     $("configVersionDiagnostic").textContent = draft.versionDiagnostic || "";
     const state = draft.state || {};
+    if (S.logsProfile === file && S.logsSince && Date.parse(state.operationStartedAt || "") === S.logsSince) {
+      const until = Date.parse(state.operationCompletedAt || "") || 0;
+      if (until && until !== S.logsUntil) { S.logsUntil = until; renderLogsFiltered(); refreshLogs(); }
+    }
     const result = $("configOperationResult");
     result.hidden = !editorView || !state.operationStartedAt;
     if (!result.hidden) {
@@ -415,9 +419,11 @@ window.ConfigEditor = (() => {
   $("configSave").addEventListener("click", () => confirmApply(false, false));
   $("configApply").addEventListener("click", () => confirmApply(false, true));
   function operationLogs() {
+    S.logsProfile = file;
     S.logsSince = Date.parse(draft?.state?.operationStartedAt || "") || 0;
-    $("logsFilter").value = ""; S.logsLevel = "all";
+    S.logsUntil = Date.parse(draft?.state?.operationCompletedAt || "") || 0;
     renderLogsFiltered(); location.hash = "#/console";
+    refreshLogs();
   }
   $("editorLogs").addEventListener("click", operationLogs);
   $("draftMore").addEventListener("click", () => {

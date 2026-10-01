@@ -7,6 +7,53 @@ from playwright.sync_api import expect
 pytestmark = pytest.mark.browser
 
 
+def test_console_error_warning_search_and_offline_log_retention(page, dashboard):
+    frame = {
+        "ok": True,
+        "text": "2026-10-01T12:00:00Z INFO server ready\n"
+        "2026-10-01T12:00:01Z ERROR database failure\n"
+        "2026-10-01T12:00:02Z WARN database slow\n",
+    }
+    page.route("**/api/logs**", lambda route: route.fulfill(json=frame))
+    page.goto(dashboard["url"] + "/#/console")
+    page.evaluate("refreshLogs()")
+    expect(page.locator("#logsOut")).to_contain_text("server ready")
+    page.locator('#logLevels [data-level="error"]').click()
+    expect(page.locator("#logsOut")).to_contain_text("ERROR database failure")
+    expect(page.locator("#logsOut")).not_to_contain_text("WARN")
+    expect(page.locator("#logsOut .l-err")).to_have_count(1)
+    page.locator('#logLevels [data-level="warn"]').click()
+    page.locator("#logsFilter").fill("database")
+    expect(page.locator("#logsOut")).to_contain_text("WARN database slow")
+    expect(page.locator("#logsOut")).not_to_contain_text("ERROR")
+    retained = page.locator("#logsOut").inner_text()
+    frame.clear()
+    frame.update(ok=False, error="Docker is unavailable")
+    page.evaluate("refreshLogs()")
+    expect(page.locator("#logsError")).to_contain_text("Docker is unavailable")
+    expect(page.locator("#logsError")).to_contain_text("последние данные")
+    expect(page.locator("#logsOut")).to_have_text(retained)
+    frame.update(ok=True, text="2026-10-01T12:00:03Z WARN database recovered\n")
+    page.evaluate("refreshLogs()")
+    expect(page.locator("#logsError")).to_be_hidden()
+    expect(page.locator("#logsOut")).to_contain_text("database recovered")
+
+
+def test_paused_log_scrolling_keeps_receiving_new_lines(page, dashboard):
+    page.goto(dashboard["url"] + "/#/console")
+    page.evaluate("""() => applyLogs({ok:true,text:Array.from({length:150}, (_,i) =>
+        `2026-10-01T12:00:00Z INFO line ${i.toString(36)}`).join('\\n')})""")
+    page.locator("#logsAuto").uncheck()
+    page.locator("#logsOut").evaluate("el => el.scrollTop = 50")
+    before = page.locator("#logsOut").evaluate("el => el.scrollTop")
+    assert before > 0
+    page.evaluate("""() => applyLogs({ok:true,text:S.logsLines.map(l => l.raw).join('\\n') +
+        '\\n2026-10-01T12:00:01Z ERROR new line while paused'})""")
+    expect(page.locator("#logsOut")).to_contain_text("new line while paused")
+    assert abs(page.locator("#logsOut").evaluate("el => el.scrollTop") - before) <= 1
+    assert dashboard["actions"] == []
+
+
 @pytest.mark.parametrize("mode", ["local", "http", "denied"])
 def test_copy_field_writes_full_text_to_clipboard(page, dashboard, mode):
     url = dashboard["url"]

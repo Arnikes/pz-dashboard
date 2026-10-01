@@ -355,6 +355,104 @@ def test_keyboard_tabs_and_mod_order(page, dashboard, editing, width):
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
 
 
+@pytest.mark.parametrize("width", [1440, 390])
+def test_discovered_map_requires_explicit_edit_and_preserves_existing_order(
+    page, dashboard, editing, width
+):
+    data, _ = editing
+    path = data / "steamapps/workshop/content/108600/111/mods/PluginFolder/42/media/maps/TestTown"
+    path.mkdir(parents=True)
+    (path / "map.info").write_text("title=Display title\n", encoding="utf-8")
+    ini_path = data / "Server/world.ini"
+    original = INI.replace("Map=Muldraugh, KY", "Map=OldMap;Muldraugh, KY")
+    ini_path.write_bytes(original.encode())
+    editor.workshop.invalidate()
+    page.set_viewport_size({"width": width, "height": 900})
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "mods")
+    page.locator("#modPackages summary").click()
+    page.locator('[data-modid="plugin"]').uncheck()
+    page.locator('[data-modid="plugin"]').check()
+    expect(page.locator("#modSummary")).to_contain_text("2 выбранных ModID")
+    page.get_by_role("tab", name="Порядок", exact=True).click()
+    expect(page.locator("#modOrder")).to_contain_text("Найденные карты: TestTown")
+    expect(page.locator("#mapList")).to_have_value("OldMap;Muldraugh, KY")
+    assert "Map=OldMap;Muldraugh, KY\r\n" in editor.draft("world.ini")["texts"]["ini"]
+    page.locator("#mapList").fill("TestTown;OldMap;Muldraugh, KY")
+    page.locator("#mapEdit button").click()
+    expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
+    assert "Map=TestTown;OldMap;Muldraugh, KY\r\n" in editor.draft("world.ini")["texts"]["ini"]
+    assert ini_path.read_bytes() == original.encode()
+    assert dashboard["actions"] == []
+
+
+@pytest.mark.parametrize("completed", [True, False])
+def test_operation_logs_preserve_filters_and_allow_return_to_all_logs(
+    page, dashboard, editing, monkeypatch, completed
+):
+    data, _ = editing
+    running = [not completed]
+    monkeypatch.setattr(editor.ops, "op_busy", lambda: running[0])
+    state_path = editor.state_dir("world.ini") / "state.json"
+    state = {
+        "status": "error" if completed else "applying",
+        "operationStartedAt": "2026-10-01T12:00:00Z",
+        "error": "Test operation failed",
+    }
+    if completed:
+        state["operationCompletedAt"] = "2026-10-01T12:01:00Z"
+    editor.save_json(state_path, state)
+    requests = []
+
+    def logs(route):
+        requests.append(parse_qs(urlsplit(route.request.url).query))
+        route.fulfill(
+            json={
+                "ok": True,
+                "text": "2026-10-01T11:59:00Z ERROR database before\n"
+                "2026-10-01T12:00:30Z ERROR database operation\n"
+                "2026-10-01T12:02:00Z ERROR database after\n",
+            }
+        )
+
+    page.route("**/api/logs**", logs)
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "console")
+    page.locator("#logsFilter").fill("database")
+    page.locator('#logLevels [data-level="error"]').click()
+    navigate(page, "settings")
+    page.locator("#configOperationResult [data-operation-logs]").click()
+    expect(page.locator("#logsScope")).to_be_visible()
+    expect(page.locator("#logsPeriod")).to_contain_text("world.ini")
+    if not completed:
+        expect(page.locator("#logsPeriod")).to_contain_text("продолжается")
+        state.update(status="error", operationCompletedAt="2026-10-01T12:01:00Z")
+        editor.save_json(state_path, state)
+        running[0] = False
+        expect(page.locator("#logsPeriod")).not_to_contain_text("продолжается", timeout=20000)
+    expect(page.locator("#logsOut")).to_contain_text("database operation")
+    expect(page.locator("#logsOut")).not_to_contain_text("database before")
+    expect(page.locator("#logsOut")).not_to_contain_text("database after")
+    expect(page.locator("#logsFilter")).to_have_value("database")
+    expect(page.locator('#logLevels [data-level="error"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    assert requests[-1] == {
+        "since": ["2026-10-01T12:00:00.000Z"],
+        "until": ["2026-10-01T12:01:00.000Z"],
+        "tail": ["10000"],
+    }
+    page.locator("#logsClearPeriod").click()
+    expect(page.locator("#logsScope")).to_be_hidden()
+    expect(page.locator("#logsOut")).to_contain_text("database before")
+    expect(page.locator("#logsOut")).to_contain_text("database after")
+    assert requests[-1] == {}
+    assert (data / "Server/world.ini").read_bytes() == INI.encode()
+    assert dashboard["actions"] == []
+
+
 def test_long_mod_list_on_phone(page, dashboard, editing):
     data, _ = editing
     for i in range(100):

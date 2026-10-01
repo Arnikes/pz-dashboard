@@ -1291,6 +1291,9 @@ dd[data-copy] { text-decoration: underline dotted rgba(233, 226, 205, 0.35); tex
   width: 170px;
 }
 .logs-tools .btn { text-decoration: none; display: inline-flex; align-items: center; }
+.logs-scope { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:12px; }
+.logs-scope .hint { margin:0; }
+.logs-error { color:var(--warn); }
 
 .spark.ram { color: #8aa5b8; }
 

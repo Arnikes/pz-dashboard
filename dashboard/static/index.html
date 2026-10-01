@@ -592,10 +592,13 @@
               <button class="chip" type="button" data-level="error" aria-pressed="false">ERROR</button>
             </div>
             <input type="search" id="logsFilter" class="mono" placeholder="фильтр строк…" aria-label="Фильтр логов" />
-            <label class="check"><input type="checkbox" id="logsAuto" checked /> Обновлять</label>
+            <label class="check"><input type="checkbox" id="logsAuto" checked /> Автопрокрутка</label>
             <a class="btn small" id="logsDownload" href="/api/logs/full" download title="Полный лог файлом">Скачать лог</a>
           </div>
         </header>
+        <div class="logs-scope" id="logsScope" hidden><span id="logsPeriod" class="hint"></span><button type="button" class="btn small" id="logsClearPeriod">Сбросить период</button></div>
+        <p id="logsError" class="hint logs-error" role="alert" hidden></p>
+        <p id="logsLimit" class="hint" hidden>Показаны последние строки за выбранный период. Полный журнал доступен по кнопке «Скачать лог».</p>
         <pre class="logs-out mono" id="logsOut">Загрузка логов…</pre>
       </section>
     </div>

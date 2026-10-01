@@ -21,13 +21,16 @@ def players_payload():
         return {"ok": False, "error": str(e)}
 
 
-def logs_payload(tail=None):
-    text, err = dockerlib.container_logs(
-        config.CFG["pz_container"], config.CFG["log_lines"] if tail is None else tail
-    )
+def logs_payload(tail=None, since=None, until=None):
+    limit = config.CFG["log_lines"] if tail is None else tail
+    scope = {key: value for key, value in (("since", since), ("until", until)) if value}
+    text, err = dockerlib.container_logs(config.CFG["pz_container"], limit, **scope)
     if text is None:
         return {"ok": False, "error": err or "логи недоступны"}
-    return {"ok": True, "text": text}
+    result = {"ok": True, "text": text}
+    if scope:
+        result.update(truncated=len(text.splitlines()) >= limit, **scope)
+    return result
 
 
 def stats_payload():

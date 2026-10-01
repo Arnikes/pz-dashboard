@@ -60,6 +60,33 @@ def operation_env(monkeypatch):
     return start, defer
 
 
+def test_operation_log_range_is_bounded_and_passed_to_docker(api, monkeypatch):
+    logs = Mock(return_value=("2026-10-01T12:00:30Z ERROR test\n", None))
+    monkeypatch.setattr(app.dockerlib, "container_logs", logs)
+    since, until = "2026-10-01T12:00:00Z", "2026-10-01T12:01:00Z"
+    status, result = api("GET", f"/api/logs?tail=50000&since={since}&until={until}")
+    assert status == 200 and result["ok"]
+    assert result["since"] == since and result["until"] == until
+    logs.assert_called_once_with(app.config.CFG["pz_container"], 10000, since=since, until=until)
+    assert not result["truncated"]
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "since=--follow",
+        "since=2026-10-01T12:00:00",
+        "until=invalid",
+        "since=2026-10-01T12:01:00Z&until=2026-10-01T12:00:00Z",
+    ],
+)
+def test_invalid_operation_log_range_never_reaches_docker(api, monkeypatch, query):
+    logs = Mock()
+    monkeypatch.setattr(app.dockerlib, "container_logs", logs)
+    assert api("GET", "/api/logs?" + query)[0] == 400
+    logs.assert_not_called()
+
+
 def test_config_http_revisions_and_secrets(api, editor_env):  # noqa: F811
     status, profiles = api("GET", "/api/server-configs")
     assert status == 200 and profiles["activeFile"] == "world.ini"

@@ -83,6 +83,13 @@ def test_log_readers_request_both_streams(monkeypatch):
 
     monkeypatch.setattr(dockerlib, "sh", fake_sh)
     assert dockerlib.container_logs("server") == ("normal\nerror", None)
+    since, until = "2026-10-01T12:00:00Z", "2026-10-01T12:01:00Z"
+    assert dockerlib.container_logs("server", 10000, since, until) == ("normal\nerror", None)
+    scoped = calls[-1][0]
+    assert scoped[scoped.index("--since") + 1] == since
+    assert scoped[scoped.index("--until") + 1] == until
+    assert scoped[scoped.index("--tail") + 1] == "10000"
+    assert scoped[-1] == "server"
     assert ops.full_logs() == "normal\nerror"
     assert all(merge for _, merge in calls)
 
