@@ -1274,6 +1274,8 @@ def wait_ready(timeout=600):
 
 
 def run(data, prepare=False):
+    if not isinstance(data.get("backupBeforeApply", True), bool):
+        raise EditorError("backupBeforeApply должен быть boolean")
     confirmed_container()
     file = choose(data.get("file"))
     saved = load_json(state_dir(file) / "draft.json")
@@ -1282,6 +1284,7 @@ def run(data, prepare=False):
     result = validate(file, prepare=prepare, draft_revision=data["draftRevision"])
     if not result["valid"]:
         raise EditorError("; ".join(e["message"] for e in result["errors"]))
+    backup_before_apply = data.get("backupBeforeApply", bool(result["modChanges"] or prepare))
     restart = data.get("restart") is True or prepare
     if restart and context(refresh=True)["activeFile"] != file:
         raise EditorError("Рестарт доступен только для подтверждённого активного профиля", 409)
@@ -1319,7 +1322,11 @@ def run(data, prepare=False):
     state.pop("historyId", None)
     state.pop("operationCompletedAt", None)
     state.pop("verifiedAt", None)
-    state.update(status="applying", operationStartedAt=ops.now_iso())
+    state.update(
+        status="applying",
+        operationStartedAt=ops.now_iso(),
+        backupBeforeApply=backup_before_apply,
+    )
     state["allowRuntimeReset"] = bool(
         before_mods.get("ResetID", {}).get("value")
         and before_mods.get("ResetID", {}).get("value")
@@ -1342,8 +1349,8 @@ def run(data, prepare=False):
             stopped = True
         if revision(read_profile(file)) != saved["baseRevision"]:
             raise EditorError("Конфигурация изменилась во время остановки; запись отменена", 409)
-        if result["modChanges"] or prepare:
-            ops._set_phase("Бэкап", "Резервная копия мира перед изменением модов")
+        if backup_before_apply:
+            ops._set_phase("Бэкап", "Резервная копия мира перед записью конфигурации")
             backup = ops.run_backup_job("manual", False)
             if isinstance(backup, dict) and backup.get("name"):
                 state["worldBackup"] = backup["name"]
@@ -1755,6 +1762,8 @@ def queue(data, prepare=False):
     file = choose(data.get("file"))
     if not isinstance(data.get("restart", False), bool):
         raise EditorError("restart должен быть boolean")
+    if not isinstance(data.get("backupBeforeApply", True), bool):
+        raise EditorError("backupBeforeApply должен быть boolean")
     with LOCK:
         saved = load_json(state_dir(file) / "draft.json")
         if not saved or data.get("draftRevision") != saved["draftRevision"]:

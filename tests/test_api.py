@@ -162,12 +162,14 @@ def test_config_http_running_and_boolean_errors(api, editor_env, monkeypatch):  
 
 
 @pytest.mark.parametrize("operation,prepare", [("apply-config", False), ("prepare-workshop", True)])
+@pytest.mark.parametrize("backup", [None, False, True])
 def test_config_http_action_binds_profile_and_operation(
     api,
     editor_env,  # noqa: F811
     monkeypatch,
     operation,
     prepare,
+    backup,
 ):  # noqa: F811
     draft = configeditor.draft("world.ini")
     start, run = Mock(), Mock()
@@ -179,10 +181,32 @@ def test_config_http_action_binds_profile_and_operation(
         "draftRevision": draft["draftRevision"],
         "restart": False,
     }
+    if backup is not None:
+        body["backupBeforeApply"] = backup
     assert api("POST", "/api/action", body) == (200, {"ok": True, "operation": operation})
     run.assert_not_called()
     start.call_args.args[1]()
     run.assert_called_once_with(body, prepare)
+
+
+@pytest.mark.parametrize("operation", ["apply-config", "prepare-workshop"])
+@pytest.mark.parametrize("backup", ["false", "true", 0, 1, None, [], {}])
+def test_config_http_rejects_invalid_backup_choice(api, editor_env, monkeypatch, operation, backup):  # noqa: F811
+    current = configeditor.draft("world.ini")
+    start = Mock()
+    monkeypatch.setattr(ops, "start_op", start)
+    status, result = api(
+        "POST",
+        "/api/action",
+        {
+            "op": operation,
+            "file": "world.ini",
+            "draftRevision": current["draftRevision"],
+            "backupBeforeApply": backup,
+        },
+    )
+    assert status == 400 and "backupBeforeApply" in result["error"]
+    start.assert_not_called()
 
 
 @pytest.mark.parametrize(

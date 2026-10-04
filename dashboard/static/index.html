@@ -234,7 +234,7 @@
     </div>
 
     <!-- ИГРОКИ -->
-    <div class="view view-narrow" id="view-players" tabindex="-1" hidden>
+    <div class="view" id="view-players" tabindex="-1" hidden>
       <section class="card c-players" id="sec-players" data-od-id="players" aria-labelledby="hPlayers">
         <header class="card-head">
           <h2 id="hPlayers">Игроки онлайн</h2>
@@ -509,7 +509,7 @@
     </div>
 
     <!-- БЭКАПЫ -->
-    <div class="view view-narrow" id="view-backups" tabindex="-1" hidden>
+    <div class="view" id="view-backups" tabindex="-1" hidden>
       <section class="card c-bksched" id="sec-bksched" data-od-id="bk-schedule" aria-labelledby="hBkSched">
         <header class="card-head">
           <h2 id="hBkSched">Бэкап по расписанию</h2>
@@ -586,13 +586,15 @@
             <button class="chip" data-act="broadcast">Объявить…</button>
           </div>
         </header>
-        <pre class="console-out mono" id="consoleOut" aria-live="polite"></pre>
-        <form class="console-form" id="consoleForm">
-          <span class="console-prompt mono" aria-hidden="true">rcon&gt;</span>
-          <input id="consoleInput" class="mono" type="text" autocomplete="off" spellcheck="false"
-                 placeholder="Команда администратора, например: servermsg &quot;Привет&quot;" aria-label="Команда RCON" />
-          <button class="btn primary" type="submit">Отправить</button>
-        </form>
+        <div class="console-content">
+          <pre class="console-out mono" id="consoleOut" aria-live="polite"></pre>
+          <form class="console-form" id="consoleForm">
+            <span class="console-prompt mono" aria-hidden="true">rcon&gt;</span>
+            <input id="consoleInput" class="mono" type="text" autocomplete="off" spellcheck="false"
+                   placeholder="Команда администратора, например: servermsg &quot;Привет&quot;" aria-label="Команда RCON" />
+            <button class="btn primary" type="submit">Отправить</button>
+          </form>
+        </div>
       </section>
 
       <section class="card c-logs" id="sec-logs" data-od-id="logs" aria-labelledby="hLogs">
@@ -609,10 +611,12 @@
             <a class="btn small" id="logsDownload" href="/api/logs/full" download title="Полный лог файлом">Скачать лог</a>
           </div>
         </header>
-        <div class="logs-scope" id="logsScope" hidden><span id="logsPeriod" class="hint"></span><button type="button" class="btn small" id="logsClearPeriod">Сбросить период</button></div>
-        <p id="logsError" class="hint logs-error" role="alert" hidden></p>
-        <p id="logsLimit" class="hint" hidden>Показаны последние строки за выбранный период. Полный журнал доступен по кнопке «Скачать лог».</p>
-        <pre class="logs-out mono" id="logsOut">Загрузка логов…</pre>
+        <div class="logs-content">
+          <div class="logs-scope" id="logsScope" hidden><span id="logsPeriod" class="hint"></span><button type="button" class="btn small" id="logsClearPeriod">Сбросить период</button></div>
+          <p id="logsError" class="hint logs-error" role="alert" hidden></p>
+          <p id="logsLimit" class="hint" hidden>Показаны последние строки за выбранный период. Полный журнал доступен по кнопке «Скачать лог».</p>
+          <pre class="logs-out mono" id="logsOut">Загрузка логов…</pre>
+        </div>
       </section>
     </div>
   </main>

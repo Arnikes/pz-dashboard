@@ -328,6 +328,117 @@ def test_diff_without_conflict_has_close_action(page, dashboard, editing):
     assert editor.draft("world.ini")["changed"] and dashboard["actions"] == []
 
 
+@pytest.mark.parametrize("width", [390, 1440])
+@pytest.mark.parametrize("entry", ["save", "apply", "prepare"])
+def test_apply_review_can_skip_world_backup(page, dashboard, editing, width, entry):
+    data, _ = editing
+    original = (data / "Server/world.ini").read_bytes()
+    current = editor.draft("world.ini")
+    editor.patch(
+        {
+            "file": "world.ini",
+            "draftRevision": current["draftRevision"],
+            "mods": {"items": ["111", "222"]} if entry == "prepare" else {"selected": ["library"]},
+        }
+    )
+    page.set_viewport_size({"width": width, "height": 568})
+    page.goto(dashboard["url"] + "/#/mods")
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    if entry == "save":
+        page.evaluate(
+            "renderOverview({...S.overview,containerInfo:{running:false,status:'exited'}})"
+        )
+        if width <= 740:
+            page.locator("#draftMore").click()
+        page.locator("#configSave").click()
+    elif entry == "apply":
+        page.locator("#configApply").click()
+    else:
+        page.locator("#prepareWorkshop").click()
+    expect(page.locator("#editorBackup")).to_be_checked()
+    page.locator("#editorBackup").uncheck()
+    expect(page.locator("#editorBackupHint")).to_contain_text("История конфигурации")
+    expect(page.get_by_role("alertdialog")).not_to_contain_text("обязателен бэкап")
+    dialog = page.get_by_role("alertdialog").bounding_box()
+    confirm = page.locator("#modalOk").bounding_box()
+    assert dialog["y"] >= 0 and confirm["y"] + confirm["height"] <= 568
+    assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
+    page.screenshot(path=str(data.parent / f"apply-options-{entry}-{width}.png"))
+    page.locator("#modalOk").click()
+    expect(page.locator(".toast").last).to_contain_text("сервер занят")
+    assert len(dashboard["actions"]) == 1
+    request = dashboard["actions"][0]
+    assert request["backupBeforeApply"] is False
+    assert request["restart"] is (entry != "save")
+    assert request["op"] == ("prepare-workshop" if entry == "prepare" else "apply-config")
+    assert (data / "Server/world.ini").read_bytes() == original
+
+
+def test_regular_settings_review_offers_optional_world_backup(page, dashboard, editing):
+    page.goto(dashboard["url"] + "/#/settings")
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    page.locator('[data-key="PublicName"]').fill("Optional backup")
+    page.locator("#configApply").click()
+    expect(page.locator("#editorBackup")).not_to_be_checked()
+    page.locator("#editorBackup").check()
+    page.locator("#modalOk").click()
+    expect(page.locator(".toast").last).to_contain_text("сервер занят")
+    assert dashboard["actions"][0]["backupBeforeApply"] is True
+
+
+@pytest.mark.parametrize("width", [320, 390, 768, 1440, 2048])
+def test_pages_share_edges_and_form_controls_share_size(page, dashboard, editing, width):
+    page.set_viewport_size({"width": width, "height": 844})
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    edges = []
+    for route in (
+        "overview",
+        "players",
+        "mods",
+        "settings",
+        "maintenance",
+        "backups",
+        "events",
+        "console",
+    ):
+        navigate(page, route, width <= 740)
+        metrics = page.evaluate("""() => {
+            const card = document.querySelector('.view:not([hidden]) .card').getBoundingClientRect();
+            const view = document.querySelector('.view:not([hidden])').getBoundingClientRect();
+            const fields = [...document.querySelectorAll('.view:not([hidden]) input:not([type=checkbox]):not([type=file]), .view:not([hidden]) select')]
+                .filter(el => el.getBoundingClientRect().width && !el.closest('[hidden]'));
+            return {left:card.left,right:view.right,heights:fields.map(el => el.getBoundingClientRect().height),
+                overflow:document.documentElement.scrollWidth > innerWidth};
+        }""")
+        assert not metrics["overflow"], route
+        assert all(abs(h - 44) < 1 for h in metrics["heights"]), (route, metrics["heights"])
+        edges.append((metrics["left"], metrics["right"]))
+        if route == "console" and width > 1180:
+            panels = page.evaluate("""() => {
+                const box = selector => document.querySelector(selector).getBoundingClientRect();
+                const consolePanel = box('#consoleOut'), logsPanel = box('#logsOut');
+                return {consoleTop:consolePanel.top, logsTop:logsPanel.top,
+                    consoleWidth:consolePanel.width, logsWidth:logsPanel.width};
+            }""")
+            assert abs(panels["consoleTop"] - panels["logsTop"]) < 1
+            assert abs(panels["consoleWidth"] - panels["logsWidth"]) < 1
+        if width in (390, 1440):
+            page.screenshot(path=str(editing[0].parent / f"unified-{route}-{width}.png"))
+    assert all(
+        abs(left - edges[0][0]) < 1 and abs(right - edges[0][1]) < 1 for left, right in edges
+    )
+    navigate(page, "settings", width <= 740)
+    page.locator('[data-key="PublicName"]').fill("Aligned draft")
+    page.locator('[data-key="PublicName"]').press("Tab")
+    expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
+    if width > 740:
+        bar = page.locator("#draftBar").bounding_box()
+        assert abs(bar["x"] - edges[0][0]) < 1
+        assert abs(bar["x"] + bar["width"] - edges[0][1]) < 1
+    page.screenshot(path=str(editing[0].parent / f"unified-ui-{width}.png"))
+
+
 def test_more_menu_escape_restores_focus_and_marks_extra_page(page, dashboard, editing):
     page.set_viewport_size({"width": 390, "height": 844})
     page.goto(dashboard["url"])

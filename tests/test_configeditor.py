@@ -613,7 +613,8 @@ def test_empty_scan_is_cached(monkeypatch):
     assert lookup.call_count == 2
 
 
-def test_first_restart_downloads_only_items_preserving_unrelated_edits(env, monkeypatch):
+@pytest.mark.parametrize("backup", [None, False])
+def test_first_restart_downloads_only_items_preserving_unrelated_edits(env, monkeypatch, backup):
     data, _ = env
     draft = change(
         ini={"PublicName": "Future name"}, sandbox={"Mod.Count": 9}, mods={"items": ["111", "222"]}
@@ -636,7 +637,12 @@ def test_first_restart_downloads_only_items_preserving_unrelated_edits(env, monk
     monkeypatch.setattr(editor.dockerlib, "container_start", start)
     monkeypatch.setattr(editor, "wait_ready", lambda: None)
     editor.run(
-        {"file": "world.ini", "draftRevision": draft["draftRevision"], "warnSeconds": 0},
+        {
+            "file": "world.ini",
+            "draftRevision": draft["draftRevision"],
+            "warnSeconds": 0,
+            **({"backupBeforeApply": backup} if backup is not None else {}),
+        },
         prepare=True,
     )
     disk = editor.read_profile("world.ini")
@@ -647,7 +653,10 @@ def test_first_restart_downloads_only_items_preserving_unrelated_edits(env, monk
     assert not current["conflict"] and current["changed"]
     assert current["state"]["installation"]["stage"] == "select-mods"
     assert "Future name" in current["texts"]["ini"] and "Count = 9" in current["texts"]["sandbox"]
-    ops.run_backup_job.assert_called_once_with("manual", False)
+    if backup is False:
+        ops.run_backup_job.assert_not_called()
+    else:
+        ops.run_backup_job.assert_called_once_with("manual", False)
 
 
 def test_prepare_preview_only_validates_and_shows_stage_one_changes(env):
@@ -680,6 +689,63 @@ def test_backup_failure_never_writes_mod_changes(env, monkeypatch):
         editor.run({"file": "world.ini", "draftRevision": draft["draftRevision"], "restart": False})
     assert (data / "Server/world.ini").read_bytes() == INI.encode()
     assert editor.draft("world.ini")["state"]["status"] == "error"
+
+
+@pytest.mark.parametrize("restart", [False, True])
+def test_explicit_skip_backup_applies_mod_changes_and_preserves_history(env, monkeypatch, restart):
+    data, _ = env
+    current = change(mods={"selected": ["library"]})
+    monkeypatch.setattr(ops, "run_backup_job", Mock(side_effect=ops.OpsError("backup unavailable")))
+    if restart:
+        monkeypatch.setattr(editor.dockerlib, "container_start", lambda name: (0, "", ""))
+        monkeypatch.setattr(editor, "wait_ready", lambda: None)
+    editor.run(
+        {
+            "file": "world.ini",
+            "draftRevision": current["draftRevision"],
+            "restart": restart,
+            "backupBeforeApply": False,
+        }
+    )
+    ops.run_backup_job.assert_not_called()
+    assert "Mods=\\library\r\n" in editor.read_profile("world.ini")["ini"]
+    state = editor.draft("world.ini")["state"]
+    assert state["status"] == ("applied" if restart else "saved")
+    assert state["backupBeforeApply"] is False and "worldBackup" not in state
+    original = editor.state_dir("world.ini") / "history" / state["historyId"] / "ini"
+    assert original.read_bytes() == INI.encode()
+    assert (data / "Server/world.ini").read_bytes() != INI.encode()
+
+
+@pytest.mark.parametrize("backup_requested", [None, False, True])
+def test_regular_settings_backup_choice(env, monkeypatch, backup_requested):
+    current = change(ini={"PublicName": "Updated name"})
+    backup = Mock(return_value={"name": "world.tar.gz"})
+    monkeypatch.setattr(ops, "run_backup_job", backup)
+    request = {"file": "world.ini", "draftRevision": current["draftRevision"], "restart": False}
+    if backup_requested is not None:
+        request["backupBeforeApply"] = backup_requested
+    editor.run(request)
+    assert "PublicName=Updated name" in editor.read_profile("world.ini")["ini"]
+    if backup_requested:
+        backup.assert_called_once_with("manual", False)
+        assert editor.draft("world.ini")["state"]["worldBackup"] == "world.tar.gz"
+    else:
+        backup.assert_not_called()
+
+
+def test_requested_backup_failure_keeps_regular_settings_unchanged(env, monkeypatch):
+    current = change(ini={"PublicName": "Updated name"})
+    monkeypatch.setattr(ops, "run_backup_job", Mock(side_effect=ops.OpsError("backup unavailable")))
+    with pytest.raises(ops.OpsError, match="backup unavailable"):
+        editor.run(
+            {
+                "file": "world.ini",
+                "draftRevision": current["draftRevision"],
+                "backupBeforeApply": True,
+            }
+        )
+    assert editor.read_profile("world.ini")["ini"] == INI
 
 
 def test_new_sandbox_file_inherits_server_ini_permissions_and_owner(env, monkeypatch):
