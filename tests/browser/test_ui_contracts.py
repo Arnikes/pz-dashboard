@@ -6,6 +6,70 @@ from playwright.sync_api import expect
 pytestmark = pytest.mark.browser
 
 
+def test_navigation_keeps_one_stream_and_hidden_polling_does_not_overlap(page, dashboard):
+    page.goto(dashboard["url"])
+    expect(page.locator("#btnStop")).to_be_enabled()
+    page.evaluate("window.firstStream=liveSource")
+    for route in ["settings", "mods", "players", "maintenance", "backups", "console", "events"]:
+        page.evaluate("route=>location.hash='#/'+route", route)
+        expect(page.locator(f"#view-{route}")).to_be_visible()
+        assert page.evaluate("liveSource===firstStream && !pollingStarted")
+    page.clock.install()
+    held = []
+    hidden_requests = []
+    page.on(
+        "request",
+        lambda request: hidden_requests.append(request.url) if "/api/" in request.url else None,
+    )
+    page.route("**/api/overview", lambda route: held.append(route))
+    page.evaluate("""() => {
+        Object.defineProperty(document,'hidden',{value:true,configurable:true});
+        document.dispatchEvent(new Event('visibilitychange'));startPolling();
+    }""")
+    page.clock.run_for(30000)
+    assert held == []
+    assert hidden_requests == []
+    assert page.evaluate("liveSource===null")
+    page.evaluate("""() => {
+        Object.defineProperty(document,'hidden',{value:false,configurable:true});
+        document.dispatchEvent(new Event('visibilitychange'));
+    }""")
+    # Stay below the API timeout: a timed-out request may correctly be retried.
+    page.clock.run_for(6000)
+    assert len(held) == 1
+    held[0].fulfill(json={"ok": True, "serverName": "Resumed polling", "settings": {}})
+    expect(page.locator("#serverName")).to_have_text("Resumed polling")
+    page.unroute("**/api/overview")
+    with page.expect_request("**/api/overview"):
+        page.clock.run_for(3000)
+
+
+def test_unchanged_events_and_journal_retain_nodes_but_changes_refresh(page, dashboard):
+    page.goto(dashboard["url"] + "/#/events")
+    expect(page.locator("#btnStop")).to_be_enabled()
+    page.evaluate(r"""() => {
+        liveSource?.close(); liveSource=null; clearTimeout(sseStartupTimer);
+        window.eventSnapshot={ok:true,items:[{ts:'2026-09-01T00:00:00Z',type:'backup',text:'Архив "Север" — администратор\'s'}]};
+        window.journalSnapshot=[{ts:'2026-09-01T00:00:00Z',status:'ok',name:'Archive "Север"',size:1024}];
+        renderEvents(eventSnapshot); renderBkJournal(journalSnapshot);
+        window.oldEvent=document.querySelector('#eventsBody .event-row');
+        window.oldJournal=document.querySelector('#bkJournalBody .journal-row');
+        window.eventChanges=0;
+        const observer=new MutationObserver(records=>eventChanges+=records.length);
+        for(const id of ['eventsBody','recentBody','bkJournalBody']) observer.observe(document.getElementById(id),{subtree:true,childList:true,attributes:true,characterData:true});
+        for(let i=0;i<60;i++){renderEvents(eventSnapshot);renderBkJournal(journalSnapshot);}
+    }""")
+    assert page.evaluate(
+        "eventChanges===0 && oldEvent===document.querySelector('#eventsBody .event-row') && oldJournal===document.querySelector('#bkJournalBody .journal-row')"
+    )
+    page.evaluate("eventSnapshot.items[0].text='Новое событие';renderEvents(eventSnapshot)")
+    expect(page.locator("#eventsBody")).to_contain_text("Новое событие")
+    page.locator('#eventFilters [data-ef="ops"]').click()
+    expect(page.locator("#eventsBody")).to_contain_text("Событий этой категории пока не было")
+    page.locator('#eventFilters [data-ef="all"]').click()
+    expect(page.locator("#eventsBody")).to_contain_text("Новое событие")
+
+
 def test_action_restrictions_show_recovery_in_context(page, dashboard):
     page.goto(dashboard["url"])
     expect(page.locator("#btnStop")).to_be_enabled()

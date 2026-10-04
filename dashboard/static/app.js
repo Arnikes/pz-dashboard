@@ -11,6 +11,20 @@
 
 const $ = (id) => document.getElementById(id);
 
+function setDomProperty(target, property, value) {
+  if (typeof target[property] === "boolean") value = !!value;
+  if (target[property] !== value) target[property] = value;
+}
+function setDomAttribute(target, attribute, value) {
+  if (target.getAttribute(attribute) !== String(value)) target.setAttribute(attribute, value);
+}
+const renderedMarkup = new WeakMap();
+function setStaticMarkup(target, html) {
+  if (renderedMarkup.get(target) === html) return;
+  target.innerHTML = html;
+  renderedMarkup.set(target, html);
+}
+
 const esc = (s) => String(s ?? "")
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
   .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -1479,20 +1493,20 @@ function renderBkJournal(journal) {
   const body = $("bkJournalBody");
   if (!body) return;
   if (!journal.length) {
-    body.dataset.state = "empty";
-    body.innerHTML = `<p class="list-empty">Запусков ещё не было — журнал наполнится после первого бэкапа.</p>`;
+    setDomProperty(body.dataset, "state", "empty");
+    setStaticMarkup(body, `<p class="list-empty">Запусков ещё не было — журнал наполнится после первого бэкапа.</p>`);
     return;
   }
-  body.dataset.state = "ok";
+  setDomProperty(body.dataset, "state", "ok");
   const trig = { manual: "вручную", scheduled: "по расписанию" };
-  body.innerHTML = journal.map((j) => `
+  setStaticMarkup(body, journal.map((j) => `
     <div class="journal-row${j.status === "error" ? " j-err" : ""}">
       <span class="j-date mono" title="${esc(j.ts)}">${esc((j.ts || "").slice(0, 16).replace("T", " "))}</span>
       <span class="j-trig">${esc(trig[j.trigger] || j.trigger || "")}</span>
       <span class="j-name mono" title="${esc(j.name || j.error || "")}">${esc(j.name || "—")}</span>
       <span class="j-size mono">${j.status === "error" ? "—" : esc(fmtBytes(j.size))}</span>
       <span class="j-status" title="${esc(j.error || "")}">${j.status === "error" ? "ошибка" : "готово"}</span>
-    </div>`).join("");
+    </div>`).join(""));
 }
 
 function confirmRestore(name) {
@@ -1572,8 +1586,8 @@ function renderEvents(data) {
   eventsData = data;
   const body = $("eventsBody");
   if (!data.ok) {
-    body.dataset.state = "error";
-    body.innerHTML = `<p class="list-error">${esc(data.error || "нет данных")}</p>`;
+    setDomProperty(body.dataset, "state", "error");
+    setStaticMarkup(body, `<p class="list-error">${esc(data.error || "нет данных")}</p>`);
     return;
   }
   const items = data.items || [];
@@ -1582,13 +1596,13 @@ function renderEvents(data) {
     ? items
     : items.filter((ev) => (EVENT_GROUPS[eventsFilter] || []).includes(ev.type));
   if (!visible.length) {
-    body.dataset.state = "empty";
-    body.innerHTML = eventsFilter === "all"
+    setDomProperty(body.dataset, "state", "empty");
+    setStaticMarkup(body, eventsFilter === "all"
       ? `<p class="list-empty"><strong>Пока тихо.</strong> Здесь появятся рестарты, бэкапы и обновления.</p>`
-      : `<p class="list-empty"><strong>Пусто.</strong> Событий этой категории пока не было.</p>`;
+      : `<p class="list-empty"><strong>Пусто.</strong> Событий этой категории пока не было.</p>`);
     return;
   }
-  body.dataset.state = "ok";
+  setDomProperty(body.dataset, "state", "ok");
   const today = new Date();
   const yest = new Date(today.getTime() - 86400000);
   const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -1607,7 +1621,7 @@ function renderEvents(data) {
       <span class="e-text"><b>${esc(EVENT_LABELS[ev.type] || ev.type)}.</b> ${esc(ev.text)}</span>
     </div>`;
   }
-  body.innerHTML = html;
+  setStaticMarkup(body, html);
 }
 
 $("eventFilters").addEventListener("click", (e) => {
@@ -1624,16 +1638,16 @@ function renderRecent(items) {
   if (!body) return;
   const slice = (items || []).slice(0, 5);
   if (!slice.length) {
-    body.dataset.state = "empty";
-    body.innerHTML = `<p class="list-empty"><strong>Пока тихо.</strong> Здесь появятся рестарты, бэкапы и обновления.</p>`;
+    setDomProperty(body.dataset, "state", "empty");
+    setStaticMarkup(body, `<p class="list-empty"><strong>Пока тихо.</strong> Здесь появятся рестарты, бэкапы и обновления.</p>`);
     return;
   }
-  body.dataset.state = "ok";
-  body.innerHTML = slice.map((ev) => `
+  setDomProperty(body.dataset, "state", "ok");
+  setStaticMarkup(body, slice.map((ev) => `
     <div class="event-row" data-kind="${esc(ev.type)}">
       <span class="e-time mono" title="${esc(ev.ts)}">${esc(relTime(ev.ts) || fmtTime(ev.ts))}</span>
       <span class="e-text"><b>${esc(EVENT_LABELS[ev.type] || ev.type)}.</b> ${esc(ev.text)}</span>
-    </div>`).join("");
+    </div>`).join(""));
 }
 
 /* ───────────────────────── консоль ───────────────────────── */

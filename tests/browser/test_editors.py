@@ -80,6 +80,32 @@ def test_commands_find_settings_and_mods_without_losing_draft(page, dashboard, e
     expect(page.locator('#modTabs [data-tab="order"]')).to_have_attribute("aria-selected", "true")
 
 
+def test_unchanged_editor_status_retains_draft_controls_and_busy_still_locks(
+    page, dashboard, editing
+):
+    page.goto(dashboard["url"] + "/#/settings")
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    page.locator('[data-key="PublicName"]').fill("Stable controls")
+    page.locator('[data-key="PublicName"]').press("Tab")
+    expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
+    page.locator("#configDiff").focus()
+    page.evaluate("""() => {
+        liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer);
+        ConfigEditor.operationChanged();window.editorStatusChanges=0;
+        const observer=new MutationObserver(records=>editorStatusChanges+=records.length);
+        for(const id of ['draftBar','configFields','editorAttention'])observer.observe(document.getElementById(id),{subtree:true,childList:true,attributes:true,characterData:true});
+        for(let i=0;i<60;i++)ConfigEditor.operationChanged();
+    }""")
+    assert page.evaluate("editorStatusChanges===0")
+    expect(page.locator("#configDiff")).to_be_focused()
+    page.evaluate("renderOp({active:{op:'backup',phase:'Архив'},history:[]})")
+    expect(page.locator("#configApply")).to_be_disabled()
+    expect(page.locator('[data-key="PublicName"]')).to_be_disabled()
+    page.evaluate("renderOp({active:null,history:[]})")
+    expect(page.locator('[data-key="PublicName"]')).to_be_enabled()
+    expect(page.locator('[data-key="PublicName"]')).to_have_value("Stable controls")
+
+
 @pytest.mark.parametrize("width", [390, 768, 1440, 2048])
 def test_editor_layout_controls_and_draft_do_not_cover_content(page, dashboard, editing, width):
     data, _ = editing

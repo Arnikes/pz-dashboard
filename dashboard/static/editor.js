@@ -32,27 +32,27 @@ window.ConfigEditor = (() => {
   }
   function clearError() { $("configError").hidden = true; delete $("configError").dataset.source; }
   function updateBar() {
-    if (!draft) { $("draftBar").hidden = true; return; }
+    if (!draft) { setDomProperty($("draftBar"), "hidden", true); return; }
     const busy = !!S.op?.active;
     const locked = busy || loading || S.demo;
     const running = S.overview?.containerInfo?.running;
-    $("configProfile").disabled = busy || loading;
-    $("view-mods").inert = loading || !mods;
-    for (const kind of ["ini", "sandbox"]) $(kind + "Source").readOnly = busy || loading;
+    setDomProperty($("configProfile"), "disabled", busy || loading);
+    setDomProperty($("view-mods"), "inert", loading || !mods);
+    for (const kind of ["ini", "sandbox"]) setDomProperty($(kind + "Source"), "readOnly", busy || loading);
     const editorView = ["settings", "mods"].includes(activeView);
     const needsAction = draft.changed || sourceDirty || fieldDirty || pendingFields.size || unsaved.length || draft.conflict || !$("configError").hidden || ["saved", "applying", "error", "select-mods"].includes(draft.status);
-    $("draftBar").hidden = !editorView || !needsAction;
-    $("draftRetry").hidden = !unsaved.length && !(fieldSaveFailed && pendingFields.size);
-    $("draftLabel").textContent = (pendingFields.size ? "Есть несохранённые поля" : statuses[draft.status] || "Конфигурация") + (draft.changed ? ` · изменённых строк: ${draft.changedLines || 1}` : "");
-    $("configStatus").textContent = statuses[draft.status] || "Конфигурация";
-    $("configStatus").dataset.state = draft.conflict || draft.status === "error" ? "bad" : draft.changed || draft.status !== "applied" ? "warn" : "ok";
-    $("configApply").disabled = busy || !draft.canApply || !draft.canWrite || S.demo || loading || !needsAction;
-    $("configSave").disabled = busy || !draft.canWrite || running !== false || S.demo || loading;
-    $("configDiscard").disabled = busy || S.demo || loading;
-    $("configRebase").hidden = !draft.conflict;
-    $("configRebase").disabled = busy || S.demo || loading || fieldDirty;
-    $("configApply").title = draft.canApply ? "" : "Выбран неактивный или неподтверждённый профиль";
-    $("configSave").title = running === true ? "Сначала остановите сервер" : running === false ? "" : "Состояние сервера ещё не получено";
+    setDomProperty($("draftBar"), "hidden", !editorView || !needsAction);
+    setDomProperty($("draftRetry"), "hidden", !unsaved.length && !(fieldSaveFailed && pendingFields.size));
+    setDomProperty($("draftLabel"), "textContent", (pendingFields.size ? "Есть несохранённые поля" : statuses[draft.status] || "Конфигурация") + (draft.changed ? ` · изменённых строк: ${draft.changedLines || 1}` : ""));
+    setDomProperty($("configStatus"), "textContent", statuses[draft.status] || "Конфигурация");
+    setDomProperty($("configStatus").dataset, "state", draft.conflict || draft.status === "error" ? "bad" : draft.changed || draft.status !== "applied" ? "warn" : "ok");
+    setDomProperty($("configApply"), "disabled", busy || !draft.canApply || !draft.canWrite || S.demo || loading || !needsAction);
+    setDomProperty($("configSave"), "disabled", busy || !draft.canWrite || running !== false || S.demo || loading);
+    setDomProperty($("configDiscard"), "disabled", busy || S.demo || loading);
+    setDomProperty($("configRebase"), "hidden", !draft.conflict);
+    setDomProperty($("configRebase"), "disabled", busy || S.demo || loading || fieldDirty);
+    setDomProperty($("configApply"), "title", draft.canApply ? "" : "Выбран неактивный или неподтверждённый профиль");
+    setDomProperty($("configSave"), "title", running === true ? "Сначала остановите сервер" : running === false ? "" : "Состояние сервера ещё не получено");
     const reason = S.demo ? "Демо: запись файлов и применение отключены."
       : busy ? "Изменения заблокированы на время операции. Дождитесь результата, показанного над разделом."
       : loading ? "Профиль загружается. Дождитесь получения черновика."
@@ -62,53 +62,53 @@ window.ConfigEditor = (() => {
       : running === undefined ? "Состояние сервера ещё не получено. Проверьте подключение перед записью файлов."
       : "";
     setAvailability("configActionHelp", reason);
-    for (const id of ["configApply", "configSave", "configDiscard"]) $(id).setAttribute("aria-describedby", "configActionHelp configSaveHint");
-    $("configVerifyHelp").hidden = !draft.canApply || !draft.state?.savedRevision || !S.overview?.containerInfo?.running;
-    $("configVerify").disabled = busy || S.demo || loading;
-    if (busy) $("draftSaved").textContent = `${S.op.active.phase || "Операция"} · ${S.op.active.message || ""}`;
-    $("configFields").querySelectorAll("[data-key]").forEach(el => { el.disabled = busy || loading || S.demo || !!el.dataset.owner; });
+    for (const id of ["configApply", "configSave", "configDiscard"]) setDomAttribute($(id), "aria-describedby", "configActionHelp configSaveHint");
+    setDomProperty($("configVerifyHelp"), "hidden", !draft.canApply || !draft.state?.savedRevision || !S.overview?.containerInfo?.running);
+    setDomProperty($("configVerify"), "disabled", busy || S.demo || loading);
+    if (busy) setDomProperty($("draftSaved"), "textContent", `${S.op.active.phase || "Операция"} · ${S.op.active.message || ""}`);
+    $("configFields").querySelectorAll("[data-key]").forEach(el => { setDomProperty(el, "disabled", busy || loading || S.demo || !!el.dataset.owner); });
     const incompatible = new Set((mods?.workshop || []).flatMap(w => w.available || []).filter(r => r.compatible === false).map(r => r.modId));
-    $("modPackages").querySelectorAll("[data-modid]").forEach(el => { el.disabled = locked || incompatible.has(el.dataset.modid) && !el.checked; });
-    document.querySelectorAll("#modPackages button, #modMapEditor input, #modMapEditor button, #modProblems button, #legacyMods button, #installNotice button, #configFields [data-remove-option], #configHistory button, #configOperationResult [data-operation-restore], #configOperationResult [data-verify-running]").forEach(el => { el.disabled = locked; });
-    for (const id of ["modImport", "modExport", "modRescan", "sourceSave", "draftRetry"]) $(id).disabled = locked;
-    $("modImport").closest("label").setAttribute("aria-disabled", String(locked));
-    $("workshopInput").disabled = locked || resolvingWorkshop;
-    $("workshopAdd").querySelector("button").disabled = locked || resolvingWorkshop;
-    $("modOrderList").querySelectorAll("button").forEach(el => { el.disabled = busy || S.demo || loading || el.dataset.edge === "true"; });
+    $("modPackages").querySelectorAll("[data-modid]").forEach(el => { setDomProperty(el, "disabled", locked || incompatible.has(el.dataset.modid) && !el.checked); });
+    document.querySelectorAll("#modPackages button, #modMapEditor input, #modMapEditor button, #modProblems button, #legacyMods button, #installNotice button, #configFields [data-remove-option], #configHistory button, #configOperationResult [data-operation-restore], #configOperationResult [data-verify-running]").forEach(el => { setDomProperty(el, "disabled", locked); });
+    for (const id of ["modImport", "modExport", "modRescan", "sourceSave", "draftRetry"]) setDomProperty($(id), "disabled", locked);
+    setDomAttribute($("modImport").closest("label"), "aria-disabled", String(locked));
+    setDomProperty($("workshopInput"), "disabled", locked || resolvingWorkshop);
+    setDomProperty($("workshopAdd").querySelector("button"), "disabled", locked || resolvingWorkshop);
+    $("modOrderList").querySelectorAll("button").forEach(el => { setDomProperty(el, "disabled", busy || S.demo || loading || el.dataset.edge === "true"); });
     const profileState = $("configActive");
-    profileState.textContent = draft.canApply ? "Активен на сервере" : draft.activeFile ? "Другой профиль" : "Не подтверждён";
-    profileState.dataset.state = draft.canApply ? "active" : draft.activeFile ? "other" : "unknown";
-    profileState.title = draft.activeFile ? `Сервер использует ${draft.activeFile}` : "Не удалось определить профиль запуска сервера";
-    $("configVersion").textContent = draft.version ? `PZ ${draft.version}` : "B42 · версия неизвестна";
+    setDomProperty(profileState, "textContent", draft.canApply ? "Активен на сервере" : draft.activeFile ? "Другой профиль" : "Не подтверждён");
+    setDomProperty(profileState.dataset, "state", draft.canApply ? "active" : draft.activeFile ? "other" : "unknown");
+    setDomProperty(profileState, "title", draft.activeFile ? `Сервер использует ${draft.activeFile}` : "Не удалось определить профиль запуска сервера");
+    setDomProperty($("configVersion"), "textContent", draft.version ? `PZ ${draft.version}` : "B42 · версия неизвестна");
     if (draft.conflict && ($("configError").hidden || $("configError").dataset.source === "conflict")) {
       $("configError").textContent = "Рабочие файлы изменились. Нажмите «Посмотреть изменения», затем «Обновить основу черновика». Пересекающиеся правки нужно разрешить вручную.";
       $("configError").dataset.source = "conflict";
       $("configError").hidden = false;
     }
-    $("configSaveHint").textContent = running === undefined
+    setDomProperty($("configSaveHint"), "textContent", running === undefined
       ? "Правки сохраняются в черновике. Ожидаем состояние сервера перед записью файлов."
       : running
       ? "Сервер работает. Правки полей сохраняются в черновике. Для записи файлов используйте «Применить с рестартом…» или сначала остановите сервер."
-      : "Правки полей сохраняются в черновике. «Записать файлы» сохраняет их при остановленном сервере; запуск выполняется отдельно.";
+      : "Правки полей сохраняются в черновике. «Записать файлы» сохраняет их при остановленном сервере; запуск выполняется отдельно.");
     if (draft.dataDiagnostic) {
       $("configError").textContent = draft.dataDiagnostic;
       $("configError").hidden = false;
     }
-    $("configVersionDiagnostic").hidden = !draft.versionDiagnostic;
-    $("configVersionDiagnostic").textContent = draft.versionDiagnostic || "";
+    setDomProperty($("configVersionDiagnostic"), "hidden", !draft.versionDiagnostic);
+    setDomProperty($("configVersionDiagnostic"), "textContent", draft.versionDiagnostic || "");
     const state = draft.state || {};
     if (S.logsProfile === file && S.logsSince && Date.parse(state.operationStartedAt || "") === S.logsSince) {
       const until = Date.parse(state.operationCompletedAt || "") || 0;
       if (until && until !== S.logsUntil) { S.logsUntil = until; renderLogsFiltered(); refreshLogs(); }
     }
     const result = $("configOperationResult");
-    result.hidden = !editorView || !state.operationStartedAt;
+    setDomProperty(result, "hidden", !editorView || !state.operationStartedAt);
     if (!result.hidden) {
       const status = busy ? "applying" : draft.status === "unconfirmed" ? "unconfirmed" : state.status;
       result.dataset.state = status === "error" ? "bad" : status === "applied" ? "ok" : "warn";
       const markup = `<strong>${esc(state.verifiedAt && ["applied", "select-mods"].includes(status) ? "Проверено после запуска" : statuses[status] || "Результат операции")}</strong><p class="hint">Профиль ${esc(file)} · ${esc(fmtTime(state.verifiedAt || state.operationCompletedAt || state.operationStartedAt))}</p>${state.error ? `<p class="editor-error">${esc(state.error)}</p>` : ""}${(state.verificationProblems || []).filter(p => p.severity !== "error").map(p => `<p class="hint">${esc(p.message)}</p>`).join("")}${state.lastFailure ? `<details><summary>Предыдущая ошибка операции</summary><p class="hint">${esc(state.lastFailure.error)}</p></details>` : ""}${state.worldBackup ? `<p class="hint">Бэкап мира: ${esc(state.worldBackup)}</p>` : state.backupBeforeApply === false ? '<p class="hint">Бэкап мира отключён для этой операции. Исходные конфиги сохраняются в истории.</p>' : ""}<div class="editor-toolbar"><button type="button" class="btn small" data-operation-logs>Логи операции</button>${status === "error" && state.historyId ? '<button type="button" class="btn small" data-operation-restore>Восстановить прежнюю конфигурацию…</button>' : ""}${status !== "applying" && draft.canApply && state.savedRevision ? '<button type="button" class="btn small" data-verify-running>Проверить запущенный сервер</button>' : ""}</div>`;
       if (markup !== operationMarkup) { result.innerHTML = markup; operationMarkup = markup; }
-      result.querySelectorAll("[data-operation-restore], [data-verify-running]").forEach(el => { el.disabled = locked; });
+      result.querySelectorAll("[data-operation-restore], [data-verify-running]").forEach(el => { setDomProperty(el, "disabled", locked); });
     }
     attention();
   }
@@ -121,8 +121,8 @@ window.ConfigEditor = (() => {
     const backups = S.backupsItems || [];
     if (!backups.length && S.overview?.backupsCount === 0) messages.push("Нет резервной копии мира");
     if (backups.length && Math.max(...backups.map(b => Date.parse(b.mtime) || 0)) < Date.now() - 48 * 3600000) messages.push("Последнему бэкапу больше двух суток");
-    $("editorAttention").hidden = activeView !== "overview" || !messages.length;
-    $("editorAttention").innerHTML = `<strong>Требуют внимания</strong>${messages.map(m => `<p>${esc(m)}</p>`).join("")}<a href="#/settings">Открыть настройки</a> · <a href="#/mods">Открыть моды</a>`;
+    setDomProperty($("editorAttention"), "hidden", activeView !== "overview" || !messages.length);
+    setStaticMarkup($("editorAttention"), `<strong>Требуют внимания</strong>${messages.map(m => `<p>${esc(m)}</p>`).join("")}<a href="#/settings">Открыть настройки</a> · <a href="#/mods">Открыть моды</a>`);
   }
   async function loadProfile(next) {
     loading = true;
