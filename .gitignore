@@ -16,3 +16,7 @@ backups/
 # временные файлы
 .tmp-*/
 .DS_Store
+
+# Impeccable: local reports, preview state and platform engine cache
+/.impeccable/
+/.agents/skills/impeccable/scripts/bin/

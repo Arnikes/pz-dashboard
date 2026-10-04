@@ -1,0 +1,8 @@
+{
+  "color": "rgb(194, 63, 52)",
+  "background": "rgb(20, 17, 14)",
+  "fontSize": "14.5px",
+  "fontWeight": "400",
+  "contrastRatio": 3.632,
+  "method": "computed foreground/background, not raster/noise sampling"
+}

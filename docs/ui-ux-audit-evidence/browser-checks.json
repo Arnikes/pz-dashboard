@@ -1,0 +1,4385 @@
+{
+  "axeVersion": "4.13.0",
+  "nativeFallback": "CUA fresh-tab timed out twice; 31.6s and 60.8s, kernel reset",
+  "mutablePreflight": true,
+  "overlays": [
+    {
+      "route": "overview",
+      "success": true,
+      "console": [
+        {
+          "type": "startGroup",
+          "text": "%c[impeccable] 16 anti-patterns found color: oklch(84% 0.19 80.46); font-weight: bold"
+        }
+      ]
+    },
+    {
+      "route": "mods",
+      "success": true,
+      "console": [
+        {
+          "type": "startGroup",
+          "text": "%c[impeccable] 15 anti-patterns found color: oklch(84% 0.19 80.46); font-weight: bold"
+        }
+      ]
+    },
+    {
+      "route": "maintenance",
+      "success": true,
+      "console": [
+        {
+          "type": "startGroup",
+          "text": "%c[impeccable] 16 anti-patterns found color: oklch(84% 0.19 80.46); font-weight: bold"
+        }
+      ]
+    },
+    {
+      "route": "backups",
+      "success": true,
+      "console": [
+        {
+          "type": "startGroup",
+          "text": "%c[impeccable] 15 anti-patterns found color: oklch(84% 0.19 80.46); font-weight: bold"
+        }
+      ]
+    },
+    {
+      "route": "console",
+      "success": true,
+      "console": [
+        {
+          "type": "startGroup",
+          "text": "%c[impeccable] 15 anti-patterns found color: oklch(84% 0.19 80.46); font-weight: bold"
+        }
+      ]
+    }
+  ],
+  "reducedMotion": [
+    {
+      "cls": "view",
+      "animation": "none",
+      "transition": "none"
+    },
+    {
+      "cls": "",
+      "animation": "none",
+      "transition": "none"
+    },
+    {
+      "cls": "op-spin",
+      "animation": "none",
+      "transition": "none"
+    },
+    {
+      "cls": "",
+      "animation": "none",
+      "transition": "none"
+    },
+    {
+      "cls": "",
+      "animation": "none",
+      "transition": "none"
+    },
+    {
+      "cls": "view",
+      "animation": "none",
+      "transition": "none"
+    },
+    {
+      "cls": "view",
+      "animation": "none",
+      "transition": "none"
+    },
+    {
+      "cls": "view",
+      "animation": "none",
+      "transition": "none"
+    },
+    {
+      "cls": "view",
+      "animation": "none",
+      "transition": "none"
+    },
+    {
+      "cls": "view",
+      "animation": "none",
+      "transition": "none"
+    },
+    {
+      "cls": "view",
+      "animation": "none",
+      "transition": "none"
+    },
+    {
+      "cls": "view",
+      "animation": "none",
+      "transition": "none"
+    }
+  ],
+  "errors": [],
+  "runs": [
+    {
+      "route": "overview",
+      "width": 1440,
+      "viewport": 1440,
+      "scrollWidth": 1440,
+      "bodyWidth": 1440,
+      "overflow": [],
+      "axe": {
+        "violations": [
+          {
+            "id": "dlitem",
+            "impact": "serious",
+            "description": "Ensure <dt> and <dd> elements are contained by a <dl>",
+            "nodes": [
+              {
+                "target": [
+                  ".net-row > div:nth-child(1) > dt"
+                ],
+                "html": "<dt>Сеть ↓</dt>",
+                "summary": "Fix any of the following:\n  Description list item does not have a <dl> parent element"
+              },
+              {
+                "target": [
+                  "#netIn"
+                ],
+                "html": "<dd class=\"mono\" id=\"netIn\">2.2 ГБ</dd>",
+                "summary": "Fix any of the following:\n  Description list item does not have a <dl> parent element"
+              },
+              {
+                "target": [
+                  ".net-row > div:nth-child(2) > dt"
+                ],
+                "html": "<dt>Сеть ↑</dt>",
+                "summary": "Fix any of the following:\n  Description list item does not have a <dl> parent element"
+              },
+              {
+                "target": [
+                  "#netOut"
+                ],
+                "html": "<dd class=\"mono\" id=\"netOut\">1.0 ГБ</dd>",
+                "summary": "Fix any of the following:\n  Description list item does not have a <dl> parent element"
+              },
+              {
+                "target": [
+                  ".net-row > div:nth-child(3) > dt"
+                ],
+                "html": "<dt>Процессов</dt>",
+                "summary": "Fix any of the following:\n  Description list item does not have a <dl> parent element"
+              },
+              {
+                "target": [
+                  "#pids"
+                ],
+                "html": "<dd class=\"mono\" id=\"pids\">42</dd>",
+                "summary": "Fix any of the following:\n  Description list item does not have a <dl> parent element"
+              }
+            ]
+          }
+        ],
+        "incomplete": [
+          {
+            "id": "aria-prohibited-attr",
+            "nodes": 1
+          },
+          {
+            "id": "color-contrast",
+            "nodes": 15
+          }
+        ],
+        "passes": [
+          "aria-allowed-attr",
+          "aria-conditional-attr",
+          "aria-deprecated-role",
+          "aria-hidden-body",
+          "aria-hidden-focus",
+          "aria-prohibited-attr",
+          "aria-required-attr",
+          "aria-roles",
+          "aria-valid-attr-value",
+          "aria-valid-attr",
+          "avoid-inline-spacing",
+          "button-name",
+          "bypass",
+          "color-contrast",
+          "definition-list",
+          "dlitem",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "link-name",
+          "meta-viewport",
+          "nested-interactive",
+          "select-name",
+          "target-size"
+        ]
+      },
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "id": "btnLogout",
+          "cls": "btn small",
+          "w": 65.2,
+          "h": 36,
+          "text": "Выйти",
+          "disabled": false,
+          "x": 1352.8125,
+          "y": 28.5,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbServer",
+          "cls": "h-chip",
+          "w": 143.3,
+          "h": 25.5,
+          "text": "Сервер: работает",
+          "disabled": false,
+          "x": 222,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbBackup",
+          "cls": "h-chip",
+          "w": 144.2,
+          "h": 25.5,
+          "text": "Бэкап: 33 д назад",
+          "disabled": false,
+          "x": 371.296875,
+          "y": 159.5,
+          "outline": "rgb(217, 164, 65) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbMods",
+          "cls": "h-chip",
+          "w": 142.4,
+          "h": 25.5,
+          "text": "Моды: актуальны",
+          "disabled": false,
+          "x": 521.515625,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbImage",
+          "cls": "h-chip",
+          "w": 137.2,
+          "h": 25.5,
+          "text": "Образ: актуален",
+          "disabled": false,
+          "x": 669.890625,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbWatchdog",
+          "cls": "h-chip",
+          "w": 117.7,
+          "h": 25.5,
+          "text": "Watchdog: ок",
+          "disabled": false,
+          "x": 813.046875,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "",
+          "cls": "sum-name",
+          "w": 271.4,
+          "h": 20.3,
+          "text": "Образ Docker",
+          "disabled": false,
+          "x": 241,
+          "y": 765.015625,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "",
+          "cls": "sum-name",
+          "w": 269.8,
+          "h": 20.3,
+          "text": "Моды Workshop",
+          "disabled": false,
+          "x": 241,
+          "y": 811.515625,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "",
+          "cls": "head-link",
+          "w": 96.8,
+          "h": 30,
+          "text": "Вся история",
+          "disabled": false,
+          "x": 1302.21875,
+          "y": 712.390625,
+          "outline": "rgb(179, 167, 140) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "updateLinks": [
+        {
+          "tag": "A",
+          "id": "",
+          "cls": "sum-name",
+          "w": 271.4,
+          "h": 20.3,
+          "text": "Образ Docker",
+          "disabled": false,
+          "x": 241,
+          "y": 765.015625,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "",
+          "cls": "sum-name",
+          "w": 269.8,
+          "h": 20.3,
+          "text": "Моды Workshop",
+          "disabled": false,
+          "x": 241,
+          "y": 811.515625,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "contrastCandidates": [],
+      "resources": [
+        {
+          "name": "http://127.0.0.1:8765/static/style.css",
+          "duration": 90.5,
+          "transfer": 63713,
+          "decoded": 63413
+        },
+        {
+          "name": "http://127.0.0.1:8765/static/app.js",
+          "duration": 77.60000002384186,
+          "transfer": 102804,
+          "decoded": 102504
+        },
+        {
+          "name": "http://127.0.0.1:8765/static/editor.js",
+          "duration": 166.30000001192093,
+          "transfer": 72072,
+          "decoded": 71772
+        },
+        {
+          "name": "http://127.0.0.1:8765/static/fonts/golos-text-600-latin.woff2",
+          "duration": 379.39999997615814,
+          "transfer": 38384,
+          "decoded": 38084
+        },
+        {
+          "name": "http://127.0.0.1:8765/static/fonts/golos-text-400-latin.woff2",
+          "duration": 257,
+          "transfer": 38384,
+          "decoded": 38084
+        },
+        {
+          "name": "http://127.0.0.1:8765/static/fonts/jetbrains-mono-700-latin.woff2",
+          "duration": 240.89999997615814,
+          "transfer": 31640,
+          "decoded": 31340
+        },
+        {
+          "name": "http://127.0.0.1:8765/static/fonts/jetbrains-mono-400-latin.woff2",
+          "duration": 617.1999999880791,
+          "transfer": 31640,
+          "decoded": 31340
+        },
+        {
+          "name": "http://127.0.0.1:8765/static/fonts/golos-text-500-latin.woff2",
+          "duration": 609.6999999880791,
+          "transfer": 38384,
+          "decoded": 38084
+        },
+        {
+          "name": "http://127.0.0.1:8765/static/fonts/russo-one-400-cyrillic.woff2",
+          "duration": 514.3999999761581,
+          "transfer": 4828,
+          "decoded": 4528
+        },
+        {
+          "name": "http://127.0.0.1:8765/static/fonts/russo-one-400-latin.woff2",
+          "duration": 698.8999999761581,
+          "transfer": 7660,
+          "decoded": 7360
+        },
+        {
+          "name": "http://127.0.0.1:8765/static/fonts/golos-text-400-cyrillic.woff2",
+          "duration": 779.8000000119209,
+          "transfer": 22328,
+          "decoded": 22028
+        },
+        {
+          "name": "http://127.0.0.1:8765/static/fonts/golos-text-500-cyrillic.woff2",
+          "duration": 773.5,
+          "transfer": 22328,
+          "decoded": 22028
+        },
+        {
+          "name": "http://127.0.0.1:8765/static/fonts/golos-text-600-cyrillic.woff2",
+          "duration": 841.5,
+          "transfer": 22328,
+          "decoded": 22028
+        },
+        {
+          "name": "http://127.0.0.1:8765/static/fonts/jetbrains-mono-400-cyrillic.woff2",
+          "duration": 783.3999999761581,
+          "transfer": 9192,
+          "decoded": 8892
+        },
+        {
+          "name": "http://127.0.0.1:8765/static/fonts/jetbrains-mono-700-cyrillic.woff2",
+          "duration": 844.5,
+          "transfer": 9192,
+          "decoded": 8892
+        }
+      ]
+    },
+    {
+      "route": "players",
+      "width": 1440,
+      "viewport": 1440,
+      "scrollWidth": 1440,
+      "bodyWidth": 1440,
+      "overflow": [],
+      "axe": {
+        "violations": [],
+        "incomplete": [
+          {
+            "id": "color-contrast",
+            "nodes": 15
+          }
+        ],
+        "passes": [
+          "aria-allowed-attr",
+          "aria-conditional-attr",
+          "aria-deprecated-role",
+          "aria-hidden-body",
+          "aria-hidden-focus",
+          "aria-prohibited-attr",
+          "aria-required-attr",
+          "aria-roles",
+          "aria-valid-attr-value",
+          "aria-valid-attr",
+          "avoid-inline-spacing",
+          "button-name",
+          "bypass",
+          "color-contrast",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "link-name",
+          "meta-viewport",
+          "nested-interactive",
+          "select-name",
+          "target-size"
+        ]
+      },
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "id": "btnLogout",
+          "cls": "btn small",
+          "w": 65.2,
+          "h": 36,
+          "text": "Выйти",
+          "disabled": false,
+          "x": 1352.8125,
+          "y": 28.5,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbServer",
+          "cls": "h-chip",
+          "w": 143.3,
+          "h": 25.5,
+          "text": "Сервер: работает",
+          "disabled": false,
+          "x": 222,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbBackup",
+          "cls": "h-chip",
+          "w": 144.2,
+          "h": 25.5,
+          "text": "Бэкап: 33 д назад",
+          "disabled": false,
+          "x": 371.296875,
+          "y": 159.5,
+          "outline": "rgb(217, 164, 65) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbMods",
+          "cls": "h-chip",
+          "w": 142.4,
+          "h": 25.5,
+          "text": "Моды: актуальны",
+          "disabled": false,
+          "x": 521.515625,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbImage",
+          "cls": "h-chip",
+          "w": 137.2,
+          "h": 25.5,
+          "text": "Образ: актуален",
+          "disabled": false,
+          "x": 669.890625,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbWatchdog",
+          "cls": "h-chip",
+          "w": 117.7,
+          "h": 25.5,
+          "text": "Watchdog: ок",
+          "disabled": false,
+          "x": 813.046875,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "updateLinks": [],
+      "contrastCandidates": []
+    },
+    {
+      "route": "mods",
+      "width": 1440,
+      "viewport": 1440,
+      "scrollWidth": 1440,
+      "bodyWidth": 1440,
+      "overflow": [],
+      "axe": {
+        "violations": [],
+        "incomplete": [
+          {
+            "id": "color-contrast",
+            "nodes": 17
+          }
+        ],
+        "passes": [
+          "aria-allowed-attr",
+          "aria-conditional-attr",
+          "aria-deprecated-role",
+          "aria-hidden-body",
+          "aria-hidden-focus",
+          "aria-prohibited-attr",
+          "aria-required-attr",
+          "aria-required-children",
+          "aria-required-parent",
+          "aria-roles",
+          "aria-valid-attr-value",
+          "aria-valid-attr",
+          "avoid-inline-spacing",
+          "button-name",
+          "bypass",
+          "color-contrast",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "label",
+          "link-name",
+          "meta-viewport",
+          "nested-interactive",
+          "select-name",
+          "target-size"
+        ]
+      },
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "id": "btnLogout",
+          "cls": "btn small",
+          "w": 65.2,
+          "h": 36,
+          "text": "Выйти",
+          "disabled": false,
+          "x": 1352.8125,
+          "y": 28.5,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbServer",
+          "cls": "h-chip",
+          "w": 143.3,
+          "h": 25.5,
+          "text": "Сервер: работает",
+          "disabled": false,
+          "x": 222,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbBackup",
+          "cls": "h-chip",
+          "w": 144.2,
+          "h": 25.5,
+          "text": "Бэкап: 33 д назад",
+          "disabled": false,
+          "x": 371.296875,
+          "y": 159.5,
+          "outline": "rgb(217, 164, 65) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbMods",
+          "cls": "h-chip",
+          "w": 142.4,
+          "h": 25.5,
+          "text": "Моды: актуальны",
+          "disabled": false,
+          "x": 521.515625,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbImage",
+          "cls": "h-chip",
+          "w": 137.2,
+          "h": 25.5,
+          "text": "Образ: актуален",
+          "disabled": false,
+          "x": 669.890625,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbWatchdog",
+          "cls": "h-chip",
+          "w": 117.7,
+          "h": 25.5,
+          "text": "Watchdog: ок",
+          "disabled": false,
+          "x": 813.046875,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "BUTTON",
+          "id": "modExport",
+          "cls": "btn small",
+          "w": 125,
+          "h": 36,
+          "text": "Экспорт набора",
+          "disabled": false,
+          "x": 241,
+          "y": 483.75,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "INPUT",
+          "id": "modImport",
+          "cls": "sr-only",
+          "w": 1,
+          "h": 1,
+          "text": "Импорт набора",
+          "disabled": false,
+          "x": 435.96875,
+          "y": 501.25,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "BUTTON",
+          "id": "modRescan",
+          "cls": "btn small",
+          "w": 177,
+          "h": 36,
+          "text": "Перечитать метаданные",
+          "disabled": false,
+          "x": 506.9375,
+          "y": 483.75,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "updateLinks": [],
+      "contrastCandidates": []
+    },
+    {
+      "route": "maintenance",
+      "width": 1440,
+      "viewport": 1440,
+      "scrollWidth": 1440,
+      "bodyWidth": 1440,
+      "overflow": [],
+      "axe": {
+        "violations": [],
+        "incomplete": [
+          {
+            "id": "color-contrast",
+            "nodes": 15
+          }
+        ],
+        "passes": [
+          "aria-allowed-attr",
+          "aria-conditional-attr",
+          "aria-deprecated-role",
+          "aria-hidden-body",
+          "aria-hidden-focus",
+          "aria-prohibited-attr",
+          "aria-required-attr",
+          "aria-roles",
+          "aria-valid-attr-value",
+          "aria-valid-attr",
+          "autocomplete-valid",
+          "avoid-inline-spacing",
+          "button-name",
+          "bypass",
+          "color-contrast",
+          "definition-list",
+          "dlitem",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "label",
+          "link-name",
+          "meta-viewport",
+          "nested-interactive",
+          "select-name",
+          "target-size"
+        ]
+      },
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "id": "btnLogout",
+          "cls": "btn small",
+          "w": 65.2,
+          "h": 36,
+          "text": "Выйти",
+          "disabled": false,
+          "x": 1352.8125,
+          "y": 28.5,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbServer",
+          "cls": "h-chip",
+          "w": 143.3,
+          "h": 25.5,
+          "text": "Сервер: работает",
+          "disabled": false,
+          "x": 222,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbBackup",
+          "cls": "h-chip",
+          "w": 144.2,
+          "h": 25.5,
+          "text": "Бэкап: 33 д назад",
+          "disabled": false,
+          "x": 371.296875,
+          "y": 159.5,
+          "outline": "rgb(217, 164, 65) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbMods",
+          "cls": "h-chip",
+          "w": 142.4,
+          "h": 25.5,
+          "text": "Моды: актуальны",
+          "disabled": false,
+          "x": 521.515625,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbImage",
+          "cls": "h-chip",
+          "w": 137.2,
+          "h": 25.5,
+          "text": "Образ: актуален",
+          "disabled": false,
+          "x": 669.890625,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbWatchdog",
+          "cls": "h-chip",
+          "w": 117.7,
+          "h": 25.5,
+          "text": "Watchdog: ок",
+          "disabled": false,
+          "x": 813.046875,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "INPUT",
+          "id": "wdRestart",
+          "cls": "",
+          "w": 18,
+          "h": 18,
+          "text": "авто-рестарт при зависании",
+          "disabled": false,
+          "x": 1186.671875,
+          "y": 333,
+          "outline": "rgb(255, 255, 255) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "INPUT",
+          "id": "tgSwitch",
+          "cls": "",
+          "w": 1,
+          "h": 1,
+          "text": "Отправлять в Telegram",
+          "disabled": false,
+          "x": 245,
+          "y": 812,
+          "outline": "rgb(255, 255, 255) none 3px",
+          "tabindex": 0,
+          "opacity": "0"
+        },
+        {
+          "tag": "INPUT",
+          "id": "tgOps",
+          "cls": "",
+          "w": 18,
+          "h": 18,
+          "text": "Сервер",
+          "disabled": false,
+          "x": 245,
+          "y": 921,
+          "outline": "rgb(255, 255, 255) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "INPUT",
+          "id": "tgBackup",
+          "cls": "",
+          "w": 18,
+          "h": 18,
+          "text": "Бэкапы",
+          "disabled": false,
+          "x": 341.4375,
+          "y": 921,
+          "outline": "rgb(255, 255, 255) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "INPUT",
+          "id": "tgUpdate",
+          "cls": "",
+          "w": 18,
+          "h": 18,
+          "text": "Обновления",
+          "disabled": false,
+          "x": 438.3125,
+          "y": 921,
+          "outline": "rgb(255, 255, 255) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "INPUT",
+          "id": "tgProblems",
+          "cls": "",
+          "w": 18,
+          "h": 18,
+          "text": "Проблемы",
+          "disabled": false,
+          "x": 565.125,
+          "y": 921,
+          "outline": "rgb(255, 255, 255) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "BUTTON",
+          "id": "btnTgChats",
+          "cls": "btn small",
+          "w": 127.7,
+          "h": 36,
+          "text": "Найти чаты бота",
+          "disabled": false,
+          "x": 241,
+          "y": 944,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "updateLinks": [],
+      "contrastCandidates": []
+    },
+    {
+      "route": "backups",
+      "width": 1440,
+      "viewport": 1440,
+      "scrollWidth": 1440,
+      "bodyWidth": 1440,
+      "overflow": [],
+      "axe": {
+        "violations": [
+          {
+            "id": "label",
+            "impact": "critical",
+            "description": "Ensure every form element has a label",
+            "nodes": [
+              {
+                "target": [
+                  "#bkAutoSwitch"
+                ],
+                "html": "<input type=\"checkbox\" id=\"bkAutoSwitch\" role=\"switch\" disabled=\"\" title=\"\" style=\"\">",
+                "summary": "Fix any of the following:\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has an empty title attribute\n  Element has no placeholder attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+              }
+            ]
+          }
+        ],
+        "incomplete": [
+          {
+            "id": "color-contrast",
+            "nodes": 15
+          }
+        ],
+        "passes": [
+          "aria-allowed-attr",
+          "aria-conditional-attr",
+          "aria-deprecated-role",
+          "aria-hidden-body",
+          "aria-hidden-focus",
+          "aria-prohibited-attr",
+          "aria-required-attr",
+          "aria-roles",
+          "aria-valid-attr-value",
+          "aria-valid-attr",
+          "avoid-inline-spacing",
+          "button-name",
+          "bypass",
+          "color-contrast",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "label",
+          "link-name",
+          "meta-viewport",
+          "nested-interactive",
+          "select-name",
+          "target-size"
+        ]
+      },
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "id": "btnLogout",
+          "cls": "btn small",
+          "w": 65.2,
+          "h": 36,
+          "text": "Выйти",
+          "disabled": false,
+          "x": 1352.8125,
+          "y": 28.5,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbServer",
+          "cls": "h-chip",
+          "w": 143.3,
+          "h": 25.5,
+          "text": "Сервер: работает",
+          "disabled": false,
+          "x": 222,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbBackup",
+          "cls": "h-chip",
+          "w": 144.2,
+          "h": 25.5,
+          "text": "Бэкап: 33 д назад",
+          "disabled": false,
+          "x": 371.296875,
+          "y": 159.5,
+          "outline": "rgb(217, 164, 65) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbMods",
+          "cls": "h-chip",
+          "w": 142.4,
+          "h": 25.5,
+          "text": "Моды: актуальны",
+          "disabled": false,
+          "x": 521.515625,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbImage",
+          "cls": "h-chip",
+          "w": 137.2,
+          "h": 25.5,
+          "text": "Образ: актуален",
+          "disabled": false,
+          "x": 669.890625,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbWatchdog",
+          "cls": "h-chip",
+          "w": 117.7,
+          "h": 25.5,
+          "text": "Watchdog: ок",
+          "disabled": false,
+          "x": 813.046875,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "updateLinks": [],
+      "contrastCandidates": []
+    },
+    {
+      "route": "events",
+      "width": 1440,
+      "viewport": 1440,
+      "scrollWidth": 1440,
+      "bodyWidth": 1440,
+      "overflow": [],
+      "axe": {
+        "violations": [],
+        "incomplete": [
+          {
+            "id": "color-contrast",
+            "nodes": 15
+          }
+        ],
+        "passes": [
+          "aria-allowed-attr",
+          "aria-conditional-attr",
+          "aria-deprecated-role",
+          "aria-hidden-body",
+          "aria-hidden-focus",
+          "aria-prohibited-attr",
+          "aria-required-attr",
+          "aria-roles",
+          "aria-valid-attr-value",
+          "aria-valid-attr",
+          "avoid-inline-spacing",
+          "button-name",
+          "bypass",
+          "color-contrast",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "link-name",
+          "meta-viewport",
+          "nested-interactive",
+          "select-name",
+          "target-size"
+        ]
+      },
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "id": "btnLogout",
+          "cls": "btn small",
+          "w": 65.2,
+          "h": 36,
+          "text": "Выйти",
+          "disabled": false,
+          "x": 1352.8125,
+          "y": 28.5,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbServer",
+          "cls": "h-chip",
+          "w": 143.3,
+          "h": 25.5,
+          "text": "Сервер: работает",
+          "disabled": false,
+          "x": 222,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbBackup",
+          "cls": "h-chip",
+          "w": 144.2,
+          "h": 25.5,
+          "text": "Бэкап: 33 д назад",
+          "disabled": false,
+          "x": 371.296875,
+          "y": 159.5,
+          "outline": "rgb(217, 164, 65) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbMods",
+          "cls": "h-chip",
+          "w": 142.4,
+          "h": 25.5,
+          "text": "Моды: актуальны",
+          "disabled": false,
+          "x": 521.515625,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbImage",
+          "cls": "h-chip",
+          "w": 137.2,
+          "h": 25.5,
+          "text": "Образ: актуален",
+          "disabled": false,
+          "x": 669.890625,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbWatchdog",
+          "cls": "h-chip",
+          "w": 117.7,
+          "h": 25.5,
+          "text": "Watchdog: ок",
+          "disabled": false,
+          "x": 813.046875,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "cls": "chip",
+          "w": 45.6,
+          "h": 36,
+          "text": "Все",
+          "disabled": false,
+          "x": 988.578125,
+          "y": 222,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "cls": "chip",
+          "w": 96,
+          "h": 36,
+          "text": "Управление",
+          "disabled": false,
+          "x": 1040.1875,
+          "y": 222,
+          "outline": "rgb(179, 167, 140) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "cls": "chip",
+          "w": 67.2,
+          "h": 36,
+          "text": "Бэкапы",
+          "disabled": false,
+          "x": 1142.1875,
+          "y": 222,
+          "outline": "rgb(179, 167, 140) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "cls": "chip",
+          "w": 96,
+          "h": 36,
+          "text": "Обновления",
+          "disabled": false,
+          "x": 1215.390625,
+          "y": 222,
+          "outline": "rgb(179, 167, 140) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "cls": "chip",
+          "w": 81.6,
+          "h": 36,
+          "text": "Проблемы",
+          "disabled": false,
+          "x": 1317.390625,
+          "y": 222,
+          "outline": "rgb(179, 167, 140) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "updateLinks": [],
+      "contrastCandidates": []
+    },
+    {
+      "route": "console",
+      "width": 1440,
+      "viewport": 1440,
+      "scrollWidth": 1440,
+      "bodyWidth": 1440,
+      "overflow": [],
+      "axe": {
+        "violations": [],
+        "incomplete": [
+          {
+            "id": "color-contrast",
+            "nodes": 15
+          }
+        ],
+        "passes": [
+          "aria-allowed-attr",
+          "aria-conditional-attr",
+          "aria-deprecated-role",
+          "aria-hidden-body",
+          "aria-hidden-focus",
+          "aria-prohibited-attr",
+          "aria-required-attr",
+          "aria-roles",
+          "aria-valid-attr-value",
+          "aria-valid-attr",
+          "avoid-inline-spacing",
+          "button-name",
+          "bypass",
+          "color-contrast",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "label",
+          "link-name",
+          "meta-viewport",
+          "nested-interactive",
+          "select-name",
+          "target-size"
+        ]
+      },
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "id": "btnLogout",
+          "cls": "btn small",
+          "w": 65.2,
+          "h": 36,
+          "text": "Выйти",
+          "disabled": false,
+          "x": 1352.8125,
+          "y": 28.5,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbServer",
+          "cls": "h-chip",
+          "w": 143.3,
+          "h": 25.5,
+          "text": "Сервер: работает",
+          "disabled": false,
+          "x": 222,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbBackup",
+          "cls": "h-chip",
+          "w": 144.2,
+          "h": 25.5,
+          "text": "Бэкап: 33 д назад",
+          "disabled": false,
+          "x": 371.296875,
+          "y": 159.5,
+          "outline": "rgb(217, 164, 65) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbMods",
+          "cls": "h-chip",
+          "w": 142.4,
+          "h": 25.5,
+          "text": "Моды: актуальны",
+          "disabled": false,
+          "x": 521.515625,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbImage",
+          "cls": "h-chip",
+          "w": 137.2,
+          "h": 25.5,
+          "text": "Образ: актуален",
+          "disabled": false,
+          "x": 669.890625,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbWatchdog",
+          "cls": "h-chip",
+          "w": 117.7,
+          "h": 25.5,
+          "text": "Watchdog: ок",
+          "disabled": false,
+          "x": 813.046875,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "cls": "chip",
+          "w": 45.6,
+          "h": 36,
+          "text": "Все",
+          "disabled": false,
+          "x": 847,
+          "y": 253,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "cls": "chip",
+          "w": 52.8,
+          "h": 36,
+          "text": "WARN",
+          "disabled": false,
+          "x": 898.609375,
+          "y": 253,
+          "outline": "rgb(179, 167, 140) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "cls": "chip",
+          "w": 60,
+          "h": 36,
+          "text": "ERROR",
+          "disabled": false,
+          "x": 957.421875,
+          "y": 253,
+          "outline": "rgb(179, 167, 140) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "INPUT",
+          "id": "logsAuto",
+          "cls": "",
+          "w": 18,
+          "h": 18,
+          "text": "Автопрокрутка",
+          "disabled": false,
+          "x": 1276.375,
+          "y": 262,
+          "outline": "rgb(255, 255, 255) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "updateLinks": [],
+      "contrastCandidates": []
+    },
+    {
+      "route": "settings",
+      "width": 1440,
+      "viewport": 1440,
+      "scrollWidth": 1440,
+      "bodyWidth": 1440,
+      "overflow": [],
+      "axe": {
+        "violations": [],
+        "incomplete": [
+          {
+            "id": "color-contrast",
+            "nodes": 15
+          }
+        ],
+        "passes": [
+          "aria-allowed-attr",
+          "aria-conditional-attr",
+          "aria-deprecated-role",
+          "aria-hidden-body",
+          "aria-hidden-focus",
+          "aria-prohibited-attr",
+          "aria-required-attr",
+          "aria-required-children",
+          "aria-required-parent",
+          "aria-roles",
+          "aria-valid-attr-value",
+          "aria-valid-attr",
+          "avoid-inline-spacing",
+          "button-name",
+          "bypass",
+          "color-contrast",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "label",
+          "link-name",
+          "meta-viewport",
+          "nested-interactive",
+          "select-name",
+          "target-size"
+        ]
+      },
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "id": "btnLogout",
+          "cls": "btn small",
+          "w": 65.2,
+          "h": 36,
+          "text": "Выйти",
+          "disabled": false,
+          "x": 1352.8125,
+          "y": 28.5,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbServer",
+          "cls": "h-chip",
+          "w": 143.3,
+          "h": 25.5,
+          "text": "Сервер: работает",
+          "disabled": false,
+          "x": 222,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbBackup",
+          "cls": "h-chip",
+          "w": 144.2,
+          "h": 25.5,
+          "text": "Бэкап: 33 д назад",
+          "disabled": false,
+          "x": 371.296875,
+          "y": 159.5,
+          "outline": "rgb(217, 164, 65) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbMods",
+          "cls": "h-chip",
+          "w": 142.4,
+          "h": 25.5,
+          "text": "Моды: актуальны",
+          "disabled": false,
+          "x": 521.515625,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbImage",
+          "cls": "h-chip",
+          "w": 137.2,
+          "h": 25.5,
+          "text": "Образ: актуален",
+          "disabled": false,
+          "x": 669.890625,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbWatchdog",
+          "cls": "h-chip",
+          "w": 117.7,
+          "h": 25.5,
+          "text": "Watchdog: ок",
+          "disabled": false,
+          "x": 813.046875,
+          "y": 159.5,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "updateLinks": [],
+      "contrastCandidates": []
+    },
+    {
+      "route": "login",
+      "width": 1440,
+      "viewport": 1440,
+      "scrollWidth": 1440,
+      "bodyWidth": 1440,
+      "overflow": [],
+      "axe": {
+        "violations": [],
+        "incomplete": [],
+        "passes": [
+          "aria-hidden-body",
+          "autocomplete-valid",
+          "button-name",
+          "color-contrast",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "label",
+          "meta-viewport",
+          "nested-interactive",
+          "target-size"
+        ]
+      },
+      "smallControls": [],
+      "updateLinks": [],
+      "contrastCandidates": []
+    },
+    {
+      "route": "overview",
+      "width": 390,
+      "viewport": 390,
+      "scrollWidth": 390,
+      "bodyWidth": 390,
+      "overflow": [],
+      "axe": {
+        "violations": [
+          {
+            "id": "dlitem",
+            "impact": "serious",
+            "description": "Ensure <dt> and <dd> elements are contained by a <dl>",
+            "nodes": [
+              {
+                "target": [
+                  ".net-row > div:nth-child(1) > dt"
+                ],
+                "html": "<dt>Сеть ↓</dt>",
+                "summary": "Fix any of the following:\n  Description list item does not have a <dl> parent element"
+              },
+              {
+                "target": [
+                  "#netIn"
+                ],
+                "html": "<dd class=\"mono\" id=\"netIn\">2.2 ГБ</dd>",
+                "summary": "Fix any of the following:\n  Description list item does not have a <dl> parent element"
+              },
+              {
+                "target": [
+                  ".net-row > div:nth-child(2) > dt"
+                ],
+                "html": "<dt>Сеть ↑</dt>",
+                "summary": "Fix any of the following:\n  Description list item does not have a <dl> parent element"
+              },
+              {
+                "target": [
+                  "#netOut"
+                ],
+                "html": "<dd class=\"mono\" id=\"netOut\">1.0 ГБ</dd>",
+                "summary": "Fix any of the following:\n  Description list item does not have a <dl> parent element"
+              },
+              {
+                "target": [
+                  ".net-row > div:nth-child(3) > dt"
+                ],
+                "html": "<dt>Процессов</dt>",
+                "summary": "Fix any of the following:\n  Description list item does not have a <dl> parent element"
+              },
+              {
+                "target": [
+                  "#pids"
+                ],
+                "html": "<dd class=\"mono\" id=\"pids\">42</dd>",
+                "summary": "Fix any of the following:\n  Description list item does not have a <dl> parent element"
+              }
+            ]
+          }
+        ],
+        "incomplete": [
+          {
+            "id": "aria-prohibited-attr",
+            "nodes": 1
+          },
+          {
+            "id": "color-contrast",
+            "nodes": 15
+          }
+        ],
+        "passes": [
+          "aria-allowed-attr",
+          "aria-conditional-attr",
+          "aria-deprecated-role",
+          "aria-hidden-body",
+          "aria-hidden-focus",
+          "aria-prohibited-attr",
+          "aria-required-attr",
+          "aria-roles",
+          "aria-valid-attr-value",
+          "aria-valid-attr",
+          "avoid-inline-spacing",
+          "button-name",
+          "bypass",
+          "color-contrast",
+          "definition-list",
+          "dlitem",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "link-name",
+          "meta-viewport",
+          "nested-interactive",
+          "select-name",
+          "target-size"
+        ]
+      },
+      "smallControls": [
+        {
+          "tag": "A",
+          "id": "hbServer",
+          "cls": "h-chip",
+          "w": 143.3,
+          "h": 25.5,
+          "text": "Сервер: работает",
+          "disabled": false,
+          "x": 14,
+          "y": 267.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbBackup",
+          "cls": "h-chip",
+          "w": 144.2,
+          "h": 25.5,
+          "text": "Бэкап: 33 д назад",
+          "disabled": false,
+          "x": 163.296875,
+          "y": 267.640625,
+          "outline": "rgb(217, 164, 65) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbMods",
+          "cls": "h-chip",
+          "w": 142.4,
+          "h": 25.5,
+          "text": "Моды: актуальны",
+          "disabled": false,
+          "x": 14,
+          "y": 299.140625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbImage",
+          "cls": "h-chip",
+          "w": 137.2,
+          "h": 25.5,
+          "text": "Образ: актуален",
+          "disabled": false,
+          "x": 162.375,
+          "y": 299.140625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbWatchdog",
+          "cls": "h-chip",
+          "w": 117.7,
+          "h": 25.5,
+          "text": "Watchdog: ок",
+          "disabled": false,
+          "x": 14,
+          "y": 330.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "",
+          "cls": "sum-name",
+          "w": 57.8,
+          "h": 20.3,
+          "text": "Образ Docker",
+          "disabled": false,
+          "x": 33,
+          "y": 1530.640625,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "",
+          "cls": "sum-name",
+          "w": 56.4,
+          "h": 20.3,
+          "text": "Моды Workshop",
+          "disabled": false,
+          "x": 33,
+          "y": 1574.140625,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "",
+          "cls": "head-link",
+          "w": 96.8,
+          "h": 30,
+          "text": "Вся история",
+          "disabled": false,
+          "x": 260.21875,
+          "y": 1655.515625,
+          "outline": "rgb(179, 167, 140) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "updateLinks": [
+        {
+          "tag": "A",
+          "id": "",
+          "cls": "sum-name",
+          "w": 57.8,
+          "h": 20.3,
+          "text": "Образ Docker",
+          "disabled": false,
+          "x": 33,
+          "y": 1530.640625,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "",
+          "cls": "sum-name",
+          "w": 56.4,
+          "h": 20.3,
+          "text": "Моды Workshop",
+          "disabled": false,
+          "x": 33,
+          "y": 1574.140625,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "contrastCandidates": []
+    },
+    {
+      "route": "players",
+      "width": 390,
+      "viewport": 390,
+      "scrollWidth": 390,
+      "bodyWidth": 390,
+      "overflow": [],
+      "axe": {
+        "violations": [],
+        "incomplete": [
+          {
+            "id": "color-contrast",
+            "nodes": 17
+          }
+        ],
+        "passes": [
+          "aria-allowed-attr",
+          "aria-conditional-attr",
+          "aria-deprecated-role",
+          "aria-hidden-body",
+          "aria-hidden-focus",
+          "aria-prohibited-attr",
+          "aria-required-attr",
+          "aria-roles",
+          "aria-valid-attr-value",
+          "aria-valid-attr",
+          "avoid-inline-spacing",
+          "button-name",
+          "bypass",
+          "color-contrast",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "link-name",
+          "meta-viewport",
+          "nested-interactive",
+          "select-name",
+          "target-size"
+        ]
+      },
+      "smallControls": [
+        {
+          "tag": "A",
+          "id": "hbServer",
+          "cls": "h-chip",
+          "w": 143.3,
+          "h": 25.5,
+          "text": "Сервер: работает",
+          "disabled": false,
+          "x": 14,
+          "y": 267.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbBackup",
+          "cls": "h-chip",
+          "w": 144.2,
+          "h": 25.5,
+          "text": "Бэкап: 33 д назад",
+          "disabled": false,
+          "x": 163.296875,
+          "y": 267.640625,
+          "outline": "rgb(217, 164, 65) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbMods",
+          "cls": "h-chip",
+          "w": 142.4,
+          "h": 25.5,
+          "text": "Моды: актуальны",
+          "disabled": false,
+          "x": 14,
+          "y": 299.140625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbImage",
+          "cls": "h-chip",
+          "w": 137.2,
+          "h": 25.5,
+          "text": "Образ: актуален",
+          "disabled": false,
+          "x": 162.375,
+          "y": 299.140625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbWatchdog",
+          "cls": "h-chip",
+          "w": 117.7,
+          "h": 25.5,
+          "text": "Watchdog: ок",
+          "disabled": false,
+          "x": 14,
+          "y": 330.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "updateLinks": [],
+      "contrastCandidates": []
+    },
+    {
+      "route": "mods",
+      "width": 390,
+      "viewport": 390,
+      "scrollWidth": 390,
+      "bodyWidth": 390,
+      "overflow": [
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "cls": "",
+          "text": "Обновления"
+        }
+      ],
+      "axe": {
+        "violations": [],
+        "incomplete": [
+          {
+            "id": "color-contrast",
+            "nodes": 18
+          }
+        ],
+        "passes": [
+          "aria-allowed-attr",
+          "aria-conditional-attr",
+          "aria-deprecated-role",
+          "aria-hidden-body",
+          "aria-hidden-focus",
+          "aria-prohibited-attr",
+          "aria-required-attr",
+          "aria-required-children",
+          "aria-required-parent",
+          "aria-roles",
+          "aria-valid-attr-value",
+          "aria-valid-attr",
+          "avoid-inline-spacing",
+          "button-name",
+          "bypass",
+          "color-contrast",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "label",
+          "link-name",
+          "meta-viewport",
+          "nested-interactive",
+          "scrollable-region-focusable",
+          "select-name",
+          "target-size"
+        ]
+      },
+      "smallControls": [
+        {
+          "tag": "A",
+          "id": "hbServer",
+          "cls": "h-chip",
+          "w": 143.3,
+          "h": 25.5,
+          "text": "Сервер: работает",
+          "disabled": false,
+          "x": 14,
+          "y": 267.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbBackup",
+          "cls": "h-chip",
+          "w": 144.2,
+          "h": 25.5,
+          "text": "Бэкап: 33 д назад",
+          "disabled": false,
+          "x": 163.296875,
+          "y": 267.640625,
+          "outline": "rgb(217, 164, 65) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbMods",
+          "cls": "h-chip",
+          "w": 142.4,
+          "h": 25.5,
+          "text": "Моды: актуальны",
+          "disabled": false,
+          "x": 14,
+          "y": 299.140625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbImage",
+          "cls": "h-chip",
+          "w": 137.2,
+          "h": 25.5,
+          "text": "Образ: актуален",
+          "disabled": false,
+          "x": 162.375,
+          "y": 299.140625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbWatchdog",
+          "cls": "h-chip",
+          "w": 117.7,
+          "h": 25.5,
+          "text": "Watchdog: ок",
+          "disabled": false,
+          "x": 14,
+          "y": 330.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "INPUT",
+          "id": "modImport",
+          "cls": "sr-only",
+          "w": 1,
+          "h": 1,
+          "text": "Импорт набора",
+          "disabled": false,
+          "x": 227.96875,
+          "y": 817.890625,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "updateLinks": [],
+      "contrastCandidates": []
+    },
+    {
+      "route": "maintenance",
+      "width": 390,
+      "viewport": 390,
+      "scrollWidth": 390,
+      "bodyWidth": 390,
+      "overflow": [],
+      "axe": {
+        "violations": [],
+        "incomplete": [
+          {
+            "id": "color-contrast",
+            "nodes": 18
+          }
+        ],
+        "passes": [
+          "aria-allowed-attr",
+          "aria-conditional-attr",
+          "aria-deprecated-role",
+          "aria-hidden-body",
+          "aria-hidden-focus",
+          "aria-prohibited-attr",
+          "aria-required-attr",
+          "aria-roles",
+          "aria-valid-attr-value",
+          "aria-valid-attr",
+          "autocomplete-valid",
+          "avoid-inline-spacing",
+          "button-name",
+          "bypass",
+          "color-contrast",
+          "definition-list",
+          "dlitem",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "label",
+          "link-name",
+          "meta-viewport",
+          "nested-interactive",
+          "select-name",
+          "target-size"
+        ]
+      },
+      "smallControls": [
+        {
+          "tag": "A",
+          "id": "hbServer",
+          "cls": "h-chip",
+          "w": 143.3,
+          "h": 25.5,
+          "text": "Сервер: работает",
+          "disabled": false,
+          "x": 14,
+          "y": 267.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbBackup",
+          "cls": "h-chip",
+          "w": 144.2,
+          "h": 25.5,
+          "text": "Бэкап: 33 д назад",
+          "disabled": false,
+          "x": 163.296875,
+          "y": 267.640625,
+          "outline": "rgb(217, 164, 65) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbMods",
+          "cls": "h-chip",
+          "w": 142.4,
+          "h": 25.5,
+          "text": "Моды: актуальны",
+          "disabled": false,
+          "x": 14,
+          "y": 299.140625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbImage",
+          "cls": "h-chip",
+          "w": 137.2,
+          "h": 25.5,
+          "text": "Образ: актуален",
+          "disabled": false,
+          "x": 162.375,
+          "y": 299.140625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbWatchdog",
+          "cls": "h-chip",
+          "w": 117.7,
+          "h": 25.5,
+          "text": "Watchdog: ок",
+          "disabled": false,
+          "x": 14,
+          "y": 330.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "INPUT",
+          "id": "wdRestart",
+          "cls": "",
+          "w": 18,
+          "h": 18,
+          "text": "авто-рестарт при зависании",
+          "disabled": false,
+          "x": 37,
+          "y": 1241.140625,
+          "outline": "rgb(255, 255, 255) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "INPUT",
+          "id": "tgSwitch",
+          "cls": "",
+          "w": 1,
+          "h": 1,
+          "text": "Отправлять в Telegram",
+          "disabled": false,
+          "x": 37,
+          "y": 1492.140625,
+          "outline": "rgb(255, 255, 255) none 3px",
+          "tabindex": 0,
+          "opacity": "0"
+        },
+        {
+          "tag": "INPUT",
+          "id": "tgOps",
+          "cls": "",
+          "w": 18,
+          "h": 18,
+          "text": "Сервер",
+          "disabled": false,
+          "x": 37,
+          "y": 1690.390625,
+          "outline": "rgb(255, 255, 255) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "INPUT",
+          "id": "tgBackup",
+          "cls": "",
+          "w": 18,
+          "h": 18,
+          "text": "Бэкапы",
+          "disabled": false,
+          "x": 133.4375,
+          "y": 1690.390625,
+          "outline": "rgb(255, 255, 255) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "INPUT",
+          "id": "tgUpdate",
+          "cls": "",
+          "w": 18,
+          "h": 18,
+          "text": "Обновления",
+          "disabled": false,
+          "x": 230.3125,
+          "y": 1690.390625,
+          "outline": "rgb(255, 255, 255) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "INPUT",
+          "id": "tgProblems",
+          "cls": "",
+          "w": 18,
+          "h": 18,
+          "text": "Проблемы",
+          "disabled": false,
+          "x": 37,
+          "y": 1740.390625,
+          "outline": "rgb(255, 255, 255) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "updateLinks": [],
+      "contrastCandidates": []
+    },
+    {
+      "route": "backups",
+      "width": 390,
+      "viewport": 390,
+      "scrollWidth": 390,
+      "bodyWidth": 390,
+      "overflow": [],
+      "axe": {
+        "violations": [
+          {
+            "id": "label",
+            "impact": "critical",
+            "description": "Ensure every form element has a label",
+            "nodes": [
+              {
+                "target": [
+                  "#bkAutoSwitch"
+                ],
+                "html": "<input type=\"checkbox\" id=\"bkAutoSwitch\" role=\"switch\" disabled=\"\" title=\"\" style=\"\">",
+                "summary": "Fix any of the following:\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has an empty title attribute\n  Element has no placeholder attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+              }
+            ]
+          }
+        ],
+        "incomplete": [
+          {
+            "id": "color-contrast",
+            "nodes": 15
+          }
+        ],
+        "passes": [
+          "aria-allowed-attr",
+          "aria-conditional-attr",
+          "aria-deprecated-role",
+          "aria-hidden-body",
+          "aria-hidden-focus",
+          "aria-prohibited-attr",
+          "aria-required-attr",
+          "aria-roles",
+          "aria-valid-attr-value",
+          "aria-valid-attr",
+          "avoid-inline-spacing",
+          "button-name",
+          "bypass",
+          "color-contrast",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "label",
+          "link-name",
+          "meta-viewport",
+          "nested-interactive",
+          "select-name",
+          "target-size"
+        ]
+      },
+      "smallControls": [
+        {
+          "tag": "A",
+          "id": "hbServer",
+          "cls": "h-chip",
+          "w": 143.3,
+          "h": 25.5,
+          "text": "Сервер: работает",
+          "disabled": false,
+          "x": 14,
+          "y": 267.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbBackup",
+          "cls": "h-chip",
+          "w": 144.2,
+          "h": 25.5,
+          "text": "Бэкап: 33 д назад",
+          "disabled": false,
+          "x": 163.296875,
+          "y": 267.640625,
+          "outline": "rgb(217, 164, 65) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbMods",
+          "cls": "h-chip",
+          "w": 142.4,
+          "h": 25.5,
+          "text": "Моды: актуальны",
+          "disabled": false,
+          "x": 14,
+          "y": 299.140625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbImage",
+          "cls": "h-chip",
+          "w": 137.2,
+          "h": 25.5,
+          "text": "Образ: актуален",
+          "disabled": false,
+          "x": 162.375,
+          "y": 299.140625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbWatchdog",
+          "cls": "h-chip",
+          "w": 117.7,
+          "h": 25.5,
+          "text": "Watchdog: ок",
+          "disabled": false,
+          "x": 14,
+          "y": 330.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "updateLinks": [],
+      "contrastCandidates": []
+    },
+    {
+      "route": "events",
+      "width": 390,
+      "viewport": 390,
+      "scrollWidth": 390,
+      "bodyWidth": 390,
+      "overflow": [],
+      "axe": {
+        "violations": [],
+        "incomplete": [
+          {
+            "id": "color-contrast",
+            "nodes": 18
+          }
+        ],
+        "passes": [
+          "aria-allowed-attr",
+          "aria-conditional-attr",
+          "aria-deprecated-role",
+          "aria-hidden-body",
+          "aria-hidden-focus",
+          "aria-prohibited-attr",
+          "aria-required-attr",
+          "aria-roles",
+          "aria-valid-attr-value",
+          "aria-valid-attr",
+          "avoid-inline-spacing",
+          "button-name",
+          "bypass",
+          "color-contrast",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "link-name",
+          "meta-viewport",
+          "nested-interactive",
+          "select-name",
+          "target-size"
+        ]
+      },
+      "smallControls": [
+        {
+          "tag": "A",
+          "id": "hbServer",
+          "cls": "h-chip",
+          "w": 143.3,
+          "h": 25.5,
+          "text": "Сервер: работает",
+          "disabled": false,
+          "x": 14,
+          "y": 267.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbBackup",
+          "cls": "h-chip",
+          "w": 144.2,
+          "h": 25.5,
+          "text": "Бэкап: 33 д назад",
+          "disabled": false,
+          "x": 163.296875,
+          "y": 267.640625,
+          "outline": "rgb(217, 164, 65) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbMods",
+          "cls": "h-chip",
+          "w": 142.4,
+          "h": 25.5,
+          "text": "Моды: актуальны",
+          "disabled": false,
+          "x": 14,
+          "y": 299.140625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbImage",
+          "cls": "h-chip",
+          "w": 137.2,
+          "h": 25.5,
+          "text": "Образ: актуален",
+          "disabled": false,
+          "x": 162.375,
+          "y": 299.140625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbWatchdog",
+          "cls": "h-chip",
+          "w": 117.7,
+          "h": 25.5,
+          "text": "Watchdog: ок",
+          "disabled": false,
+          "x": 14,
+          "y": 330.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "updateLinks": [],
+      "contrastCandidates": []
+    },
+    {
+      "route": "console",
+      "width": 390,
+      "viewport": 390,
+      "scrollWidth": 390,
+      "bodyWidth": 390,
+      "overflow": [],
+      "axe": {
+        "violations": [],
+        "incomplete": [
+          {
+            "id": "color-contrast",
+            "nodes": 15
+          }
+        ],
+        "passes": [
+          "aria-allowed-attr",
+          "aria-conditional-attr",
+          "aria-deprecated-role",
+          "aria-hidden-body",
+          "aria-hidden-focus",
+          "aria-prohibited-attr",
+          "aria-required-attr",
+          "aria-roles",
+          "aria-valid-attr-value",
+          "aria-valid-attr",
+          "avoid-inline-spacing",
+          "button-name",
+          "bypass",
+          "color-contrast",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "label",
+          "link-name",
+          "meta-viewport",
+          "nested-interactive",
+          "select-name",
+          "target-size"
+        ]
+      },
+      "smallControls": [
+        {
+          "tag": "A",
+          "id": "hbServer",
+          "cls": "h-chip",
+          "w": 143.3,
+          "h": 25.5,
+          "text": "Сервер: работает",
+          "disabled": false,
+          "x": 14,
+          "y": 267.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbBackup",
+          "cls": "h-chip",
+          "w": 144.2,
+          "h": 25.5,
+          "text": "Бэкап: 33 д назад",
+          "disabled": false,
+          "x": 163.296875,
+          "y": 267.640625,
+          "outline": "rgb(217, 164, 65) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbMods",
+          "cls": "h-chip",
+          "w": 142.4,
+          "h": 25.5,
+          "text": "Моды: актуальны",
+          "disabled": false,
+          "x": 14,
+          "y": 299.140625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbImage",
+          "cls": "h-chip",
+          "w": 137.2,
+          "h": 25.5,
+          "text": "Образ: актуален",
+          "disabled": false,
+          "x": 162.375,
+          "y": 299.140625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbWatchdog",
+          "cls": "h-chip",
+          "w": 117.7,
+          "h": 25.5,
+          "text": "Watchdog: ок",
+          "disabled": false,
+          "x": 14,
+          "y": 330.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "INPUT",
+          "id": "logsAuto",
+          "cls": "",
+          "w": 18,
+          "h": 18,
+          "text": "Автопрокрутка",
+          "disabled": false,
+          "x": 37,
+          "y": 969.140625,
+          "outline": "rgb(255, 255, 255) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "updateLinks": [],
+      "contrastCandidates": []
+    },
+    {
+      "route": "settings",
+      "width": 390,
+      "viewport": 390,
+      "scrollWidth": 390,
+      "bodyWidth": 390,
+      "overflow": [
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "cls": "",
+          "text": "Исходники"
+        },
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "cls": "",
+          "text": "История изменений"
+        }
+      ],
+      "axe": {
+        "violations": [],
+        "incomplete": [
+          {
+            "id": "color-contrast",
+            "nodes": 18
+          }
+        ],
+        "passes": [
+          "aria-allowed-attr",
+          "aria-conditional-attr",
+          "aria-deprecated-role",
+          "aria-hidden-body",
+          "aria-hidden-focus",
+          "aria-prohibited-attr",
+          "aria-required-attr",
+          "aria-required-children",
+          "aria-required-parent",
+          "aria-roles",
+          "aria-valid-attr-value",
+          "aria-valid-attr",
+          "avoid-inline-spacing",
+          "button-name",
+          "bypass",
+          "color-contrast",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "label",
+          "link-name",
+          "meta-viewport",
+          "nested-interactive",
+          "scrollable-region-focusable",
+          "select-name",
+          "target-size"
+        ]
+      },
+      "smallControls": [
+        {
+          "tag": "A",
+          "id": "hbServer",
+          "cls": "h-chip",
+          "w": 143.3,
+          "h": 25.5,
+          "text": "Сервер: работает",
+          "disabled": false,
+          "x": 14,
+          "y": 267.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbBackup",
+          "cls": "h-chip",
+          "w": 144.2,
+          "h": 25.5,
+          "text": "Бэкап: 33 д назад",
+          "disabled": false,
+          "x": 163.296875,
+          "y": 267.640625,
+          "outline": "rgb(217, 164, 65) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbMods",
+          "cls": "h-chip",
+          "w": 142.4,
+          "h": 25.5,
+          "text": "Моды: актуальны",
+          "disabled": false,
+          "x": 14,
+          "y": 299.140625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbImage",
+          "cls": "h-chip",
+          "w": 137.2,
+          "h": 25.5,
+          "text": "Образ: актуален",
+          "disabled": false,
+          "x": 162.375,
+          "y": 299.140625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbWatchdog",
+          "cls": "h-chip",
+          "w": 117.7,
+          "h": 25.5,
+          "text": "Watchdog: ок",
+          "disabled": false,
+          "x": 14,
+          "y": 330.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "updateLinks": [],
+      "contrastCandidates": []
+    },
+    {
+      "route": "login",
+      "width": 390,
+      "viewport": 390,
+      "scrollWidth": 390,
+      "bodyWidth": 390,
+      "overflow": [],
+      "axe": {
+        "violations": [],
+        "incomplete": [],
+        "passes": [
+          "aria-hidden-body",
+          "autocomplete-valid",
+          "button-name",
+          "color-contrast",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "label",
+          "meta-viewport",
+          "nested-interactive",
+          "target-size"
+        ]
+      },
+      "smallControls": [],
+      "updateLinks": [],
+      "contrastCandidates": []
+    },
+    {
+      "route": "overview",
+      "width": 320,
+      "viewport": 320,
+      "scrollWidth": 320,
+      "bodyWidth": 320,
+      "overflow": [],
+      "axe": {
+        "violations": [
+          {
+            "id": "dlitem",
+            "impact": "serious",
+            "description": "Ensure <dt> and <dd> elements are contained by a <dl>",
+            "nodes": [
+              {
+                "target": [
+                  ".net-row > div:nth-child(1) > dt"
+                ],
+                "html": "<dt>Сеть ↓</dt>",
+                "summary": "Fix any of the following:\n  Description list item does not have a <dl> parent element"
+              },
+              {
+                "target": [
+                  "#netIn"
+                ],
+                "html": "<dd class=\"mono\" id=\"netIn\">2.2 ГБ</dd>",
+                "summary": "Fix any of the following:\n  Description list item does not have a <dl> parent element"
+              },
+              {
+                "target": [
+                  ".net-row > div:nth-child(2) > dt"
+                ],
+                "html": "<dt>Сеть ↑</dt>",
+                "summary": "Fix any of the following:\n  Description list item does not have a <dl> parent element"
+              },
+              {
+                "target": [
+                  "#netOut"
+                ],
+                "html": "<dd class=\"mono\" id=\"netOut\">1.0 ГБ</dd>",
+                "summary": "Fix any of the following:\n  Description list item does not have a <dl> parent element"
+              },
+              {
+                "target": [
+                  ".net-row > div:nth-child(3) > dt"
+                ],
+                "html": "<dt>Процессов</dt>",
+                "summary": "Fix any of the following:\n  Description list item does not have a <dl> parent element"
+              },
+              {
+                "target": [
+                  "#pids"
+                ],
+                "html": "<dd class=\"mono\" id=\"pids\">42</dd>",
+                "summary": "Fix any of the following:\n  Description list item does not have a <dl> parent element"
+              }
+            ]
+          }
+        ],
+        "incomplete": [
+          {
+            "id": "aria-prohibited-attr",
+            "nodes": 1
+          },
+          {
+            "id": "color-contrast",
+            "nodes": 15
+          }
+        ],
+        "passes": [
+          "aria-allowed-attr",
+          "aria-conditional-attr",
+          "aria-deprecated-role",
+          "aria-hidden-body",
+          "aria-hidden-focus",
+          "aria-prohibited-attr",
+          "aria-required-attr",
+          "aria-roles",
+          "aria-valid-attr-value",
+          "aria-valid-attr",
+          "avoid-inline-spacing",
+          "button-name",
+          "bypass",
+          "color-contrast",
+          "definition-list",
+          "dlitem",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "link-name",
+          "meta-viewport",
+          "nested-interactive",
+          "select-name",
+          "target-size"
+        ]
+      },
+      "smallControls": [
+        {
+          "tag": "A",
+          "id": "hbServer",
+          "cls": "h-chip",
+          "w": 143.3,
+          "h": 25.5,
+          "text": "Сервер: работает",
+          "disabled": false,
+          "x": 14,
+          "y": 303.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbBackup",
+          "cls": "h-chip",
+          "w": 144.2,
+          "h": 25.5,
+          "text": "Бэкап: 33 д назад",
+          "disabled": false,
+          "x": 14,
+          "y": 335.140625,
+          "outline": "rgb(217, 164, 65) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbMods",
+          "cls": "h-chip",
+          "w": 142.4,
+          "h": 25.5,
+          "text": "Моды: актуальны",
+          "disabled": false,
+          "x": 14,
+          "y": 366.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbImage",
+          "cls": "h-chip",
+          "w": 137.2,
+          "h": 25.5,
+          "text": "Образ: актуален",
+          "disabled": false,
+          "x": 162.375,
+          "y": 366.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbWatchdog",
+          "cls": "h-chip",
+          "w": 117.7,
+          "h": 25.5,
+          "text": "Watchdog: ок",
+          "disabled": false,
+          "x": 14,
+          "y": 398.140625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "",
+          "cls": "sum-name",
+          "w": 0,
+          "h": 20.3,
+          "text": "Образ Docker",
+          "disabled": false,
+          "x": 33,
+          "y": 1676.53125,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "",
+          "cls": "sum-name",
+          "w": 0,
+          "h": 20.3,
+          "text": "Моды Workshop",
+          "disabled": false,
+          "x": 33,
+          "y": 1720.03125,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "",
+          "cls": "head-link",
+          "w": 96.8,
+          "h": 30,
+          "text": "Вся история",
+          "disabled": false,
+          "x": 33,
+          "y": 1828.40625,
+          "outline": "rgb(179, 167, 140) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "updateLinks": [
+        {
+          "tag": "A",
+          "id": "",
+          "cls": "sum-name",
+          "w": 0,
+          "h": 20.3,
+          "text": "Образ Docker",
+          "disabled": false,
+          "x": 33,
+          "y": 1676.53125,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "",
+          "cls": "sum-name",
+          "w": 0,
+          "h": 20.3,
+          "text": "Моды Workshop",
+          "disabled": false,
+          "x": 33,
+          "y": 1720.03125,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "contrastCandidates": []
+    },
+    {
+      "route": "players",
+      "width": 320,
+      "viewport": 320,
+      "scrollWidth": 320,
+      "bodyWidth": 320,
+      "overflow": [],
+      "axe": {
+        "violations": [],
+        "incomplete": [
+          {
+            "id": "color-contrast",
+            "nodes": 17
+          }
+        ],
+        "passes": [
+          "aria-allowed-attr",
+          "aria-conditional-attr",
+          "aria-deprecated-role",
+          "aria-hidden-body",
+          "aria-hidden-focus",
+          "aria-prohibited-attr",
+          "aria-required-attr",
+          "aria-roles",
+          "aria-valid-attr-value",
+          "aria-valid-attr",
+          "avoid-inline-spacing",
+          "button-name",
+          "bypass",
+          "color-contrast",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "link-name",
+          "meta-viewport",
+          "nested-interactive",
+          "select-name",
+          "target-size"
+        ]
+      },
+      "smallControls": [
+        {
+          "tag": "A",
+          "id": "hbServer",
+          "cls": "h-chip",
+          "w": 143.3,
+          "h": 25.5,
+          "text": "Сервер: работает",
+          "disabled": false,
+          "x": 14,
+          "y": 303.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbBackup",
+          "cls": "h-chip",
+          "w": 144.2,
+          "h": 25.5,
+          "text": "Бэкап: 33 д назад",
+          "disabled": false,
+          "x": 14,
+          "y": 335.140625,
+          "outline": "rgb(217, 164, 65) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbMods",
+          "cls": "h-chip",
+          "w": 142.4,
+          "h": 25.5,
+          "text": "Моды: актуальны",
+          "disabled": false,
+          "x": 14,
+          "y": 366.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbImage",
+          "cls": "h-chip",
+          "w": 137.2,
+          "h": 25.5,
+          "text": "Образ: актуален",
+          "disabled": false,
+          "x": 162.375,
+          "y": 366.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbWatchdog",
+          "cls": "h-chip",
+          "w": 117.7,
+          "h": 25.5,
+          "text": "Watchdog: ок",
+          "disabled": false,
+          "x": 14,
+          "y": 398.140625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "updateLinks": [],
+      "contrastCandidates": []
+    },
+    {
+      "route": "mods",
+      "width": 320,
+      "viewport": 320,
+      "scrollWidth": 320,
+      "bodyWidth": 320,
+      "overflow": [
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "cls": "",
+          "text": "Проблемы"
+        },
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "cls": "",
+          "text": "Обновления"
+        }
+      ],
+      "axe": {
+        "violations": [],
+        "incomplete": [
+          {
+            "id": "color-contrast",
+            "nodes": 19
+          }
+        ],
+        "passes": [
+          "aria-allowed-attr",
+          "aria-conditional-attr",
+          "aria-deprecated-role",
+          "aria-hidden-body",
+          "aria-hidden-focus",
+          "aria-prohibited-attr",
+          "aria-required-attr",
+          "aria-required-children",
+          "aria-required-parent",
+          "aria-roles",
+          "aria-valid-attr-value",
+          "aria-valid-attr",
+          "avoid-inline-spacing",
+          "button-name",
+          "bypass",
+          "color-contrast",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "label",
+          "link-name",
+          "meta-viewport",
+          "nested-interactive",
+          "scrollable-region-focusable",
+          "select-name",
+          "target-size"
+        ]
+      },
+      "smallControls": [
+        {
+          "tag": "A",
+          "id": "hbServer",
+          "cls": "h-chip",
+          "w": 143.3,
+          "h": 25.5,
+          "text": "Сервер: работает",
+          "disabled": false,
+          "x": 14,
+          "y": 303.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbBackup",
+          "cls": "h-chip",
+          "w": 144.2,
+          "h": 25.5,
+          "text": "Бэкап: 33 д назад",
+          "disabled": false,
+          "x": 14,
+          "y": 335.140625,
+          "outline": "rgb(217, 164, 65) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbMods",
+          "cls": "h-chip",
+          "w": 142.4,
+          "h": 25.5,
+          "text": "Моды: актуальны",
+          "disabled": false,
+          "x": 14,
+          "y": 366.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbImage",
+          "cls": "h-chip",
+          "w": 137.2,
+          "h": 25.5,
+          "text": "Образ: актуален",
+          "disabled": false,
+          "x": 162.375,
+          "y": 366.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbWatchdog",
+          "cls": "h-chip",
+          "w": 117.7,
+          "h": 25.5,
+          "text": "Watchdog: ок",
+          "disabled": false,
+          "x": 14,
+          "y": 398.140625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "INPUT",
+          "id": "modImport",
+          "cls": "sr-only",
+          "w": 1,
+          "h": 1,
+          "text": "Импорт набора",
+          "disabled": false,
+          "x": 92.96875,
+          "y": 993.390625,
+          "outline": "rgb(233, 226, 205) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "updateLinks": [],
+      "contrastCandidates": []
+    },
+    {
+      "route": "maintenance",
+      "width": 320,
+      "viewport": 320,
+      "scrollWidth": 320,
+      "bodyWidth": 320,
+      "overflow": [],
+      "axe": {
+        "violations": [],
+        "incomplete": [
+          {
+            "id": "color-contrast",
+            "nodes": 15
+          }
+        ],
+        "passes": [
+          "aria-allowed-attr",
+          "aria-conditional-attr",
+          "aria-deprecated-role",
+          "aria-hidden-body",
+          "aria-hidden-focus",
+          "aria-prohibited-attr",
+          "aria-required-attr",
+          "aria-roles",
+          "aria-valid-attr-value",
+          "aria-valid-attr",
+          "autocomplete-valid",
+          "avoid-inline-spacing",
+          "button-name",
+          "bypass",
+          "color-contrast",
+          "definition-list",
+          "dlitem",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "label",
+          "link-name",
+          "meta-viewport",
+          "nested-interactive",
+          "select-name",
+          "target-size"
+        ]
+      },
+      "smallControls": [
+        {
+          "tag": "A",
+          "id": "hbServer",
+          "cls": "h-chip",
+          "w": 143.3,
+          "h": 25.5,
+          "text": "Сервер: работает",
+          "disabled": false,
+          "x": 14,
+          "y": 303.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbBackup",
+          "cls": "h-chip",
+          "w": 144.2,
+          "h": 25.5,
+          "text": "Бэкап: 33 д назад",
+          "disabled": false,
+          "x": 14,
+          "y": 335.140625,
+          "outline": "rgb(217, 164, 65) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbMods",
+          "cls": "h-chip",
+          "w": 142.4,
+          "h": 25.5,
+          "text": "Моды: актуальны",
+          "disabled": false,
+          "x": 14,
+          "y": 366.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbImage",
+          "cls": "h-chip",
+          "w": 137.2,
+          "h": 25.5,
+          "text": "Образ: актуален",
+          "disabled": false,
+          "x": 162.375,
+          "y": 366.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbWatchdog",
+          "cls": "h-chip",
+          "w": 117.7,
+          "h": 25.5,
+          "text": "Watchdog: ок",
+          "disabled": false,
+          "x": 14,
+          "y": 398.140625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "INPUT",
+          "id": "wdRestart",
+          "cls": "",
+          "w": 18,
+          "h": 18,
+          "text": "авто-рестарт при зависании",
+          "disabled": false,
+          "x": 37,
+          "y": 1458.140625,
+          "outline": "rgb(255, 255, 255) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "INPUT",
+          "id": "tgSwitch",
+          "cls": "",
+          "w": 1,
+          "h": 1,
+          "text": "Отправлять в Telegram",
+          "disabled": false,
+          "x": 37,
+          "y": 1727.890625,
+          "outline": "rgb(255, 255, 255) none 3px",
+          "tabindex": 0,
+          "opacity": "0"
+        },
+        {
+          "tag": "INPUT",
+          "id": "tgOps",
+          "cls": "",
+          "w": 18,
+          "h": 18,
+          "text": "Сервер",
+          "disabled": false,
+          "x": 37,
+          "y": 1926.140625,
+          "outline": "rgb(255, 255, 255) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "INPUT",
+          "id": "tgBackup",
+          "cls": "",
+          "w": 18,
+          "h": 18,
+          "text": "Бэкапы",
+          "disabled": false,
+          "x": 133.4375,
+          "y": 1926.140625,
+          "outline": "rgb(255, 255, 255) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "INPUT",
+          "id": "tgUpdate",
+          "cls": "",
+          "w": 18,
+          "h": 18,
+          "text": "Обновления",
+          "disabled": false,
+          "x": 37,
+          "y": 1976.140625,
+          "outline": "rgb(255, 255, 255) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "INPUT",
+          "id": "tgProblems",
+          "cls": "",
+          "w": 18,
+          "h": 18,
+          "text": "Проблемы",
+          "disabled": false,
+          "x": 163.8125,
+          "y": 1976.140625,
+          "outline": "rgb(255, 255, 255) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "updateLinks": [],
+      "contrastCandidates": []
+    },
+    {
+      "route": "backups",
+      "width": 320,
+      "viewport": 320,
+      "scrollWidth": 320,
+      "bodyWidth": 320,
+      "overflow": [],
+      "axe": {
+        "violations": [
+          {
+            "id": "label",
+            "impact": "critical",
+            "description": "Ensure every form element has a label",
+            "nodes": [
+              {
+                "target": [
+                  "#bkAutoSwitch"
+                ],
+                "html": "<input type=\"checkbox\" id=\"bkAutoSwitch\" role=\"switch\" disabled=\"\" title=\"\">",
+                "summary": "Fix any of the following:\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has an empty title attribute\n  Element has no placeholder attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+              }
+            ]
+          }
+        ],
+        "incomplete": [
+          {
+            "id": "color-contrast",
+            "nodes": 15
+          }
+        ],
+        "passes": [
+          "aria-allowed-attr",
+          "aria-conditional-attr",
+          "aria-deprecated-role",
+          "aria-hidden-body",
+          "aria-hidden-focus",
+          "aria-prohibited-attr",
+          "aria-required-attr",
+          "aria-roles",
+          "aria-valid-attr-value",
+          "aria-valid-attr",
+          "avoid-inline-spacing",
+          "button-name",
+          "bypass",
+          "color-contrast",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "label",
+          "link-name",
+          "meta-viewport",
+          "nested-interactive",
+          "select-name",
+          "target-size"
+        ]
+      },
+      "smallControls": [
+        {
+          "tag": "A",
+          "id": "hbServer",
+          "cls": "h-chip",
+          "w": 143.3,
+          "h": 25.5,
+          "text": "Сервер: работает",
+          "disabled": false,
+          "x": 14,
+          "y": 303.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbBackup",
+          "cls": "h-chip",
+          "w": 144.2,
+          "h": 25.5,
+          "text": "Бэкап: 33 д назад",
+          "disabled": false,
+          "x": 14,
+          "y": 335.140625,
+          "outline": "rgb(217, 164, 65) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbMods",
+          "cls": "h-chip",
+          "w": 142.4,
+          "h": 25.5,
+          "text": "Моды: актуальны",
+          "disabled": false,
+          "x": 14,
+          "y": 366.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbImage",
+          "cls": "h-chip",
+          "w": 137.2,
+          "h": 25.5,
+          "text": "Образ: актуален",
+          "disabled": false,
+          "x": 162.375,
+          "y": 366.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbWatchdog",
+          "cls": "h-chip",
+          "w": 117.7,
+          "h": 25.5,
+          "text": "Watchdog: ок",
+          "disabled": false,
+          "x": 14,
+          "y": 398.140625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "updateLinks": [],
+      "contrastCandidates": []
+    },
+    {
+      "route": "events",
+      "width": 320,
+      "viewport": 320,
+      "scrollWidth": 320,
+      "bodyWidth": 320,
+      "overflow": [],
+      "axe": {
+        "violations": [],
+        "incomplete": [
+          {
+            "id": "color-contrast",
+            "nodes": 15
+          }
+        ],
+        "passes": [
+          "aria-allowed-attr",
+          "aria-conditional-attr",
+          "aria-deprecated-role",
+          "aria-hidden-body",
+          "aria-hidden-focus",
+          "aria-prohibited-attr",
+          "aria-required-attr",
+          "aria-roles",
+          "aria-valid-attr-value",
+          "aria-valid-attr",
+          "avoid-inline-spacing",
+          "button-name",
+          "bypass",
+          "color-contrast",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "link-name",
+          "meta-viewport",
+          "nested-interactive",
+          "select-name",
+          "target-size"
+        ]
+      },
+      "smallControls": [
+        {
+          "tag": "A",
+          "id": "hbServer",
+          "cls": "h-chip",
+          "w": 143.3,
+          "h": 25.5,
+          "text": "Сервер: работает",
+          "disabled": false,
+          "x": 14,
+          "y": 303.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbBackup",
+          "cls": "h-chip",
+          "w": 144.2,
+          "h": 25.5,
+          "text": "Бэкап: 33 д назад",
+          "disabled": false,
+          "x": 14,
+          "y": 335.140625,
+          "outline": "rgb(217, 164, 65) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbMods",
+          "cls": "h-chip",
+          "w": 142.4,
+          "h": 25.5,
+          "text": "Моды: актуальны",
+          "disabled": false,
+          "x": 14,
+          "y": 366.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbImage",
+          "cls": "h-chip",
+          "w": 137.2,
+          "h": 25.5,
+          "text": "Образ: актуален",
+          "disabled": false,
+          "x": 162.375,
+          "y": 366.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbWatchdog",
+          "cls": "h-chip",
+          "w": 117.7,
+          "h": 25.5,
+          "text": "Watchdog: ок",
+          "disabled": false,
+          "x": 14,
+          "y": 398.140625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "updateLinks": [],
+      "contrastCandidates": []
+    },
+    {
+      "route": "console",
+      "width": 320,
+      "viewport": 320,
+      "scrollWidth": 320,
+      "bodyWidth": 320,
+      "overflow": [],
+      "axe": {
+        "violations": [],
+        "incomplete": [
+          {
+            "id": "color-contrast",
+            "nodes": 16
+          }
+        ],
+        "passes": [
+          "aria-allowed-attr",
+          "aria-conditional-attr",
+          "aria-deprecated-role",
+          "aria-hidden-body",
+          "aria-hidden-focus",
+          "aria-prohibited-attr",
+          "aria-required-attr",
+          "aria-roles",
+          "aria-valid-attr-value",
+          "aria-valid-attr",
+          "avoid-inline-spacing",
+          "button-name",
+          "bypass",
+          "color-contrast",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "label",
+          "link-name",
+          "meta-viewport",
+          "nested-interactive",
+          "select-name",
+          "target-size"
+        ]
+      },
+      "smallControls": [
+        {
+          "tag": "A",
+          "id": "hbServer",
+          "cls": "h-chip",
+          "w": 143.3,
+          "h": 25.5,
+          "text": "Сервер: работает",
+          "disabled": false,
+          "x": 14,
+          "y": 303.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbBackup",
+          "cls": "h-chip",
+          "w": 144.2,
+          "h": 25.5,
+          "text": "Бэкап: 33 д назад",
+          "disabled": false,
+          "x": 14,
+          "y": 335.140625,
+          "outline": "rgb(217, 164, 65) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbMods",
+          "cls": "h-chip",
+          "w": 142.4,
+          "h": 25.5,
+          "text": "Моды: актуальны",
+          "disabled": false,
+          "x": 14,
+          "y": 366.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbImage",
+          "cls": "h-chip",
+          "w": 137.2,
+          "h": 25.5,
+          "text": "Образ: актуален",
+          "disabled": false,
+          "x": 162.375,
+          "y": 366.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbWatchdog",
+          "cls": "h-chip",
+          "w": 117.7,
+          "h": 25.5,
+          "text": "Watchdog: ок",
+          "disabled": false,
+          "x": 14,
+          "y": 398.140625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "INPUT",
+          "id": "logsAuto",
+          "cls": "",
+          "w": 18,
+          "h": 18,
+          "text": "Автопрокрутка",
+          "disabled": false,
+          "x": 37,
+          "y": 1086.640625,
+          "outline": "rgb(255, 255, 255) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "updateLinks": [],
+      "contrastCandidates": []
+    },
+    {
+      "route": "settings",
+      "width": 320,
+      "viewport": 320,
+      "scrollWidth": 320,
+      "bodyWidth": 320,
+      "overflow": [
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "cls": "",
+          "text": "Настройки модов"
+        },
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "cls": "",
+          "text": "Исходники"
+        },
+        {
+          "tag": "BUTTON",
+          "id": "",
+          "cls": "",
+          "text": "История изменений"
+        }
+      ],
+      "axe": {
+        "violations": [],
+        "incomplete": [
+          {
+            "id": "color-contrast",
+            "nodes": 18
+          }
+        ],
+        "passes": [
+          "aria-allowed-attr",
+          "aria-conditional-attr",
+          "aria-deprecated-role",
+          "aria-hidden-body",
+          "aria-hidden-focus",
+          "aria-prohibited-attr",
+          "aria-required-attr",
+          "aria-required-children",
+          "aria-required-parent",
+          "aria-roles",
+          "aria-valid-attr-value",
+          "aria-valid-attr",
+          "avoid-inline-spacing",
+          "button-name",
+          "bypass",
+          "color-contrast",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "label",
+          "link-name",
+          "meta-viewport",
+          "nested-interactive",
+          "scrollable-region-focusable",
+          "select-name",
+          "target-size"
+        ]
+      },
+      "smallControls": [
+        {
+          "tag": "A",
+          "id": "hbServer",
+          "cls": "h-chip",
+          "w": 143.3,
+          "h": 25.5,
+          "text": "Сервер: работает",
+          "disabled": false,
+          "x": 14,
+          "y": 303.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbBackup",
+          "cls": "h-chip",
+          "w": 144.2,
+          "h": 25.5,
+          "text": "Бэкап: 33 д назад",
+          "disabled": false,
+          "x": 14,
+          "y": 335.140625,
+          "outline": "rgb(217, 164, 65) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbMods",
+          "cls": "h-chip",
+          "w": 142.4,
+          "h": 25.5,
+          "text": "Моды: актуальны",
+          "disabled": false,
+          "x": 14,
+          "y": 366.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbImage",
+          "cls": "h-chip",
+          "w": 137.2,
+          "h": 25.5,
+          "text": "Образ: актуален",
+          "disabled": false,
+          "x": 162.375,
+          "y": 366.640625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        },
+        {
+          "tag": "A",
+          "id": "hbWatchdog",
+          "cls": "h-chip",
+          "w": 117.7,
+          "h": 25.5,
+          "text": "Watchdog: ок",
+          "disabled": false,
+          "x": 14,
+          "y": 398.140625,
+          "outline": "rgb(134, 176, 96) none 3px",
+          "tabindex": 0,
+          "opacity": "1"
+        }
+      ],
+      "updateLinks": [],
+      "contrastCandidates": []
+    },
+    {
+      "route": "login",
+      "width": 320,
+      "viewport": 320,
+      "scrollWidth": 320,
+      "bodyWidth": 320,
+      "overflow": [],
+      "axe": {
+        "violations": [],
+        "incomplete": [],
+        "passes": [
+          "aria-hidden-body",
+          "autocomplete-valid",
+          "button-name",
+          "color-contrast",
+          "document-title",
+          "duplicate-id-aria",
+          "form-field-multiple-labels",
+          "html-has-lang",
+          "html-lang-valid",
+          "label",
+          "meta-viewport",
+          "nested-interactive",
+          "target-size"
+        ]
+      },
+      "smallControls": [],
+      "updateLinks": [],
+      "contrastCandidates": []
+    }
+  ],
+  "browserTests": {
+    "command": ".venv/Scripts/python.exe -m pytest tests/browser --basetemp=.tmp-impeccable-audit/browser -q",
+    "passed": 144,
+    "durationSeconds": 476.29
+  },
+  "sourceRevision": "7d494828131fbf2e76a23f93d9b1c1e60bfd2aca",
+  "supplementalProbes": {
+    "touchMoreOpened": true,
+    "touchRouting": {
+      "hash": "#/backups",
+      "menuHidden": true,
+      "focus": "view-backups"
+    },
+    "updateLinks320": [
+      {
+        "text": "Образ Docker",
+        "width": 0,
+        "scrollWidth": 90,
+        "clientWidth": 0,
+        "tabIndex": 0
+      },
+      {
+        "text": "Моды Workshop",
+        "width": 0,
+        "scrollWidth": 106,
+        "clientWidth": 0,
+        "tabIndex": 0
+      }
+    ],
+    "contrastSamples": [
+      {
+        "sel": ".brand-sub",
+        "fg": "rgb(150, 139, 115)",
+        "font": "11.5px",
+        "backgrounds": [
+          {
+            "tag": "HEADER",
+            "cls": "topbar",
+            "bg": "rgba(13, 11, 9, 0.92)",
+            "image": "none"
+          },
+          {
+            "tag": "BODY",
+            "cls": "",
+            "bg": "rgb(13, 11, 9)",
+            "image": "radial-gradient(1100px 420px at 50% -140px, rgba(179, 53, 43, 0.07), rgba(0, 0, 0, 0) 70%), none"
+          }
+        ]
+      },
+      {
+        "sel": ".metric-sub",
+        "fg": "rgb(150, 139, 115)",
+        "font": "11.5px",
+        "backgrounds": [
+          {
+            "tag": "SECTION",
+            "cls": "card c-metrics",
+            "bg": "rgb(20, 17, 14)",
+            "image": "none"
+          },
+          {
+            "tag": "BODY",
+            "cls": "",
+            "bg": "rgb(13, 11, 9)",
+            "image": "radial-gradient(1100px 420px at 50% -140px, rgba(179, 53, 43, 0.07), rgba(0, 0, 0, 0) 70%), none"
+          }
+        ]
+      },
+      {
+        "sel": ".k-label",
+        "fg": "rgb(150, 139, 115)",
+        "font": "11px",
+        "backgrounds": [
+          {
+            "tag": "SECTION",
+            "cls": "card c-kpi",
+            "bg": "rgb(20, 17, 14)",
+            "image": "none"
+          },
+          {
+            "tag": "BODY",
+            "cls": "",
+            "bg": "rgb(13, 11, 9)",
+            "image": "radial-gradient(1100px 420px at 50% -140px, rgba(179, 53, 43, 0.07), rgba(0, 0, 0, 0) 70%), none"
+          }
+        ]
+      },
+      {
+        "sel": ".meta dt",
+        "fg": "rgb(150, 139, 115)",
+        "font": "11px",
+        "backgrounds": [
+          {
+            "tag": "SECTION",
+            "cls": "card c-status",
+            "bg": "rgb(20, 17, 14)",
+            "image": "none"
+          },
+          {
+            "tag": "BODY",
+            "cls": "",
+            "bg": "rgb(13, 11, 9)",
+            "image": "radial-gradient(1100px 420px at 50% -140px, rgba(179, 53, 43, 0.07), rgba(0, 0, 0, 0) 70%), none"
+          }
+        ]
+      },
+      {
+        "sel": ".sum-meta",
+        "fg": "rgb(150, 139, 115)",
+        "font": "12px",
+        "backgrounds": [
+          {
+            "tag": "SECTION",
+            "cls": "card c-sumupd",
+            "bg": "rgb(20, 17, 14)",
+            "image": "none"
+          },
+          {
+            "tag": "BODY",
+            "cls": "",
+            "bg": "rgb(13, 11, 9)",
+            "image": "radial-gradient(1100px 420px at 50% -140px, rgba(179, 53, 43, 0.07), rgba(0, 0, 0, 0) 70%), none"
+          }
+        ]
+      },
+      {
+        "sel": ".h-chip[data-state=\"ok\"]",
+        "fg": "rgb(134, 176, 96)",
+        "font": "11.5px",
+        "backgrounds": [
+          {
+            "tag": "BODY",
+            "cls": "",
+            "bg": "rgb(13, 11, 9)",
+            "image": "radial-gradient(1100px 420px at 50% -140px, rgba(179, 53, 43, 0.07), rgba(0, 0, 0, 0) 70%), none"
+          }
+        ]
+      },
+      {
+        "sel": ".h-chip[data-state=\"warn\"]",
+        "fg": "rgb(217, 164, 65)",
+        "font": "11.5px",
+        "backgrounds": [
+          {
+            "tag": "BODY",
+            "cls": "",
+            "bg": "rgb(13, 11, 9)",
+            "image": "radial-gradient(1100px 420px at 50% -140px, rgba(179, 53, 43, 0.07), rgba(0, 0, 0, 0) 70%), none"
+          }
+        ]
+      }
+    ]
+  }
+}

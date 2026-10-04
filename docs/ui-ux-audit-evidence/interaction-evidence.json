@@ -1,0 +1,40 @@
+{
+  "playersFocus": {
+    "before": "<button class=\"icon-btn\" data-p=\"kick\" data-name=\"Audit player\" title=\"Кикнуть\" aria-label=\"Кикнуть Audit player\">\n          <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 3h6v18h-6M10 17l5-5-5-5M15 12H3\"></path></svg>\n        </button>",
+    "after": "BODY",
+    "originalConnected": false
+  },
+  "backupFocus": {
+    "after": "BODY",
+    "originalConnected": false
+  },
+  "failedTelegramSave": {
+    "tokenPreserved": false,
+    "requests": [
+      {
+        "kind": "settings",
+        "hasToken": true
+      }
+    ]
+  },
+  "operationOnConsole": {
+    "active": true,
+    "progressVisible": false
+  },
+  "stopDialog": {
+    "initialFocus": "modalOk",
+    "requestsBeforeEnter": 1,
+    "requestsAfterEnter": [
+      {
+        "kind": "settings",
+        "hasToken": true
+      },
+      {
+        "kind": "action",
+        "op": "stop",
+        "warnSeconds": 300
+      }
+    ],
+    "dialogStillOpen": false
+  }
+}
