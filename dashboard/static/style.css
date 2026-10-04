@@ -142,6 +142,7 @@
   --blood-deep: #8f231c;
   --blood-hover: #c23f34;
   --blood-text: #e07b6e;
+  --error-text: #f09b8d;
 
   --ok: #86b060;
   --warn: #d9a441;
@@ -385,6 +386,11 @@ a.kpi:hover { background: var(--surface-2); }
 a.sum-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 
 .sum-meta { font-size: 12px; color: var(--faint); flex: none; }
+@media (max-width: 600px) {
+  .sum-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+  .sum-name { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+  .sum-meta { grid-column: 1 / -1; white-space: normal; overflow-wrap: anywhere; }
+}
 
 .head-link {
   flex: none;
@@ -1256,6 +1262,14 @@ select { cursor: pointer; }
 }
 
 [data-copy] { cursor: copy; }
+.copy-field { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.copy-btn, .copy-value { font: inherit; color: inherit; background: transparent; border: 1px solid var(--line-strong); border-radius: var(--r-sm); cursor: copy; }
+.copy-btn { padding: 6px 10px; font-family: var(--font-body); }
+.copy-value { text-align: left; display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px; min-width: 0; }
+.copy-value svg { width: 14px; height: 14px; flex: none; }
+.copy-btn:hover, .copy-value:hover { background: var(--surface-3); }
+.copy-btn:disabled { cursor: default; opacity: .5; }
+.copy-btn:focus-visible, .copy-value:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 [data-copy]:hover { color: var(--ink); }
 dd[data-copy] { text-decoration: underline dotted rgba(233, 226, 205, 0.35); text-underline-offset: 3px; }
 
@@ -1540,4 +1554,4 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--draft-heigh
 .login-card input { width:100%; min-width:0; font-size:16px; }
 .login-card label:not(:first-child) { margin-top:8px; }
 .login-card button { width:100%; justify-content:center; margin-top:12px; min-height:44px; }
-.login-error { color:var(--blood-hover); margin:4px 0; }
+.login-error { color:var(--error-text); margin:4px 0; }

@@ -98,5 +98,7 @@ def test_api_401_redirects_without_demo(page, login_url):
     expect(page.locator("#btnLogout")).to_be_visible()
     page.context.clear_cookies()
     page.route("**/api/overview", lambda route: route.fulfill(status=401, json={"ok": False}))
-    page.evaluate("api('/api/overview').catch(() => {})")
+    # Do not await the API promise in the departing document: the successful
+    # redirect destroys that context before Playwright can receive its result.
+    page.evaluate("() => { api('/api/overview').catch(() => {}); }")
     expect(page.get_by_role("heading", name="Вход администратора")).to_be_visible()

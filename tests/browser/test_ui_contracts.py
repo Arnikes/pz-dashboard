@@ -64,6 +64,8 @@ def test_live_list_preserves_focus_identity_and_recovers_removed_row(page, dashb
         window.listFrame = kind === 'players' ? {ok:true,count:2,names:[name,'Alice']} :
           {ok:true,items:[{name,mtime:'2026-10-04T20:00:00Z',size:100},{name:'second.tar',mtime:'2026-10-04T20:00:00Z',size:200}]};
         window.paintList = () => kind === 'players' ? renderPlayers(listFrame) : renderBackups(listFrame);
+        // This regression isolates row reconciliation from the fixture's empty live snapshots.
+        liveSource?.close(); liveSource = null; clearTimeout(sseStartupTimer);
         paintList();
         window.rowChanges = 0;
         new MutationObserver(records => {rowChanges += records.length}).observe(
@@ -238,3 +240,56 @@ def test_settings_serializes_local_changes_and_ignores_stale_server_revision(pag
     expect(page.locator("#autoInterval")).to_have_value("24")
     assert requests[0]["autoUpdate"]["intervalHours"] == 12
     assert requests[1]["autoUpdate"]["intervalHours"] == 24
+
+
+def test_destructive_dialog_starts_with_safe_focus_and_restore_ack_stays_required(page, dashboard):
+    page.goto(dashboard["url"])
+    page.locator("#btnStop").click()
+    expect(page.locator("#modalCancel")).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(page.get_by_role("alertdialog")).to_be_hidden()
+    expect(page.locator("#btnStop")).to_be_focused()
+    assert dashboard["actions"] == []
+    page.evaluate("confirmRestore('world.tar')")
+    expect(page.locator("#modalCancel")).to_be_focused()
+    expect(page.locator("#modalOk")).to_be_disabled()
+    page.locator("#restoreAck").check()
+    expect(page.locator("#modalOk")).to_be_enabled()
+    page.locator("#restoreAck").uncheck()
+    expect(page.locator("#modalOk")).to_be_disabled()
+    page.keyboard.press("Escape")
+    assert dashboard["actions"] == []
+
+
+@pytest.mark.parametrize("key", ["Enter", "Space"])
+def test_explicit_copy_button_works_from_keyboard_with_full_digest(page, dashboard, key):
+    page.goto(dashboard["url"])
+    expect(page.locator("#btnStop")).to_be_enabled()
+    value = "sha256:" + "0123456789abcdef" * 4
+    page.evaluate("value => renderOverview({...S.overview,update:{local:value}})", value)
+    button = page.get_by_role("button", name="Скопировать локальный digest").first
+    button.focus()
+    button.press(key)
+    expect(page.locator("#toasts")).to_contain_text("Скопировано")
+    page.evaluate("""() => { const target=document.createElement('textarea');
+      target.id='pasteTarget';document.body.appendChild(target); }""")
+    target = page.locator("#pasteTarget")
+    target.focus()
+    target.press("ControlOrMeta+V")
+    expect(target).to_have_value(value)
+
+
+def test_backup_schedule_switch_has_name_and_update_links_are_reachable_at_320(page, dashboard):
+    page.set_viewport_size({"width": 320, "height": 568})
+    page.goto(dashboard["url"] + "/#/backups")
+    expect(page.get_by_role("switch", name="Бэкап по расписанию")).to_be_visible()
+    page.evaluate("location.hash='#/overview'")
+    page.evaluate("""() => {renderOverview({...S.overview,update:{at:'2026-10-04T21:00:00Z'},
+      modsCheck:{at:'2026-10-04T21:00:00Z'}});
+      document.getElementById('sumImageMeta').textContent='Очень длинные метаданные проверки образа';
+      document.getElementById('sumModsMeta').textContent='Очень длинные метаданные проверки модов';}""")
+    for name in ["Образ Docker", "Моды Workshop"]:
+        link = page.get_by_role("link", name=name, exact=True)
+        expect(link).to_be_visible()
+        assert link.bounding_box()["width"] > 80
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")

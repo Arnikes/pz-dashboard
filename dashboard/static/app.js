@@ -116,6 +116,32 @@ document.addEventListener("click", (e) => {
   if (t && t.dataset.copy) copyText(t.dataset.copy);
 });
 
+function setCopyTarget(id, value) {
+  const button = $(id);
+  button.disabled = !value;
+  if (value) button.dataset.copy = value;
+  else delete button.dataset.copy;
+}
+
+function syncTabAccessibility(id) {
+  const tabs = [...$(id).querySelectorAll('[role="tab"]')];
+  for (const tab of tabs) {
+    const selected = tab.getAttribute("aria-selected") === "true";
+    tab.id = `${id}-${tab.dataset.tab}`;
+    tab.tabIndex = selected ? 0 : -1;
+    const panel = $(tab.getAttribute("aria-controls"));
+    panel.setAttribute("role", "tabpanel");
+    panel.setAttribute("aria-labelledby", tab.id);
+    panel.tabIndex = 0;
+    panel.hidden = !selected;
+    if (selected && id === "configTabs" && ["server", "world", "custom"].includes(tab.dataset.tab)) {
+      const fields = $("configSharedFields");
+      if (fields.parentElement !== panel) panel.appendChild(fields);
+    }
+  }
+}
+for (const id of ["configTabs", "modTabs"]) syncTabAccessibility(id);
+
 /* ───────────────────────── тосты ───────────────────────── */
 
 function toast(text, kind = "info", ms = 5200) {
@@ -152,7 +178,7 @@ const modal = (() => {
     okBtn.className = "btn " + (danger ? "solid-danger" : "primary");
     onOk = onConfirm || null;
     root.hidden = false;
-    okBtn.focus();
+    (danger ? $("modalCancel") : okBtn).focus();
   }
 
   function close() {
@@ -161,7 +187,7 @@ const modal = (() => {
     $("modalBody").innerHTML = "";
     onOk = null;
     if (returnFocus?.isConnected && !returnFocus.disabled) returnFocus.focus({ preventScroll: true });
-    else document.querySelector(`#view-${activeView}`)?.focus({ preventScroll: true });
+    else if (document.activeElement === document.body || root.contains(document.activeElement)) document.querySelector(`#view-${activeView}`)?.focus({ preventScroll: true });
     returnFocus = null;
   }
 
@@ -487,7 +513,7 @@ function renderOverview(o) {
   $("mDigest").textContent = shortDigest(o.update?.local);
   $("mContainer").dataset.copy = o.container || "";
   $("mImage").dataset.copy = o.image || "";
-  if (o.update?.local) $("mDigest").dataset.copy = o.update.local; else $("mDigest").removeAttribute("data-copy");
+  setCopyTarget("mDigestCopy", o.update?.local);
 
   // блок обновлений
   const u = o.update || {};
@@ -518,8 +544,8 @@ function renderOverview(o) {
   $("updRemote").classList.toggle("ok-same", !!same);
   $("updChecked").textContent = u.at ? fmtTime(u.at) : "никогда";
   $("updHubDate").textContent = u.hubUpdated ? "собрана " + fmtTime(u.hubUpdated) : "—";
-  if (u.local) $("updLocal").dataset.copy = u.local; else $("updLocal").removeAttribute("data-copy");
-  if (u.remote) $("updRemote").dataset.copy = u.remote; else $("updRemote").removeAttribute("data-copy");
+  setCopyTarget("updLocalCopy", u.local);
+  setCopyTarget("updRemoteCopy", u.remote);
 
   // автообновление
   const au = o.settings?.autoUpdate || {};
@@ -603,7 +629,7 @@ function renderOverview(o) {
       <span class="m-title">${it.url
         ? `<a href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.title || it.workshopId)}</a>`
         : esc(it.raw || "мод требует обновления")}</span>
-      ${it.workshopId ? `<span class="wid mono" data-copy="${esc(it.workshopId)}" title="нажмите — скопировать">${esc(it.workshopId)}</span>` : ""}
+      ${it.workshopId ? `<button type="button" class="copy-value wid mono" data-copy="${esc(it.workshopId)}" title="нажмите — скопировать" aria-label="Скопировать ${esc(it.workshopId)}">${esc(it.workshopId)}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button>` : ""}
     </div>`).join("");
   $("btnApplyMods").hidden = mc.state !== "needs-update";
   const mu = o.settings?.modsUpdate || {};
@@ -1142,14 +1168,14 @@ function _renderMods(data) {
     html += data.pairs.map((p, i) => `
       <div class="mod-row">
         <span class="m-idx mono">${i + 1}</span>
-        <span class="m-name mono" title="${esc(p.mod)}" data-copy="${esc(p.mod)}">${esc(p.mod)}</span>
+        <button type="button" class="copy-value m-name mono" title="${esc(p.mod)}" data-copy="${esc(p.mod)}" aria-label="Скопировать ${esc(p.mod)}">${esc(p.mod)}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button>
         <span class="m-ws">
           ${p.url
             ? `<a href="${esc(p.url)}" target="_blank" rel="noopener" title="Steam Workshop · ${esc(p.workshopId)}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M10 5H5v14h14v-5"/></svg>
                 <span class="ws-title">${esc(p.title || p.workshopId)}</span>
               </a>
-              <span class="wid mono" title="Workshop ID: ${esc(p.workshopId)}" data-copy="${esc(p.workshopId)}">${esc(p.workshopId)}</span>`
+              <button type="button" class="copy-value wid mono" title="Workshop ID: ${esc(p.workshopId)}" data-copy="${esc(p.workshopId)}" aria-label="Скопировать ${esc(p.workshopId)}">${esc(p.workshopId)}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button>`
             : `<span class="wid mono">${esc(p.workshopId || "—")}</span>`}
         </span>
         ${canManage ? _wsSwitch(p.workshopId, true, "Выключить мод в конфиге") : ""}
@@ -1165,7 +1191,7 @@ function _renderMods(data) {
             ${w.url
               ? `<a class="m-t" href="${esc(w.url)}" target="_blank" rel="noopener" title="${esc(w.title || w.workshopId)}">${esc(w.title || w.workshopId)}</a>`
               : `<span class="m-t">${esc(w.title || w.workshopId)}</span>`}
-            <span class="wid mono" title="Workshop ID: ${esc(w.workshopId)}" data-copy="${esc(w.workshopId)}">${esc(shortWsId(w.workshopId))}</span>
+            <button type="button" class="copy-value wid mono" title="Workshop ID: ${esc(w.workshopId)}" data-copy="${esc(w.workshopId)}" aria-label="Скопировать ${esc(w.workshopId)}">${esc(shortWsId(w.workshopId))}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button>
             ${canManage ? _wsSwitch(w.workshopId, true, "Выключить мод в конфиге") : ""}
           </div>`).join("") + `</div>`;
       } else {
@@ -1178,22 +1204,22 @@ function _renderMods(data) {
                   <span class="ws-title">${esc(w.title || w.workshopId)}</span>
                 </a>`
               : `<span class="wid mono">${esc(w.workshopId)}</span>`}
-            ${w.title ? `<span class="wid mono" title="Workshop ID: ${esc(w.workshopId)}" data-copy="${esc(w.workshopId)}">${esc(w.workshopId)}</span>` : ""}
+            ${w.title ? `<button type="button" class="copy-value wid mono" title="Workshop ID: ${esc(w.workshopId)}" data-copy="${esc(w.workshopId)}" aria-label="Скопировать ${esc(w.workshopId)}">${esc(w.workshopId)}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button>` : ""}
             ${canManage ? _wsSwitch(w.workshopId, true, "Выключить мод в конфиге") : ""}
           </div>
           ${(w.mods || []).length
-            ? `<div class="ws-mods">${w.mods.map((m) => `<span class="chip mono" data-copy="${esc(m)}" title="нажмите — скопировать">${esc(m)}</span>`).join("")}</div>`
+            ? `<div class="ws-mods">${w.mods.map((m) => `<button type="button" class="copy-value chip mono" data-copy="${esc(m)}" title="нажмите — скопировать" aria-label="Скопировать ${esc(m)}">${esc(m)}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button>`).join("")}</div>`
             : ""}
         </div>`).join("");
       }
     }
     if (mods.length) {
       html += `<p class="mods-note">Моды из конфига (Mods=) — ${mods.length}</p>`;
-      html += `<div class="mods-chips">${mods.map((m) => `<span class="chip mono" data-copy="${esc(m)}" title="нажмите — скопировать">${esc(m)}</span>`).join("")}</div>`;
+      html += `<div class="mods-chips">${mods.map((m) => `<button type="button" class="copy-value chip mono" data-copy="${esc(m)}" title="нажмите — скопировать" aria-label="Скопировать ${esc(m)}">${esc(m)}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button>`).join("")}</div>`;
     }
     if ((data.unbound || []).length && data.mappingSource === "disk") {
       html += `<p class="mods-note">Без привязки к Workshop — ${data.unbound.length}</p>`;
-      html += `<div class="mods-chips">${data.unbound.map((m) => `<span class="chip mono" data-copy="${esc(m)}">${esc(m)}</span>`).join("")}</div>`;
+      html += `<div class="mods-chips">${data.unbound.map((m) => `<button type="button" class="copy-value chip mono" data-copy="${esc(m)}" aria-label="Скопировать ${esc(m)}">${esc(m)}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button>`).join("")}</div>`;
     }
     if (!ws.length) {
       html += `<p class="mods-note">Один Workshop-элемент может содержать несколько модов — сопоставление по конфигу невозможно.</p>`;
@@ -1203,9 +1229,9 @@ function _renderMods(data) {
     html += `<p class="mods-note">Выключенные — ${disabledList.length}</p>`;
     html += disabledList.map((d) => `
       <div class="mod-row disabled-row">
-        <span class="m-name mono" title="${esc((d.modIds || []).join(", "))}" data-copy="${esc((d.modIds || [])[0] || d.workshopId)}">${esc(d.title || d.workshopId)}</span>
+        <button type="button" class="copy-value m-name mono" title="${esc((d.modIds || []).join(", "))}" data-copy="${esc((d.modIds || [])[0] || d.workshopId)}" aria-label="Скопировать ${esc((d.modIds || [])[0] || d.workshopId)}">${esc(d.title || d.workshopId)}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button>
         <span class="m-ws">
-          <span class="wid mono" title="Workshop ID: ${esc(d.workshopId)}" data-copy="${esc(d.workshopId)}">${esc(shortWsId(d.workshopId))}</span>
+          <button type="button" class="copy-value wid mono" title="Workshop ID: ${esc(d.workshopId)}" data-copy="${esc(d.workshopId)}" aria-label="Скопировать ${esc(d.workshopId)}">${esc(shortWsId(d.workshopId))}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button>
         </span>
         ${canManage ? _wsSwitch(d.workshopId, false, "Включить мод обратно") : ""}
       </div>`).join("");
@@ -1362,7 +1388,7 @@ function renderBackups(data) {
     const template = document.createElement("template");
     template.innerHTML = `
     <div class="backup-row">
-      <span class="b-name mono" title="${esc(b.name)} — создан ${esc(b.mtime)}" data-copy="${esc(b.name)}">${esc(b.name)}</span>
+      <button type="button" class="copy-value b-name mono" title="${esc(b.name)} — создан ${esc(b.mtime)}" data-copy="${esc(b.name)}" aria-label="Скопировать ${esc(b.name)}">${esc(b.name)}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button>
       <span class="b-size mono" title="размер архива">${esc(b.sizeText || fmtBytes(b.size))}</span>
       <span class="b-age mono" title="создан ${esc(b.mtime)}">${esc(relTime(b.mtime))}</span>
       <button class="icon-btn" data-b="dl" data-name="${esc(b.name)}" title="Скачать" aria-label="Скачать ${esc(b.name)}">
@@ -1466,6 +1492,7 @@ function confirmRestore(name) {
     },
   });
   $("restoreAck")?.addEventListener("change", () => { $("modalOk").disabled = !$("restoreAck").checked; });
+  $("modalOk").disabled = true;
 }
 
 function confirmDeleteBackup(name) {

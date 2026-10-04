@@ -1781,3 +1781,28 @@ def test_history_failure_can_be_retried_without_switching_profile(page, dashboar
     expect(page.locator("#configError")).to_be_hidden()
     assert not editor.draft("world.ini")["changed"]
     assert dashboard["actions"] == []
+
+
+@pytest.mark.parametrize("tablist,route", [("configTabs", "settings"), ("modTabs", "mods")])
+def test_editor_tabs_have_roving_focus_and_linked_named_panels(
+    page, dashboard, editing, tablist, route
+):
+    page.goto(dashboard["url"] + "/#/" + route)
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    tabs = page.locator(f"#{tablist} [role=tab]")
+    first = tabs.first
+    first.focus()
+    expect(first).to_have_attribute("tabindex", "0")
+    first.press("End")
+    expect(tabs.last).to_be_focused()
+    expect(tabs.last).to_have_attribute("aria-selected", "true")
+    expect(tabs.last).to_have_attribute("tabindex", "0")
+    expect(first).to_have_attribute("tabindex", "-1")
+    panel = page.locator("#" + tabs.last.get_attribute("aria-controls"))
+    expect(panel).to_be_visible()
+    expect(panel).to_have_attribute("role", "tabpanel")
+    expect(panel).to_have_attribute("aria-labelledby", tabs.last.get_attribute("id"))
+    tabs.last.press("Home")
+    expect(first).to_be_focused()
+    expect(first).to_have_attribute("aria-selected", "true")
+    expect(page.locator("#" + first.get_attribute("aria-controls"))).to_be_visible()

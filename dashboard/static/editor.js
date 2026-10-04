@@ -242,6 +242,7 @@ window.ConfigEditor = (() => {
     await patch(update, !!update.mods);
   }
   function renderFields() {
+    syncTabAccessibility("configTabs");
     if (pendingFields.size) { deferredFields = true; return; }
     deferredFields = false;
     if (!fieldQuery) $("configFields").querySelectorAll("details[data-group-key]").forEach(el => groupStates.set(el.dataset.groupKey, el.open));
@@ -343,6 +344,7 @@ window.ConfigEditor = (() => {
     } }));
   }
   function updateModTab() {
+    syncTabAccessibility("modTabs");
     $("modComposition").hidden = modTab !== "composition";
     $("modOrder").hidden = modTab !== "order";
     $("modProblems").hidden = modTab !== "problems";

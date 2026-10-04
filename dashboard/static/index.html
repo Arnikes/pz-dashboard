@@ -172,7 +172,7 @@
           <div><dt>Запущен</dt><dd id="mStarted">—</dd></div>
           <div><dt>Контейнер</dt><dd class="mono" id="mContainer">—</dd></div>
           <div><dt>Образ</dt><dd class="mono" id="mImage">—</dd></div>
-          <div><dt>Локальный digest</dt><dd class="mono" id="mDigest">—</dd></div>
+          <div><dt>Локальный digest</dt><dd class="mono copy-field"><span id="mDigest">—</span><button type="button" class="copy-btn" id="mDigestCopy" aria-label="Скопировать локальный digest" disabled>Копировать</button></dd></div>
         </dl>
         <p class="hint" id="absentHint" hidden>
           Контейнер не найден. Проверьте имя (переменная PZ_CONTAINER) и что compose-проект запущен.
@@ -204,11 +204,11 @@
           <svg class="spark ram" id="ramSpark" viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><polyline id="ramSparkLine" fill="none" stroke="currentColor" stroke-width="1.6" points=""/></svg>
           <div class="metric-sub mono" id="ramSub">—</div>
         </div>
-        <div class="net-row">
+        <dl class="net-row">
           <div><dt>Сеть ↓</dt><dd class="mono" id="netIn">—</dd></div>
           <div><dt>Сеть ↑</dt><dd class="mono" id="netOut">—</dd></div>
           <div><dt>Процессов</dt><dd class="mono" id="pids">—</dd></div>
-        </div>
+        </dl>
       </section>
 
       <!-- СВОДКА ОБНОВЛЕНИЙ -->
@@ -270,10 +270,10 @@
         <header class="card-head"><h2 id="hModsEditor">Состав модов</h2><span id="modSummary" class="hint"></span></header>
         <p class="hint">Workshop item — пакет Steam. Внутри пакета выбирайте отдельные ModID. Изменения сохраняются в черновике.</p>
         <div class="editor-tabs" id="modTabs" role="tablist" aria-label="Редактор модов">
-          <button type="button" role="tab" aria-selected="true" data-tab="composition">Состав</button>
-          <button type="button" role="tab" aria-selected="false" data-tab="order">Порядок</button>
-          <button type="button" role="tab" aria-selected="false" data-tab="problems">Проблемы</button>
-          <button type="button" role="tab" aria-selected="false" data-tab="updates">Обновления</button>
+          <button type="button" role="tab" aria-selected="true" aria-controls="modComposition" data-tab="composition">Состав</button>
+          <button type="button" role="tab" aria-selected="false" aria-controls="modOrder" tabindex="-1" data-tab="order">Порядок</button>
+          <button type="button" role="tab" aria-selected="false" aria-controls="modProblems" tabindex="-1" data-tab="problems">Проблемы</button>
+          <button type="button" role="tab" aria-selected="false" aria-controls="sec-mods-update" tabindex="-1" data-tab="updates">Обновления</button>
         </div>
         <div class="mod-composition" id="modComposition">
           <form id="workshopAdd" class="editor-toolbar"><input id="workshopInput" type="text" placeholder="Steam-ссылка, Workshop ID или коллекция" aria-label="Добавить пакет из Steam" required /><button class="btn" type="submit">Добавить</button></form>
@@ -387,11 +387,16 @@
         <div id="configVerifyHelp" class="editor-toolbar" hidden><button type="button" id="configVerify" class="btn">Проверить запущенный сервер</button><span class="hint">После ручного рестарта: проверка файлов, модов и готовности PZ/RCON без записи и остановки сервера.</span></div>
         <p id="configVersionDiagnostic" class="hint" role="status" hidden></p>
         <div class="editor-tabs" id="configTabs" role="tablist" aria-label="Настройки сервера">
-          <button type="button" role="tab" aria-selected="true" data-tab="server">Сервер</button><button type="button" role="tab" aria-selected="false" data-tab="world">Мир</button><button type="button" role="tab" aria-selected="false" data-tab="custom">Настройки модов</button><button type="button" role="tab" aria-selected="false" data-tab="sources">Исходники</button><button type="button" role="tab" aria-selected="false" data-tab="history">История изменений</button>
+          <button type="button" role="tab" aria-selected="true" aria-controls="configServerPanel" data-tab="server">Сервер</button><button type="button" role="tab" aria-selected="false" aria-controls="configWorldPanel" tabindex="-1" data-tab="world">Мир</button><button type="button" role="tab" aria-selected="false" aria-controls="configCustomPanel" tabindex="-1" data-tab="custom">Настройки модов</button><button type="button" role="tab" aria-selected="false" aria-controls="configSources" tabindex="-1" data-tab="sources">Исходники</button><button type="button" role="tab" aria-selected="false" aria-controls="configHistory" tabindex="-1" data-tab="history">История изменений</button>
         </div>
+        <div id="configSharedFields">
         <input id="configSearch" type="search" placeholder="Название или технический ключ…" aria-label="Поиск настройки" />
         <p id="configWorldNotice" class="hint" hidden>Настройки существующего мира могут применяться только к новым областям или новым персонажам. Исходные неизвестные параметры сохраняются.</p>
         <div id="configFields"></div>
+        </div>
+        <div id="configServerPanel"></div>
+        <div id="configWorldPanel" hidden></div>
+        <div id="configCustomPanel" hidden></div>
         <div id="configSources" hidden>
           <p class="hint">Скрытые пароли обозначены __PZ_SECRET_UNCHANGED__. Оставьте маркер, чтобы сохранить пароль. Запись выполняется после проверки.</p>
           <label class="field">INI<div class="source-editor"><pre id="iniHighlight" aria-hidden="true"></pre><textarea id="iniSource" aria-label="Исходник INI" spellcheck="false" wrap="off"></textarea></div></label>
@@ -410,8 +415,8 @@
         </header>
         <p class="upd-note" id="updNote">Сверяется digest локального образа с Docker Hub.</p>
         <dl class="meta">
-          <div><dt>Локальный</dt><dd class="mono" id="updLocal" data-copy>—</dd></div>
-          <div><dt>В Docker Hub</dt><dd class="mono" id="updRemote" data-copy>—</dd></div>
+          <div><dt>Локальный</dt><dd class="mono copy-field"><span id="updLocal">—</span><button type="button" class="copy-btn" id="updLocalCopy" aria-label="Скопировать локальный digest" disabled>Копировать</button></dd></div>
+          <div><dt>В Docker Hub</dt><dd class="mono copy-field"><span id="updRemote">—</span><button type="button" class="copy-btn" id="updRemoteCopy" aria-label="Скопировать digest из Docker Hub" disabled>Копировать</button></dd></div>
           <div><dt>Сборка latest</dt><dd id="updHubDate">—</dd></div>
           <div><dt>Проверено</dt><dd id="updChecked">никогда</dd></div>
         </dl>
@@ -523,7 +528,7 @@
         <header class="card-head">
           <h2 id="hBkSched">Бэкап по расписанию</h2>
           <label class="switch">
-            <input type="checkbox" id="bkAutoSwitch" role="switch" />
+            <input type="checkbox" id="bkAutoSwitch" role="switch" aria-labelledby="hBkSched" />
             <span class="switch-track" aria-hidden="true"></span>
           </label>
         </header>
