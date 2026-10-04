@@ -137,12 +137,15 @@ const modal = (() => {
   const root = $("modalRoot");
   let onOk = null;
   let returnFocus = null;
+  let submitting = false;
 
   function open({ title, bodyHTML, okLabel = "Подтвердить", danger = false, onConfirm }) {
+    if (submitting) return;
     returnFocus = document.activeElement;
     $("modalTitle").textContent = title;
     $("modalTitle").classList.toggle("danger", danger);
     $("modalBody").innerHTML = bodyHTML;
+    $("modalError").hidden = true;
     const okBtn = $("modalOk");
     okBtn.disabled = false;
     okBtn.textContent = okLabel;
@@ -153,10 +156,12 @@ const modal = (() => {
   }
 
   function close() {
+    if (submitting) return;
     root.hidden = true;
     $("modalBody").innerHTML = "";
     onOk = null;
     if (returnFocus?.isConnected && !returnFocus.disabled) returnFocus.focus({ preventScroll: true });
+    else document.querySelector(`#view-${activeView}`)?.focus({ preventScroll: true });
     returnFocus = null;
   }
 
@@ -174,15 +179,32 @@ const modal = (() => {
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   });
   $("modalOk").addEventListener("click", async () => {
+    if (submitting) return;
     if (!onOk) return close();
     const okBtn = $("modalOk");
     okBtn.disabled = true;
-    try { await onOk(); close(); }
-    catch (e) { toast(e.message || String(e), "error"); }
-    finally { okBtn.disabled = false; }
+    submitting = true;
+    $("modalError").hidden = true;
+    $("modalCancel").disabled = true;
+    try {
+      const accepted = await onOk();
+      submitting = false;
+      if (accepted !== false) close();
+    } catch (e) {
+      error(e);
+      toast(e.message || String(e), "error");
+    } finally {
+      submitting = false;
+      okBtn.disabled = !!$("restoreAck") && !$("restoreAck").checked;
+      $("modalCancel").disabled = false;
+    }
   });
 
-  return { open, close };
+  function error(e) {
+    $("modalError").textContent = `${e.message || e} Параметры сохранены — повторите действие.`;
+    $("modalError").hidden = false;
+  }
+  return { open, close, error };
 })();
 
 /* ───────────────────────── API / демо-режим ───────────────────────── */
@@ -197,6 +219,9 @@ const S = {
   lastOpActive: false,
   lastOpResult: null,
   dismissedOpResult: null,
+  actionPending: false,
+  settingsVersion: null,
+  serverSettings: null,
   logsLevel: "all",
   logsLines: [],
   logsUpdatedAt: 0,
@@ -348,19 +373,43 @@ async function api(path, opts = {}) {
     const data = await res.json().catch(() => ({}));
     if (!res.ok && !data.error) data.error = `HTTP ${res.status}`;
     return data;
+  } catch (error) {
+    if (error.name === "AbortError") throw new Error("Сервер не ответил вовремя. Проверьте состояние операции перед повтором.");
+    if (error instanceof TypeError) throw new Error("Нет соединения с пультом. Восстановите связь и повторите запрос.");
+    throw error;
   } finally {
     clearTimeout(timer);
   }
 }
 
 async function action(op, extra = {}) {
+  if (S.actionPending) return false;
+  S.actionPending = true;
+  updateButtons();
   try {
     const res = await api("/api/action", { method: "POST", body: { op, ...extra } });
-    if (res.error) throw new Error(res.error);
+    if (res.error || res.ok === false) throw new Error(res.error || "Запрос не принят");
     toast(`Операция «${OP_TITLES[op] || op}» запущена`, "ok");
+    $("operationResult").hidden = true;
+    await refreshOps();
+    return true;
   } catch (e) {
+    if (!$("modalRoot").hidden) modal.error(e);
+    else showActionError(op, e);
     toast(e.message || String(e), "error");
+    return false;
+  } finally {
+    S.actionPending = false;
+    updateButtons();
   }
+}
+
+function showActionError(op, error) {
+  const result = $("operationResult");
+  result.hidden = false;
+  result.dataset.state = "error";
+  $("operationResultTitle").textContent = `${OP_TITLES[op] || op} — запрос не принят`;
+  $("operationResultMessage").textContent = `${error.message || error} Проверьте соединение и события, затем повторите действие.`;
 }
 
 /* ───────────────────────── отрисовка: обзор ───────────────────────── */
@@ -373,6 +422,7 @@ function setPill(id, state, text) {
 }
 
 function renderOverview(o) {
+  if (o.settings) o = { ...o, settings: acceptSettings(o.settings) };
   S.overview = o;
   $("serverName").textContent = o.serverName || "Project Zomboid";
   setPill("pillDocker", o.docker ? "ok" : "bad", o.docker ? "Docker" : "Docker: вне хоста");
@@ -473,15 +523,15 @@ function renderOverview(o) {
 
   // автообновление
   const au = o.settings?.autoUpdate || {};
-  if (!$("autoSwitch").matches(":focus")) $("autoSwitch").checked = !!au.enabled;
-  if (!$("autoInterval").matches(":focus")) $("autoInterval").value = String(au.intervalHours ?? 6);
-  if (!$("autoWarn").matches(":focus")) $("autoWarn").value = String(au.warnSeconds ?? 300);
+  if (settingsCanRender("autoSwitch")) $("autoSwitch").checked = !!au.enabled;
+  if (settingsCanRender("autoInterval")) $("autoInterval").value = String(au.intervalHours ?? 6);
+  if (settingsCanRender("autoWarn")) $("autoWarn").value = String(au.warnSeconds ?? 300);
   $("backupNudge").hidden = remote || o.backupsCount !== 0;
-  if (!$("buBackup").matches(":focus")) $("buBackup").checked = au.backupBeforeUpdate !== false;
+  if (settingsCanRender("buBackup")) $("buBackup").checked = au.backupBeforeUpdate !== false;
   const wdCfg = o.settings?.watchdog || {};
-  if (!$("wdSwitch").matches(":focus")) $("wdSwitch").checked = !!wdCfg.enabled;
-  if (!$("wdThreshold").matches(":focus")) $("wdThreshold").value = String(wdCfg.thresholdMin ?? 5);
-  if (!$("wdRestart").matches(":focus")) $("wdRestart").checked = !!wdCfg.autoRestart;
+  if (settingsCanRender("wdSwitch")) $("wdSwitch").checked = !!wdCfg.enabled;
+  if (settingsCanRender("wdThreshold")) $("wdThreshold").value = String(wdCfg.thresholdMin ?? 5);
+  if (settingsCanRender("wdRestart")) $("wdRestart").checked = !!wdCfg.autoRestart;
   const wds = o.watchdog || {};
   if (wdCfg.enabled) {
     const fails = wds.consecutiveFailures || 0;
@@ -502,13 +552,13 @@ function renderOverview(o) {
   // уведомления Telegram
   const tg = o.settings?.telegram || {};
   const tgEnabled = !!tg.enabled;
-  if (!$("tgSwitch").matches(":focus")) $("tgSwitch").checked = tgEnabled;
-  if (!$("tgChat").matches(":focus")) $("tgChat").value = tg.chatId || "";
+  if (settingsCanRender("tgSwitch")) $("tgSwitch").checked = tgEnabled;
+  if (settingsCanRender("tgChat")) $("tgChat").value = tg.chatId || "";
   const groups = tg.groups || {};
-  if (!$("tgOps").matches(":focus")) $("tgOps").checked = groups.ops !== false;
-  if (!$("tgBackup").matches(":focus")) $("tgBackup").checked = groups.backup !== false;
-  if (!$("tgUpdate").matches(":focus")) $("tgUpdate").checked = groups.update !== false;
-  if (!$("tgProblems").matches(":focus")) $("tgProblems").checked = groups.problems !== false;
+  if (settingsCanRender("tgOps")) $("tgOps").checked = groups.ops !== false;
+  if (settingsCanRender("tgBackup")) $("tgBackup").checked = groups.backup !== false;
+  if (settingsCanRender("tgUpdate")) $("tgUpdate").checked = groups.update !== false;
+  if (settingsCanRender("tgProblems")) $("tgProblems").checked = groups.problems !== false;
   const masked = tg.botTokenMasked || "";
   $("tgNote").textContent = masked
     ? `Токен сохранён (${masked}) — наружу не отдаётся. Чтобы заменить, введите новый.`
@@ -557,10 +607,10 @@ function renderOverview(o) {
     </div>`).join("");
   $("btnApplyMods").hidden = mc.state !== "needs-update";
   const mu = o.settings?.modsUpdate || {};
-  if (!$("modsAutoSwitch").matches(":focus")) $("modsAutoSwitch").checked = !!mu.enabled;
-  if (!$("modsAutoInterval").matches(":focus")) $("modsAutoInterval").value = String(mu.intervalHours ?? 6);
-  if (!$("modsAutoAction").matches(":focus")) $("modsAutoAction").value = mu.restartOnUpdate === false ? "notify" : "restart";
-  if (!$("modsAutoWarn").matches(":focus")) $("modsAutoWarn").value = String(mu.warnSeconds ?? 600);
+  if (settingsCanRender("modsAutoSwitch")) $("modsAutoSwitch").checked = !!mu.enabled;
+  if (settingsCanRender("modsAutoInterval")) $("modsAutoInterval").value = String(mu.intervalHours ?? 6);
+  if (settingsCanRender("modsAutoAction")) $("modsAutoAction").value = mu.restartOnUpdate === false ? "notify" : "restart";
+  if (settingsCanRender("modsAutoWarn")) $("modsAutoWarn").value = String(mu.warnSeconds ?? 600);
   const nextM = o.settings?.nextModsCheck;
   $("modsAutoNext").hidden = !(mu.enabled && nextM);
   if (mu.enabled && nextM) $("modsAutoNext").textContent = `Следующая проверка: ${new Date(nextM * 1000).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`;
@@ -696,7 +746,7 @@ function renderSummaries() {
 
 function updateButtons() {
   const o = S.overview;
-  const busy = !!(S.op && S.op.active) || S.demo;
+  const busy = !!(S.op && S.op.active) || S.demo || S.actionPending;
   const remote = !!(o && o.mode === "remote");
   const rconOk = !!(o && o.rcon && o.rcon.state === "ok");
   const running = !remote && !!(o && o.containerInfo && o.containerInfo.running);
@@ -903,6 +953,8 @@ function confirmPlayerAction(kind, name) {
         refreshPlayers();
       } catch (e) {
         toast(e.message || String(e), "error");
+        modal.error(e);
+        return false;
       }
     },
   });
@@ -1355,15 +1407,16 @@ $("backupsBody").addEventListener("click", (event) => {
 });
 
 function renderBkSchedule(data) {
+  if (staleSettings(data.settingsVersion)) return;
   const ab = data.autoBackup || {};
   const sw = $("bkAutoSwitch");
-  if (sw && !sw.matches(":focus")) sw.checked = !!ab.enabled;
+  if (sw && settingsCanRender("bkAutoSwitch")) sw.checked = !!ab.enabled;
   const t = $("bkAutoTime");
-  if (t && !t.matches(":focus")) t.value = ab.time || "03:00";
+  if (t && settingsCanRender("bkAutoTime")) t.value = ab.time || "03:00";
   const keep = $("bkAutoKeep");
-  if (keep && !keep.matches(":focus")) keep.value = data.maxBackups ?? 7;
+  if (keep && settingsCanRender("bkAutoKeep")) keep.value = data.maxBackups ?? 7;
   const stop = $("bkAutoStop");
-  if (stop && !stop.matches(":focus")) stop.checked = !!ab.stopServer;
+  if (stop && settingsCanRender("bkAutoStop")) stop.checked = !!ab.stopServer;
   const next = $("bkAutoNext");
   if (!next) return;
   if (ab.enabled && ab.nextRun) {
@@ -1409,7 +1462,7 @@ function confirmRestore(name) {
     `,
     onConfirm: async () => {
       if (!$("restoreAck") || !$("restoreAck").checked) throw new Error("Подтвердите замену мира флажком");
-      await action("restore", { name });
+      return action("restore", { name });
     },
   });
   $("restoreAck")?.addEventListener("change", () => { $("modalOk").disabled = !$("restoreAck").checked; });
@@ -1440,7 +1493,7 @@ function openBackupModal() {
       <p>Без остановки пульт сначала отправит команду <span class="mono">save</span> через RCON.</p>
     `,
     onConfirm: async () => {
-      await action("backup", { stopServer: $("bkStop")?.checked || false });
+      return action("backup", { stopServer: $("bkStop")?.checked || false });
     },
   });
 }
@@ -1831,7 +1884,91 @@ $("btnModsRestart").addEventListener("click", () => {
 
 /* ───────────────────────── настройки автообновления ───────────────────────── */
 
-async function pushSettings() {
+const SETTING_GROUPS = {
+  autoUpdate: { ids: ["autoSwitch", "autoInterval", "autoWarn", "buBackup"], card: "sec-updates", title: "Автообновление образа" },
+  watchdog: { ids: ["wdSwitch", "wdThreshold", "wdRestart"], card: "sec-watchdog", title: "Watchdog RCON" },
+  modsUpdate: { ids: ["modsAutoSwitch", "modsAutoInterval", "modsAutoAction", "modsAutoWarn"], card: "sec-modscheck", title: "Автообновление модов" },
+  telegram: { ids: ["tgSwitch", "tgToken", "tgChat", "tgOps", "tgBackup", "tgUpdate", "tgProblems"], card: "sec-telegram", title: "Telegram" },
+  autoBackup: { ids: ["bkAutoSwitch", "bkAutoTime", "bkAutoKeep", "bkAutoStop"], card: "sec-bkauto", title: "Расписание бэкапов" },
+};
+const settingStates = new Map();
+let settingsQueue = Promise.resolve();
+
+function settingGroup(id) {
+  return Object.keys(SETTING_GROUPS).find((key) => SETTING_GROUPS[key].ids.includes(id));
+}
+
+function settingState(group) {
+  if (!settingStates.has(group)) settingStates.set(group, { generation: 0, pending: 0, dirty: false });
+  return settingStates.get(group);
+}
+
+function settingsCanRender(id) {
+  const state = settingState(settingGroup(id));
+  return !state.pending && !state.dirty && !$(id).matches(":focus");
+}
+
+function staleSettings(version) {
+  return !!(version && S.settingsVersion && version.epoch === S.settingsVersion.epoch && version.revision < S.settingsVersion.revision);
+}
+
+function acceptSettings(settings) {
+  if (staleSettings(settings.version) || (!settings.version && S.settingsVersion)) return S.serverSettings || settings;
+  if (settings.version) S.settingsVersion = settings.version;
+  S.serverSettings = settings;
+  return settings;
+}
+
+function settingsFeedback(group, state, message) {
+  const definition = SETTING_GROUPS[group];
+  const card = $(definition.card) || $(definition.ids[0]).closest("section");
+  let feedback = card.querySelector(".settings-feedback");
+  if (!feedback) {
+    feedback = document.createElement("div");
+    feedback.className = "settings-feedback";
+    feedback.innerHTML = '<p role="status"></p><button type="button" class="btn small" hidden>Повторить сохранение</button>';
+    feedback.querySelector("button").addEventListener("click", () => group === "autoBackup" ? pushBkSettings() : pushSettings(group));
+    card.appendChild(feedback);
+  }
+  feedback.dataset.state = state;
+  feedback.querySelector("p").textContent = message;
+  feedback.querySelector("button").hidden = state !== "error";
+}
+
+function saveSettingsGroup(group, body) {
+  const state = settingState(group);
+  const generation = ++state.generation;
+  state.pending++;
+  state.dirty = true;
+  settingsFeedback(group, "pending", `${SETTING_GROUPS[group].title}: сохраняется…`);
+  const run = async () => {
+    try {
+      const res = await api("/api/settings", { method: "POST", body });
+      if (res.error || res.ok === false) throw new Error(res.error || "Сохранение не принято");
+      // Only the latest local edit can release the fields or clear the secret.
+      if (generation === state.generation) {
+        if (group === "telegram" && $("tgToken").value.trim() === body.telegram.botToken) $("tgToken").value = "";
+        state.dirty = false;
+        if (res.settings) acceptSettings(res.settings);
+        settingsFeedback(group, "ok", `${SETTING_GROUPS[group].title}: сохранено`);
+      }
+      return true;
+    } catch (e) {
+      if (generation === state.generation) {
+        settingsFeedback(group, "error", `${SETTING_GROUPS[group].title}: ${e.name === "AbortError" ? "время ожидания истекло" : e.message || e}. Ввод сохранён — повторите сохранение.`);
+      }
+      return false;
+    } finally {
+      state.pending--;
+    }
+  };
+  const result = settingsQueue.then(run);
+  settingsQueue = result.then(() => undefined);
+  return result;
+}
+
+function pushSettings(eventOrGroup) {
+  const group = typeof eventOrGroup === "string" ? eventOrGroup : settingGroup(eventOrGroup?.target?.id) || "telegram";
   const body = {
     autoUpdate: {
       enabled: $("autoSwitch").checked,
@@ -1862,20 +1999,24 @@ async function pushSettings() {
       },
     },
   };
-  try {
-    const res = await api("/api/settings", { method: "POST", body });
-    if (res.error) throw new Error(res.error);
-    toast("Настройки автообновления сохранены", "ok");
-    refreshOverview();
-  } catch (e) {
-    toast(e.message || String(e), "error");
-  }
+  return saveSettingsGroup(group, { [group]: body[group] }).then((accepted) => {
+    if (accepted && !settingState(group).pending) refreshOverview();
+    return accepted;
+  });
 }
+
+Object.values(SETTING_GROUPS).forEach(({ ids }) => ids.forEach((id) => {
+  $(id).addEventListener("input", () => {
+    const state = settingState(settingGroup(id));
+    state.dirty = true;
+    state.generation++;
+  });
+}));
 
 $("autoSwitch").addEventListener("change", pushSettings);
 
 /* расписание бэкапов: отдельная карточка на странице «Бэкапы» */
-async function pushBkSettings() {
+function pushBkSettings() {
   const body = {
     autoBackup: {
       enabled: $("bkAutoSwitch").checked,
@@ -1884,14 +2025,10 @@ async function pushBkSettings() {
     },
     backup: { maxBackups: Number($("bkAutoKeep").value) },
   };
-  try {
-    const res = await api("/api/settings", { method: "POST", body });
-    if (res.error) throw new Error(res.error);
-    toast("Расписание бэкапов сохранено", "ok");
-    refreshBackups();
-  } catch (e) {
-    toast(e.message || String(e), "error");
-  }
+  return saveSettingsGroup("autoBackup", body).then((accepted) => {
+    if (accepted && !settingState("autoBackup").pending) refreshBackups();
+    return accepted;
+  });
 }
 
 $("bkAutoSwitch").addEventListener("change", pushBkSettings);
@@ -1910,9 +2047,7 @@ $("modsAutoAction").addEventListener("change", pushSettings);
 $("modsAutoWarn").addEventListener("change", pushSettings);
 $("tgSwitch").addEventListener("change", pushSettings);
 $("tgChat").addEventListener("change", pushSettings);
-$("tgToken").addEventListener("change", () => {
-  pushSettings().then(() => { $("tgToken").value = ""; });
-});
+$("tgToken").addEventListener("change", pushSettings);
 ["tgOps", "tgBackup", "tgUpdate", "tgProblems"].forEach((id) => $(id).addEventListener("change", pushSettings));
 /* «Найти чаты бота»: getUpdates показывает, где бот реально состоит,
    и подставляет настоящий chat id вместо копипасты с ошибками */
@@ -1921,7 +2056,7 @@ $("btnTgChats").addEventListener("click", async () => {
   const body = $("tgChatsBody");
   try {
     btn.disabled = true;
-    await pushSettings();          // токен мог быть введён только что
+    if (!await pushSettings()) return; // токен мог быть введён только что
     const res = await api("/api/telegram-chats");
     if (res.error) throw new Error(res.error);
     const chats = res.chats || [];
@@ -1938,7 +2073,6 @@ $("btnTgChats").addEventListener("click", async () => {
       chip.addEventListener("click", () => {
         $("tgChat").value = chip.dataset.id;
         pushSettings();
-        toast(`Chat id ${chip.dataset.id} подставлен и сохранён`, "ok");
       });
     });
   } catch (e) {
@@ -1954,7 +2088,7 @@ $("btnTgTest").addEventListener("click", async () => {
   try {
     // если токен/chat ввели и сразу нажали «Проверить» — сначала дожимаем сохранение,
     // иначе проверка уйдёт со старыми настройками и скажет «не задан токен»
-    await pushSettings();
+    if (!await pushSettings()) return;
     const res = await api("/api/notify-test", { method: "POST", body: {} });
     if (res.error) throw new Error(res.error);
     toast("Отправлено — проверьте чат Telegram", "ok");

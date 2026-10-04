@@ -50,6 +50,7 @@ def backups_payload():
         "ok": True,
         "items": ops.list_backups(),
         "maxBackups": s["backup"]["maxBackups"],
+        "settingsVersion": s.get("version"),
         "autoBackup": ops.auto_backup_state(),
         "journal": ops.get_backup_journal(30),
     }

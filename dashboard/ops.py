@@ -14,6 +14,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+import uuid
 from collections import Counter, deque
 from datetime import datetime, timedelta, timezone
 from itertools import islice
@@ -161,6 +162,7 @@ _DEFAULTS = {
 
 # рабочая копия настроек: мутируется в рантайме, _DEFAULTS остаётся эталоном
 _SETTINGS = json.loads(json.dumps(_DEFAULTS))
+_SETTINGS_VERSION = {"epoch": uuid.uuid4().hex, "revision": 0}
 
 
 def _clamp_int(value, lo, hi):
@@ -273,6 +275,7 @@ def _save_settings():
 def get_settings():
     with _SET_LOCK:
         data = json.loads(json.dumps(_SETTINGS))
+        data["version"] = dict(_SETTINGS_VERSION)
     # полный токен бота не покидает сервер — наружу только маска
     tg = data.get("telegram")
     if tg and tg.get("botToken"):
@@ -417,6 +420,7 @@ def patch_settings(patch):
                 return "chatId должен быть строкой"
             updated["telegram"].update(tg)
         _SETTINGS.update(updated)
+        _SETTINGS_VERSION["revision"] += 1
         _save_settings()
         return None
 

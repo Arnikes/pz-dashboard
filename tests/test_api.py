@@ -401,3 +401,15 @@ def test_settings_patch_is_atomic(monkeypatch):
     assert ops._SETTINGS["autoUpdate"]["enabled"] != before["autoUpdate"]["enabled"]
     assert ops._SETTINGS["autoUpdate"]["intervalHours"] == 12
     save.assert_called_once()
+
+
+def test_settings_version_advances_only_for_accepted_patch(monkeypatch):
+    monkeypatch.setattr(ops, "_SETTINGS", json.loads(json.dumps(ops._DEFAULTS)))
+    monkeypatch.setattr(ops, "_SETTINGS_VERSION", {"epoch": "test-server", "revision": 2})
+    monkeypatch.setattr(ops, "_save_settings", Mock())
+    before = ops.get_settings()["version"]
+    assert ops.patch_settings({"telegram": {"enabled": "invalid"}})
+    assert ops.get_settings()["version"] == before
+    assert ops.patch_settings({"telegram": {"chatId": "123"}}) is None
+    assert before == {"epoch": "test-server", "revision": 2}
+    assert ops.get_settings()["version"] == {"epoch": "test-server", "revision": 3}
