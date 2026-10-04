@@ -260,6 +260,7 @@ const S = {
   lastOpActive: false,
   lastOpResult: null,
   dismissedOpResult: null,
+  localOpResult: null,
   actionPending: false,
   settingsVersion: null,
   serverSettings: null,
@@ -431,6 +432,7 @@ async function action(op, extra = {}) {
     const res = await api("/api/action", { method: "POST", body: { op, ...extra } });
     if (res.error || res.ok === false) throw new Error(res.error || "Запрос не принят");
     toast(`Операция «${OP_TITLES[op] || op}» запущена`, "ok");
+    S.localOpResult = null;
     $("operationResult").hidden = true;
     await refreshOps();
     return true;
@@ -446,11 +448,16 @@ async function action(op, extra = {}) {
 }
 
 function showActionError(op, error) {
+  showLocalResult("error", `${OP_TITLES[op] || op} — запрос не принят`, `${error.message || error} Проверьте соединение и события, затем повторите действие.`);
+}
+
+function showLocalResult(state, title, message) {
+  S.localOpResult = { historyKey: S.lastOpResult, state, title, message };
   const result = $("operationResult");
   result.hidden = false;
-  result.dataset.state = "error";
-  $("operationResultTitle").textContent = `${OP_TITLES[op] || op} — запрос не принят`;
-  $("operationResultMessage").textContent = `${error.message || error} Проверьте соединение и события, затем повторите действие.`;
+  result.dataset.state = state;
+  $("operationResultTitle").textContent = title;
+  $("operationResultMessage").textContent = message;
 }
 
 /* ───────────────────────── отрисовка: обзор ───────────────────────── */
@@ -867,6 +874,7 @@ function updateButtons() {
 function renderOp(op) {
   const active = op && op.active;
   if (active) {
+    S.localOpResult = null;
     $("opbar").hidden = false;
     $("opPhase").textContent = `${OP_TITLES[active.op] || active.op}: ${active.phase}`;
     $("opMsg").textContent = active.message || "";
@@ -878,16 +886,19 @@ function renderOp(op) {
     const h = op.history[0];
     const key = JSON.stringify([h.op, h.finishedAt, h.ok, h.cancelled, h.message]);
     if (key !== S.lastOpResult) {
+      if (S.localOpResult && key !== S.localOpResult.historyKey) S.localOpResult = null;
       S.lastOpResult = key;
       if (S.lastOpActive) {
         toast(h.cancelled ? h.message : h.ok ? `Готово: ${h.message || h.op}` : `Не удалось: ${h.message || h.op}`, h.ok ? "ok" : "error", 8000);
         refreshAll();
       }
     }
-    $("operationResult").hidden = key === S.dismissedOpResult;
-    $("operationResult").dataset.state = h.cancelled ? "cancelled" : h.ok ? "ok" : "error";
-    $("operationResultTitle").textContent = `${OP_TITLES[h.op] || h.op} — ${h.cancelled ? "отменено" : h.ok ? "готово" : "не удалось"}`;
-    $("operationResultMessage").textContent = h.message || (h.ok ? "Операция завершена. Подробности в событиях." : "Откройте логи, устраните причину и повторите действие.");
+    if (!S.localOpResult) {
+      $("operationResult").hidden = key === S.dismissedOpResult;
+      $("operationResult").dataset.state = h.cancelled ? "cancelled" : h.ok ? "ok" : "error";
+      $("operationResultTitle").textContent = `${OP_TITLES[h.op] || h.op} — ${h.cancelled ? "отменено" : h.ok ? "готово" : "не удалось"}`;
+      $("operationResultMessage").textContent = h.message || (h.ok ? "Операция завершена. Подробности в событиях." : "Откройте логи, устраните причину и повторите действие.");
+    }
   }
   S.lastOpActive = !!(active);
   S.op = op;
@@ -902,6 +913,7 @@ function updateOperationElapsed() {
 }
 
 $("operationResultDismiss").addEventListener("click", () => {
+  S.localOpResult = null;
   S.dismissedOpResult = S.lastOpResult;
   $("operationResult").hidden = true;
   document.querySelector(`#view-${activeView}`)?.focus({ preventScroll: true });
@@ -1006,9 +1018,9 @@ function confirmPlayerAction(kind, name) {
       </label>
     `,
     onConfirm: async () => {
+      if (/["\r\n\x00-\x1f]/.test(name)) throw new Error("Пульт не может безопасно передать это имя игрока через RCON. Действие не отправлено; имя не подменяется.");
       const reason = ($("paReason")?.value || "").replace(/"/g, "'").trim();
-      const safeName = name.replace(/"/g, "'");
-      const cmd = `${cmdBase} "${safeName}"${reason ? ` "${reason}"` : ""}`;
+      const cmd = `${cmdBase} "${name}"${reason ? ` "${reason}"` : ""}`;
       try {
         const res = await api("/api/rcon", { method: "POST", body: { command: cmd } });
         if (res.error) throw new Error(res.error);
@@ -1877,20 +1889,24 @@ $("btnSaveWorld").addEventListener("click", async () => {
   $("consoleForm").requestSubmit();
 });
 $("btnCheckUpd").addEventListener("click", async () => {
-  const btn = $("btnCheckUpd");
-  btn.disabled = true;
+  if (S.actionPending || S.op?.active) return;
+  S.actionPending = true; updateButtons();
+  showLocalResult("pending", "Проверка обновлений — выполняется", "Сверяем образ. Дождитесь ответа; отмена этой проверки не поддерживается.");
   try {
     const res = await api("/api/action", { method: "POST", body: { op: "check-update" }, timeout: 25000 });
-    if (res.error) throw new Error(res.error);
+    if (res.error || res.ok === false) throw new Error(res.error || "Проверка не принята");
     const c = res.check || {};
+    if (c.error) throw new Error(c.error);
+    showLocalResult("ok", "Проверка обновлений — готово", c.available ? "Доступно обновление образа. Откройте обслуживание, чтобы проверить версию и применить обновление." : "Обновлений нет — образ актуален.");
     if (c.available) toast("Доступно обновление образа", "ok");
     else if (c.error) toast(c.error, "error");
     else toast("Обновлений нет — образ актуален", "ok");
     refreshOverview();
   } catch (e) {
+    showActionError("check-update", e);
     toast(e.message || String(e), "error");
   } finally {
-    btn.disabled = false;
+    S.actionPending = false; updateButtons();
   }
 });
 $("btnApplyUpd").addEventListener("click", () => {
@@ -1909,16 +1925,19 @@ $("btnApplyUpd").addEventListener("click", () => {
 /* ─────────────────────── проверка модов (RCON) ─────────────────────── */
 
 $("btnCheckMods").addEventListener("click", async () => {
-  const btn = $("btnCheckMods");
-  btn.disabled = true;
+  if (S.actionPending || S.op?.active) return;
+  S.actionPending = true; updateButtons();
+  showLocalResult("pending", "Проверка модов — выполняется", "Ожидаем ответ RCON; отмена этой проверки не поддерживается.");
   try {
     const res = await api("/api/action", { method: "POST", body: { op: "check-mods-update" } });
-    if (res.error) throw new Error(res.error);
+    if (res.error || res.ok === false) throw new Error(res.error || "Проверка не принята");
+    showLocalResult("ok", "Проверка модов — запрос принят", "Результат сервера появится в разделе «Моды». Принимаемый запрос ещё не подтверждает актуальность пакетов.");
     toast("Проверка модов запущена — результат появится в карточке", "ok");
   } catch (e) {
+    showActionError("check-mods-update", e);
     toast(e.message || String(e), "error");
   } finally {
-    btn.disabled = false;
+    S.actionPending = false; updateButtons();
   }
 });
 $("btnApplyMods").addEventListener("click", () => {

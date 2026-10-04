@@ -930,7 +930,6 @@ select { cursor: pointer; }
   height: 100%;
   border-radius: 999px;
   background: var(--ok);
-  transition: width 400ms var(--ease);
 }
 
 .bar i.hot { background: var(--blood); }

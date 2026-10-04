@@ -6,6 +6,66 @@ from playwright.sync_api import expect
 pytestmark = pytest.mark.browser
 
 
+def test_rejected_request_survives_unchanged_operation_history(page, dashboard):
+    page.goto(dashboard["url"])
+    expect(page.locator("#btnStart")).to_be_disabled()
+    history = {
+        "op": "backup",
+        "ok": True,
+        "finishedAt": "2026-10-04T12:00:00Z",
+        "message": "Old backup",
+    }
+    page.evaluate("h=>renderOp({active:null,history:[h]})", history)
+    page.evaluate("showActionError('start',new Error('Связь потеряна'))")
+    for _ in range(3):
+        page.evaluate("h=>renderOp({active:null,history:[h]})", history)
+    expect(page.locator("#operationResult")).to_contain_text("Связь потеряна")
+    page.locator("#operationResultDismiss").click()
+    page.evaluate("h=>renderOp({active:null,history:[h]})", history)
+    expect(page.locator("#operationResult")).to_be_hidden()
+    history["finishedAt"] = "2026-10-04T13:00:00Z"
+    page.evaluate("h=>renderOp({active:null,history:[h]})", history)
+    expect(page.locator("#operationResult")).to_contain_text("Old backup")
+
+
+def test_update_check_has_persistent_result_and_serializes_requests(page, dashboard):
+    held = []
+    page.route("**/api/action", lambda route: held.append(route))
+    page.goto(dashboard["url"] + "/#/maintenance")
+    expect(page.locator("#btnCheckUpd")).to_be_enabled()
+    page.locator("#btnCheckUpd").click()
+    expect(page.locator("#operationResult")).to_contain_text("выполняется")
+    expect(page.locator("#btnCheckUpd")).to_be_disabled()
+    page.evaluate("document.getElementById('btnCheckUpd').click()")
+    assert len(held) == 1
+    held[0].fulfill(json={"ok": True, "check": {"available": False}})
+    expect(page.locator("#operationResult")).to_contain_text("образ актуален")
+    page.evaluate("renderOp({active:null,history:[]});location.hash='#/settings'")
+    expect(page.locator("#operationResult")).to_contain_text("образ актуален")
+
+
+@pytest.mark.parametrize("name", ['Дмитрий "Север"', "Alice\nBob", "Игрок 'Север'"])
+def test_player_command_preserves_exact_target_or_refuses_unsafe_encoding(page, dashboard, name):
+    sent = []
+    page.route(
+        "**/api/rcon",
+        lambda route: (
+            sent.append(route.request.post_data_json),
+            route.fulfill(json={"ok": True, "output": "done"}),
+        ),
+    )
+    page.goto(dashboard["url"] + "/#/players")
+    expect(page.locator("#btnStop")).to_be_enabled()
+    page.evaluate("name=>confirmPlayerAction('kick',name)", name)
+    page.locator("#modalOk").click()
+    if '"' in name or "\n" in name:
+        expect(page.locator("#modalError")).to_contain_text("имя не подменяется")
+        assert sent == []
+    else:
+        expect(page.get_by_role("alertdialog")).to_be_hidden()
+        assert sent == [{"command": f'kickuser "{name}"'}]
+
+
 def test_navigation_keeps_one_stream_and_hidden_polling_does_not_overlap(page, dashboard):
     page.goto(dashboard["url"])
     expect(page.locator("#btnStop")).to_be_enabled()
