@@ -142,6 +142,17 @@
 .help-page a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 .help-page code { font-family: var(--font-mono); overflow-wrap: anywhere; }
 .help-page section { scroll-margin-top: 24px; }
+.page-heading { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+.page-heading h1 { margin: 0; font: 600 26px/1.25 var(--font-body); letter-spacing: -.02em; overflow-wrap: anywhere; }
+.page-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.server-details { margin-top: 16px; }
+.server-details summary { cursor: pointer; padding: 10px 0; min-height: 44px; color: var(--muted); }
+#view-overview .c-status { grid-column: 1 / -1; }
+#kpiBackup { font-size: 18px; overflow-wrap: anywhere; }
+.attention ul { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.attention li { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+.attention li span { flex: 1 1 300px; }
+.attention li a { min-height: 44px; display: inline-flex; align-items: center; }
 .command-item:disabled { opacity: .7; cursor: default; }
 #btnCommands kbd { margin-left: 6px; font: inherit; opacity: .75; }
 #btnCommands svg { display: none; width: 18px; height: 18px; }
@@ -1544,7 +1555,7 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--draft-heigh
   #btnCommands .command-label, #btnCommands kbd { display:none; }
   #btnCommands svg { display:block; }
   .nav { display:grid; grid-template-columns:repeat(4,1fr); padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px)); gap:4px; }
-  .nav a:not([data-route=overview]):not([data-route=players]):not([data-route=mods]) { display:none; }
+  .nav a:not([data-route=overview]):not([data-route=settings]):not([data-route=mods]) { display:none; }
   .nav-more { display:block; min-height:48px; padding:8px; border:1px solid var(--line-strong); border-radius:8px; background:var(--surface); color:var(--ink); font:inherit; }
   .nav-more[aria-current=page] { background:var(--surface-2); border-color:var(--muted); }
   .draft-bar { bottom:calc(var(--nav-height) + 10px); left:var(--page-gutter); right:var(--page-gutter); width:auto; gap:6px; padding:10px; }

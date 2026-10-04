@@ -114,16 +114,38 @@ window.ConfigEditor = (() => {
   }
   function attention() {
     const messages = [];
-    if (draft?.changed) messages.push("Есть неприменённый черновик конфигурации");
-    if (draft?.status === "saved") messages.push("Настройки сохранены и ожидают запуска сервера");
-    if (draft?.state?.installation) messages.push("Установка Workshop не завершена: загрузите пакеты и выберите ModID");
-    if (draft?.state?.error) messages.push(draft.state.error);
+    const add = (key, text, route, label) => messages.push({ key, text, route, label });
+    if (draft?.changed) add("draft", "Есть неприменённый черновик конфигурации", "settings", "Открыть черновик");
+    if (draft?.status === "saved") add("saved", "Настройки записаны и ожидают запуска сервера", "overview", "Перейти к запуску");
+    if (draft?.state?.installation) add("installation", "Установка Workshop не завершена: загрузите пакеты и выберите ModID", "mods", "Открыть состав модов");
+    if (draft?.state?.error) add("operation-error", draft.state.error, "console", "Посмотреть логи");
+    if (draft?.conflict) add("conflict", "Файлы изменились извне. Проверьте различия перед применением", "settings", "Разрешить конфликт");
+    if (draft?.dataDiagnostic) add("diagnostic", draft.dataDiagnostic, "settings", "Проверить профиль");
     const backups = S.backupsItems || [];
-    if (!backups.length && S.overview?.backupsCount === 0) messages.push("Нет резервной копии мира");
-    if (backups.length && Math.max(...backups.map(b => Date.parse(b.mtime) || 0)) < Date.now() - 48 * 3600000) messages.push("Последнему бэкапу больше двух суток");
-    setDomProperty($("editorAttention"), "hidden", activeView !== "overview" || !messages.length);
-    setStaticMarkup($("editorAttention"), `<strong>Требуют внимания</strong>${messages.map(m => `<p>${esc(m)}</p>`).join("")}<a href="#/settings">Открыть настройки</a> · <a href="#/mods">Открыть моды</a>`);
+    if (!backups.length && S.overview?.backupsCount === 0 && S.overview?.mode !== "remote") add("backup-missing", "Нет резервной копии мира", "backups", "Создать бэкап");
+    const dates = backups.map(b => Date.parse(b.mtime)).filter(Number.isFinite);
+    if (backups.length && !dates.length) add("backup-date", "Дата последнего бэкапа неизвестна", "backups", "Проверить архивы");
+    else if (dates.length && Math.max(...dates) < Date.now() - 48 * 3600000) add("backup-old", "Последнему бэкапу больше двух суток", "backups", "Проверить архивы");
+    if (S.overview?.update?.error) add("image", S.overview.update.error, "maintenance", "Проверить обновление образа");
+    if (S.overview?.modsCheck?.error) add("mods-check", S.overview.modsCheck.error, "mods", "Проверить моды");
+    const box = $("editorAttention"), focus = document.activeElement;
+    const focusedKey = box.contains(focus) ? focus.dataset.attentionKey : null;
+    setDomProperty(box, "hidden", activeView !== "overview" || !messages.length);
+    setStaticMarkup(box, `<strong>Требуют внимания</strong><ul>${messages.map(m => `<li><span>${esc(m.text)}</span><a href="#/${m.route}" data-attention-key="${m.key}">${esc(m.label)}</a></li>`).join("")}</ul>`);
+    if (focusedKey && !box.contains(document.activeElement)) {
+      const replacement = [...box.querySelectorAll("[data-attention-key]")].find(el => el.dataset.attentionKey === focusedKey);
+      if (replacement && !box.hidden) replacement.focus({ preventScroll: true });
+      else $("view-" + activeView)?.focus({ preventScroll: true });
+    }
   }
+  $("editorAttention").addEventListener("click", event => {
+    if (event.target.closest('[data-attention-key="saved"]')) {
+      event.preventDefault();
+      const target = $("btnStart").disabled ? $("sec-status") : $("btnStart");
+      if (target.id === "sec-status") target.tabIndex = -1;
+      target.focus(); target.scrollIntoView({ block: "nearest" });
+    }
+  });
   async function loadProfile(next) {
     loading = true;
     updateBar();

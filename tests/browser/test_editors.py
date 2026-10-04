@@ -50,11 +50,33 @@ def editing(page, dashboard, env):  # noqa: F811 (imported pytest fixture)
 
 
 def navigate(page, route, mobile=False):
-    if mobile and route not in ("overview", "players", "mods"):
+    if mobile and route not in ("overview", "settings", "mods"):
         page.locator("#navMore").click()
         page.locator(f'#moreMenu a[href="#/{route}"]').click()
     else:
         page.locator(f'.nav [data-route="{route}"]').click()
+
+
+def test_attention_routes_each_problem_and_preserves_focused_action(page, dashboard, editing):
+    page.goto(dashboard["url"] + "/#/settings")
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    page.locator('[data-key="PublicName"]').fill("Attention draft")
+    page.locator('[data-key="PublicName"]').press("Tab")
+    expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
+    navigate(page, "overview")
+    draft = page.locator('[data-attention-key="draft"]')
+    backup = page.locator('[data-attention-key="backup-missing"]')
+    expect(draft).to_have_attribute("href", "#/settings")
+    expect(backup).to_have_attribute("href", "#/backups")
+    backup.focus()
+    page.evaluate(
+        "renderOverview({...S.overview,update:{error:'Проверка образа недоступна'}});ConfigEditor.operationChanged()"
+    )
+    expect(backup).to_be_focused()
+    expect(page.locator('[data-attention-key="image"]')).to_have_attribute("href", "#/maintenance")
+    backup.click()
+    expect(page.locator("#view-backups")).to_be_visible()
+    assert dashboard["actions"] == []
 
 
 def test_commands_find_settings_and_mods_without_losing_draft(page, dashboard, editing):
@@ -492,10 +514,10 @@ def test_more_menu_escape_restores_focus_and_marks_extra_page(page, dashboard, e
     page.set_viewport_size({"width": 390, "height": 844})
     page.goto(dashboard["url"])
     expect(page.locator("#configProfile")).to_have_value("world.ini")
-    navigate(page, "settings", True)
+    navigate(page, "players", True)
     expect(page.locator("#navMore")).to_have_attribute("aria-current", "page")
     page.locator("#navMore").click()
-    page.locator('#moreMenu a[href="#/settings"]').focus()
+    page.locator('#moreMenu a[href="#/players"]').focus()
     page.keyboard.press("Escape")
     expect(page.locator("#moreMenu")).to_be_hidden()
     expect(page.locator("#navMore")).to_be_focused()

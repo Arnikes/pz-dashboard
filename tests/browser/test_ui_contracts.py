@@ -419,6 +419,7 @@ def test_explicit_copy_button_works_from_keyboard_with_full_digest(page, dashboa
     expect(page.locator("#btnStop")).to_be_enabled()
     value = "sha256:" + "0123456789abcdef" * 4
     page.evaluate("value => renderOverview({...S.overview,update:{local:value}})", value)
+    page.locator("#serverDetails summary").click()
     button = page.get_by_role("button", name="Скопировать локальный digest").first
     button.focus()
     button.press(key)

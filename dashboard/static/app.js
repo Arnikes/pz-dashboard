@@ -33,6 +33,7 @@ const timeFmt = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-d
 const dateFmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 const timeFullFmt = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 const dayFmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit" });
+const relativeDayFmt = new Intl.RelativeTimeFormat("ru", { numeric: "auto" });
 
 function fmtTime(iso) {
   if (!iso) return "—";
@@ -758,15 +759,18 @@ function renderKpis() {
   }
 
   const last = S.backupsItems && S.backupsItems[0];
+  $("kpiBackup").title = "";
   if (remote) {
     $("kpiBackup").textContent = "—";
     $("kpiBackupSub").textContent = "на хосте";
-  } else if (!last || !last.mtime) {
-    $("kpiBackup").textContent = "0";
+  } else if (!last) {
+    $("kpiBackup").textContent = "Нет копий";
     $("kpiBackupSub").textContent = "архивов ещё нет";
   } else {
-    $("kpiBackup").textContent = last.sizeText || fmtBytes(last.size);
-    $("kpiBackupSub").textContent = relTime(last.mtime);
+    const timestamp = Date.parse(last.mtime), days = Math.floor((Date.now() - timestamp) / 86400000);
+    $("kpiBackup").textContent = !Number.isFinite(timestamp) ? "Дата неизвестна" : timestamp > Date.now() ? "Дата в будущем" : days >= 2 ? relativeDayFmt.format(-days, "day") : relTime(last.mtime);
+    $("kpiBackup").title = fmtTime(last.mtime);
+    $("kpiBackupSub").textContent = last.sizeText || fmtBytes(last.size);
   }
 }
 
@@ -2318,6 +2322,19 @@ const VIEWS = {
   console: "Консоль",
 };
 
+for (const [route, label] of Object.entries(VIEWS)) {
+  const view = $("view-" + route), heading = document.createElement("header");
+  heading.className = "page-heading";
+  heading.innerHTML = `<h1 id="page-${route}">${esc(label)}</h1>` + (route === "overview" ? '<div class="page-actions"><a class="btn" href="#/settings">Редактировать настройки</a><a class="btn" href="#/mods">Изменить состав модов</a></div>' : "");
+  view.prepend(heading);
+  view.setAttribute("aria-labelledby", "page-" + route);
+}
+// Primary editing routes share the same DOM, visual and keyboard order.
+const primaryNav = document.querySelector(".nav");
+for (const route of ["overview", "settings", "mods", "players", "maintenance", "backups", "events", "console"]) {
+  primaryNav.insertBefore(primaryNav.querySelector(`[data-route="${route}"]`), $("navMore"));
+}
+
 let activeView = null;
 let consoleBootLine = null;
 
@@ -2335,7 +2352,7 @@ function applyRoute() {
     if (a.dataset.route === r) a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
   });
-  if (!["overview", "players", "mods"].includes(r)) $("navMore").setAttribute("aria-current", "page");
+  if (!["overview", "settings", "mods"].includes(r)) $("navMore").setAttribute("aria-current", "page");
   else $("navMore").removeAttribute("aria-current");
   document.title = `${VIEWS[r]} · PZ Пульт`;
   window.scrollTo(0, 0);

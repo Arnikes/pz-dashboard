@@ -119,6 +119,7 @@ def test_copy_field_writes_full_text_to_clipboard(page, dashboard, mode):
     }""",
         value,
     )
+    page.locator("#serverDetails summary").click()
     page.locator("#mImage").click()
     expect(page.locator('#toasts .toast[data-kind="ok"]')).to_contain_text("Скопировано:")
     # Paste via the browser to check the actual clipboard, not a mocked API call.
@@ -164,17 +165,38 @@ def test_navigation_and_layout(page, dashboard, width, height):
         "overview",
     ]:
         link = page.locator(f'.nav [data-route="{route}"]')
-        if width <= 740 and route not in ("overview", "players", "mods"):
+        if width <= 740 and route not in ("overview", "settings", "mods"):
             page.locator("#navMore").click()
             page.locator(f'#moreMenu a[href="#/{route}"]').click()
         else:
             link.click()
         expect(link).to_have_attribute("aria-current", "page")
         expect(page.locator(f"#view-{route}")).to_be_visible()
+        expect(page.locator("h1:visible")).to_have_count(1)
+        expect(page.locator(f"#view-{route}")).to_have_attribute("aria-labelledby", f"page-{route}")
         expect(page.locator(".view:visible")).to_have_count(1)
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     page.go_back()
     expect(page.locator("#view-console")).to_be_visible()
+
+
+def test_overview_leads_with_actions_and_backup_freshness(page, dashboard):
+    page.goto(dashboard["url"])
+    expect(page.locator("#btnStop")).to_be_enabled()
+    expect(page.locator("#serverDetails")).not_to_have_attribute("open", "")
+    assert (
+        page.locator("#btnStop").bounding_box()["y"]
+        < page.locator("#serverDetails").bounding_box()["y"]
+    )
+    page.evaluate("""() => { S.backupsItems=[{name:'old.zip',size:1024,
+        mtime:new Date(Date.now()-72*3600000).toISOString()}]; renderOverview(S.overview); }""")
+    expect(page.locator("#kpiBackup")).to_contain_text("3 дня назад")
+    expect(page.locator("#kpiBackupSub")).to_contain_text("1")
+    page.evaluate("S.backupsItems=[{name:'unknown.zip',size:1024}];renderOverview(S.overview)")
+    expect(page.locator("#kpiBackup")).to_have_text("Дата неизвестна")
+    page.evaluate("S.backupsItems=[];renderOverview(S.overview)")
+    expect(page.locator("#kpiBackup")).to_have_text("Нет копий")
+    expect(page.locator("#kpiBackup")).to_have_attribute("title", "")
 
 
 def test_stop_requires_confirmation_and_shows_api_error(page, dashboard):
