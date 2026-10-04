@@ -283,6 +283,35 @@ const DEMO = {
   }),
 };
 
+function requireLogin() {
+  location.replace("/login?next=" + encodeURIComponent(location.hash));
+}
+
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted) {
+    fetch("/api/auth/session").then((response) => {
+      if (response.status === 401) requireLogin();
+    }).catch(() => {});
+  }
+});
+
+$("btnLogout").addEventListener("click", async () => {
+  const button = $("btnLogout");
+  button.disabled = true;
+  try {
+    const response = await fetch("/api/auth/logout", {
+      method: "POST",
+      headers: { "X-PZ-Request": "1" },
+      signal: AbortSignal.timeout(9000),
+    });
+    if (!response.ok && response.status !== 401) throw new Error("Не удалось выйти");
+    requireLogin();
+  } catch (error) {
+    toast(error.message || "Не удалось выйти", "error");
+    button.disabled = false;
+  }
+});
+
 async function api(path, opts = {}) {
   if (S.demo) {
     if (opts.method && opts.method !== "GET") {
@@ -306,10 +335,14 @@ async function api(path, opts = {}) {
   try {
     const res = await fetch(path, {
       method: opts.method || "GET",
-      headers: opts.body ? { "Content-Type": "application/json" } : undefined,
+      headers: { "X-PZ-Request": "1", ...(opts.body ? { "Content-Type": "application/json" } : {}) },
       body: opts.body ? JSON.stringify(opts.body) : undefined,
       signal: ctrl.signal,
     });
+    if (res.status === 401) {
+      requireLogin();
+      throw new Error("Сессия завершена. Войдите снова");
+    }
     const data = await res.json().catch(() => ({}));
     if (!res.ok && !data.error) data.error = `HTTP ${res.status}`;
     return data;
@@ -2033,6 +2066,7 @@ window.addEventListener("hashchange", applyRoute);
 function startSse() {
   if (typeof EventSource === "undefined") { startPolling(); return; }
   const es = new EventSource("/api/stream");
+  es.addEventListener("auth-expired", () => { es.close(); requireLogin(); });
   let messages = 0;
   let errors = 0;
   let fellBack = false;
@@ -2064,6 +2098,7 @@ function startSse() {
   // браузер сам переподключается; откат на опрос — если поток так и не ожил
   // или умер уже после того, как работал
   es.onerror = () => {
+    api("/api/auth/session").catch(() => {});
     errors++;
     if (errors >= 3 && Date.now() - S.lastDataOk > 20000) fallback();
   };

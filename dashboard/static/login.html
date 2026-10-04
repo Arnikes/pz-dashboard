@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Вход · PZ Пульт</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body class="login-page">
+  <main class="login-card">
+    <span class="brand-name">PZ·ПУЛЬТ</span>
+    <h1>Вход администратора</h1>
+    <p class="login-description">Управление сервером Project Zomboid</p>
+    <form id="loginForm">
+      <label for="login">Логин</label>
+      <input id="login" name="username" type="text" autocomplete="username" maxlength="128" required autofocus />
+      <label for="password">Пароль</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" maxlength="1024" required />
+      <p id="loginError" class="login-error" role="alert" hidden></p>
+      <button id="loginSubmit" class="btn" type="submit">Войти</button>
+    </form>
+  </main>
+  <script src="/static/login.js"></script>
+</body>
+</html>

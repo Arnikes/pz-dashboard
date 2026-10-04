@@ -22,9 +22,10 @@ from test_configeditor import env as editor_env  # noqa: E402, F401
 
 
 @pytest.fixture
-def api(monkeypatch):
+def api(monkeypatch, authenticated_admin):
     monkeypatch.setattr(app.Handler, "log_message", lambda *args: None)
     server = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+    server.auth, default_headers = authenticated_admin
     server.daemon_threads = True
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -33,7 +34,7 @@ def api(monkeypatch):
         connection = http.client.HTTPConnection(*server.server_address, timeout=5)
         try:
             body = raw if raw is not None else json.dumps(data) if data is not None else None
-            connection.request(method, path, body, headers or {})
+            connection.request(method, path, body, {**default_headers, **(headers or {})})
             response = connection.getresponse()
             return response.status, json.loads(response.read())
         finally:

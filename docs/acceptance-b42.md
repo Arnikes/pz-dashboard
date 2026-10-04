@@ -40,9 +40,13 @@ New-Item -ItemType Directory -Path .tmp-b42-acceptance -Force | Out-Null
 if (-not (Test-Path -LiteralPath .tmp-b42-acceptance/secrets.env)) {
     $acceptanceAdmin = [guid]::NewGuid().ToString('N')
     $acceptanceRcon = [guid]::NewGuid().ToString('N')
+    $acceptancePanel = [guid]::NewGuid().ToString('N')
+    $acceptanceAuthKey = .\.venv\Scripts\python.exe -c "import base64,secrets; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"
     Set-Content -LiteralPath .tmp-b42-acceptance/secrets.env -Encoding ascii -Value @(
         "ACCEPTANCE_ADMIN_PASSWORD=$acceptanceAdmin"
         "ACCEPTANCE_RCON_PASSWORD=$acceptanceRcon"
+        "ACCEPTANCE_PANEL_PASSWORD=$acceptancePanel"
+        "ACCEPTANCE_AUTH_KEY=$acceptanceAuthKey"
     )
 }
 docker context show
@@ -51,7 +55,9 @@ docker compose --env-file .tmp-b42-acceptance/secrets.env -f docker-compose.acce
 ```
 
 Дождаться первоначального скачивания, создания профиля `pz-acceptance.ini` и ответа
-RCON. До любой операции в панели проверить в `/api/overview`, что `container`
+RCON. Войти в панель как `acceptance-panel-admin` с `ACCEPTANCE_PANEL_PASSWORD`;
+если файл секретов создан раньше, добавьте в него отдельные переменные панели.
+До любой операции в панели проверить в `/api/overview`, что `container`
 равен `pz-console-acceptance-server`, а в `/api/server-configs` — что активный
 профиль `pz-acceptance.ini`, `versionKnown=true`, версия `42.x`, `mountsKnown=true`
 и доступны права записи. Если эти условия не выполнены, сначала устранить причину;

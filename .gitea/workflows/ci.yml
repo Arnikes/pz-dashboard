@@ -47,7 +47,10 @@ jobs:
           # с 127.0.0.1 job-контейнера. Поэтому проверяем здоровье через
           # внутреннюю docker-сеть по имени контейнера (docker DNS).
           docker network create pz-smoke
+          auth_key=$(docker run --rm pz-pult:ci python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
           docker run -d --name pz-pult-smoke --network pz-smoke \
+            -e PZ_ADMIN_LOGIN=ci-admin -e PZ_ADMIN_PASSWORD=ci-only-dummy-password \
+            -e PZ_AUTH_KEY="$auth_key" \
             -e RCON_PASSWORD=ci-dummy -e PZ_SERVER_NAME=ci pz-pult:ci
           for i in $(seq 1 30); do
             if docker run --rm --network pz-smoke pz-pult:ci python3 -c "import urllib.request; urllib.request.urlopen('http://pz-pult-smoke:8080/api/health', timeout=4)" 2>/dev/null; then

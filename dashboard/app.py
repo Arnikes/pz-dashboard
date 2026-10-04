@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""HTTP-сервер пульта PZ: статика + JSON API. Только стандартная библиотека."""
+"""HTTP-сервер пульта PZ: авторизация, статика и JSON API."""
 
 import json
 from datetime import datetime
@@ -13,6 +13,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import actions
+import auth
 import config
 import configeditor
 from configformats import FormatError
@@ -42,8 +43,10 @@ def _read_json(handler):
         raise ValueError(f"Размер JSON должен быть не больше {limit} байт")
     if length == 0:
         return {}
+    body = handler.rfile.read(length)
+    handler.body_read = True
     try:
-        data = json.loads(handler.rfile.read(length).decode("utf-8"))
+        data = json.loads(body.decode("utf-8"))
     except (ValueError, UnicodeDecodeError):
         raise ValueError("Некорректный JSON") from None
     if not isinstance(data, dict):
@@ -56,20 +59,85 @@ class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
     # ── helpers ──
-    def _send_json(self, obj, code=200):
+    def _send_json(self, obj, code=200, *, cookie=None):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        if self.close_connection:
+            self.send_header("Connection", "close")
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
         self.end_headers()
         self.wfile.write(body)
+        if self.close_connection:
+            self._discard_request_body()
+
+    def _discard_request_body(self):
+        # Closing a socket with an unread POST body can reset the connection before
+        # a browser sees the 401/403 response. Drain bounded bodies after replying.
+        self.wfile.flush()
+        if getattr(self, "body_read", False):
+            return
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+            if 0 < length <= 2_500_000:
+                self.connection.settimeout(1)
+                self.rfile.read(length)
+        except (ValueError, OSError):
+            pass
 
     def _send_error_json(self, code, message):
         self._send_json({"ok": False, "error": message}, code)
 
+    def _redirect(self, location):
+        self.send_response(303)
+        self.send_header("Location", location)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def _require_auth(self):
+        manager = getattr(self.server, "auth", None)
+        self.auth_session = manager.session(self.headers.get("Cookie")) if manager else None
+        if self.auth_session:
+            return True
+        self.close_connection = True  # Do not interpret unread request bodies as requests.
+        if not manager:
+            self._send_error_json(503, "Авторизация не настроена")
+        elif urllib.parse.urlparse(self.path).path in ("/", "/index.html"):
+            self._redirect("/login")
+        else:
+            self._send_error_json(401, "Требуется вход администратора")
+        return False
+
+    def _require_local_request(self):
+        # A custom header cannot be sent by cross-origin forms or fetch without a
+        # CORS preflight. This server deliberately does not grant CORS permissions.
+        origin = self.headers.get("Origin")
+        parsed = urllib.parse.urlparse(origin or "")
+        if (
+            self.headers.get("X-PZ-Request") != "1"
+            or self.headers.get("Sec-Fetch-Site") == "cross-site"
+            or (
+                origin
+                and (
+                    parsed.scheme not in ("http", "https")
+                    or parsed.netloc != self.headers.get("Host")
+                )
+            )
+        ):
+            self.close_connection = True
+            self._send_error_json(403, "Запрос должен быть отправлен из пульта")
+            return False
+        return True
+
     def _static_file(self, rel_path):
         safe = posixpath.normpath(urllib.parse.unquote(rel_path)).lstrip("/\\")
+        if safe.rstrip(". ").casefold() == "index.html":
+            if not self._require_auth():
+                return
         full = os.path.realpath(os.path.join(STATIC_DIR, safe))
         if not full.startswith(os.path.realpath(STATIC_DIR) + os.sep):
             self._send_error_json(403, "Запрещено")
@@ -83,7 +151,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Cache-Control", "no-store" if safe == "index.html" else "no-cache")
         self.end_headers()
         self.wfile.write(body)
 
@@ -143,6 +211,7 @@ class Handler(BaseHTTPRequestHandler):
         # браузер может резко сбросить keep-alive при закрытии вкладки —
         # это не ошибка сервера, тихо закрываем вместо трейсбека в лог
         try:
+            self.body_read = False
             super().handle_one_request()
         except (ConnectionResetError, ConnectionAbortedError):
             self.close_connection = True
@@ -169,6 +238,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             self._sse_write(b"retry: 3000\n\n")
             while True:
+                if not self.server.auth.session(self.headers.get("Cookie")):
+                    self._sse_write(b"event: auth-expired\ndata: {}\n\n")
+                    break
                 now = time.time()
                 for name, interval in payloads.STREAM_PLAN:
                     if now - last[name] < interval:
@@ -177,6 +249,9 @@ class Handler(BaseHTTPRequestHandler):
                         data = payloads.stream_payload(name)
                     except Exception as e:  # noqa: BLE001
                         data = {"ok": False, "error": str(e)}
+                    if not self.server.auth.session(self.headers.get("Cookie")):
+                        self._sse_write(b"event: auth-expired\ndata: {}\n\n")
+                        return
                     frame = (
                         f"event: {name}\ndata: " + json.dumps(data, ensure_ascii=False) + "\n\n"
                     ).encode("utf-8")
@@ -201,8 +276,23 @@ class Handler(BaseHTTPRequestHandler):
         path = parsed.path
         qs = urllib.parse.parse_qs(parsed.query)
 
+        public = path in ("/login", "/api/health", "/favicon.ico") or path.startswith("/static/")
+        # The HTML dashboard itself is protected, including its static alias.
+        if path == "/static/index.html":
+            public = False
+        if not public and not self._require_auth():
+            return
+
         if path in ("/", "/index.html"):
             self._static_file("index.html")
+        elif path == "/login":
+            manager = getattr(self.server, "auth", None)
+            if manager and manager.session(self.headers.get("Cookie")):
+                self._redirect("/")
+            else:
+                self._static_file("login.html")
+        elif path == "/api/auth/session":
+            self._send_json({"ok": True, "login": self.server.auth.login})
         elif path.startswith("/static/"):
             self._static_file(path[len("/static/") :])
         elif path == "/favicon.ico":
@@ -276,6 +366,14 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
+        if path != "/api/auth/login" and not self._require_auth():
+            return
+        if not self._require_local_request():
+            return
+        if path == "/api/auth/login" and not getattr(self.server, "auth", None):
+            self.close_connection = True
+            self._send_error_json(503, "Авторизация не настроена")
+            return
         try:
             data = _read_json(self)
         except ValueError as error:
@@ -284,7 +382,21 @@ class Handler(BaseHTTPRequestHandler):
             self._send_error_json(400, str(error))
             return
 
-        if path == "/api/rcon":
+        if path == "/api/auth/login":
+            try:
+                token = self.server.auth.sign_in(
+                    data.get("login"), data.get("password"), self.client_address[0]
+                )
+            except auth.RateLimited as error:
+                self._send_error_json(429, str(error))
+            except auth.AuthError as error:
+                self._send_error_json(401, str(error))
+            else:
+                self._send_json({"ok": True}, cookie=self.server.auth.cookie(token))
+        elif path == "/api/auth/logout":
+            self.server.auth.sign_out(self.auth_session)
+            self._send_json({"ok": True}, cookie=self.server.auth.cookie(clear=True))
+        elif path == "/api/rcon":
             command = data.get("command", "")
             if not isinstance(command, str):
                 self._send_error_json(400, "command должен быть строкой")
@@ -368,6 +480,8 @@ class Handler(BaseHTTPRequestHandler):
 
     # ── DELETE ──
     def do_DELETE(self):
+        if not self._require_auth() or not self._require_local_request():
+            return
         parsed = urllib.parse.urlparse(self.path)
         qs = urllib.parse.parse_qs(parsed.query)
         if parsed.path == "/api/backup":
@@ -391,6 +505,10 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     cfg = config.CFG
+    try:
+        manager = auth.Auth.from_env()
+    except auth.AuthError as error:
+        raise SystemExit(f"Ошибка авторизации: {error}") from None
     os.makedirs(cfg["backup_dir"], exist_ok=True)
     os.makedirs(cfg["dashboard_dir"], exist_ok=True)
     ops._load_settings()
@@ -428,6 +546,7 @@ def main():
         pass
 
     server = ThreadingHTTPServer(("0.0.0.0", cfg["port"]), Handler)
+    server.auth = manager
     server.daemon_threads = True
     print(
         f"PZ Dashboard: http://0.0.0.0:{cfg['port']}  "

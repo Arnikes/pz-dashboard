@@ -18,3 +18,4 @@ ruff==0.16.7
 text-unidecode==1.3
 typing_extensions==4.16.0
 urllib3==2.7.0
+-r dashboard/requirements.txt

@@ -1124,7 +1124,7 @@ def test_mods_toggle_blocked_without_mapping(tmp_path, monkeypatch):
 # ─────────────────────── регресс: SSE-поток ───────────────────────
 
 
-def test_sse_stream_serves_data(monkeypatch):
+def test_sse_stream_serves_data(monkeypatch, authenticated_admin):
     """/api/stream должен реально слать кадры данных.
 
     Регресс: в обработчике было обращение к несуществующему self.STREAM_PLAN —
@@ -1133,13 +1133,14 @@ def test_sse_stream_serves_data(monkeypatch):
 
     monkeypatch.setattr(app.Handler, "log_message", lambda *a, **k: None)
     srv = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+    srv.auth, headers = authenticated_admin
     srv.daemon_threads = True
     th = threading.Thread(target=srv.serve_forever, daemon=True)
     th.start()
     try:
         port = srv.server_address[1]
         conn = http.client.HTTPConnection("127.0.0.1", port, timeout=6)
-        conn.request("GET", "/api/stream")
+        conn.request("GET", "/api/stream", headers=headers)
         resp = conn.getresponse()
         assert resp.status == 200
         buf = b""
@@ -1399,7 +1400,7 @@ def test_notify_fetch_recent_chats(monkeypatch):
     assert chats is None and "Conflict" in err and "SECRET" not in err
 
 
-def test_telegram_chats_route_on_get(monkeypatch):
+def test_telegram_chats_route_on_get(monkeypatch, authenticated_admin):
     """Регресс V20.4: маршрут /api/telegram-chats был объявлен в do_POST,
     а интерфейс дергает его GET'ом — «Нет такого маршрута». Теперь GET работает."""
     import app
@@ -1409,12 +1410,13 @@ def test_telegram_chats_route_on_get(monkeypatch):
         ops, "telegram_settings_raw", lambda: {"enabled": True, "botToken": "", "chatId": ""}
     )
     srv = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+    srv.auth, headers = authenticated_admin
     srv.daemon_threads = True
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:
         port = srv.server_address[1]
         conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
-        conn.request("GET", "/api/telegram-chats")
+        conn.request("GET", "/api/telegram-chats", headers=headers)
         resp = conn.getresponse()
         assert resp.status == 200
         body = json.loads(resp.read().decode("utf-8"))
@@ -1641,20 +1643,21 @@ def test_stats_payload_error_is_ok_false(monkeypatch):
 # ─────────────── регресс V19: скачивание исчезнувшего бэкапа ───────────────
 
 
-def test_backup_download_missing_file_404(monkeypatch):
+def test_backup_download_missing_file_404(monkeypatch, authenticated_admin):
     """Файл удалён prune'ом между проверкой и чтением → честный 404 JSON,
     а не необработанное исключение и разрыв соединения."""
     import app
 
     monkeypatch.setattr(app.Handler, "log_message", lambda *a, **k: None)
     srv = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+    srv.auth, headers = authenticated_admin
     srv.daemon_threads = True
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:
         monkeypatch.setattr(ops, "backup_download_path", lambda name: "/несуществующий/путь.tar.gz")
         port = srv.server_address[1]
         conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
-        conn.request("GET", "/api/backup/download?name=x.tar.gz")
+        conn.request("GET", "/api/backup/download?name=x.tar.gz", headers=headers)
         resp = conn.getresponse()
         assert resp.status == 404
         body = json.loads(resp.read().decode("utf-8"))

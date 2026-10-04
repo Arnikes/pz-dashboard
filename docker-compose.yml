@@ -37,6 +37,10 @@ services:
     ports:
       - "8081:8080"                # веб-интерфейс: http://IP:8081
     environment:
+      - PZ_ADMIN_LOGIN=${PZ_ADMIN_LOGIN:?Задайте PZ_ADMIN_LOGIN в .env}
+      - PZ_ADMIN_PASSWORD=${PZ_ADMIN_PASSWORD:?Задайте PZ_ADMIN_PASSWORD в .env}
+      - PZ_AUTH_KEY=${PZ_AUTH_KEY:?Задайте PZ_AUTH_KEY в .env}
+      - PZ_AUTH_COOKIE_SECURE=${PZ_AUTH_COOKIE_SECURE:-false}
       - RCON_PASSWORD=${RCON_PASSWORD:?Задайте RCON_PASSWORD в .env}
       - RCON_HOST=pzserver         # имя сервиса в сети compose
       - RCON_PORT=27015

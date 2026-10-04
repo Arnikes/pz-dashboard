@@ -21,6 +21,7 @@ def main():
         [sys.executable, "-m", "ruff", "format", "--check", "."],
         ["node", "--check", "dashboard/static/app.js"],
         ["node", "--check", "dashboard/static/editor.js"],
+        ["node", "--check", "dashboard/static/login.js"],
         [
             sys.executable,
             "-m",

@@ -6,6 +6,8 @@ FROM python:3.12-alpine
 RUN apk add --no-cache docker-cli docker-cli-compose tar tzdata lua5.1
 
 WORKDIR /app
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 COPY *.py ./
 COPY schemas ./schemas
 COPY static ./static

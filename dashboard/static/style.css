@@ -1515,3 +1515,13 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--draft-heigh
   .view, .config-group { scroll-margin-top:16px; }
   .source-editor { height:300px; }
 }
+/* Вход администратора */
+.login-page { display:grid; place-items:center; min-height:100dvh; padding:24px; }
+.login-card { width:100%; max-width:400px; padding:32px; border:1px solid var(--line); background:var(--surface); border-radius:12px; }
+.login-card h1 { font-size:24px; margin:24px 0 8px; }
+.login-description { color:var(--muted); margin-bottom:28px; }
+.login-card form { display:grid; gap:12px; }
+.login-card input { width:100%; min-width:0; font-size:16px; }
+.login-card label:not(:first-child) { margin-top:8px; }
+.login-card button { width:100%; justify-content:center; margin-top:12px; min-height:44px; }
+.login-error { color:var(--blood-hover); margin:4px 0; }

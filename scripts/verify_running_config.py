@@ -5,7 +5,10 @@ after verification. Docker labels and the local endpoint are checked first.
 """
 
 import argparse
+import getpass
+import http.cookiejar
 import json
+import os
 import subprocess
 import urllib.error
 import urllib.request
@@ -15,6 +18,7 @@ BASE = "http://127.0.0.1:18081"
 PROFILE = "pz-acceptance.ini"
 SERVER = "pz-console-acceptance-server"
 PANEL = "pz-console-acceptance-panel"
+OPENER = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 
 
 def docker(*args):
@@ -34,10 +38,10 @@ def api(path, body=None, expected=200):
     request = urllib.request.Request(
         BASE + path,
         data=json.dumps(body).encode() if body is not None else None,
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", "X-PZ-Request": "1"},
     )
     try:
-        with urllib.request.urlopen(request, timeout=40) as reply:
+        with OPENER.open(request, timeout=40) as reply:
             status, data = reply.status, json.load(reply)
     except urllib.error.HTTPError as error:
         status, data = error.code, json.load(error)
@@ -75,6 +79,10 @@ def guard():
             or labels.get("com.docker.compose.project") != "pz-console-acceptance"
         ):
             raise RuntimeError("Expected the isolated acceptance containers")
+    password = os.getenv("ACCEPTANCE_PANEL_PASSWORD") or getpass.getpass(
+        "Acceptance panel password: "
+    )
+    api("/api/auth/login", {"login": "acceptance-panel-admin", "password": password})
     profiles = api("/api/server-configs")
     if (
         api("/api/overview")["container"] != SERVER
