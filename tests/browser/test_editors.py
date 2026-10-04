@@ -79,6 +79,37 @@ def test_attention_routes_each_problem_and_preserves_focused_action(page, dashbo
     assert dashboard["actions"] == []
 
 
+@pytest.mark.parametrize("width", [320, 390, 1440])
+def test_configuration_stages_keep_draft_and_only_navigate(page, dashboard, editing, width):
+    page.set_viewport_size({"width": width, "height": 844})
+    page.goto(dashboard["url"] + "/#/settings")
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    expect(page.locator("#configFlow")).to_be_visible()
+    expect(page.locator('[data-flow="launch"]')).to_be_disabled()
+    field = page.locator('[data-key="PublicName"]')
+    field.fill("Staged draft")
+    field.press("Tab")
+    expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
+    expect(page.locator("#flowDraft")).to_have_text("Есть правки")
+    expect(page.locator("#flowFiles")).to_have_text("Ожидают записи")
+    expect(page.locator("#flowLaunch")).not_to_have_text("Подтверждён")
+    page.locator('[data-flow="files"]').click()
+    expect(page.get_by_role("alertdialog")).to_contain_text("Staged draft")
+    page.locator("#modalCancel").click()
+    page.locator('[data-flow="launch"]').click()
+    expect(page.locator("#configApply")).to_be_focused()
+    expect(page.get_by_role("alertdialog")).to_be_hidden()
+    assert dashboard["actions"] == []
+    if width <= 740:
+        page.locator("#navMore").click()
+        menu = page.locator("#moreMenu").bounding_box()
+        bar = page.locator("#draftBar").bounding_box()
+        assert menu["y"] + menu["height"] <= bar["y"]
+        page.keyboard.press("Escape")
+        expect(page.locator("#freshness")).to_be_visible()
+    expect(field).to_have_value("Staged draft")
+
+
 def test_commands_find_settings_and_mods_without_losing_draft(page, dashboard, editing):
     page.goto(dashboard["url"] + "/#/settings")
     expect(page.locator("#configProfile")).to_have_value("world.ini")

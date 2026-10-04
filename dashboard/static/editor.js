@@ -10,6 +10,7 @@ window.ConfigEditor = (() => {
   let fieldSaveFailed = false;
   let unsaved = [];
   let operationMarkup = "";
+  let previousBarBusy = false;
   let historyRequest = 0;
   const groupStates = new Map();
   let fieldQuery = "";
@@ -32,7 +33,7 @@ window.ConfigEditor = (() => {
   }
   function clearError() { $("configError").hidden = true; delete $("configError").dataset.source; }
   function updateBar() {
-    if (!draft) { setDomProperty($("draftBar"), "hidden", true); return; }
+    if (!draft) { setDomProperty($("draftBar"), "hidden", true); setDomProperty($("configFlow"), "hidden", true); return; }
     const busy = !!S.op?.active;
     const locked = busy || loading || S.demo;
     const running = S.overview?.containerInfo?.running;
@@ -40,6 +41,19 @@ window.ConfigEditor = (() => {
     setDomProperty($("view-mods"), "inert", loading || !mods);
     for (const kind of ["ini", "sandbox"]) setDomProperty($(kind + "Source"), "readOnly", busy || loading);
     const editorView = ["settings", "mods"].includes(activeView);
+    setDomProperty($("configFlow"), "hidden", !editorView);
+    const edited = draft.changed || sourceDirty || fieldDirty || pendingFields.size || unsaved.length;
+    const recorded = !edited && !!draft.state?.savedRevision && draft.state.savedRevision === draft.currentRevision;
+    const verified = recorded && !draft.conflict && draft.status === "applied" && !!draft.state?.verifiedAt;
+    const stage = edited ? "draft" : verified ? "launch" : recorded ? "launch" : "draft";
+    setDomProperty($("configFlow").querySelector('[data-flow="launch"]'), "disabled", !edited && !recorded && !draft.conflict && draft.status !== "error");
+    setDomProperty($("flowDraft"), "textContent", edited ? "Есть правки" : "Без новых правок");
+    setDomProperty($("flowFiles"), "textContent", draft.conflict ? "Конфликт с диском" : edited ? "Ожидают записи" : recorded ? "Записаны" : "Проверить различия");
+    setDomProperty($("flowLaunch"), "textContent", busy ? "Идёт операция" : verified ? "Подтверждён" : draft.status === "error" ? "Проверьте ошибку" : recorded ? "Нужна проверка" : "После записи файлов");
+    $("configFlow").querySelectorAll("[data-flow]").forEach(el => {
+      setDomAttribute(el, "aria-current", el.dataset.flow === stage ? "step" : "false");
+      setDomProperty(el.dataset, "state", el.dataset.flow === "launch" && verified ? "ok" : el.dataset.flow === "files" && draft.conflict || el.dataset.flow === "launch" && draft.status === "error" ? "bad" : "normal");
+    });
     const needsAction = draft.changed || sourceDirty || fieldDirty || pendingFields.size || unsaved.length || draft.conflict || !$("configError").hidden || ["saved", "applying", "error", "select-mods"].includes(draft.status);
     setDomProperty($("draftBar"), "hidden", !editorView || !needsAction);
     setDomProperty($("draftRetry"), "hidden", !unsaved.length && !(fieldSaveFailed && pendingFields.size));
@@ -66,6 +80,8 @@ window.ConfigEditor = (() => {
     setDomProperty($("configVerifyHelp"), "hidden", !draft.canApply || !draft.state?.savedRevision || !S.overview?.containerInfo?.running);
     setDomProperty($("configVerify"), "disabled", busy || S.demo || loading);
     if (busy) setDomProperty($("draftSaved"), "textContent", `${S.op.active.phase || "Операция"} · ${S.op.active.message || ""}`);
+    else if (previousBarBusy) setDomProperty($("draftSaved"), "textContent", unsaved.length || fieldSaveFailed ? "Сохранение требует повтора" : draft.status === "applying" ? "Ожидаем результата применения" : draft.changed ? "Черновик сохранён" : "");
+    previousBarBusy = busy;
     $("configFields").querySelectorAll("[data-key]").forEach(el => { setDomProperty(el, "disabled", busy || loading || S.demo || !!el.dataset.owner); });
     const incompatible = new Set((mods?.workshop || []).flatMap(w => w.available || []).filter(r => r.compatible === false).map(r => r.modId));
     $("modPackages").querySelectorAll("[data-modid]").forEach(el => { setDomProperty(el, "disabled", locked || incompatible.has(el.dataset.modid) && !el.checked); });
@@ -138,6 +154,16 @@ window.ConfigEditor = (() => {
       else $("view-" + activeView)?.focus({ preventScroll: true });
     }
   }
+  $("configFlow").addEventListener("click", event => {
+    const step = event.target.closest("[data-flow]")?.dataset.flow;
+    if (!step) return;
+    if (step === "files") { $("configDiff").focus(); $("configDiff").click(); return; }
+    const target = step === "launch" ? (!$("configApply").disabled ? $("configApply") : !$("configVerifyHelp").hidden ? $("configVerify") : !$("configActionHelp").hidden ? $("configActionHelp") : $("configOperationResult"))
+      : activeView === "mods" ? $("workshopInput") : configTab === "sources" ? $("iniSource") : $("configSearch");
+    if (!target || target.hidden || target.disabled) return;
+    if (!target.matches("input,textarea,button")) target.tabIndex = -1;
+    target.focus(); target.scrollIntoView({ block: "nearest" });
+  });
   $("editorAttention").addEventListener("click", event => {
     if (event.target.closest('[data-attention-key="saved"]')) {
       event.preventDefault();
@@ -302,7 +328,7 @@ window.ConfigEditor = (() => {
       const open = query || (groupStates.get(key) ?? name !== "Дополнительные параметры");
       return `<details class="config-group" data-group-key="${esc(key)}" ${open ? "open" : ""}><summary>${esc(name)} <span class="group-count">${entries.length}</span></summary><div class="config-grid">${entries.join("")}</div></details>`;
     }).join("");
-    $("configFields").innerHTML = (configTab === "server" ? '<p class="config-mod-link"><a href="#/mods">Mods, WorkshopItems и карты → редактор модов</a></p>' : "") + (html || '<p class="hint">Нет настроек, соответствующих поиску.</p>');
+    $("configFields").innerHTML = (html || '<p class="hint">Нет настроек, соответствующих поиску.</p>') + (configTab === "server" ? '<p class="config-mod-link"><a href="#/mods">Mods, WorkshopItems и карты → редактор модов</a></p>' : "");
   }
   function highlight(kind) {
     const input = $(kind + "Source"), output = $(kind + "Highlight");

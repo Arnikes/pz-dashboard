@@ -567,7 +567,7 @@ function renderOverview(o) {
   if (settingsCanRender("autoSwitch")) $("autoSwitch").checked = !!au.enabled;
   if (settingsCanRender("autoInterval")) $("autoInterval").value = String(au.intervalHours ?? 6);
   if (settingsCanRender("autoWarn")) $("autoWarn").value = String(au.warnSeconds ?? 300);
-  $("backupNudge").hidden = remote || o.backupsCount !== 0;
+  $("backupNudge").hidden = remote || o.backupsCount !== 0 || !!S.backupsItems?.length;
   if (settingsCanRender("buBackup")) $("buBackup").checked = au.backupBeforeUpdate !== false;
   const wdCfg = o.settings?.watchdog || {};
   if (settingsCanRender("wdSwitch")) $("wdSwitch").checked = !!wdCfg.enabled;
@@ -914,6 +914,7 @@ const OP_TITLES = {
   "check-mods-update": "Проверка модов", "apply-mods-update": "Обновление модов",
   "mods-restart": "Авторестарт модов",
   backup: "Бэкап", restore: "Восстановление", "verify-backup": "Проверка архива",
+  "apply-config": "Применение конфигурации", "prepare-workshop": "Подготовка Workshop",
 };
 
 /* ───────────────────────── игроки ───────────────────────── */
@@ -2301,13 +2302,17 @@ const layoutObserver = new ResizeObserver(() => {
     document.documentElement.style.setProperty(variable, `${Math.ceil(height)}px`);
   }
   const focused = document.activeElement, draftBar = $("draftBar");
-  if (!draftBar.hidden && focused?.matches("#configFields [data-key], #mapList")) {
+  if (!draftBar.hidden && focused?.matches("#configFields [data-key], #mapList, #iniSource, #sandboxSource")) {
     const focusArea = focused.closest("#mapEdit") || focused;
     const overlap = focusArea.getBoundingClientRect().bottom - draftBar.getBoundingClientRect().top + 12;
     if (overlap > 0) window.scrollBy({ top: overlap, behavior: "instant" });
   }
 });
 for (const selector of [".topbar", ".nav", "#draftBar"]) layoutObserver.observe(document.querySelector(selector));
+const mobileLayout = matchMedia("(max-width: 740px)");
+function adaptHealthDisclosure() { document.querySelector(".health-details").open = !mobileLayout.matches; }
+adaptHealthDisclosure();
+mobileLayout.addEventListener("change", adaptHealthDisclosure);
 
 /* ───────────────────── роутер страниц ───────────────────── */
 
@@ -2321,6 +2326,7 @@ const VIEWS = {
   events: "События",
   console: "Консоль",
 };
+$("sec-status").after($("editorAttention"));
 
 for (const [route, label] of Object.entries(VIEWS)) {
   const view = $("view-" + route), heading = document.createElement("header");

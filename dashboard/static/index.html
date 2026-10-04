@@ -29,7 +29,7 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>PZ Пульт — управление сервером</title>
   <link rel="icon" href="static/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="static/style.css" />
@@ -51,13 +51,13 @@
           <select id="configProfile" aria-label="Профиль конфигурации" aria-describedby="configActive"><option value="">Загрузка…</option></select>
         </div>
       </div>
+      <button class="btn small" id="btnCommands" type="button" aria-label="Быстрые команды" aria-haspopup="dialog" aria-controls="commandDialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><span class="command-label">Быстрые команды</span><kbd>Ctrl K</kbd></button>
       <div class="connection-status">
       <span class="badge-demo" id="demoBadge" hidden>ДЕМО-РЕЖИМ</span>
       <span class="pill" id="pillDocker" data-state="unknown">Docker</span>
       <span class="pill" id="pillRcon" data-state="unknown">RCON</span>
       <span class="fresh" id="freshness"></span>
       </div>
-      <button class="btn small" id="btnCommands" type="button" aria-label="Быстрые команды" aria-haspopup="dialog" aria-controls="commandDialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><span class="command-label">Быстрые команды</span><kbd>Ctrl K</kbd></button>
       <button class="btn small" id="btnLogout" type="button">Выйти</button>
     </div>
   </header>
@@ -106,6 +106,7 @@
     Демонстрация интерфейса: данные вымышленные, операции отключены. Реальная работа начнётся после запуска в docker compose.
   </div>
 
+  <details class="health-details"><summary>Подключение и проверки</summary>
   <div class="healthbar" id="healthbar" data-od-id="health" role="status" aria-label="Сводка состояния сервера">
     <a class="h-chip" href="#/overview" id="hbServer" data-state="unknown">Сервер: …</a>
     <a class="h-chip" href="#/backups" id="hbBackup" data-state="unknown">Бэкап: …</a>
@@ -114,6 +115,7 @@
     <a class="h-chip" href="#/maintenance" id="hbWatchdog" data-state="unknown">Watchdog: …</a>
   </div>
 
+  </details>
   <main class="main" data-od-id="main">
     <section class="opbar" id="opbar" hidden aria-label="Текущая операция" role="status">
       <span class="op-spin" aria-hidden="true"></span>
@@ -130,6 +132,11 @@
     </section>
     <section id="editorAttention" class="card attention" hidden aria-label="Требуют внимания"></section>
     <section id="configOperationResult" class="card config-operation-result" hidden role="status" aria-label="Результат применения конфигурации"></section>
+    <ol id="configFlow" class="config-flow" aria-label="Стадии изменения конфигурации" hidden>
+      <li><button type="button" data-flow="draft"><strong>Черновик</strong><span id="flowDraft">Загрузка…</span></button></li>
+      <li><button type="button" data-flow="files"><strong>Файлы</strong><span id="flowFiles">Проверить различия</span></button></li>
+      <li><button type="button" data-flow="launch"><strong>Запуск</strong><span id="flowLaunch">Проверить применение</span></button></li>
+    </ol>
 
     <!-- ОБЗОР: показатели, состояние и нагрузка -->
     <div class="view" id="view-overview" tabindex="-1">
@@ -272,7 +279,8 @@
         <header class="card-head"><h2 id="hModsEditor">Состав модов</h2><span id="modSummary" class="hint"></span></header>
         <p class="hint">Workshop item — пакет Steam. Внутри пакета выбирайте отдельные ModID. Изменения сохраняются в черновике.</p>
         <details class="context-help"><summary>Помощь с составом модов</summary><p>Добавьте пакет Workshop, выберите ModID и проверьте порядок и зависимости. Наличие пакета ещё не включает все моды внутри него. Карты добавляются в Map отдельно.</p><a href="static/config-help.html#mods" target="_blank" rel="noopener">Руководство: установка модов и проверка запуска</a></details>
-        <div class="editor-tabs" id="modTabs" role="tablist" aria-label="Редактор модов">
+        <p class="tab-scroll-help" id="modTabsHelp">Вкладки можно прокручивать влево и вправо.</p>
+        <div class="editor-tabs" id="modTabs" role="tablist" aria-label="Редактор модов" aria-describedby="modTabsHelp">
           <button type="button" role="tab" aria-selected="true" aria-controls="modComposition" data-tab="composition">Состав</button>
           <button type="button" role="tab" aria-selected="false" aria-controls="modOrder" tabindex="-1" data-tab="order">Порядок</button>
           <button type="button" role="tab" aria-selected="false" aria-controls="modProblems" tabindex="-1" data-tab="problems">Проблемы</button>
@@ -386,12 +394,12 @@
       <section class="card editor-card" aria-labelledby="hConfig">
         <header class="card-head"><h2 id="hConfig">Параметры профиля</h2><span id="configStatus" class="pill">Выберите профиль</span></header>
         <div id="configError" class="editor-error" role="alert" hidden></div>
-        <p id="configSaveHint" class="hint">Правки полей сохраняются в черновике. Запись файлов доступна после остановки сервера.</p>
         <p id="configActionHelp" class="hint" role="status" hidden></p>
-        <details class="context-help"><summary>Как применить настройки</summary><p>Поля сохраняются в черновик. Проверьте различия, затем запишите файлы при остановленном сервере или примените с рестартом. После ручного запуска подтвердите результат проверкой.</p><a href="static/config-help.html" target="_blank" rel="noopener">Руководство: профили, черновики и восстановление</a></details>
+        <details class="context-help"><summary>Как применить настройки</summary><p id="configSaveHint" class="hint">Правки полей сохраняются в черновике. Запись файлов доступна после остановки сервера.</p><p>Проверьте различия, затем запишите файлы при остановленном сервере или примените с рестартом. После ручного запуска подтвердите результат проверкой.</p><a href="static/config-help.html" target="_blank" rel="noopener">Руководство: профили, черновики и восстановление</a></details>
         <div id="configVerifyHelp" class="editor-toolbar" hidden><button type="button" id="configVerify" class="btn">Проверить запущенный сервер</button><span class="hint">После ручного рестарта: проверка файлов, модов и готовности PZ/RCON без записи и остановки сервера.</span></div>
         <p id="configVersionDiagnostic" class="hint" role="status" hidden></p>
-        <div class="editor-tabs" id="configTabs" role="tablist" aria-label="Настройки сервера">
+        <p class="tab-scroll-help" id="configTabsHelp">Вкладки можно прокручивать влево и вправо.</p>
+        <div class="editor-tabs" id="configTabs" role="tablist" aria-label="Настройки сервера" aria-describedby="configTabsHelp">
           <button type="button" role="tab" aria-selected="true" aria-controls="configServerPanel" data-tab="server">Сервер</button><button type="button" role="tab" aria-selected="false" aria-controls="configWorldPanel" tabindex="-1" data-tab="world">Мир</button><button type="button" role="tab" aria-selected="false" aria-controls="configCustomPanel" tabindex="-1" data-tab="custom">Настройки модов</button><button type="button" role="tab" aria-selected="false" aria-controls="configSources" tabindex="-1" data-tab="sources">Исходники</button><button type="button" role="tab" aria-selected="false" aria-controls="configHistory" tabindex="-1" data-tab="history">История изменений</button>
         </div>
         <div id="configSharedFields">
