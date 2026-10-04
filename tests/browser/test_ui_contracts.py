@@ -6,6 +6,40 @@ from playwright.sync_api import expect
 pytestmark = pytest.mark.browser
 
 
+def test_action_restrictions_show_recovery_in_context(page, dashboard):
+    page.goto(dashboard["url"])
+    expect(page.locator("#btnStop")).to_be_enabled()
+    page.evaluate(
+        "() => { liveSource?.close(); liveSource = null; clearTimeout(sseStartupTimer); }"
+    )
+    page.evaluate("applyOverview({...S.overview,mode:'remote'})")
+    expect(page.locator("#operationAvailability")).to_contain_text("на хосте сервера")
+    expect(page.locator("#btnStop")).to_be_disabled()
+    page.evaluate("location.hash='#/backups'")
+    expect(page.locator("#backupAvailability")).to_contain_text("Remote")
+    page.evaluate("location.hash='#/maintenance'")
+    expect(page.locator("#maintenanceAvailability")).to_contain_text("RCON и игроки")
+    page.evaluate("applyOverview({...S.overview,mode:'host',compose:false})")
+    expect(page.locator("#maintenanceAvailability")).to_contain_text("docker compose")
+    page.evaluate("renderOp({active:{op:'backup',phase:'Архив',message:'Создание'},history:[]})")
+    expect(page.locator("#maintenanceAvailability")).to_contain_text("Дождитесь результата")
+    page.evaluate("renderOp({active:null,history:[]});applyOverview({...S.overview,compose:true})")
+    expect(page.locator("#maintenanceAvailability")).to_be_hidden()
+
+
+@pytest.mark.parametrize("width", [320, 1440])
+def test_local_help_is_available_without_external_assets(page, dashboard, width):
+    page.set_viewport_size({"width": width, "height": 844})
+    response = page.goto(dashboard["url"] + "/static/config-help.html#mods")
+    assert response.status == 200
+    expect(page.get_by_role("heading", name="Изменить состав модов")).to_be_visible()
+    expect(page.locator("main")).to_contain_text("Записать файлы")
+    expect(page.locator("main")).to_contain_text("Отменить черновик")
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    page.get_by_role("link", name="Настройки", exact=True).click()
+    expect(page.locator("#view-settings")).to_be_visible()
+
+
 @pytest.mark.parametrize("width", [320, 1440])
 def test_commands_keyboard_navigation_and_escape_restore_focus(page, dashboard, width):
     page.set_viewport_size({"width": width, "height": 844})

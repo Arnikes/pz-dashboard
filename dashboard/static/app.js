@@ -770,6 +770,12 @@ function renderSummaries() {
   $("sumModsMeta").textContent = mc.at ? `проверено ${fmtTime(mc.at)}` : "не проверялись";
 }
 
+function setAvailability(id, message) {
+  const element = $(id);
+  if (element.textContent !== message) element.textContent = message;
+  if (element.hidden !== !message) element.hidden = !message;
+}
+
 function updateButtons() {
   const o = S.overview;
   const busy = !!(S.op && S.op.active) || S.demo || S.actionPending;
@@ -824,6 +830,20 @@ function updateButtons() {
   document.querySelectorAll("#quickCmds .chip").forEach((b) => { b.disabled = !consoleLive; });
   $("consoleInput").disabled = !consoleLive;
   $("consoleForm").querySelector("button").disabled = !consoleLive;
+  const commonReason = S.demo ? "Демо: операции отключены. Откройте пульт своего сервера для управления."
+    : S.op?.active ? "Идёт операция: " + (OP_TITLES[S.op.active.op] || S.op.active.op) + ". Дождитесь результата; прогресс показан над разделом."
+    : S.actionPending ? "Запрос отправляется. Дождитесь принятия или сообщения об ошибке."
+    : "";
+  const hostReason = commonReason || (remote ? "Remote: управление контейнером, обновления и архивы доступны в пульте на хосте сервера. Здесь доступны RCON и игроки." : "");
+  setAvailability("operationAvailability", hostReason || (!found ? "Контейнер не найден или его состояние ещё не получено. Проверьте подключение и имя контейнера."
+    : !running ? "Сервер остановлен. Для остановки и перезапуска сначала запустите его." : ""));
+  setAvailability("maintenanceAvailability", hostReason || (o?.compose === false ? "Обновление образа недоступно: установите docker compose в контейнере пульта и проверьте подключение." : ""));
+  setAvailability("backupAvailability", hostReason);
+  setAvailability("consoleAvailability", commonReason || (!consoleLive ? "RCON недоступен. Проверьте запуск сервера, пароль и порт RCON; последние ответы сохранены." : ""));
+  for (const id of ["btnStart", "btnStop", "btnRestart", "btnSaveWorld"]) $(id).setAttribute("aria-describedby", "operationAvailability");
+  for (const id of ["btnCheckUpd", "btnApplyUpd"]) $(id).setAttribute("aria-describedby", "maintenanceAvailability");
+  $("btnBackup").setAttribute("aria-describedby", "backupAvailability");
+  $("consoleInput").setAttribute("aria-describedby", "consoleAvailability");
 }
 
 function renderOp(op) {

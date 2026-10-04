@@ -65,7 +65,9 @@ def test_commands_find_settings_and_mods_without_losing_draft(page, dashboard, e
     page.locator("#commandSearch").fill("настройку мира")
     page.locator("#commandSearch").press("Enter")
     expect(page.locator("#configSearch")).to_be_focused()
-    expect(page.locator('#configTabs [data-tab="world"]')).to_have_attribute("aria-selected", "true")
+    expect(page.locator('#configTabs [data-tab="world"]')).to_have_attribute(
+        "aria-selected", "true"
+    )
     expect(page.locator("#draftBar")).to_be_visible()
     page.locator("#btnCommands").click()
     page.locator("#commandSearch").fill("настройку сервера")
@@ -563,6 +565,12 @@ def test_header_does_not_claim_unknown_profile_is_active(page, dashboard, editin
     expect(page.locator("#configProfile")).to_have_value("world.ini")
     expect(page.locator("#configActive")).to_have_text("Не подтверждён")
     expect(page.locator("#configActive")).to_have_attribute("data-state", "unknown")
+    page.evaluate("location.hash='#/settings'")
+    expect(page.locator("#configActionHelp")).to_contain_text("Профиль запуска не подтверждён")
+    page.locator(".context-help summary").filter(has_text="Как применить настройки").click()
+    expect(
+        page.get_by_role("link", name="Руководство: профили, черновики и восстановление")
+    ).to_have_attribute("href", "static/config-help.html")
     expect(page.locator("#configApply")).to_be_disabled()
 
 

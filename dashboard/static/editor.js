@@ -53,6 +53,16 @@ window.ConfigEditor = (() => {
     $("configRebase").disabled = busy || S.demo || loading || fieldDirty;
     $("configApply").title = draft.canApply ? "" : "Выбран неактивный или неподтверждённый профиль";
     $("configSave").title = running === true ? "Сначала остановите сервер" : running === false ? "" : "Состояние сервера ещё не получено";
+    const reason = S.demo ? "Демо: запись файлов и применение отключены."
+      : busy ? "Изменения заблокированы на время операции. Дождитесь результата, показанного над разделом."
+      : loading ? "Профиль загружается. Дождитесь получения черновика."
+      : !draft.canWrite ? (draft.dataDiagnostic || "Запись недоступна. Проверьте общий каталог конфигурации и права записи по руководству.")
+      : draft.conflict ? "Файлы изменились извне. Откройте различия и объедините черновик с диском перед записью."
+      : !draft.canApply ? (draft.activeFile ? `Выбран другой профиль. Для рестарта выберите активный профиль ${draft.activeFile}.` : "Профиль запуска не подтверждён. Проверьте -servername или PZ_CONFIG_FILE по руководству; черновик сохраняется.")
+      : running === undefined ? "Состояние сервера ещё не получено. Проверьте подключение перед записью файлов."
+      : "";
+    setAvailability("configActionHelp", reason);
+    for (const id of ["configApply", "configSave", "configDiscard"]) $(id).setAttribute("aria-describedby", "configActionHelp configSaveHint");
     $("configVerifyHelp").hidden = !draft.canApply || !draft.state?.savedRevision || !S.overview?.containerInfo?.running;
     $("configVerify").disabled = busy || S.demo || loading;
     if (busy) $("draftSaved").textContent = `${S.op.active.phase || "Операция"} · ${S.op.active.message || ""}`;
@@ -79,7 +89,7 @@ window.ConfigEditor = (() => {
       ? "Правки сохраняются в черновике. Ожидаем состояние сервера перед записью файлов."
       : running
       ? "Сервер работает. Правки полей сохраняются в черновике. Для записи файлов используйте «Применить с рестартом…» или сначала остановите сервер."
-      : "Правки полей сохраняются в черновике. «Сохранить» запишет файлы при остановленном сервере; запуск выполняется отдельно.";
+      : "Правки полей сохраняются в черновике. «Записать файлы» сохраняет их при остановленном сервере; запуск выполняется отдельно.";
     if (draft.dataDiagnostic) {
       $("configError").textContent = draft.dataDiagnostic;
       $("configError").hidden = false;
