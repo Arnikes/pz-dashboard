@@ -115,6 +115,19 @@
   </div>
 
   <main class="main" data-od-id="main">
+    <section class="opbar" id="opbar" hidden aria-label="Текущая операция" role="status">
+      <span class="op-spin" aria-hidden="true"></span>
+      <div class="op-text"><strong id="opPhase"></strong><span id="opMsg"></span></div>
+      <span class="mono" id="opElapsed" aria-label="Длительность операции"></span>
+      <a class="btn" href="#/console">Логи</a>
+      <button class="btn" id="btnCancelMods" hidden>Отменить обновление модов</button>
+    </section>
+    <section class="op-result" id="operationResult" hidden role="status" aria-label="Результат операции">
+      <div><strong id="operationResultTitle"></strong><p id="operationResultMessage"></p></div>
+      <a class="btn" href="#/console">Посмотреть логи</a>
+      <a class="btn" href="#/events">События</a>
+      <button class="btn ghost" id="operationResultDismiss" type="button">Закрыть результат</button>
+    </section>
     <section id="editorAttention" class="card attention" hidden aria-label="Требуют внимания"></section>
     <section id="configOperationResult" class="card config-operation-result" hidden role="status" aria-label="Результат применения конфигурации"></section>
 
@@ -173,11 +186,6 @@
           <button class="btn danger" id="btnStop">Остановить</button>
           <button class="btn" id="btnRestart">Перезапустить</button>
           <button class="btn ghost" id="btnSaveWorld" title="Команда save через RCON">Сохранить мир</button>
-        </div>
-        <div class="opbar" id="opbar" hidden aria-live="polite">
-          <span class="op-spin" aria-hidden="true"></span>
-          <div class="op-text"><strong id="opPhase"></strong><span id="opMsg"></span></div>
-          <button class="btn" id="btnCancelMods" hidden>Отменить обновление модов</button>
         </div>
       </section>
 

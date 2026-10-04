@@ -649,6 +649,12 @@ select:focus-visible,
 
 .op-text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 180px; }
 .opbar .btn { white-space: normal; }
+.main > .opbar { margin: 0 0 18px; }
+.opbar .op-text span { white-space: normal; overflow-wrap: anywhere; }
+.op-result { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 16px; margin-bottom: 18px; border: 1px solid var(--line); border-radius: var(--r-sm); }
+.op-result > div { flex: 1 1 240px; min-width: 0; }
+.op-result p { margin: 4px 0 0; overflow-wrap: anywhere; }
+.op-result[data-state="error"] strong { color: var(--blood-text); }
 .op-text strong { font-size: 13px; color: var(--warn); }
 .op-text span { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

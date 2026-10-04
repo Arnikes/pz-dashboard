@@ -195,6 +195,8 @@ const S = {
   op: null,
   logsAuto: true,
   lastOpActive: false,
+  lastOpResult: null,
+  dismissedOpResult: null,
   logsLevel: "all",
   logsLines: [],
   logsUpdatedAt: 0,
@@ -754,19 +756,42 @@ function renderOp(op) {
     $("opbar").hidden = false;
     $("opPhase").textContent = `${OP_TITLES[active.op] || active.op}: ${active.phase}`;
     $("opMsg").textContent = active.message || "";
+    $("operationResult").hidden = true;
   } else {
     $("opbar").hidden = true;
   }
-  if (S.lastOpActive && !active && op && op.history && op.history[0]) {
+  if (!active && op?.history?.[0]) {
     const h = op.history[0];
-    toast(h.cancelled ? h.message : h.ok ? `Готово: ${h.message || h.op}` : `Не удалось: ${h.message || h.op}`, h.ok ? "ok" : "error", 8000);
-    refreshAll();
+    const key = JSON.stringify([h.op, h.finishedAt, h.ok, h.cancelled, h.message]);
+    if (key !== S.lastOpResult) {
+      S.lastOpResult = key;
+      if (S.lastOpActive) {
+        toast(h.cancelled ? h.message : h.ok ? `Готово: ${h.message || h.op}` : `Не удалось: ${h.message || h.op}`, h.ok ? "ok" : "error", 8000);
+        refreshAll();
+      }
+    }
+    $("operationResult").hidden = key === S.dismissedOpResult;
+    $("operationResult").dataset.state = h.cancelled ? "cancelled" : h.ok ? "ok" : "error";
+    $("operationResultTitle").textContent = `${OP_TITLES[h.op] || h.op} — ${h.cancelled ? "отменено" : h.ok ? "готово" : "не удалось"}`;
+    $("operationResultMessage").textContent = h.message || (h.ok ? "Операция завершена. Подробности в событиях." : "Откройте логи, устраните причину и повторите действие.");
   }
   S.lastOpActive = !!(active);
   S.op = op;
+  updateOperationElapsed();
   updateButtons();
   window.ConfigEditor?.operationChanged();
 }
+
+function updateOperationElapsed() {
+  const started = Date.parse(S.op?.active?.startedAt);
+  $("opElapsed").textContent = Number.isFinite(started) ? `Прошло ${fmtUptime(Math.floor(Math.max(0, (Date.now() - started) / 1000)))}` : "";
+}
+
+$("operationResultDismiss").addEventListener("click", () => {
+  S.dismissedOpResult = S.lastOpResult;
+  $("operationResult").hidden = true;
+  document.querySelector(`#view-${activeView}`)?.focus({ preventScroll: true });
+});
 
 /* человеческие названия операций для полосы прогресса и тостов */
 const OP_TITLES = {
@@ -1975,6 +2000,7 @@ function refreshAll() {
 
 /* свежесть данных в шапке: время последнего успешного опроса, warn при пропаже связи */
 function updateFreshness() {
+  updateOperationElapsed();
   const el = $("freshness");
   if (!el) return;
   if (S.demo || !S.lastDataOk) { el.textContent = ""; el.title = ""; el.classList.remove("stale"); return; }
