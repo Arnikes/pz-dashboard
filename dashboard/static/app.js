@@ -743,8 +743,8 @@ function updateButtons() {
   $("btnBackup").disabled = busy || S.demo || remote;
   $("logsDownload").style.display = (remote || S.demo) ? "none" : "";
   $("logsFilter").disabled = remote || S.demo;
-  document.querySelectorAll("#playersBody .p-actions .icon-btn").forEach((b) => { b.disabled = !consoleLive; });
-  document.querySelectorAll("#backupsBody .icon-btn").forEach((b) => { b.disabled = busy || S.demo || remote; });
+  document.querySelectorAll("#playersBody .p-actions .icon-btn").forEach((b) => { if (b.disabled !== !consoleLive) b.disabled = !consoleLive; });
+  document.querySelectorAll("#backupsBody .icon-btn").forEach((b) => { const disabled = busy || S.demo || remote; if (b.disabled !== disabled) b.disabled = disabled; });
   document.querySelectorAll("#quickCmds .chip").forEach((b) => { b.disabled = !consoleLive; });
   $("consoleInput").disabled = !consoleLive;
   $("consoleForm").querySelector("button").disabled = !consoleLive;
@@ -804,25 +804,61 @@ const OP_TITLES = {
 
 /* ───────────────────────── игроки ───────────────────────── */
 
+function setListMessage(body, state, html) {
+  const focused = body.contains(document.activeElement);
+  if (body.dataset.state !== state || body.innerHTML !== html) body.innerHTML = html;
+  body.dataset.state = state;
+  body.tabIndex = -1;
+  if (focused && !body.contains(document.activeElement)) body.focus({ preventScroll: true });
+}
+
+// Keep identities and interactive children, even when data or row order changes.
+function syncRows(body, items, keyOf, create, update = () => {}) {
+  const focused = body.contains(document.activeElement) ? document.activeElement : null;
+  const previousRows = [...body.children];
+  const previousIndex = previousRows.indexOf(focused?.closest("[data-row-key]"));
+  const actionKey = focused?.dataset.p || focused?.dataset.b;
+  const rows = new Map(previousRows.filter((row) => row.dataset.rowKey !== undefined).map((row) => [row.dataset.rowKey, row]));
+  if (body.dataset.state !== "ok") body.replaceChildren();
+  if (body.dataset.state !== "ok") body.dataset.state = "ok";
+  if (body.tabIndex !== -1) body.tabIndex = -1;
+  const desired = items.map((item) => {
+    const key = String(keyOf(item));
+    let row = rows.get(key);
+    if (!row) { row = create(item); row.dataset.rowKey = key; }
+    rows.delete(key);
+    update(row, item);
+    return row;
+  });
+  rows.forEach((row) => row.remove());
+  desired.forEach((row, index) => { if (body.children[index] !== row) body.insertBefore(row, body.children[index] || null); });
+  if (focused && focused.isConnected) {
+    if (document.activeElement !== focused) focused.focus({ preventScroll: true });
+  } else if (focused) {
+    const row = desired[Math.min(Math.max(0, previousIndex), desired.length - 1)];
+    const next = row && [...row.querySelectorAll("button")].find((button) => !button.disabled && (button.dataset.p || button.dataset.b) === actionKey);
+    (next || body).focus({ preventScroll: true });
+  }
+}
+
 function renderPlayers(data) {
   S.players = data;
   const body = $("playersBody");
   if (!data.ok) {
-    body.dataset.state = "error";
-    body.innerHTML = `<p class="list-error">${esc(data.error || "нет данных")}</p>`;
+    setListMessage(body, "error", `<p class="list-error">${esc(data.error || "нет данных")}</p>`);
     $("playersCount").textContent = "–";
     return;
   }
   $("playersCount").textContent = String(data.count);
   if (!data.names.length) {
-    body.dataset.state = "empty";
     const raw = (data.raw || "").trim();
-    body.innerHTML = `<p class="list-empty"><strong>Пусто.</strong> Выживших не найдено — сервер ждёт.</p>` +
-      (raw && !/players/i.test(raw) ? `<p class="list-empty mono">${esc(raw)}</p>` : "");
+    setListMessage(body, "empty", `<p class="list-empty"><strong>Пусто.</strong> Выживших не найдено — сервер ждёт.</p>` +
+      (raw && !/players/i.test(raw) ? `<p class="list-empty mono">${esc(raw)}</p>` : ""));
     return;
   }
-  body.dataset.state = "ok";
-  body.innerHTML = data.names.map((n) => `
+  syncRows(body, [...new Set(data.names)], (name) => name, (n) => {
+    const template = document.createElement("template");
+    template.innerHTML = `
     <div class="player-row">
       <span class="dot"></span>
       <span class="p-name" title="${esc(n)}">${esc(n)}</span>
@@ -834,10 +870,8 @@ function renderPlayers(data) {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M5.5 5.5l13 13"/></svg>
         </button>
       </span>
-    </div>`).join("");
-
-  body.querySelectorAll(".p-actions .icon-btn").forEach((btn) => {
-    btn.addEventListener("click", () => confirmPlayerAction(btn.dataset.p, btn.dataset.name));
+    </div>`;
+    return template.content.firstElementChild;
   });
   updateButtons();
 }
@@ -1259,8 +1293,7 @@ $("modsFile").addEventListener("change", () => {
 function renderBackups(data) {
   const body = $("backupsBody");
   if (!data.ok) {
-    body.dataset.state = "error";
-    body.innerHTML = `<p class="list-error">${esc(data.error || "нет данных")}</p>`;
+    setListMessage(body, "error", `<p class="list-error">${esc(data.error || "нет данных")}</p>`);
     return;
   }
   renderBkSchedule(data);
@@ -1270,12 +1303,12 @@ function renderBackups(data) {
   renderHealth();
   renderKpis();
   if (!items.length) {
-    body.dataset.state = "empty";
-    body.innerHTML = `<p class="list-empty"><strong>Бэкапов ещё нет.</strong> Нажмите «Создать» — мир и конфиги уйдут в архив.</p>`;
+    setListMessage(body, "empty", `<p class="list-empty"><strong>Бэкапов ещё нет.</strong> Нажмите «Создать» — мир и конфиги уйдут в архив.</p>`);
     return;
   }
-  body.dataset.state = "ok";
-  body.innerHTML = items.map((b) => `
+  syncRows(body, items, (item) => item.name, (b) => {
+    const template = document.createElement("template");
+    template.innerHTML = `
     <div class="backup-row">
       <span class="b-name mono" title="${esc(b.name)} — создан ${esc(b.mtime)}" data-copy="${esc(b.name)}">${esc(b.name)}</span>
       <span class="b-size mono" title="размер архива">${esc(b.sizeText || fmtBytes(b.size))}</span>
@@ -1292,10 +1325,23 @@ function renderBackups(data) {
       <button class="icon-btn danger" data-b="del" data-name="${esc(b.name)}" title="Удалить" aria-label="Удалить ${esc(b.name)}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5h6v2m-8 0 1 13h8l1-13"/></svg>
       </button>
-    </div>`).join("");
+    </div>`;
+    return template.content.firstElementChild;
+  }, (row, b) => {
+    const size = row.querySelector(".b-size"), age = row.querySelector(".b-age"), name = row.querySelector(".b-name");
+    const sizeText = b.sizeText || fmtBytes(b.size), ageText = relTime(b.mtime), dateTitle = `создан ${b.mtime}`;
+    if (size.textContent !== sizeText) size.textContent = sizeText;
+    if (age.textContent !== ageText) age.textContent = ageText;
+    if (age.title !== dateTitle) age.title = dateTitle;
+    const title = `${b.name} — ${dateTitle}`;
+    if (name.title !== title) name.title = title;
+  });
+  updateButtons();
+}
 
-  body.querySelectorAll(".icon-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
+$("backupsBody").addEventListener("click", (event) => {
+      const btn = event.target.closest("button[data-b]");
+      if (!btn || btn.disabled) return;
       const name = btn.dataset.name;
       if (btn.dataset.b === "dl") {
         window.location.href = `/api/backup/download?name=${encodeURIComponent(name)}`;
@@ -1306,10 +1352,7 @@ function renderBackups(data) {
       } else {
         confirmDeleteBackup(name);
       }
-    });
-  });
-  updateButtons();
-}
+});
 
 function renderBkSchedule(data) {
   const ab = data.autoBackup || {};
@@ -2043,6 +2086,11 @@ function startPolling() {
     document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
   }
 }
+
+$("playersBody").addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-p]");
+  if (button && !button.disabled) confirmPlayerAction(button.dataset.p, button.dataset.name);
+});
 
 /* ───────────────────────── запуск ───────────────────────── */
 

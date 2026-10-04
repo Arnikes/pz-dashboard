@@ -48,3 +48,46 @@ def test_operation_visible_on_all_routes_and_result_survives_navigation(page, da
     result.update(ok=True, message="Архив проверен", finishedAt="2026-10-04T21:01:00Z")
     page.evaluate("h => renderOp({active:null,history:[h]})", result)
     expect(page.locator("#operationResult")).to_contain_text("Архив проверен")
+
+
+@pytest.mark.parametrize(
+    "kind,action",
+    [("players", "kick"), ("players", "ban"), ("backups", "dl"), ("backups", "restore")],
+)
+def test_live_list_preserves_focus_identity_and_recovers_removed_row(page, dashboard, kind, action):
+    page.goto(dashboard["url"] + f"/#/{kind}")
+    expect(page.locator("#btnStop")).to_be_enabled()
+    page.clock.install()
+    name = 'Дмитрий "Север" ' + "очень-длинное-имя-" * 12
+    page.evaluate(
+        """({kind,name}) => {
+        window.listFrame = kind === 'players' ? {ok:true,count:2,names:[name,'Alice']} :
+          {ok:true,items:[{name,mtime:'2026-10-04T20:00:00Z',size:100},{name:'second.tar',mtime:'2026-10-04T20:00:00Z',size:200}]};
+        window.paintList = () => kind === 'players' ? renderPlayers(listFrame) : renderBackups(listFrame);
+        paintList();
+        window.rowChanges = 0;
+        new MutationObserver(records => {rowChanges += records.length}).observe(
+          document.getElementById(kind+'Body'), {subtree:true,childList:true,attributes:true});
+        window.listTimer = setInterval(paintList,1000);
+        }""",
+        {"kind": kind, "name": name},
+    )
+    selector = f'#{kind}Body button[data-{"p" if kind == "players" else "b"}="{action}"]'
+    focused = page.locator(selector).first
+    focused.focus()
+    page.evaluate("window.originalButton = document.activeElement")
+    page.clock.run_for(60000)
+    assert page.evaluate("document.activeElement === originalButton && rowChanges === 0")
+    # Reorder plus change the metadata: retain the same interactive node and exact recipient.
+    page.evaluate("""() => {clearInterval(listTimer);
+      if(listFrame.names) listFrame.names.reverse();
+      else {listFrame.items.reverse();listFrame.items[1].size = 999;}
+      paintList();}""")
+    assert page.evaluate("document.activeElement === originalButton")
+    expect(page.locator(selector).last).to_have_attribute("data-name", name)
+    page.evaluate("""() => {if(listFrame.names) {listFrame.names.pop();listFrame.count=1;}
+      else listFrame.items.pop();paintList();}""")
+    expect(page.locator(selector)).to_be_focused()
+    page.evaluate("""() => {if(listFrame.names) {listFrame.names=[];listFrame.count=0;}
+      else listFrame.items=[];paintList();}""")
+    expect(page.locator(f"#{kind}Body")).to_be_focused()
