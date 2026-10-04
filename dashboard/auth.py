@@ -116,9 +116,16 @@ class Auth:
             ).decode("ascii")
         except (CookieError, InvalidToken, ValueError, UnicodeError):
             return None
+        return session_id if self.is_active(session_id) else None
+
+    def is_active(self, session_id):
+        """Recheck an already authenticated stream without decrypting its cookie."""
         with self._lock:
-            self._prune_sessions()
-            return session_id if session_id in self._sessions else None
+            expires = self._sessions.get(session_id)
+            if expires is not None and expires > time.time():
+                return True
+            self._sessions.pop(session_id, None)
+            return False
 
     def sign_out(self, session_id):
         with self._lock:

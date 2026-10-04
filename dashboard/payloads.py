@@ -1,5 +1,9 @@
 """Response data shared by the JSON API and SSE, independent of HTTP I/O."""
 
+import json
+import threading
+import time
+
 import config
 import dockerlib
 import ops
@@ -68,6 +72,31 @@ STREAM_PLAN = (
     ("players-history", 60.0),
     ("mods", 60.0),
 )
+
+
+class StreamCache:
+    """One bounded, serialized snapshot per channel and HTTP server.
+
+    Per-channel locks coalesce simultaneous subscribers without letting a slow
+    Docker/Steam request block unrelated channels. HTTP polling stays uncached.
+    """
+
+    def __init__(self):
+        self._channels = {name: [threading.Lock(), None, 0.0] for name, _ in STREAM_PLAN}
+
+    def frame(self, name, interval):
+        channel = self._channels[name]
+        with channel[0]:
+            if channel[1] is None or time.monotonic() >= channel[2]:
+                try:
+                    data = stream_payload(name)
+                    encoded = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+                except Exception as error:  # noqa: BLE001 — share failures too
+                    encoded = json.dumps({"ok": False, "error": str(error)}, ensure_ascii=False)
+                channel[1] = f"event: {name}\ndata: {encoded}\n\n".encode("utf-8")
+                # Start TTL after collection: slow calls must not cause a stampede.
+                channel[2] = time.monotonic() + interval
+            return channel[1]
 
 
 def overview_payload():

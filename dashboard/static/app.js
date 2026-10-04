@@ -1571,6 +1571,7 @@ function parseLogs(text) {
 
 function renderLogs(data) {
   if (S.overview && S.overview.mode === "remote") {
+    S.logsText = null;
     $("logsOut").textContent = "Логи контейнера доступны только при запуске пульта на хосте сервера.";
     return;
   }
@@ -1583,7 +1584,11 @@ function renderLogs(data) {
   $("logsError").hidden = true;
   $("logsLimit").hidden = !data.truncated;
   S.logsUpdatedAt = Date.now();
-  S.logsLines = parseLogs(data.text);
+  // Keep freshness/error recovery, but avoid parsing and rebuilding unchanged logs.
+  const text = data.text || "";
+  if (S.logsText === text) return;
+  S.logsText = text;
+  S.logsLines = parseLogs(text);
   renderLogsFiltered();
 }
 
@@ -1987,18 +1992,30 @@ function updateFreshness() {
   }
 }
 
+let pollingStarted = false;
+let liveSource = null;
+let sseStartupTimer = null;
+
 function startPolling() {
-  refreshAll();
-  setInterval(refreshOverview, 3000);
-  setInterval(refreshPlayers, 5000);
-  setInterval(refreshStats, 5000);
-  setInterval(refreshLogs, 5000);
-  setInterval(refreshBackups, 10000);
-  setInterval(refreshEvents, 12000);
-  setInterval(refreshOps, 1500);
-  setInterval(refreshPlayersHistory, 60000);
-  setInterval(refreshStatsHistory, 30000);
-  setInterval(refreshMods, 60000);
+  if (pollingStarted) return;
+  pollingStarted = true;
+  for (const [refresh, interval] of [
+    [refreshOverview, 3000], [refreshPlayers, 5000], [refreshStats, 5000],
+    [refreshLogs, 5000], [refreshBackups, 10000], [refreshEvents, 12000],
+    [refreshOps, 1500], [refreshPlayersHistory, 60000], [refreshStatsHistory, 30000],
+    [refreshMods, 60000],
+  ]) {
+    let running = false;
+    const poll = async () => {
+      if (document.hidden || running) return;
+      if (refresh === refreshLogs && activeView !== "console") return;
+      running = true;
+      try { await refresh(); } finally { running = false; }
+    };
+    poll();
+    setInterval(poll, interval);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
+  }
 }
 
 /* ───────────────────────── запуск ───────────────────────── */
@@ -2064,16 +2081,20 @@ window.addEventListener("hashchange", applyRoute);
 /* ───────────────────── SSE: живой поток данных ───────────────────── */
 
 function startSse() {
+  if (document.hidden || liveSource || pollingStarted) return;
   if (typeof EventSource === "undefined") { startPolling(); return; }
   const es = new EventSource("/api/stream");
-  es.addEventListener("auth-expired", () => { es.close(); requireLogin(); });
+  liveSource = es;
+  es.addEventListener("auth-expired", () => { es.close(); liveSource = null; clearTimeout(sseStartupTimer); requireLogin(); });
   let messages = 0;
   let errors = 0;
   let fellBack = false;
   const fallback = () => {
-    if (fellBack) return;
+    if (fellBack || liveSource !== es) return;
     fellBack = true;
     es.close();
+    liveSource = null;
+    clearTimeout(sseStartupTimer);
     startPolling();
   };
   const bind = (name, apply) => es.addEventListener(name, (e) => {
@@ -2102,13 +2123,23 @@ function startSse() {
     errors++;
     if (errors >= 3 && Date.now() - S.lastDataOk > 20000) fallback();
   };
-  setTimeout(() => { if (messages === 0) fallback(); }, 9000);
+  sseStartupTimer = setTimeout(() => { if (messages === 0) fallback(); }, 9000);
 }
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    liveSource?.close();
+    liveSource = null;
+    clearTimeout(sseStartupTimer);
+  } else if (!S.demo && !pollingStarted) {
+    startSse();
+  }
+});
 
 async function boot() {
   // тикер свежести живёт всегда: в SSE-режиме при молчащем потоке шапка
   // честно показывает «нет данных N мин», а не замирает на старом времени
-  setInterval(updateFreshness, 5000);
+  setInterval(() => { if (!document.hidden) updateFreshness(); }, 5000);
   consoleBootLine = consoleAppend("Пульт подключается к серверу…", "c-dim");
   applyRoute();
   if (location.protocol === "file:" || new URLSearchParams(location.search).get("demo") === "1") {

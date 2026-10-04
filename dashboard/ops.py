@@ -16,6 +16,7 @@ import urllib.error
 import urllib.request
 from collections import Counter, deque
 from datetime import datetime, timedelta, timezone
+from itertools import islice
 
 import config
 import dockerlib
@@ -94,23 +95,37 @@ def log_event(kind, text, detail=None, notify=True):
             pass
 
 
+def _reverse_lines(path, chunk_size=65536):
+    """Read a JSONL tail in fixed blocks, newest first, without scanning its prefix."""
+    with open(path, "rb") as source:
+        position = source.seek(0, os.SEEK_END)
+        pending = b""
+        while position:
+            size = min(chunk_size, position)
+            position -= size
+            source.seek(position)
+            lines = (source.read(size) + pending).split(b"\n")
+            pending = lines[0]
+            for line in reversed(lines[1:]):
+                if line:
+                    yield line.decode("utf-8", errors="replace")
+        if pending:
+            yield pending.decode("utf-8", errors="replace")
+
+
 def get_events(limit=100):
-    out = list(_EV_MEM)[:limit]
-    if not out:
-        # поднимаем историю из файла при первом обращении
-        try:
-            with open(config.CFG["events_file"], encoding="utf-8") as f:
-                lines = f.read().splitlines()
-            with _EV_LOCK:
-                for line in lines[-200:]:
+    with _EV_LOCK:
+        if not _EV_MEM:
+            # Load only the last 200 lines, even after years of event history.
+            try:
+                for line in islice(_reverse_lines(config.CFG["events_file"]), 200):
                     try:
-                        _EV_MEM.appendleft(json.loads(line))
-                    except (ValueError, KeyError):
+                        _EV_MEM.append(json.loads(line))
+                    except ValueError:
                         pass
-                out = list(_EV_MEM)[:limit]
-        except OSError:
-            pass
-    return out
+            except OSError:
+                pass
+        return list(islice(_EV_MEM, max(0, limit)))
 
 
 # ─────────────────────────── настройки ───────────────────────────
@@ -832,7 +847,10 @@ def _do_restart(
 def _effective_image():
     """Фактический образ контейнера (если пульт на хосте) или из конфига.
     Реальный образ может отличаться от дефолта — проверяем то, что запущено."""
-    st = container_state()
+    return _image_from_state(container_state())
+
+
+def _image_from_state(st):
     img = (st or {}).get("image") or config.CFG["pz_image"]
     if ":" not in img.rsplit("/", 1)[-1]:
         img = img + ":latest"
@@ -906,11 +924,11 @@ def update_state():
 _LOCAL_DIGEST = {"digest": None, "image": None, "at": 0.0}
 
 
-def local_digest_cached(ttl=60):
+def local_digest_cached(ttl=60, image=None):
     """Локальный digest считается сам по себе (TTL-кэш), а не только по кнопке «Проверить»."""
     now = time.time()
-    if now - _LOCAL_DIGEST["at"] > ttl:
-        image = _effective_image()
+    if now - _LOCAL_DIGEST["at"] > ttl or (image is not None and image != _LOCAL_DIGEST["image"]):
+        image = image or _effective_image()
         _LOCAL_DIGEST.update({"digest": dockerlib.image_digests(image), "image": image, "at": now})
     return _LOCAL_DIGEST["digest"]
 
@@ -1008,19 +1026,20 @@ def _journal_append(entry):
 
 def get_backup_journal(limit=50):
     """Последние записи журнала запусков бэкапов — новые сверху."""
-    try:
-        with open(_journal_path(), encoding="utf-8") as f:
-            lines = f.read().splitlines()
-    except OSError:
-        return []
     out = []
-    for line in reversed(lines):
-        try:
-            out.append(json.loads(line))
-        except ValueError:
-            continue
-        if len(out) >= limit:
-            break
+    if limit <= 0:
+        return out
+    try:
+        with _BJ_LOCK:
+            for line in _reverse_lines(_journal_path()):
+                try:
+                    out.append(json.loads(line))
+                except ValueError:
+                    continue
+                if len(out) >= limit:
+                    break
+    except OSError:
+        pass
     return out
 
 
@@ -1537,12 +1556,9 @@ def fetch_stats():
     return stats
 
 
-def full_logs():
+def full_logs(destination):
     """Полный лог контейнера (для скачивания файлом)."""
-    code, out, err = dockerlib.sh(
-        ["docker", "logs", config.CFG["pz_container"]], timeout=120, merge_stderr=True
-    )
-    return out if code == 0 else None
+    return dockerlib.container_logs_to_file(config.CFG["pz_container"], destination)
 
 
 # ─────────────────────────── моды сервера ───────────────────────────
@@ -1911,6 +1927,7 @@ def overview():
     cfg = config.CFG
     docker_ok = docker_ok_cached()
     st = container_state()
+    image = _image_from_state(st)
     cont = None
     if st:
         cont = {
@@ -1937,14 +1954,14 @@ def overview():
         "rconConfigured": bool(cfg["rcon_password"]),
         "rcon": dict(_RCON_CACHE),
         "containerInfo": cont,
-        "update": {**update_state(), "local": local_digest_cached()},
+        "update": {**update_state(), "local": local_digest_cached(image=image)},
         "modsCheck": mods_check_state(),
         "settings": get_settings(),
         "watchdog": watchdog_state(),
         "notify": notifylib.state(),
         # фактический образ контейнера (в remote — из конфига); ключ один,
         # без дублей: в литерале ниже его уже не повторять
-        "image": _effective_image(),
+        "image": image,
         "backupsCount": len(list_backups()),
         "now": now_iso(),
     }

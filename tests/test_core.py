@@ -90,7 +90,6 @@ def test_log_readers_request_both_streams(monkeypatch):
     assert scoped[scoped.index("--until") + 1] == until
     assert scoped[scoped.index("--tail") + 1] == "10000"
     assert scoped[-1] == "server"
-    assert ops.full_logs() == "normal\nerror"
     assert all(merge for _, merge in calls)
 
 

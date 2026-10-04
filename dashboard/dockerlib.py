@@ -120,6 +120,20 @@ def container_logs(name, tail=250, since=None, until=None):
     return out, None
 
 
+def container_logs_to_file(name, destination):
+    """Capture both log streams without buffering the full container log in RAM."""
+    try:
+        result = subprocess.run(
+            ["docker", "logs", name],
+            stdout=destination,
+            stderr=subprocess.STDOUT,
+            timeout=120,
+        )
+        return result.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
 def parse_startup_version(line):
     # PZ emits this header before loading mods. A mod title or player message
     # mentioning a version must not override the game version.

@@ -10,15 +10,28 @@ import time
 import urllib.parse
 import urllib.request
 import json
+from collections import OrderedDict
 from pathlib import Path
 
 import config
 import dockerlib
 from configformats import FormatError, SECRET_KEY, decode_string, normalize_mod
 
-_CACHE = {}
+_CACHE = OrderedDict()
 _LOCK = threading.Lock()
-_TRANSLATIONS = {}
+_TRANSLATIONS = OrderedDict()
+
+
+def _store_cache(cache, key, value, ttl, max_entries=8):
+    """Called under _LOCK; discard expired profiles and bound retained metadata."""
+    now = time.time()
+    for old_key, (created, _) in list(cache.items()):
+        if now - created >= ttl:
+            del cache[old_key]
+    cache[key] = (now, value)
+    cache.move_to_end(key)
+    while len(cache) > max_entries:
+        cache.popitem(last=False)
 
 
 def invalidate():
@@ -117,7 +130,7 @@ def vanilla_translations(version, allow_container=False):
         except (ValueError, OSError):
             pass
     with _LOCK:
-        _TRANSLATIONS[key] = (time.time(), result)
+        _store_cache(_TRANSLATIONS, key, result, 300)
     return result
 
 
@@ -449,7 +462,7 @@ def scan(items, version, refresh=False):
         except (ValueError, OSError):
             pass
     with _LOCK:
-        _CACHE[key] = (time.time(), index)
+        _store_cache(_CACHE, key, index, 120)
     return index
 
 

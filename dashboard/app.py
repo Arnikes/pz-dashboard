@@ -6,7 +6,9 @@ from datetime import datetime
 import mimetypes
 import os
 import posixpath
+import shutil
 import sys
+import tempfile
 import threading
 import time
 import urllib.parse
@@ -24,6 +26,7 @@ import payloads
 import rcon
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+_STREAM_CACHE_LOCK = threading.Lock()
 
 
 def _read_json(handler):
@@ -159,19 +162,21 @@ class Handler(BaseHTTPRequestHandler):
         if not ops.docker_ok_cached():
             self._send_error_json(400, "Логи доступны только при запуске пульта на хосте сервера")
             return
-        text = ops.full_logs()
-        if text is None:
-            self._send_error_json(500, "Не удалось получить логи контейнера")
-            return
-        body = text.encode("utf-8", "replace")
-        name = time.strftime("pzserver-%Y%m%d-%H%M%S.log")
-        self.send_response(200)
-        self.send_header("Content-Type", "text/plain; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Content-Disposition", f'attachment; filename="{name}"')
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(body)
+        # Docker writes directly to disk; RAM usage is independent of log size.
+        with tempfile.TemporaryFile() as logfile:
+            if not ops.full_logs(logfile):
+                self._send_error_json(500, "Не удалось получить логи контейнера")
+                return
+            size = logfile.tell()
+            logfile.seek(0)
+            name = time.strftime("pzserver-%Y%m%d-%H%M%S.log")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(size))
+            self.send_header("Content-Disposition", f'attachment; filename="{name}"')
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            shutil.copyfileobj(logfile, self.wfile, length=256 * 1024)
 
     def _serve_backup(self, name):
         try:
@@ -224,6 +229,10 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.flush()
 
     def _serve_stream(self):
+        with _STREAM_CACHE_LOCK:
+            if not hasattr(self.server, "stream_cache"):
+                self.server.stream_cache = payloads.StreamCache()
+        cache = self.server.stream_cache
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
@@ -233,30 +242,24 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Transfer-Encoding", "chunked")
         self.end_headers()
         self.connection.settimeout(75)
-        last = {name: 0.0 for name, _ in payloads.STREAM_PLAN}
-        last_beat = time.time()
+        last = {name: float("-inf") for name, _ in payloads.STREAM_PLAN}
+        last_beat = time.monotonic()
         try:
             self._sse_write(b"retry: 3000\n\n")
             while True:
-                if not self.server.auth.session(self.headers.get("Cookie")):
+                if not self.server.auth.is_active(self.auth_session):
                     self._sse_write(b"event: auth-expired\ndata: {}\n\n")
                     break
-                now = time.time()
+                now = time.monotonic()
                 for name, interval in payloads.STREAM_PLAN:
                     if now - last[name] < interval:
                         continue
-                    try:
-                        data = payloads.stream_payload(name)
-                    except Exception as e:  # noqa: BLE001
-                        data = {"ok": False, "error": str(e)}
-                    if not self.server.auth.session(self.headers.get("Cookie")):
+                    frame = cache.frame(name, interval)
+                    if not self.server.auth.is_active(self.auth_session):
                         self._sse_write(b"event: auth-expired\ndata: {}\n\n")
                         return
-                    frame = (
-                        f"event: {name}\ndata: " + json.dumps(data, ensure_ascii=False) + "\n\n"
-                    ).encode("utf-8")
                     self._sse_write(frame)
-                    last[name] = now
+                    last[name] = time.monotonic()
                 if now - last_beat >= 15.0:
                     self._sse_write(b": heartbeat\n\n")
                     last_beat = now

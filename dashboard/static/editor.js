@@ -729,6 +729,7 @@ window.ConfigEditor = (() => {
   window.addEventListener("beforeunload", e => { if (sourceDirty || fieldDirty || pendingFields.size) { e.preventDefault(); e.returnValue = ""; } });
   window.addEventListener("hashchange", updateBar);
   setInterval(async () => {
+    if (document.hidden) return;
     updateBar();
     const active = !!S.op?.active;
     if ((previousOp || draft?.status === "applying") && !active && file && !loading && !sourceDirty && !fieldDirty && !pendingFields.size) {
