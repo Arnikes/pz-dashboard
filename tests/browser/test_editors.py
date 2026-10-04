@@ -1447,8 +1447,11 @@ def test_operation_locks_mod_changes_but_keeps_inspection_and_restores_constrain
 
 
 @pytest.mark.parametrize("entry", ["configDiff", "configApply"])
-@pytest.mark.parametrize("width", [390, 1440])
-def test_first_click_flushes_focused_field_before_review(page, dashboard, editing, entry, width):
+@pytest.mark.parametrize("width", [390, 1280, 1440])
+@pytest.mark.parametrize("save_during_click", [False, True])
+def test_first_click_flushes_focused_field_before_review(
+    page, dashboard, editing, entry, width, save_during_click
+):
     page.set_viewport_size({"width": width, "height": 844})
     page.goto(dashboard["url"])
     expect(page.locator("#configProfile")).to_have_value("world.ini")
@@ -1460,7 +1463,16 @@ def test_first_click_flushes_focused_field_before_review(page, dashboard, editin
         const event = new Event('beforeunload', {cancelable:true});
         window.dispatchEvent(event); return event.defaultPrevented;
     }""")
-    page.locator(f"#{entry}").click()
+    button = page.locator(f"#{entry}")
+    if save_during_click:
+        # A fast blur save can complete between pointer press and release.
+        box = button.bounding_box()
+        page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        page.mouse.down()
+        expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
+        page.mouse.up()
+    else:
+        button.click()
     expect(page.get_by_role("alertdialog")).to_contain_text("+PublicName=First click draft")
     assert "PublicName=First click draft" in editor.draft("world.ini")["texts"]["ini"]
     assert dashboard["actions"] == []

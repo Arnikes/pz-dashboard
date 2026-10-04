@@ -1457,6 +1457,13 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--draft-heigh
 #configFields [data-key], #mapList { scroll-margin-bottom:calc(var(--draft-height) + 40px); }
 .toasts { bottom:calc(var(--draft-height) + 28px); }
 @media (min-width:741px) {
+  /* Status updates during a blur save must not move the pressed action. */
+  .draft-bar { display:grid; grid-template-columns:minmax(0,1fr) auto auto auto; }
+  .draft-bar #draftRetry { grid-column:1/-1; }
+  .draft-bar #draftLabel { grid-column:1/3; }
+  .draft-bar #draftSaved { grid-column:3/-1; margin:0; }
+  .draft-bar #draftLabel, .draft-bar #draftSaved { min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .draft-bar .draft-extra { grid-column:1/3; }
   .nav { position:fixed; top:calc(var(--header-height) + 16px); left:12px; bottom:20px; width:180px; z-index:40; display:flex; flex-direction:column; align-items:stretch; justify-content:flex-start; gap:8px; padding:12px 4px; border:0; background:var(--bg); overflow-y:auto; }
   .nav a { padding:12px; flex:none; min-height:44px; border-radius:8px; justify-content:flex-start; }
   .main, .healthbar, .foot { margin-left:var(--sidebar-width); }
