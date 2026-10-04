@@ -115,6 +115,26 @@
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
+.command-dialog {
+  width: min(640px, calc(100vw - 24px)); max-height: min(680px, calc(100dvh - 32px));
+  padding: 20px; color: var(--ink); background: var(--surface); border: 1px solid var(--line-strong);
+  border-radius: 14px; overflow: auto; box-shadow: 0 18px 48px rgb(0 0 0 / .4); font: inherit;
+}
+.command-dialog::backdrop { background: rgb(0 0 0 / .65); }
+.command-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.command-head h2 { margin: 0; }
+#commandSearch { width: 100%; min-height: 44px; }
+.command-results { display: grid; gap: 4px; }
+.command-item { display: grid; gap: 4px; padding: 12px; min-height: 56px; text-align: left; color: inherit; background: transparent; border: 1px solid transparent; border-radius: 8px; font: inherit; cursor: pointer; }
+.command-item span { font-size: 14px; color: var(--muted); }
+.command-item:hover:not(:disabled), .command-item:focus-visible { background: var(--surface-2); border-color: var(--line-strong); }
+.command-item:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.command-head .btn { min-height: 44px; }
+.command-item:disabled { opacity: .7; cursor: default; }
+#btnCommands kbd { margin-left: 6px; font: inherit; opacity: .75; }
+#btnCommands svg { display: none; width: 18px; height: 18px; }
+@media (max-width: 600px) { .command-dialog { padding: 16px; } }
+
 :root {
   color-scheme: dark;
   --header-height: 94px;
@@ -1507,6 +1527,10 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--draft-heigh
   .connection-status .fresh { display:none; }
   .config-context { order:3; width:100%; }
   .profile-label { width:100%; min-width:0; }
+  .config-context { width:calc(100% - 56px); }
+  #btnCommands { order:3; flex:0 0 44px; width:44px; min-height:44px; padding:10px; }
+  #btnCommands .command-label, #btnCommands kbd { display:none; }
+  #btnCommands svg { display:block; }
   .nav { display:grid; grid-template-columns:repeat(4,1fr); padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px)); gap:4px; }
   .nav a:not([data-route=overview]):not([data-route=players]):not([data-route=mods]) { display:none; }
   .nav-more { display:block; min-height:48px; padding:8px; border:1px solid var(--line-strong); border-radius:8px; background:var(--surface); color:var(--ink); font:inherit; }

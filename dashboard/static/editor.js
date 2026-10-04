@@ -742,6 +742,20 @@ window.ConfigEditor = (() => {
   init();
   return {
     get file() { return file; },
+    async focusSettings(tab = "server") {
+      if (!file || !draft) throw new Error("Сначала выберите доступный профиль конфигурации");
+      await chain; await flushFields();
+      if (unsaved.length) throw new Error("Сначала повторите сохранение черновика после восстановления связи");
+      await flushSources();
+      configTab = tab;
+      $("configTabs").querySelectorAll("[role=tab]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
+      renderFields(); renderSources(); $("configSearch").focus();
+    },
+    focusModOrder() {
+      modTab = "order";
+      $("modTabs").querySelectorAll("[role=tab]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === modTab)));
+      updateModTab(); $("orderQuery").focus();
+    },
     operationChanged() { if (S.op?.active) endDrag(); updateBar(); },
     route(view) { updateBar(); if (view === "mods") updateModTab(); },
     background() {

@@ -58,6 +58,7 @@
       <span class="pill" id="pillRcon" data-state="unknown">RCON</span>
       <span class="fresh" id="freshness"></span>
       </div>
+      <button class="btn small" id="btnCommands" type="button" aria-label="Быстрые команды" aria-haspopup="dialog" aria-controls="commandDialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><span class="command-label">Быстрые команды</span><kbd>Ctrl K</kbd></button>
       <button class="btn small" id="btnLogout" type="button">Выйти</button>
     </div>
   </header>
@@ -660,6 +661,15 @@
       </div>
     </div>
   </div>
+
+  <dialog id="commandDialog" class="command-dialog" aria-labelledby="commandTitle" aria-describedby="commandHint">
+    <div class="command-head"><h2 id="commandTitle">Быстрые команды</h2><button type="button" class="btn small" id="commandClose">Закрыть</button></div>
+    <label class="sr-only" for="commandSearch">Найти команду или раздел</label>
+    <input type="search" id="commandSearch" placeholder="Настройки, моды, логи…" autocomplete="off" />
+    <p id="commandHint" class="hint">Стрелки — выбор, Enter — открыть, Escape — закрыть. Операции требуют подтверждения.</p>
+    <div id="commandResults" class="command-results" role="group" aria-label="Найденные команды"></div>
+    <p id="commandCount" class="sr-only" role="status" aria-live="polite"></p>
+  </dialog>
 
   <script src="static/app.js"></script>
   <script src="static/editor.js"></script>

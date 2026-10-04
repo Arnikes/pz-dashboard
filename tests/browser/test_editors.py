@@ -57,6 +57,27 @@ def navigate(page, route, mobile=False):
         page.locator(f'.nav [data-route="{route}"]').click()
 
 
+def test_commands_find_settings_and_mods_without_losing_draft(page, dashboard, editing):
+    page.goto(dashboard["url"] + "/#/settings")
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    page.locator('[data-key="PublicName"]').fill("Quick access draft")
+    page.locator("#btnCommands").click()
+    page.locator("#commandSearch").fill("настройку мира")
+    page.locator("#commandSearch").press("Enter")
+    expect(page.locator("#configSearch")).to_be_focused()
+    expect(page.locator('#configTabs [data-tab="world"]')).to_have_attribute("aria-selected", "true")
+    expect(page.locator("#draftBar")).to_be_visible()
+    page.locator("#btnCommands").click()
+    page.locator("#commandSearch").fill("настройку сервера")
+    page.locator("#commandSearch").press("Enter")
+    expect(page.locator('[data-key="PublicName"]')).to_have_value("Quick access draft")
+    page.locator("#btnCommands").click()
+    page.locator("#commandSearch").fill("мод в порядке")
+    page.locator("#commandSearch").press("Enter")
+    expect(page.locator("#orderQuery")).to_be_focused()
+    expect(page.locator('#modTabs [data-tab="order"]')).to_have_attribute("aria-selected", "true")
+
+
 @pytest.mark.parametrize("width", [390, 768, 1440, 2048])
 def test_editor_layout_controls_and_draft_do_not_cover_content(page, dashboard, editing, width):
     data, _ = editing

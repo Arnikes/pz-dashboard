@@ -6,6 +6,60 @@ from playwright.sync_api import expect
 pytestmark = pytest.mark.browser
 
 
+@pytest.mark.parametrize("width", [320, 1440])
+def test_commands_keyboard_navigation_and_escape_restore_focus(page, dashboard, width):
+    page.set_viewport_size({"width": width, "height": 844})
+    page.goto(dashboard["url"])
+    trigger = page.locator("#btnCommands")
+    trigger.focus()
+    page.keyboard.press("Control+k")
+    expect(page.locator("#commandSearch")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(trigger).to_be_focused()
+    expect(page.locator("#commandDialog")).not_to_be_visible()
+    trigger.click()
+    page.locator("#commandSearch").fill("открыть: события")
+    page.keyboard.press("ArrowDown")
+    expect(page.get_by_role("button", name="Открыть: События")).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(page.locator("#view-events")).to_be_visible()
+    expect(page.locator("#commandDialog")).not_to_be_visible()
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+
+
+def test_commands_ignore_shortcut_in_rcon_and_open_safe_confirmation(page, dashboard):
+    page.goto(dashboard["url"] + "/#/console")
+    expect(page.locator("#btnStop")).to_be_enabled()
+    field = page.locator("#consoleInput")
+    field.fill("servermsg сохранённый ввод")
+    field.press("Control+k")
+    expect(page.locator("#commandDialog")).not_to_be_visible()
+    expect(field).to_have_value("servermsg сохранённый ввод")
+    page.locator("#btnCommands").click()
+    page.locator("#commandSearch").fill("остановить")
+    page.locator("#commandSearch").press("Enter")
+    expect(page.locator("#modalRoot")).to_be_visible()
+    expect(page.locator("#modalCancel")).to_be_focused()
+    assert dashboard["actions"] == []
+    page.keyboard.press("Escape")
+    assert dashboard["actions"] == []
+
+
+def test_commands_unavailable_reason_empty_results_and_log_filter(page, dashboard):
+    page.goto(dashboard["url"])
+    page.locator("#btnCommands").click()
+    page.locator("#commandSearch").fill("текущую операцию")
+    unavailable = page.locator("#commandResults button")
+    expect(unavailable).to_be_disabled()
+    expect(unavailable).to_contain_text("Сейчас нет активной операции")
+    page.locator("#commandSearch").fill("нет-такой-команды")
+    expect(page.locator("#commandResults")).to_contain_text("Команда не найдена")
+    page.locator("#commandSearch").fill("строку в логах")
+    page.locator("#commandSearch").press("Enter")
+    expect(page.locator("#logsFilter")).to_be_focused()
+    expect(page.locator("#view-console")).to_be_visible()
+
+
 @pytest.mark.parametrize("operation", ["backup", "apply-update", "restore", "restart"])
 def test_operation_visible_on_all_routes_and_result_survives_navigation(page, dashboard, operation):
     page.goto(dashboard["url"])
