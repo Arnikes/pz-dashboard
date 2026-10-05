@@ -99,7 +99,7 @@ def test_navigation_keeps_one_stream_and_hidden_polling_does_not_overlap(page, d
     page.clock.run_for(6000)
     assert len(held) == 1
     held[0].fulfill(json={"ok": True, "serverName": "Resumed polling", "settings": {}})
-    expect(page.locator("#serverName")).to_have_text("Resumed polling")
+    page.wait_for_function("S.overview?.serverName === 'Resumed polling'")
     page.unroute("**/api/overview")
     with page.expect_request("**/api/overview"):
         page.clock.run_for(3000)

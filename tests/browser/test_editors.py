@@ -205,7 +205,7 @@ def test_configuration_stages_keep_draft_and_only_navigate(page, dashboard, edit
         assert menu["y"] + menu["height"] <= nav["y"]
         assert menu["y"] >= 0
         page.keyboard.press("Escape")
-        expect(page.locator("#freshness")).to_be_visible()
+        expect(page.locator("#configProfile")).to_be_visible()
     expect(field).to_have_value("Staged draft")
 
 
@@ -712,38 +712,46 @@ def test_header_profile_context_is_clear_and_aligned(page, dashboard, editing, w
     page.goto(dashboard["url"])
     expect(page.locator("#configProfile")).to_have_value("world.ini")
     expect(page.locator("#configActive")).to_have_text("Активен на сервере")
-    expect(page.locator("#configActive")).to_have_attribute("data-state", "active")
+    expect(page.locator("#configProfile")).to_have_attribute("data-state", "active")
+    expect(page.locator("#configProfile")).to_have_accessible_description("Активен на сервере")
+    active_color = page.locator("#configProfile").evaluate("el => getComputedStyle(el).color")
+    expect(page.locator("#configProfile")).to_have_css("border-top-color", active_color)
     expect(page.locator("#configVersion")).to_have_text("PZ 42.15.1")
     expect(page.locator("#configProfile option:checked")).to_have_text("world.ini")
     expect(page.locator("#clock, #topLamp")).to_have_count(0)
+    expect(page.locator("#serverName")).to_have_count(0)
+    expect(page.locator("#freshness")).to_be_hidden()
+    assert "Активен на сервере" not in page.locator(".topbar").inner_text()
     page.locator("#configProfile").select_option(other)
     expect(page.locator("#configActive")).to_have_text("Другой профиль")
-    expect(page.locator("#configActive")).to_have_attribute("title", "Сервер использует world.ini")
+    expect(page.locator("#configProfile")).to_have_attribute("data-state", "other")
+    expect(page.locator("#configProfile")).to_have_attribute(
+        "title", "Другой профиль. Сервер использует world.ini"
+    )
+    expect(page.locator("#configProfile")).to_have_accessible_description("Другой профиль")
+    other_color = page.locator("#configProfile").evaluate("el => getComputedStyle(el).color")
+    assert active_color != other_color
+    expect(page.locator("#configProfile")).to_have_css("border-top-color", other_color)
     expect(page.locator("#configApply")).to_be_disabled()
     geometry = page.evaluate("""() => {
         const box = s => document.querySelector(s).getBoundingClientRect();
-        const state = box('#configActive'), fresh = box('#freshness');
         const select = box('#configProfile'), commands = box('#btnCommands'), header = box('.topbar');
-        const logout = box('#btnLogout'), server = box('#serverName');
-        return {stateTop:state.top,stateBottom:state.bottom,freshBottom:fresh.bottom,
+        const logout = box('#btnLogout');
+        return {
             selectTop:select.top,selectBottom:select.bottom,selectHeight:select.height,
             commandsTop:commands.top,commandsHeight:commands.height,
-            logoutTop:logout.top,logoutHeight:logout.height,serverBottom:server.bottom,
-            stateLeft:state.left,selectLeft:select.left,stateRight:state.right,selectRight:select.right,
+            logoutTop:logout.top,logoutHeight:logout.height,
             height:header.height,overflow:document.documentElement.scrollWidth > innerWidth};
     }""")
-    assert geometry["stateTop"] > geometry["selectBottom"]
-    assert geometry["stateLeft"] == geometry["selectLeft"]
-    assert geometry["stateRight"] <= geometry["selectRight"]
     assert geometry["selectHeight"] == geometry["commandsHeight"] == 44
     assert geometry["selectTop"] == geometry["commandsTop"]
     assert not geometry["overflow"]
     if width <= 740:
-        assert geometry["height"] < 145
+        assert geometry["height"] < 110
     else:
         assert geometry["selectTop"] == geometry["logoutTop"]
         assert geometry["logoutHeight"] == 44
-        assert geometry["stateBottom"] == geometry["freshBottom"] == geometry["serverBottom"]
+        assert geometry["height"] == 69
     expect(
         page.locator(".topbar #pillDocker, .topbar #pillRcon, .topbar #configVersion")
     ).to_have_count(0)
@@ -754,6 +762,7 @@ def test_header_profile_context_is_clear_and_aligned(page, dashboard, editing, w
     page.locator(".health-details > summary").click()
     page.locator("#configProfile").select_option("world.ini")
     expect(page.locator("#configActive")).to_have_text("Активен на сервере")
+    expect(page.locator("#configProfile")).to_have_attribute("data-state", "active")
     page.locator(".topbar").screenshot(path=str(data.parent / f"review-header-{width}.png"))
     page.screenshot(path=str(data.parent / f"review-page-{width}.png"))
     assert dashboard["actions"] == []
@@ -765,7 +774,11 @@ def test_header_does_not_claim_unknown_profile_is_active(page, dashboard, editin
     page.goto(dashboard["url"])
     expect(page.locator("#configProfile")).to_have_value("world.ini")
     expect(page.locator("#configActive")).to_have_text("Не подтверждён")
-    expect(page.locator("#configActive")).to_have_attribute("data-state", "unknown")
+    expect(page.locator("#configProfile")).to_have_attribute("data-state", "unknown")
+    expect(page.locator("#configProfile")).to_have_accessible_description("Не подтверждён")
+    expect(page.locator("#configProfile")).to_have_attribute(
+        "title", "Не подтверждён. Не удалось определить профиль запуска сервера"
+    )
     page.evaluate("location.hash='#/settings'")
     expect(page.locator("#configActionHelp")).to_contain_text("Профиль запуска не подтверждён")
     page.locator(".context-help summary").filter(has_text="Как применить настройки").click()
@@ -788,10 +801,14 @@ def test_header_time_describes_data_freshness_and_preserves_last_update(page, da
         return {fresh,stale:el.textContent,lastUpdate:el.title,warning:el.classList.contains('stale'),
             expectedTime:timeFullFmt.format(S.lastDataOk)};
     }""")
-    assert result["fresh"].startswith("Данные обновлены ")
+    assert result["fresh"] == ""
     assert result["stale"] == "нет данных 2 мин"
     assert result["lastUpdate"] == "Последние данные получены в " + result["expectedTime"]
     assert result["warning"]
+    expect(page.locator("#freshness")).to_be_visible()
+    page.evaluate("S.lastDataOk = Date.now(); updateFreshness()")
+    expect(page.locator("#freshness")).to_be_hidden()
+    expect(page.locator(".header-meta")).to_be_hidden()
     expect(page.locator("#clock, #topLamp")).to_have_count(0)
 
 

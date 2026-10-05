@@ -41,7 +41,6 @@
       <svg class="brand-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a8 8 0 0 0-8 8c0 3 1.6 5.4 4 6.8V20a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-3.2c2.4-1.4 4-3.8 4-6.8a8 8 0 0 0-8-8Z" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="9" cy="10.5" r="1.6" fill="currentColor"/><circle cx="15" cy="10.5" r="1.6" fill="currentColor"/><path d="M10.5 15.5h3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
       <div class="brand-text">
         <div class="brand-title"><span class="brand-name">PZ·ПУЛЬТ</span><span class="badge-demo" id="demoBadge" hidden>ДЕМО</span></div>
-        <span class="brand-sub" id="serverName">Project Zomboid</span>
       </div>
     </div>
     <div class="top-right">
@@ -49,12 +48,12 @@
         <div class="profile-label">
           <label class="sr-only" for="configProfile">Профиль</label>
           <select id="configProfile" aria-label="Профиль конфигурации" aria-describedby="configActive"><option value="">Загрузка…</option></select>
+          <span id="configActive" hidden>Не подтверждён</span>
         </div>
       </div>
       <button class="btn" id="btnCommands" type="button" title="Быстрые команды (Ctrl K)" aria-label="Быстрые команды" aria-keyshortcuts="Control+k Meta+k" aria-haspopup="dialog" aria-controls="commandDialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><span class="command-label">Быстрые команды</span></button>
       <button class="btn ghost" id="btnLogout" type="button">Выйти</button>
       <div class="header-meta">
-        <span id="configActive" class="profile-state" data-state="unknown">Не подтверждён</span>
         <span class="fresh" id="freshness"></span>
       </div>
     </div>
@@ -648,10 +647,6 @@
     <button type="button" id="configDiff" class="btn small">Посмотреть изменения</button><button type="button" id="configApply" class="btn primary small">Применить с рестартом…</button>
     <button type="button" id="draftMore" class="btn small draft-more" aria-label="Другие действия с черновиком" aria-expanded="false" aria-controls="draftExtra"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button>
   </div>
-
-  <footer class="foot" data-od-id="footer">
-    PZ Пульт · V21
-  </footer>
 
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 

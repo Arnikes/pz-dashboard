@@ -592,8 +592,6 @@ function setPill(id, state, text) {
 function renderOverview(o) {
   if (o.settings) o = { ...o, settings: acceptSettings(o.settings) };
   S.overview = o;
-  $("serverName").textContent = o.serverName || "Project Zomboid";
-  $("serverName").title = $("serverName").textContent;
   setPill("pillDocker", o.docker ? "ok" : "bad", o.docker ? "Docker" : "Docker: вне хоста");
   setPill("pillCompose", o.compose ? "ok" : "bad", o.compose ? "compose" : "compose ✕");
   const rc = o.rcon || {};
@@ -2379,7 +2377,7 @@ function refreshAll() {
   refreshOverview(); refreshPlayers(); refreshStats(); refreshBackups(); refreshEvents(); refreshPlayersHistory(); refreshStatsHistory(); refreshMods();
 }
 
-/* свежесть данных в шапке: время последнего успешного опроса, warn при пропаже связи */
+/* В шапке показываем только предупреждение об устаревших данных. */
 function updateFreshness() {
   updateOperationElapsed();
   const el = $("freshness");
@@ -2389,8 +2387,8 @@ function updateFreshness() {
   const age = Date.now() - S.lastDataOk;
   if (age < 15000) {
     el.classList.remove("stale");
-    el.textContent = "Данные обновлены " + updated;
-    el.title = "Время последнего успешного получения данных сервера";
+    el.textContent = "";
+    el.title = "";
   } else {
     el.classList.add("stale");
     const mins = Math.floor(age / 60000);
@@ -2461,7 +2459,7 @@ function adaptHealthDisclosure() {
   const main = document.querySelector(".main"), flow = $("configFlow");
   if (mobileLayout.matches && editing) {
     main.append(flow);
-    document.querySelector(".foot").before(disclosure);
+    main.after(disclosure);
   } else {
     main.querySelector(".view").before(flow);
     document.querySelector(".topbar").after(disclosure);

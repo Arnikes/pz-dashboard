@@ -92,9 +92,11 @@ window.ConfigEditor = (() => {
     setDomProperty($("workshopAdd").querySelector("button"), "disabled", locked || resolvingWorkshop);
     $("modOrderList").querySelectorAll("button").forEach(el => { setDomProperty(el, "disabled", busy || S.demo || loading || el.dataset.edge === "true"); });
     const profileState = $("configActive");
-    setDomProperty(profileState, "textContent", draft.canApply ? "Активен на сервере" : draft.activeFile ? "Другой профиль" : "Не подтверждён");
-    setDomProperty(profileState.dataset, "state", draft.canApply ? "active" : draft.activeFile ? "other" : "unknown");
-    setDomProperty(profileState, "title", draft.activeFile ? `Сервер использует ${draft.activeFile}` : "Не удалось определить профиль запуска сервера");
+    const profile = $("configProfile");
+    const profileLabel = draft.canApply ? "Активен на сервере" : draft.activeFile ? "Другой профиль" : "Не подтверждён";
+    setDomProperty(profileState, "textContent", profileLabel);
+    setDomProperty(profile.dataset, "state", draft.canApply ? "active" : draft.activeFile ? "other" : "unknown");
+    setDomProperty(profile, "title", profileLabel + ". " + (draft.activeFile ? `Сервер использует ${draft.activeFile}` : "Не удалось определить профиль запуска сервера"));
     setDomProperty($("configVersion"), "textContent", draft.version ? `PZ ${draft.version}` : "B42 · версия неизвестна");
     if (draft.conflict && ($("configError").hidden || $("configError").dataset.source === "conflict")) {
       $("configError").textContent = "Рабочие файлы изменились. Нажмите «Посмотреть изменения», затем «Обновить основу черновика». Пересекающиеся правки нужно разрешить вручную.";
