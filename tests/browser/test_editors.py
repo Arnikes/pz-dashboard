@@ -1575,6 +1575,8 @@ def test_first_click_flushes_focused_field_before_review(
     button = page.locator(f"#{entry}")
     if save_during_click:
         # A fast blur save can complete between pointer press and release.
+        button.scroll_into_view_if_needed()
+        expect(field).to_be_focused()
         box = button.bounding_box()
         page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
         page.mouse.down()
