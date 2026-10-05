@@ -54,10 +54,7 @@ def test_connection_loss_never_adds_header_timer(page, dashboard, width, transpo
     expect(page.locator("#connBanner")).to_be_hidden()
     expect(header).to_have_text(original_text, use_inner_text=True)
     page.set_viewport_size({"width": 1440 if width == 390 else 390, "height": 844})
-    if width == 390:
-        expect(page.locator(".topbar #btnLogout")).to_be_visible()
-    else:
-        expect(page.locator(".health-tools #btnLogout")).to_have_count(1)
+    expect(page.locator(".topbar #btnLogout")).to_be_visible()
     assert dashboard["actions"] == []
 
 

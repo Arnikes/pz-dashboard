@@ -776,19 +776,27 @@ def test_header_profile_context_is_clear_and_aligned(page, dashboard, editing, w
     assert geometry["selectTop"] == geometry["commandsTop"]
     assert not geometry["overflow"]
     if width <= 740:
-        assert geometry["height"] < 110
+        assert geometry["height"] < 120
     else:
         assert geometry["selectTop"] == geometry["logoutTop"]
         assert geometry["logoutHeight"] == 44
         assert geometry["height"] == 69
-    expect(
-        page.locator(".topbar #pillDocker, .topbar #pillRcon, .topbar #configVersion")
-    ).to_have_count(0)
-    page.locator(".health-details > summary").click()
-    expect(page.locator("#pillDocker")).to_be_visible()
-    expect(page.locator("#pillRcon")).to_be_visible()
-    expect(page.locator("#configVersion")).to_be_visible()
-    page.locator(".health-details > summary").click()
+    expect(page.locator(".health-details, #healthbar, #pillDocker, #pillRcon")).to_have_count(0)
+    expect(page.locator(".brand-text #configVersion")).to_be_visible()
+    expect(page.locator("#configVersion")).to_have_attribute("title", "PZ 42.15.1")
+    expect(page.locator(".topbar #btnLogout")).to_be_visible()
+    brand = page.locator(".brand-text")
+    original_width = brand.bounding_box()["width"]
+    original_header_height = page.locator(".topbar").bounding_box()["height"]
+    name_box = page.locator(".brand-name").bounding_box()
+    version_box = page.locator("#configVersion").bounding_box()
+    assert version_box["y"] >= name_box["y"] + name_box["height"]
+    for version in ["B42 · версия неизвестна", "PZ 42.15.1 — очень длинная версия сервера"]:
+        page.locator("#configVersion").evaluate("(el, text) => el.textContent = text", version)
+        assert brand.bounding_box()["width"] == original_width
+        assert page.locator(".topbar").bounding_box()["height"] == original_header_height
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    page.locator("#configVersion").evaluate("el => el.textContent = 'PZ 42.15.1'")
     page.locator("#configProfile").select_option("world.ini")
     expect(page.locator("#configActive")).to_have_text("Активен на сервере")
     expect(page.locator("#configProfile")).to_have_attribute("data-state", "active")

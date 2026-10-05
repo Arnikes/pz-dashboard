@@ -41,6 +41,7 @@
       <svg class="brand-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a8 8 0 0 0-8 8c0 3 1.6 5.4 4 6.8V20a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-3.2c2.4-1.4 4-3.8 4-6.8a8 8 0 0 0-8-8Z" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="9" cy="10.5" r="1.6" fill="currentColor"/><circle cx="15" cy="10.5" r="1.6" fill="currentColor"/><path d="M10.5 15.5h3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
       <div class="brand-text">
         <div class="brand-title"><span class="brand-name">PZ·ПУЛЬТ</span><span class="badge-demo" id="demoBadge" hidden>ДЕМО</span></div>
+        <span class="brand-version" id="configVersion" title="B42 · версия неизвестна">B42 · версия неизвестна</span>
       </div>
     </div>
     <div class="top-right">
@@ -100,22 +101,6 @@
     Демо: вымышленные данные, операции отключены.
   </div>
 
-  <details class="health-details"><summary>Подключение и проверки<span class="connection-issue" id="connectionIssue" hidden></span></summary><div class="health-tools">
-    <div class="connection-status">
-      <span class="pill" id="pillDocker" data-state="unknown">Docker</span>
-      <span class="pill" id="pillRcon" data-state="unknown">RCON</span>
-      <span class="brand-version" id="configVersion">B42 · версия неизвестна</span>
-    </div>
-  </div>
-  <div class="healthbar" id="healthbar" data-od-id="health" role="status" aria-label="Сводка состояния сервера">
-    <a class="h-chip" href="#/overview" id="hbServer" data-state="unknown">Сервер: …</a>
-    <a class="h-chip" href="#/backups" id="hbBackup" data-state="unknown">Бэкап: …</a>
-    <a class="h-chip" href="#/mods" id="hbMods" data-state="unknown">Моды: …</a>
-    <a class="h-chip" href="#/maintenance" id="hbImage" data-state="unknown">Образ: …</a>
-    <a class="h-chip" href="#/maintenance" id="hbWatchdog" data-state="unknown">Watchdog: …</a>
-  </div>
-
-  </details>
   <main class="main" data-od-id="main">
     <section class="opbar" id="opbar" hidden aria-label="Текущая операция" role="status">
       <span class="op-spin" aria-hidden="true"></span>

@@ -18,11 +18,10 @@ def test_missing_backup_notice_remains_available_without_a_config_profile(page, 
 
 
 @pytest.mark.parametrize("running,remote", [(False, False), (True, False), (False, True)])
-def test_rcon_header_distinguishes_stopped_server_from_connection_failure(
+def test_overview_state_remains_available_without_connection_disclosure(
     page, dashboard, running, remote
 ):
     page.goto(dashboard["url"])
-    expect(page.locator("#pillRcon")).to_have_text("RCON")
     page.evaluate(
         """({running,remote}) => renderOverview({...S.overview,
         mode:remote?'remote':'local', docker:!remote,
@@ -30,20 +29,12 @@ def test_rcon_header_distinguishes_stopped_server_from_connection_failure(
         rcon:{state:'error',error:'Connection refused'}})""",
         {"running": running, "remote": remote},
     )
-    inactive = not running and not remote
-    expect(page.locator("#pillRcon")).to_have_text("RCON не активен" if inactive else "RCON ошибка")
-    expect(page.locator("#pillRcon")).to_have_attribute(
-        "data-state", "unknown" if inactive else "bad"
+    expect(page.locator(".health-details, #healthbar, #connectionIssue")).to_have_count(0)
+    expect(page.locator("#stateLabel")).to_have_text(
+        "Нет ответа RCON" if remote else "Работает" if running else "Остановлен"
     )
-    if inactive:
-        expect(page.locator("#connectionIssue")).to_be_hidden()
-    else:
-        expect(page.locator("#connectionIssue")).to_be_visible()
-        expect(page.locator("#connectionIssue")).to_contain_text("RCON ошибка")
     page.evaluate("renderOverview({...S.overview,rcon:{state:'ok'},containerInfo:{running:true}})")
-    expect(page.locator("#pillRcon")).to_have_text("RCON")
-    expect(page.locator("#pillRcon")).to_have_attribute("title", "")
-    expect(page.locator("#connectionIssue")).to_be_hidden()
+    expect(page.locator("#stateLabel")).to_have_text("Работает (RCON)" if remote else "Работает")
 
 
 def test_console_error_warning_search_and_offline_log_retention(page, dashboard):

@@ -598,21 +598,8 @@ function setPill(id, state, text) {
 function renderOverview(o) {
   if (o.settings) o = { ...o, settings: acceptSettings(o.settings) };
   S.overview = o;
-  setPill("pillDocker", o.docker ? "ok" : "bad", o.docker ? "Docker" : "Docker: вне хоста");
   setPill("pillCompose", o.compose ? "ok" : "bad", o.compose ? "compose" : "compose ✕");
   const rc = o.rcon || {};
-  $("pillRcon").title = "";
-  if (!o.rconConfigured) setPill("pillRcon", "bad", "RCON: нет пароля");
-  else if (o.docker && o.mode !== "remote" && o.containerInfo?.running === false) {
-    setPill("pillRcon", "unknown", "RCON не активен");
-    $("pillRcon").title = "Сервер остановлен; RCON будет доступен после запуска";
-  }
-  else if (rc.state === "ok") setPill("pillRcon", "ok", "RCON");
-  else if (rc.state === "error") { setPill("pillRcon", "bad", "RCON ошибка"); $("pillRcon").title = rc.error || ""; }
-  else setPill("pillRcon", "unknown", "RCON");
-  const connectionIssue = $("connectionIssue");
-  connectionIssue.hidden = $("pillRcon").dataset.state !== "bad";
-  connectionIssue.textContent = connectionIssue.hidden ? "" : " · " + $("pillRcon").textContent;
 
   const remote = o.mode === "remote";
   const c = o.containerInfo;
@@ -767,76 +754,8 @@ function renderOverview(o) {
   $("modsAutoNext").hidden = !(mu.enabled && nextM);
   if (mu.enabled && nextM) $("modsAutoNext").textContent = `Следующая проверка: ${new Date(nextM * 1000).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`;
 
-  renderHealth();
   renderSummaries();
   updateButtons();
-}
-
-/* строка здоровья: состояние сервера одним взглядом */
-function renderHealth() {
-  const o = S.overview;
-  const set = (id, state, text) => {
-    const el = $(id);
-    if (!el) return;
-    el.dataset.state = state;
-    el.textContent = text;
-  };
-  const remote = !!(o && o.mode === "remote");
-  ["hbBackup", "hbImage", "hbWatchdog"].forEach((id) => { const el = $(id); if (el) el.hidden = remote; });
-
-  if (!o) {
-    set("hbServer", "unknown", "Сервер: …");
-    set("hbMods", "unknown", "Моды: …");
-    return;
-  }
-
-  if (remote) {
-    const rs = o.rcon ? o.rcon.state : "unknown";
-    set("hbServer", rs === "ok" ? "ok" : rs === "error" ? "bad" : "unknown",
-      rs === "ok" ? "Сервер: RCON" : rs === "error" ? "Сервер: нет ответа" : "Сервер: …");
-  } else {
-    const c = o.containerInfo;
-    if (!c) set("hbServer", "bad", "Сервер: не найден");
-    else if (c.running) set("hbServer", "ok", "Сервер: работает");
-    else if (c.status === "restarting") set("hbServer", "warn", "Сервер: перезапускается");
-    else set("hbServer", "bad", "Сервер: остановлен");
-  }
-
-  const mc = o.modsCheck || {};
-  if (mc.state === "up-to-date") set("hbMods", "ok", "Моды: актуальны");
-  else if (mc.state === "needs-update") {
-    const n = (mc.items || []).length;
-    set("hbMods", "warn", n ? `Моды: обновить ${n}` : "Моды: есть обновления");
-  }
-  else if (mc.state === "inconclusive") set("hbMods", "warn", "Моды: нет ответа");
-  else set("hbMods", "unknown", "Моды: не проверялись");
-
-  if (remote) {
-    set("hbBackup", "unknown", "Бэкап: на хосте");
-    set("hbImage", "unknown", "Образ: на хосте");
-    set("hbWatchdog", "unknown", "Watchdog: на хосте");
-    return;
-  }
-
-  const last = S.backupsItems && S.backupsItems[0];
-  if (!last || !last.mtime) set("hbBackup", "bad", "Бэкап: нет");
-  else {
-    const age = Date.now() - new Date(last.mtime).getTime();
-    if (isNaN(age)) set("hbBackup", "unknown", "Бэкап: …");
-    else if (age > 72 * 3600 * 1000) set("hbBackup", "warn", `Бэкап: ${Math.floor(age / 86400000)} д назад`);
-    else set("hbBackup", "ok", `Бэкап: ${relTime(last.mtime)}`);
-  }
-
-  const u = o.update || {};
-  if (u.available === false) set("hbImage", "ok", "Образ: актуален");
-  else if (u.available === true) set("hbImage", "warn", "Образ: есть обновление");
-  else if (u.error) set("hbImage", "bad", "Образ: ошибка");
-  else set("hbImage", "unknown", "Образ: не проверялся");
-
-  const wd = o.settings ? o.settings.watchdog : null;
-  const fails = (o.watchdog && o.watchdog.consecutiveFailures) || 0;
-  if (wd && wd.enabled) set("hbWatchdog", fails ? "bad" : "ok", fails ? `Watchdog: сбои ${fails}` : "Watchdog: ок");
-  else set("hbWatchdog", "unknown", "Watchdog: выкл");
 }
 
 /* KPI-строка обзора: те же данные, что и в карточках, но одним взглядом */
@@ -1531,7 +1450,6 @@ function renderBackups(data) {
   renderBkSchedule(data);
   renderBkJournal(data.journal || [], !!data.journalHasMore);
   S.backupsItems = data.items || [];
-  renderHealth();
   renderKpis();
   renderBackupsPage();
 }
@@ -2516,27 +2434,14 @@ const layoutObserver = new ResizeObserver(() => {
 });
 for (const selector of [".topbar", ".nav", "#draftBar"]) layoutObserver.observe(document.querySelector(selector));
 const mobileLayout = matchMedia("(max-width: 740px)");
-function adaptHealthDisclosure() {
-  const disclosure = document.querySelector(".health-details");
-  const focused = document.activeElement;
-  if (mobileLayout.matches) {
-    disclosure.querySelector(".health-tools").append($("btnLogout"));
-  } else {
-    document.querySelector(".top-right").append($("btnLogout"));
-  }
-  if (focused === $("btnLogout")) (mobileLayout.matches ? disclosure.querySelector("summary") : focused).focus();
+function adaptConfigFlow() {
   const editing = /^(settings|mods)$/.test(location.hash.replace(/^#\/?/, ""));
   const main = document.querySelector(".main"), flow = $("configFlow");
-  if (mobileLayout.matches && editing) {
-    main.append(flow);
-    main.after(disclosure);
-  } else {
-    main.querySelector(".view").before(flow);
-    document.querySelector(".topbar").after(disclosure);
-  }
+  if (mobileLayout.matches && editing) main.append(flow);
+  else main.querySelector(".view").before(flow);
 }
-adaptHealthDisclosure();
-mobileLayout.addEventListener("change", adaptHealthDisclosure);
+adaptConfigFlow();
+mobileLayout.addEventListener("change", adaptConfigFlow);
 
 /* ───────────────────── роутер страниц ───────────────────── */
 
@@ -2590,7 +2495,7 @@ function applyRoute() {
   if (!["overview", "settings", "mods"].includes(r)) $("navMore").setAttribute("aria-current", "page");
   else $("navMore").removeAttribute("aria-current");
   document.title = `${VIEWS[r]} · PZ Пульт`;
-  adaptHealthDisclosure();
+  adaptConfigFlow();
   window.scrollTo(0, 0);
   const view = $("view-" + r);
   if (view) view.focus({ preventScroll: true });
