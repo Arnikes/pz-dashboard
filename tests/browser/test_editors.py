@@ -185,7 +185,7 @@ def test_editor_layout_controls_and_draft_do_not_cover_content(page, dashboard, 
     assert metrics["searchWidth"] >= min(500, metrics["cardWidth"] - 40)
     if width <= 740:
         assert metrics["headerHeight"] < 170
-        assert page.locator("#draftBar").evaluate("el=>getComputedStyle(el).position") == "static"
+        assert page.locator("#draftBar").evaluate("el=>getComputedStyle(el).position") == "relative"
         assert metrics["barTop"] > 400
         assert metrics["barBottom"] - metrics["barTop"] < 160
     else:
