@@ -9,6 +9,9 @@ pytestmark = pytest.mark.browser
 @pytest.mark.parametrize("width", [390, 1440])
 @pytest.mark.parametrize("transport", ["sse", "polling"])
 def test_connection_loss_never_adds_header_timer(page, dashboard, width, transport):
+    # Capture boot timers and freeze time before any overview frame arrives.
+    page.clock.install(time="2026-01-01T00:00:00Z")
+    page.clock.pause_at("2026-01-01T00:00:01Z")
     page.set_viewport_size({"width": width, "height": 844})
     if transport == "sse":
         page.add_init_script("""window.EventSource = class extends EventTarget {
@@ -30,8 +33,6 @@ def test_connection_loss_never_adds_header_timer(page, dashboard, width, transpo
     header = page.locator(".topbar")
     original_text = header.inner_text()
     original_height = header.bounding_box()["height"]
-    page.clock.install()
-    page.clock.pause_at(page.evaluate("Date.now()"))
     if transport == "polling":
         page.route("**/api/overview", lambda route: route.abort())
     for elapsed in [15000, 45000, 60000]:

@@ -19,9 +19,10 @@ def open_fields(page, dashboard):
 
 
 def test_copy_feedback_restarts_and_survives_unchanged_refresh(page, dashboard):
+    # Install before boot creates timers; ISO timestamps avoid seconds/ms ambiguity.
+    page.clock.install(time="2026-01-01T00:00:00Z")
+    page.clock.pause_at("2026-01-01T00:00:01Z")
     open_fields(page, dashboard)
-    page.clock.install()
-    page.clock.pause_at(page.evaluate("Date.now()"))
     field = page.locator("#updLocalCopy")
     field.click()
     expect(field).to_have_attribute("data-copied", "true")
