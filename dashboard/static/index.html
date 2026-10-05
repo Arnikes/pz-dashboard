@@ -103,7 +103,7 @@
     Нет связи с пультом — повторная попытка идёт автоматически. Проверьте, что контейнер запущен.
   </div>
   <div class="banner banner-demo" id="demoBanner" hidden>
-    Демонстрация интерфейса: данные вымышленные, операции отключены. Реальная работа начнётся после запуска в docker compose.
+    Демо: вымышленные данные, операции отключены.
   </div>
 
   <details class="health-details"><summary>Подключение и проверки</summary><div class="health-tools"></div>
@@ -167,10 +167,6 @@
         <p class="hint" id="absentHint" hidden>
           Контейнер не найден. Проверьте имя (переменная PZ_CONTAINER) и что compose-проект запущен.
         </p>
-        <div class="nudge" id="backupNudge" hidden>
-          <span class="nudge-text">Мир ещё ни разу не бэкапился — начните с первого архива.</span>
-          <button class="btn small" id="btnNudgeBackup">Создать первый бэкап</button>
-        </div>
       </section>
 
       <section class="card c-kpi" id="sec-kpi" data-od-id="kpi" aria-label="Ключевые показатели">
@@ -200,12 +196,11 @@
 
       <!-- МЕТРИКИ -->
       <section class="card c-metrics" id="sec-metrics" data-od-id="metrics" aria-labelledby="hMetrics">
-        <header class="card-head"><h2 id="hMetrics">Нагрузка контейнера</h2></header>
+        <header class="card-head"><h2 id="hMetrics">Нагрузка контейнера</h2><span data-help-label="О графиках нагрузки" data-help-text="Графики показывают историю CPU и RAM за час."></span></header>
         <div class="metric">
           <div class="metric-row"><span>CPU</span><span class="mono" id="cpuVal">—</span></div>
           <div class="bar"><i id="cpuBar" style="width:0%"></i></div>
           <svg class="spark" id="cpuSpark" viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><polyline id="cpuSparkLine" fill="none" stroke="currentColor" stroke-width="1.6" points=""/></svg>
-          <div class="metric-sub">линия — история за час</div>
         </div>
         <div class="metric">
           <div class="metric-row"><span>RAM</span><span class="mono" id="ramVal">—</span></div>
@@ -276,9 +271,7 @@
     <!-- МОДЫ: реестр + обновления -->
     <div class="view" id="view-mods" tabindex="-1" hidden>
       <section class="card editor-card" aria-labelledby="hModsEditor">
-        <header class="card-head"><h2 id="hModsEditor">Состав модов</h2><span id="modSummary" class="hint"></span></header>
-        <p class="hint">Workshop item — пакет Steam. Внутри пакета выбирайте отдельные ModID. Изменения сохраняются в черновике.</p>
-        <details class="context-help"><summary>Помощь с составом модов</summary><p>Добавьте пакет Workshop, выберите ModID и проверьте порядок и зависимости. Наличие пакета ещё не включает все моды внутри него. Карты добавляются в Map отдельно.</p><a href="static/config-help.html#mods" target="_blank" rel="noopener">Руководство: установка модов и проверка запуска</a></details>
+        <header class="card-head"><h2 id="hModsEditor">Состав модов</h2><span id="modSummary" class="hint"></span><span data-help-label="О составе модов" data-help-text="Workshop item — пакет Steam. После загрузки выберите отдельные ModID внутри пакета. Карты добавляются отдельно. Изменения сохраняются в черновике."></span></header>
         <p class="tab-scroll-help" id="modTabsHelp">Вкладки можно прокручивать влево и вправо.</p>
         <div class="editor-tabs" id="modTabs" role="tablist" aria-label="Редактор модов" aria-describedby="modTabsHelp">
           <button type="button" role="tab" aria-selected="true" aria-controls="modComposition" data-tab="composition">Состав</button>
@@ -298,8 +291,7 @@
         </div>
         <div id="legacyMods" class="install-notice" hidden></div>
         <div id="modOrder" hidden>
-          <h3>Порядок выбранных ModID</h3>
-          <p class="hint">Потяните за ручку слева или нажмите «Переместить…», чтобы выбрать начало, конец или номер позиции. Изменения сохраняются в черновике.</p>
+          <div class="section-label"><h3>Порядок загрузки</h3><span data-help-label="Как изменить порядок модов" data-help-text="Перетащите мод за ручку слева или нажмите «Переместить…» и укажите позицию. Порядок сохраняется в черновике."></span></div>
           <div class="order-toolbar">
             <label for="orderQuery">Найти в порядке загрузки</label>
             <input id="orderQuery" type="search" placeholder="ModID или название мода…" aria-describedby="orderCount" />
@@ -309,6 +301,7 @@
           <div id="modOrderList"></div>
           <div id="modMapEditor"></div>
         </div><div id="modProblems" hidden></div>
+        <details class="context-help"><summary>Руководство по модам</summary><a href="static/config-help.html#mods" target="_blank" rel="noopener">Установка модов и проверка запуска</a></details>
       </section>
       <section class="card c-mods" id="sec-mods" data-od-id="mods" aria-labelledby="hMods" hidden>
         <header class="card-head">
@@ -344,10 +337,10 @@
       <!-- ОБНОВЛЕНИЯ МОДОВ (RCON checkModsNeedUpdate) -->
       <section class="card c-mupd" id="sec-mods-update" data-od-id="mods-update" aria-labelledby="hModsUpd" hidden>
         <header class="card-head">
-          <h2 id="hModsUpd">Обновления модов</h2>
+          <h2 id="hModsUpd">Обновления модов</h2><span data-help-label="Как проверяются обновления модов" data-help-text="Сервер сверяет версии со Steam Workshop. Для загрузки обновлений нужен рестарт."></span>
           <span class="pill" id="modsPill" data-state="unknown">—</span>
         </header>
-        <p class="upd-note" id="modsCheckNote">Сервер сверяет версии со Steam Workshop и пишет результат в лог; обновления применяются рестартом.</p>
+        <p class="upd-note" id="modsCheckNote" hidden></p>
         <div class="actions">
           <button class="btn" id="btnCheckMods">Проверить моды</button>
           <button class="btn primary" id="btnApplyMods" hidden>Перезапустить для обновления</button>
@@ -392,11 +385,10 @@
 
     <div class="view" id="view-settings" tabindex="-1" hidden>
       <section class="card editor-card" aria-labelledby="page-settings">
-        <header class="card-head"><h2 id="hConfig">Параметры профиля</h2><span id="configStatus" class="pill">Выберите профиль</span></header>
+        <header class="sr-only"><h2 id="hConfig">Параметры профиля</h2><span id="configStatus">Выберите профиль</span></header>
         <div id="configError" class="editor-error" role="alert" hidden></div>
         <p id="configActionHelp" class="hint" role="status" hidden></p>
-        <details class="context-help"><summary>Как применить настройки</summary><p id="configSaveHint" class="hint">Правки полей сохраняются в черновике. Запись файлов доступна после остановки сервера.</p><p>Проверьте различия, затем запишите файлы при остановленном сервере или примените с рестартом. После ручного запуска подтвердите результат проверкой.</p><a href="static/config-help.html" target="_blank" rel="noopener">Руководство: профили, черновики и восстановление</a></details>
-        <div id="configVerifyHelp" class="editor-toolbar" hidden><button type="button" id="configVerify" class="btn">Проверить запущенный сервер</button><span class="hint">После ручного рестарта: проверка файлов, модов и готовности PZ/RCON без записи и остановки сервера.</span></div>
+        <div id="configVerifyHelp" class="editor-toolbar" hidden><button type="button" id="configVerify" class="btn">Проверить запущенный сервер</button><span data-help-label="О проверке запущенного сервера" data-help-text="Проверяет файлы, моды и готовность PZ/RCON после ручного рестарта. Не записывает файлы и не останавливает сервер."></span></div>
         <p id="configVersionDiagnostic" class="hint" role="status" hidden></p>
         <p class="tab-scroll-help" id="configTabsHelp">Вкладки можно прокручивать влево и вправо.</p>
         <div class="editor-tabs" id="configTabs" role="tablist" aria-label="Настройки сервера" aria-describedby="configTabsHelp">
@@ -404,7 +396,7 @@
         </div>
         <div id="configSharedFields">
         <input id="configSearch" type="search" placeholder="Название или технический ключ…" aria-label="Поиск настройки" />
-        <p id="configWorldNotice" class="hint" hidden>Настройки существующего мира могут применяться только к новым областям или новым персонажам. Исходные неизвестные параметры сохраняются.</p>
+        <p id="configWorldNotice" class="hint" hidden>Часть настроек влияет только на новые области или персонажей.</p>
         <div id="configFields"></div>
         </div>
         <div id="configServerPanel"></div>
@@ -417,6 +409,7 @@
           <button type="button" id="sourceSave" class="btn">Сохранить исходники в черновик</button>
         </div>
         <div id="configHistory" hidden></div>
+        <details class="context-help"><summary>Как применить настройки</summary><p id="configSaveHint" class="hint">Правки сохраняются в черновике. Запишите файлы после остановки сервера или примените с рестартом.</p><a href="static/config-help.html" target="_blank" rel="noopener">Профили, черновики и восстановление</a></details>
       </section>
     </div>
     <!-- ОБСЛУЖИВАНИЕ: образ, автообновление, watchdog -->
@@ -424,10 +417,10 @@
       <p id="maintenanceAvailability" class="hint availability" role="status" hidden></p>
       <section class="card c-updates" id="sec-updates" data-od-id="updates" aria-labelledby="hUpdates">
         <header class="card-head">
-          <h2 id="hUpdates">Обновления образа</h2>
+          <h2 id="hUpdates">Обновления образа</h2><span data-help-label="Как проверяется образ" data-help-text="Пульт сравнивает digest локального образа с Docker Hub."></span>
           <span class="pill" id="updPill" data-state="unknown">—</span>
         </header>
-        <p class="upd-note" id="updNote">Сверяется digest локального образа с Docker Hub.</p>
+        <p class="upd-note" id="updNote" hidden></p>
         <dl class="meta">
           <div><dt>Локальный</dt><dd class="mono copy-field"><span id="updLocal">—</span><button type="button" class="copy-btn" id="updLocalCopy" aria-label="Скопировать локальный digest" disabled>Копировать</button></dd></div>
           <div><dt>В Docker Hub</dt><dd class="mono copy-field"><span id="updRemote">—</span><button type="button" class="copy-btn" id="updRemoteCopy" aria-label="Скопировать digest из Docker Hub" disabled>Копировать</button></dd></div>
@@ -471,15 +464,14 @@
 
       <section class="card c-watchdog" id="sec-watchdog" data-od-id="watchdog" aria-labelledby="hWatchdog">
         <header class="card-head">
-          <h2 id="hWatchdog">Watchdog RCON</h2>
+          <h2 id="hWatchdog">Watchdog RCON</h2><span data-help-label="Как работает Watchdog" data-help-text="Если RCON не отвечает дольше заданного порога, пульт фиксирует зависание. Включите авторестарт, чтобы перезапускать контейнер."></span>
           <span class="pill" id="wdPill" data-state="unknown">—</span>
         </header>
-        <p class="upd-note">Следит за ответом RCON: если сервер молчит дольше порога, пульт фиксирует зависание и может перезапустить контейнер.</p>
         <div class="watchdog-block">
           <label class="switch">
-            <input type="checkbox" id="wdSwitch" role="switch" />
+              <input type="checkbox" id="wdSwitch" role="switch" aria-label="Watchdog RCON" />
             <span class="switch-track" aria-hidden="true"></span>
-            <span class="switch-label">Watchdog RCON</span>
+              <span class="switch-label">Включён</span>
           </label>
           <select id="wdThreshold" aria-label="Порог тишины RCON">
             <option value="3">3 мин тишины</option>
@@ -496,10 +488,9 @@
       <!-- УВЕДОМЛЕНИЯ TELEGRAM -->
       <section class="card c-notify" id="sec-notify" data-od-id="notify" aria-labelledby="hNotify">
         <header class="card-head">
-          <h2 id="hNotify">Уведомления</h2>
+          <h2 id="hNotify">Уведомления</h2><span data-help-label="Об уведомлениях Telegram" data-help-text="Бот присылает выбранные события пульта. Сохранённый токен скрыт; оставьте поле пустым, чтобы не менять его."></span>
           <span class="pill" id="tgPill" data-state="unknown">—</span>
         </header>
-        <p class="upd-note">Telegram-бот присылает события пульта: запуск и остановка сервера, бэкапы, обновления, проблемы. Токен бота задаётся один раз.</p>
         <div class="auto-block">
           <div class="auto-row">
             <label class="switch">
@@ -510,7 +501,7 @@
           </div>
           <div class="auto-grid">
             <label class="field">Bot token
-              <input type="password" id="tgToken" placeholder="123456:ABC-DEF…" autocomplete="off" />
+              <input type="password" id="tgToken" placeholder="123456:ABC-DEF…" autocomplete="off" aria-describedby="tgNote" />
             </label>
             <label class="field">Chat ID
               <input type="text" id="tgChat" inputmode="numeric" placeholder="123456789 или -100…" autocomplete="off" />
@@ -523,15 +514,11 @@
             <label class="check"><input type="checkbox" id="tgProblems" checked /> Проблемы</label>
           </div>
           <div class="actions">
-            <button class="btn small" id="btnTgChats" type="button">Найти чаты бота</button>
+            <button class="btn small" id="btnTgChats" type="button">Найти чаты бота</button><span data-help-label="Как найти чат бота" data-help-text="Напишите сообщение боту в нужном чате, затем нажмите «Найти чаты бота». Выберите чат из списка — Chat ID подставится автоматически."></span>
+            <button class="btn" id="btnTgTest">Проверить</button><span data-help-label="Если Telegram не находит чат" data-help-text="При ошибке «chat not found» отправьте боту /start в личном чате или добавьте его администратором группы. ID группы отрицательный, с префиксом −100."></span>
           </div>
           <div id="tgChatsBody" class="tg-chats" hidden></div>
-          <p class="hint">Кнопка показывает чаты, где бот недавно видел сообщения: напишите что-нибудь в нужный чат и нажмите — настоящий chat id подставится сам (Telegram принимает id с префиксом −100, а в ссылках и дев-тулзах он часто без него).</p>
-          <p class="hint" id="tgNote">Токен хранится на сервере пульта и наружу не отдаётся — в поле видно только маску.</p>
-          <div class="actions">
-            <button class="btn" id="btnTgTest">Проверить</button>
-          </div>
-          <p class="hint">Если проверка отвечает «chat not found»: в личке сначала напишите боту /start, в группу — добавьте бота администратором; id группы отрицательный и начинается с −100.</p>
+          <p class="hint" id="tgNote" hidden></p>
         </div>
       </section>
     </div>
@@ -549,7 +536,7 @@
         </header>
         <div class="auto-block">
           <div class="auto-grid">
-            <label class="field">Время запуска
+            <label class="field">Время запуска (часовой пояс сервера)
               <input type="time" id="bkAutoTime" value="03:00" />
             </label>
             <label class="field">Хранить копий
@@ -560,7 +547,7 @@
             <input type="checkbox" id="bkAutoStop" /> Останавливать сервер на время бэкапа
           </label>
           <p class="hint" id="bkAutoNext" hidden>Следующий запуск: —</p>
-          <p class="hint">Время — по часам сервера, где запущен пульт (TZ контейнера). Копии старше лимита «Хранить копий» удаляются автоматически.</p>
+          <p class="hint">Копии сверх лимита удаляются автоматически.</p>
         </div>
       </section>
 
@@ -579,7 +566,7 @@
           <h2 id="hBkJournal">Журнал запусков</h2>
         </header>
         <div id="bkJournalBody" class="list" data-state="empty">
-          <p class="list-empty">Запусков ещё не было — журнал наполнится после первого бэкапа.</p>
+          <p class="list-empty">Бэкапов ещё не было.</p>
         </div>
       </section>
     </div>
@@ -621,7 +608,7 @@
           <form class="console-form" id="consoleForm">
             <span class="console-prompt mono" aria-hidden="true">rcon&gt;</span>
             <input id="consoleInput" class="mono" type="text" autocomplete="off" spellcheck="false"
-                   placeholder="Команда администратора, например: servermsg &quot;Привет&quot;" aria-label="Команда RCON" />
+                   placeholder="Например: servermsg &quot;Привет&quot;" aria-label="Команда RCON" />
             <button class="btn primary" type="submit">Отправить</button>
           </form>
         </div>

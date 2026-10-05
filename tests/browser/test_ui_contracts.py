@@ -126,7 +126,7 @@ def test_unchanged_events_and_journal_retain_nodes_but_changes_refresh(page, das
     page.evaluate("eventSnapshot.items[0].text='Новое событие';renderEvents(eventSnapshot)")
     expect(page.locator("#eventsBody")).to_contain_text("Новое событие")
     page.locator('#eventFilters [data-ef="ops"]').click()
-    expect(page.locator("#eventsBody")).to_contain_text("Событий этой категории пока не было")
+    expect(page.locator("#eventsBody")).to_contain_text("Нет событий в этой категории")
     page.locator('#eventFilters [data-ef="all"]').click()
     expect(page.locator("#eventsBody")).to_contain_text("Новое событие")
 

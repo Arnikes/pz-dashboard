@@ -1,0 +1,356 @@
+[
+  {
+    "route": "overview",
+    "width": 320,
+    "height": 568,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "settings",
+    "width": 320,
+    "height": 568,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "mods",
+    "width": 320,
+    "height": 568,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "players",
+    "width": 320,
+    "height": 568,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "maintenance",
+    "width": 320,
+    "height": 568,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "backups",
+    "width": 320,
+    "height": 568,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "events",
+    "width": 320,
+    "height": 568,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "console",
+    "width": 320,
+    "height": 568,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "overview",
+    "width": 390,
+    "height": 844,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "settings",
+    "width": 390,
+    "height": 844,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "mods",
+    "width": 390,
+    "height": 844,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "players",
+    "width": 390,
+    "height": 844,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "maintenance",
+    "width": 390,
+    "height": 844,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "backups",
+    "width": 390,
+    "height": 844,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "events",
+    "width": 390,
+    "height": 844,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "console",
+    "width": 390,
+    "height": 844,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "overview",
+    "width": 768,
+    "height": 1024,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "settings",
+    "width": 768,
+    "height": 1024,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "mods",
+    "width": 768,
+    "height": 1024,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "players",
+    "width": 768,
+    "height": 1024,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "maintenance",
+    "width": 768,
+    "height": 1024,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "backups",
+    "width": 768,
+    "height": 1024,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "events",
+    "width": 768,
+    "height": 1024,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "console",
+    "width": 768,
+    "height": 1024,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "overview",
+    "width": 1024,
+    "height": 768,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "settings",
+    "width": 1024,
+    "height": 768,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "mods",
+    "width": 1024,
+    "height": 768,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "players",
+    "width": 1024,
+    "height": 768,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "maintenance",
+    "width": 1024,
+    "height": 768,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "backups",
+    "width": 1024,
+    "height": 768,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "events",
+    "width": 1024,
+    "height": 768,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "console",
+    "width": 1024,
+    "height": 768,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "overview",
+    "width": 1440,
+    "height": 900,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "settings",
+    "width": 1440,
+    "height": 900,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "mods",
+    "width": 1440,
+    "height": 900,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "players",
+    "width": 1440,
+    "height": 900,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "maintenance",
+    "width": 1440,
+    "height": 900,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "backups",
+    "width": 1440,
+    "height": 900,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "events",
+    "width": 1440,
+    "height": 900,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "console",
+    "width": 1440,
+    "height": 900,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "overview",
+    "width": 2048,
+    "height": 1152,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "settings",
+    "width": 2048,
+    "height": 1152,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "mods",
+    "width": 2048,
+    "height": 1152,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "players",
+    "width": 2048,
+    "height": 1152,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "maintenance",
+    "width": 2048,
+    "height": 1152,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "backups",
+    "width": 2048,
+    "height": 1152,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "events",
+    "width": 2048,
+    "height": 1152,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "console",
+    "width": 2048,
+    "height": 1152,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "login",
+    "width": 1440,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "login",
+    "width": 390,
+    "axe": [],
+    "overflow": false
+  },
+  {
+    "route": "login",
+    "width": 320,
+    "axe": [],
+    "overflow": false
+  }
+]

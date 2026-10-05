@@ -33,7 +33,7 @@ window.ConfigEditor = (() => {
   }
   function clearError() { $("configError").hidden = true; delete $("configError").dataset.source; }
   function updateBar() {
-    if (!draft) { setDomProperty($("draftBar"), "hidden", true); setDomProperty($("configFlow"), "hidden", true); return; }
+    if (!draft) { setDomProperty($("draftBar"), "hidden", true); setDomProperty($("configFlow"), "hidden", true); attention(); return; }
     const busy = !!S.op?.active;
     const locked = busy || loading || S.demo;
     const running = S.overview?.containerInfo?.running;
@@ -57,7 +57,7 @@ window.ConfigEditor = (() => {
     const needsAction = draft.changed || sourceDirty || fieldDirty || pendingFields.size || unsaved.length || draft.conflict || !$("configError").hidden || ["saved", "applying", "error", "select-mods"].includes(draft.status);
     setDomProperty($("draftBar"), "hidden", !editorView || !needsAction);
     setDomProperty($("draftRetry"), "hidden", !unsaved.length && !(fieldSaveFailed && pendingFields.size));
-    setDomProperty($("draftLabel"), "textContent", (pendingFields.size ? "Есть несохранённые поля" : statuses[draft.status] || "Конфигурация") + (draft.changed ? ` · изменённых строк: ${draft.changedLines || 1}` : ""));
+    setDomProperty($("draftLabel"), "textContent", (pendingFields.size ? "Есть несохранённые поля" : statuses[draft.status] || "Конфигурация") + (draft.changed ? ` · строк: ${draft.changedLines || 1}` : ""));
     setDomProperty($("configStatus"), "textContent", statuses[draft.status] || "Конфигурация");
     setDomProperty($("configStatus").dataset, "state", draft.conflict || draft.status === "error" ? "bad" : draft.changed || draft.status !== "applied" ? "warn" : "ok");
     setDomProperty($("configApply"), "disabled", busy || !draft.canApply || !draft.canWrite || S.demo || loading || !needsAction);
@@ -206,7 +206,7 @@ window.ConfigEditor = (() => {
     } catch (e) {
       $("configProfile").innerHTML = '<option value="">Профили недоступны</option>';
       $("configFields").textContent = e.message;
-    }
+    } finally { updateBar(); }
   }
   function patch(body, redraw = true) {
     if (sourceDirty && !(body && typeof body === "object" && (body.texts || body.discard === true))) return flushSources().then(() => patch(body, redraw));
@@ -319,7 +319,8 @@ window.ConfigEditor = (() => {
     const groups = new Map();
     fields().filter(o => `${o.key} ${o.label}`.toLowerCase().includes(query)).forEach((rec, i) => {
       if (!groups.has(rec.group)) groups.set(rec.group, []);
-      groups.get(rec.group).push(`<div class="config-field"><label for="config-field-${i}"><strong>${esc(rec.label)}</strong>${rec.label !== rec.key ? `<code>${esc(rec.key)}</code>` : ""}</label><div class="config-control">${fieldControl(rec, i)}</div>${rec.applicationScope ? `<p id="config-scope-${i}" class="config-scope" data-scope="${esc(rec.applicationScope.kind)}"><strong>${esc(rec.applicationScope.label)}</strong><span>${esc(rec.applicationScope.hint)}</span></p>` : ""}<p class="hint" id="config-hint-${i}">${esc(rec.owner ? `Источник: ${rec.owner}. Измените параметр в окружении контейнера.` : gameDescription(rec.hint) || "Применяется после запуска; влияние на существующий мир зависит от параметра")}${rec.absent ? " · Значение по умолчанию ещё не записано" : ""}</p><p class="field-error" data-error-key="${esc(rec.key)}" role="alert" hidden></p>${configTab !== "server" && rec.preserved ? `<button type="button" class="btn small" data-remove-option="${esc(rec.key)}">Удалить параметр…</button>` : ""}</div>`);
+      const description = [rec.key, gameDescription(rec.hint), rec.applicationScope?.hint, rec.absent ? "Значение по умолчанию ещё не записано в файл." : ""].filter(Boolean).join("\n\n");
+      groups.get(rec.group).push(`<div class="config-field"><div class="config-label"><label for="config-field-${i}"><strong>${esc(rec.label)}</strong></label>${helpTip(description, `О настройке «${rec.label}»`, `config-hint-${i}`)}</div><div class="config-control">${fieldControl(rec, i)}</div>${rec.applicationScope ? `<p id="config-scope-${i}" class="config-scope" data-scope="${esc(rec.applicationScope.kind)}"><strong>${esc(rec.applicationScope.label)}</strong></p>` : ""}${rec.owner ? `<p class="hint">Источник: ${esc(rec.owner)}. Измените в окружении контейнера.</p>` : rec.type === "list" ? '<p class="hint">По одной записи в строке.</p>' : ""}<p class="field-error" data-error-key="${esc(rec.key)}" role="alert" hidden></p>${configTab !== "server" && rec.preserved ? `<button type="button" class="btn small" data-remove-option="${esc(rec.key)}">Удалить параметр…</button>` : ""}</div>`);
     });
     const order = ["Доступ и игроки", "PvP", "Чат", "Сохранение мира", "Безопасные дома", "Сеть", "Дополнительные параметры"];
     const ordered = [...groups].sort(([a], [b]) => configTab === "server" ? order.indexOf(a) - order.indexOf(b) : 0);
@@ -378,7 +379,7 @@ window.ConfigEditor = (() => {
       $("modMapEditor").innerHTML = `<h3>Карты · Map=</h3><p class="hint">Порядок карт сохраняется. Добавление карты не изменяет уже исследованные области мира.</p><ol>${mods.maps.map(m => `<li><code>${esc(m)}</code></li>`).join("")}</ol><form id="mapEdit" class="editor-toolbar"><input id="mapList" data-key="maps" data-kind="mods" data-type="map-list" value="${esc(mods.maps.join(";"))}" aria-label="Порядок карт через точку с запятой" /><button class="btn" type="submit">В черновик</button></form><p class="hint">Найденные карты: ${esc([...new Set(mods.workshop.flatMap(w => w.available || []).flatMap(r => r.maps || []))].join(", ") || "нет")}</p>`;
       $("mapEdit").addEventListener("submit", e => { e.preventDefault(); patch({ mods: { maps: formValue($("mapList")) } }).catch(() => {}); });
     }
-    $("modProblems").innerHTML = (mods.problems || []).map(p => `<div class="problem-row"><strong>${p.severity === "error" ? "Ошибка" : "Непроверено"}</strong><p>${esc(p.message)}</p>${p.code === "dependency" ? `<button type="button" class="btn small" data-add-dependency="${esc(p.dependency)}">Добавить зависимость ${esc(p.dependency)}</button>` : ""}</div>`).join("") || '<p class="hint">По доступным метаданным проблем не найдено. Это не проверка конфликтов Lua-кода.</p>';
+    $("modProblems").innerHTML = (mods.problems || []).map(p => `<div class="problem-row"><strong>${p.severity === "error" ? "Ошибка" : "Непроверено"}</strong><p>${esc(p.message)}</p>${p.code === "dependency" ? `<button type="button" class="btn small" data-add-dependency="${esc(p.dependency)}">Добавить зависимость ${esc(p.dependency)}</button>` : ""}</div>`).join("") || `<div class="section-label"><p class="hint">В метаданных проблем не найдено.</p>${helpTip("Проверены доступные метаданные модов. Конфликты Lua-кода этой проверкой не выявляются.", "Что проверено в модах")}</div>`;
     installNotice();
     $("legacyMods").hidden = !(draft?.legacyDisabled || []).length;
     $("legacyMods").innerHTML = '<strong>Старый реестр выключенных модов</strong><p>Принадлежность профилю не определена. Перенос выполняется только вашим явным выбором; старые записи сохраняются.</p>' + (draft?.legacyDisabled || []).map(r => `<button type="button" class="btn small" data-legacy-id="${esc(r.workshopId)}">Восстановить ${esc(r.title || r.workshopId)} в ${esc(file)}</button>`).join("");
@@ -447,7 +448,7 @@ window.ConfigEditor = (() => {
       }
       const revisionAtReview = result.draftRevision;
       const backupDefault = result.modChanges || prepare;
-      const options = `<div class="apply-options">${restart ? '<label class="field">Предупредить игроков<select id="editorWarn"><option value="300">За 5 минут</option><option value="600">За 10 минут</option><option value="60">За 1 минуту</option><option value="0">Без предупреждения</option></select></label>' : ""}<label class="check"><input type="checkbox" id="editorBackup" ${backupDefault ? "checked" : ""} aria-describedby="editorBackupHint" />Создать бэкап мира перед записью</label><p class="hint" id="editorBackupHint">${backupDefault ? "При изменении модов бэкап включён по умолчанию. Снимите флажок, чтобы применить изменения без него." : "Можно записать настройки без бэкапа мира или включить его этим флажком."} История конфигурации сохраняется в любом случае.</p></div>`;
+      const options = `<div class="apply-options">${restart ? '<label class="field">Предупредить игроков<select id="editorWarn"><option value="300">За 5 минут</option><option value="600">За 10 минут</option><option value="60">За 1 минуту</option><option value="0">Без предупреждения</option></select></label>' : ""}<label class="check"><input type="checkbox" id="editorBackup" ${backupDefault ? "checked" : ""} aria-describedby="editorBackupHint" />Создать бэкап мира перед записью</label><p class="hint" id="editorBackupHint">История конфигурации сохраняется независимо от бэкапа мира.</p></div>`;
       modal.open({ title: prepare ? "Загрузить Workshop items?" : restart ? "Применить конфигурацию?" : "Сохранить файлы?", bodyHTML: `<p>${prepare ? "Первый рестарт загрузит пакеты. Прежние ModID и остальные настройки останутся без изменений." : restart ? "Сервер сохранит мир, остановится, применит конфигурацию и запустится." : "Файлы будут записаны при остановленном сервере."}</p>${options}${diffHtml(result)}`, onConfirm: async () => {
         if (draft.draftRevision !== revisionAtReview || sourceDirty || fieldDirty || pendingFields.size) throw new Error("Черновик изменился после просмотра. Проверьте изменения заново");
         await call("/api/action", { op: prepare ? "prepare-workshop" : "apply-config", file, draftRevision: revisionAtReview, restart, backupBeforeApply: $("editorBackup").checked, warnSeconds: restart ? Number($("editorWarn").value) : 0 });

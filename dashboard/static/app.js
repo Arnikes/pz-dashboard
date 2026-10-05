@@ -29,6 +29,64 @@ const esc = (s) => String(s ?? "")
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
   .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
+let helpSequence = 0;
+function helpTip(text, label, id = `help-tip-${++helpSequence}`) {
+  return `<span class="help-tip"><button type="button" class="help-trigger" data-help="${esc(id)}" aria-label="${esc(label)}" aria-describedby="${esc(id)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v6M12 7v2"/></svg></button><span id="${esc(id)}" class="help-content" role="tooltip" hidden>${esc(text)}</span></span>`;
+}
+document.querySelectorAll("[data-help-text]").forEach(slot => {
+  slot.outerHTML = helpTip(slot.dataset.helpText, slot.dataset.helpLabel);
+});
+(() => {
+  let active = null, pinned = false, leaveTimer = null;
+  const close = () => {
+    clearTimeout(leaveTimer);
+    const tip = active && $(active.dataset.help);
+    if (tip) tip.hidden = true;
+    active = null; pinned = false;
+  };
+  const open = button => {
+    clearTimeout(leaveTimer);
+    if (active !== button) close();
+    active = button;
+    const tip = $(button.dataset.help);
+    if (!tip) { close(); return; }
+    tip.hidden = false;
+    const rect = button.getBoundingClientRect(), box = tip.getBoundingClientRect();
+    tip.style.left = `${Math.max(12, Math.min(rect.left, innerWidth - box.width - 12))}px`;
+    const below = rect.bottom + 6;
+    tip.style.top = `${Math.max(12, below + box.height <= innerHeight - 12 ? below : rect.top - box.height - 6)}px`;
+  };
+  document.addEventListener("pointerover", event => {
+    if (active && active.closest(".help-tip").contains(event.target)) clearTimeout(leaveTimer);
+    const button = event.target.closest("[data-help]");
+    if (button && !pinned && event.pointerType !== "touch") open(button);
+  });
+  document.addEventListener("pointerout", event => {
+    if (active && !pinned && !active.closest(".help-tip").contains(event.relatedTarget) && document.activeElement !== active) leaveTimer = setTimeout(close, 150);
+  });
+  document.addEventListener("focusin", event => {
+    const button = event.target.closest("[data-help]");
+    if (button) open(button);
+    else close();
+  });
+  document.addEventListener("focusout", event => {
+    if (active && !active.closest(".help-tip").contains(event.relatedTarget)) close();
+  });
+  document.addEventListener("click", event => {
+    const button = event.target.closest("[data-help]");
+    if (button) {
+      if (active === button && pinned) close();
+      else { open(button); pinned = true; }
+    } else if (active && !active.closest(".help-tip").contains(event.target)) close();
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && active) { close(); event.preventDefault(); }
+  });
+  window.addEventListener("scroll", close, true);
+  window.addEventListener("resize", close);
+  window.addEventListener("hashchange", close);
+})();
+
 const timeFmt = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
 const dateFmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 const timeFullFmt = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -561,6 +619,7 @@ function renderOverview(o) {
     $("updNote").textContent = "Сверяется digest локального образа с Docker Hub.";
   }
   $("updLocal").textContent = shortDigest(u.local);
+  $("updNote").hidden = !(remote || u.error || (u.note && u.available == null));
   const same = u.local && u.remote && u.local === u.remote;
   $("updRemote").textContent = same ? "совпадает" : shortDigest(u.remote);
   $("updRemote").classList.toggle("ok-same", !!same);
@@ -574,7 +633,6 @@ function renderOverview(o) {
   if (settingsCanRender("autoSwitch")) $("autoSwitch").checked = !!au.enabled;
   if (settingsCanRender("autoInterval")) $("autoInterval").value = String(au.intervalHours ?? 6);
   if (settingsCanRender("autoWarn")) $("autoWarn").value = String(au.warnSeconds ?? 300);
-  $("backupNudge").hidden = remote || o.backupsCount !== 0 || !!S.backupsItems?.length;
   if (settingsCanRender("buBackup")) $("buBackup").checked = au.backupBeforeUpdate !== false;
   const wdCfg = o.settings?.watchdog || {};
   if (settingsCanRender("wdSwitch")) $("wdSwitch").checked = !!wdCfg.enabled;
@@ -608,9 +666,8 @@ function renderOverview(o) {
   if (settingsCanRender("tgUpdate")) $("tgUpdate").checked = groups.update !== false;
   if (settingsCanRender("tgProblems")) $("tgProblems").checked = groups.problems !== false;
   const masked = tg.botTokenMasked || "";
-  $("tgNote").textContent = masked
-    ? `Токен сохранён (${masked}) — наружу не отдаётся. Чтобы заменить, введите новый.`
-    : "Токен хранится на сервере пульта и наружу не отдаётся.";
+  $("tgNote").hidden = !masked;
+  $("tgNote").textContent = masked ? "Токен сохранён. Введите новый, чтобы заменить." : "";
   if (tgEnabled) {
     const ns = o.notify || {};
     if (ns.ok === false && ns.error) {
@@ -632,17 +689,19 @@ function renderOverview(o) {
   const mc = o.modsCheck || {};
   if (mc.state === "up-to-date") {
     setPill("modsPill", "ok", "актуальны");
-    $("modsCheckNote").textContent = mc.at ? `Проверено ${fmtTime(mc.at)} — сервер вернул «Mods updated».` : "Сервер сверяет версии со Steam Workshop; обновления применяются рестартом.";
+    $("modsCheckNote").textContent = mc.at ? `Проверено ${fmtTime(mc.at)}` : "";
   } else if (mc.state === "needs-update") {
     const n = (mc.items || []).length;
     setPill("modsPill", "warn", n ? `обновить: ${n}` : "есть обновления");
-    $("modsCheckNote").textContent = mc.at ? `Проверено ${fmtTime(mc.at)} — часть модов устарела, нужен рестарт для загрузки версий.` : "";
+    $("modsCheckNote").textContent = mc.at ? `Проверено ${fmtTime(mc.at)}. Для загрузки обновлений нужен рестарт.` : "Для загрузки обновлений нужен рестарт.";
   } else if (mc.state === "inconclusive") {
     setPill("modsPill", "warn", "нет ответа");
-    $("modsCheckNote").textContent = mc.at ? `Проверено ${fmtTime(mc.at)} — сервер не вернул результат за отведённое время, попробуйте позже.` : "";
+    $("modsCheckNote").textContent = "Сервер не вернул результат вовремя. Повторите проверку позже.";
   } else {
     setPill("modsPill", "unknown", "не проверялись");
+    $("modsCheckNote").textContent = "";
   }
+  $("modsCheckNote").hidden = !$("modsCheckNote").textContent;
   const items = mc.items || [];
   const needList = $("modsNeedList");
   needList.hidden = !(mc.state === "needs-update" && items.length);
@@ -979,7 +1038,7 @@ function renderPlayers(data) {
   $("playersCount").textContent = String(data.count);
   if (!data.names.length) {
     const raw = (data.raw || "").trim();
-    setListMessage(body, "empty", `<p class="list-empty"><strong>Пусто.</strong> Выживших не найдено — сервер ждёт.</p>` +
+    setListMessage(body, "empty", `<p class="list-empty">Нет игроков онлайн.</p>` +
       (raw && !/players/i.test(raw) ? `<p class="list-empty mono">${esc(raw)}</p>` : ""));
     return;
   }
@@ -1432,7 +1491,7 @@ function renderBackups(data) {
   renderHealth();
   renderKpis();
   if (!items.length) {
-    setListMessage(body, "empty", `<p class="list-empty"><strong>Бэкапов ещё нет.</strong> Нажмите «Создать» — мир и конфиги уйдут в архив.</p>`);
+    setListMessage(body, "empty", `<p class="list-empty">Бэкапов ещё нет.</p>`);
     return;
   }
   syncRows(body, items, (item) => item.name, (b) => {
@@ -1511,7 +1570,7 @@ function renderBkJournal(journal) {
   if (!body) return;
   if (!journal.length) {
     setDomProperty(body.dataset, "state", "empty");
-    setStaticMarkup(body, `<p class="list-empty">Запусков ещё не было — журнал наполнится после первого бэкапа.</p>`);
+    setStaticMarkup(body, `<p class="list-empty">Бэкапов ещё не было.</p>`);
     return;
   }
   setDomProperty(body.dataset, "state", "ok");
@@ -1577,7 +1636,6 @@ function openBackupModal() {
 }
 
 $("btnBackup").addEventListener("click", openBackupModal);
-$("btnNudgeBackup").addEventListener("click", openBackupModal);
 
 /* ───────────────────────── события ───────────────────────── */
 
@@ -1615,8 +1673,8 @@ function renderEvents(data) {
   if (!visible.length) {
     setDomProperty(body.dataset, "state", "empty");
     setStaticMarkup(body, eventsFilter === "all"
-      ? `<p class="list-empty"><strong>Пока тихо.</strong> Здесь появятся рестарты, бэкапы и обновления.</p>`
-      : `<p class="list-empty"><strong>Пусто.</strong> Событий этой категории пока не было.</p>`);
+      ? `<p class="list-empty">Событий ещё нет.</p>`
+      : `<p class="list-empty">Нет событий в этой категории.</p>`);
     return;
   }
   setDomProperty(body.dataset, "state", "ok");
@@ -1656,7 +1714,7 @@ function renderRecent(items) {
   const slice = (items || []).slice(0, 5);
   if (!slice.length) {
     setDomProperty(body.dataset, "state", "empty");
-    setStaticMarkup(body, `<p class="list-empty"><strong>Пока тихо.</strong> Здесь появятся рестарты, бэкапы и обновления.</p>`);
+    setStaticMarkup(body, `<p class="list-empty">Событий ещё нет.</p>`);
     return;
   }
   setDomProperty(body.dataset, "state", "ok");
@@ -2332,7 +2390,6 @@ const mobileLayout = matchMedia("(max-width: 740px)");
 function adaptHealthDisclosure() {
   const disclosure = document.querySelector(".health-details"), connection = document.querySelector(".connection-status");
   const focused = document.activeElement;
-  disclosure.open = !mobileLayout.matches;
   if (mobileLayout.matches) {
     document.querySelector(".topbar").append($("freshness"));
     disclosure.querySelector(".health-tools").append(connection, $("btnLogout"));

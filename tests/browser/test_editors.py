@@ -57,6 +57,50 @@ def navigate(page, route, mobile=False):
         page.locator(f'.nav [data-route="{route}"]').click()
 
 
+@pytest.mark.parametrize("width", [320, 1440])
+def test_field_help_supports_hover_focus_and_tap_without_changing_draft(
+    page, dashboard, editing, width
+):
+    page.set_viewport_size({"width": width, "height": 844})
+    page.goto(dashboard["url"] + "/#/settings")
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    field = page.locator('.config-field:has([data-key="PublicName"])')
+    trigger = field.get_by_role("button", name="О настройке «Название сервера»")
+    tip = field.locator("[role=tooltip]")
+    expect(tip).to_be_hidden()
+    original = field.locator("[data-key]").input_value()
+    trigger.hover()
+    expect(tip).to_be_visible()
+    tip.hover()
+    expect(tip).to_be_visible()
+    page.locator("#configSearch").hover()
+    expect(tip).to_be_hidden()
+    trigger.focus()
+    expect(tip).to_be_visible()
+    expect(tip).to_contain_text("PublicName")
+    assert (
+        tip.get_attribute("id")
+        in field.locator("[data-key]").get_attribute("aria-describedby").split()
+    )
+    page.keyboard.press("Escape")
+    expect(tip).to_be_hidden()
+    expect(trigger).to_be_focused()
+    trigger.click()
+    expect(tip).to_be_visible()
+    bounds = tip.bounding_box()
+    assert bounds["x"] >= 0 and bounds["x"] + bounds["width"] <= width
+    assert bounds["y"] >= 0 and bounds["y"] + bounds["height"] <= 844
+    trigger.click()
+    expect(tip).to_be_hidden()
+    trigger.click()
+    page.locator("#configSearch").click()
+    expect(tip).to_be_hidden()
+    expect(field.locator("[data-key]")).to_have_value(original)
+    assert dashboard["actions"] == []
+    trigger.click()
+    page.screenshot(path=str(editing[0].parent / f"field-help-{width}.png"))
+
+
 def test_attention_routes_each_problem_and_preserves_focused_action(page, dashboard, editing):
     page.goto(dashboard["url"] + "/#/settings")
     expect(page.locator("#configProfile")).to_have_value("world.ini")
@@ -238,7 +282,10 @@ def test_game_tooltip_markup_is_readable_and_never_executed(page, dashboard, edi
     expect(page.locator("#configProfile")).to_have_value("world.ini")
     navigate(page, "settings", width <= 740)
     page.locator('#configTabs [data-tab="custom"]').click()
-    hint = page.locator('.config-field:has([data-key="Mod.Count"]) .hint')
+    field = page.locator('.config-field:has([data-key="Mod.Count"])')
+    field.locator("[data-help]").click()
+    hint = field.locator("[role=tooltip]")
+    expect(hint).to_be_visible()
     expect(hint).to_contain_text("Static: описание.")
     expect(hint).to_contain_text("Вторая строка")
     assert "<br>" not in hint.inner_text() and "/AAAAFF" not in hint.inner_text()
@@ -283,7 +330,7 @@ def test_sandbox_applicability_is_separate_accessible_and_keeps_fields_aligned(
         expect(scope).to_have_attribute("data-scope", kind)
         described = field.locator("[data-key]").get_attribute("aria-describedby").split()
         assert scope.get_attribute("id") in described
-        assert field.locator(".hint").get_attribute("id") in described
+        assert field.locator("[role=tooltip]").get_attribute("id") in described
         metrics = field.evaluate("""el => {
             const field = el.getBoundingClientRect(), scope = el.querySelector('.config-scope').getBoundingClientRect();
             const control = el.querySelector('.config-control').getBoundingClientRect();
@@ -292,7 +339,9 @@ def test_sandbox_applicability_is_separate_accessible_and_keeps_fields_aligned(
         }""")
         assert all(metrics.values())
     starter = page.locator('.config-field:has([data-key="StarterKit"])')
-    expect(starter.locator(".hint")).to_have_text("Описание набора из установленной игры")
+    expect(starter.locator("[role=tooltip]")).to_contain_text(
+        "Описание набора из установленной игры"
+    )
     expect(starter.locator(".config-scope")).to_contain_text("Новые персонажи")
     assert page.locator('.config-field:has([data-key="DayLength"]) .config-scope').count() == 0
     assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
@@ -648,9 +697,9 @@ def test_header_does_not_claim_unknown_profile_is_active(page, dashboard, editin
     page.evaluate("location.hash='#/settings'")
     expect(page.locator("#configActionHelp")).to_contain_text("Профиль запуска не подтверждён")
     page.locator(".context-help summary").filter(has_text="Как применить настройки").click()
-    expect(
-        page.get_by_role("link", name="Руководство: профили, черновики и восстановление")
-    ).to_have_attribute("href", "static/config-help.html")
+    expect(page.get_by_role("link", name="Профили, черновики и восстановление")).to_have_attribute(
+        "href", "static/config-help.html"
+    )
     expect(page.locator("#configApply")).to_be_disabled()
 
 
@@ -897,6 +946,8 @@ def test_drag_handle_inserts_before_and_after_without_off_by_one(page, dashboard
     navigate(page, "mods")
     page.get_by_role("tab", name="Порядок", exact=True).click()
     row = page.locator('[data-order-id="mod001"]')
+    # Settle the target's scroll margins before holding the source handle.
+    row.scroll_into_view_if_needed()
     height = row.bounding_box()["height"]
     page.get_by_role("button", name="Перетащить library", exact=True).drag_to(
         row, target_position={"x": 160, "y": height - 4}

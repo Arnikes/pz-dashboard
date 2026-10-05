@@ -7,6 +7,16 @@ from playwright.sync_api import expect
 pytestmark = pytest.mark.browser
 
 
+def test_missing_backup_notice_remains_available_without_a_config_profile(page, dashboard):
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("")
+    notice = page.locator('#editorAttention [data-attention-key="backup-missing"]')
+    expect(notice).to_be_visible()
+    expect(notice).to_have_attribute("href", "#/backups")
+    expect(page.locator("#editorAttention")).to_contain_text("Нет резервной копии мира")
+    expect(page.locator("#backupNudge")).to_have_count(0)
+
+
 @pytest.mark.parametrize("running,remote", [(False, False), (True, False), (False, True)])
 def test_rcon_header_distinguishes_stopped_server_from_connection_failure(
     page, dashboard, running, remote
