@@ -67,7 +67,8 @@ def test_player_command_preserves_exact_target_or_refuses_unsafe_encoding(page, 
 
 
 def test_navigation_keeps_one_stream_and_hidden_polling_does_not_overlap(page, dashboard):
-    page.goto(dashboard["url"])
+    with page.expect_request("**/api/stream"):
+        page.goto(dashboard["url"])
     expect(page.locator("#btnStop")).to_be_enabled()
     page.evaluate("window.firstStream=liveSource")
     for route in ["settings", "mods", "players", "maintenance", "backups", "console", "events"]:

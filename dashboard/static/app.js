@@ -2535,6 +2535,7 @@ function startSse() {
   // браузер сам переподключается; откат на опрос — если поток так и не ожил
   // или умер уже после того, как работал
   es.onerror = () => {
+    if (document.hidden || liveSource !== es) return;
     api("/api/auth/session").catch(() => {});
     errors++;
     if (errors >= 3 && Date.now() - S.lastDataOk > 20000) fallback();

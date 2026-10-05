@@ -1,3 +1,10 @@
+---
+version: 1
+slug: "dashboard-static-index-html"
+primary_target: "dashboard/static/index.html"
+related_targets: ["dashboard/static/style.css","dashboard/static/app.js","dashboard/static/editor.js","dashboard/static/login.html"]
+---
+
 # Направление нового оформления
 
 Пользователь подтвердил эффективность опытного администратора, приоритет

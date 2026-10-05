@@ -61,6 +61,8 @@ def test_login_navigation_reload_and_logout(page, login_url, width, height):
     expect(page.locator("#view-console")).to_be_visible()
     page.goto(login_url + "/#/overview")
     page.goto(login_url + "/#/console")
+    if width <= 740:
+        page.locator(".health-details > summary").click()
     page.get_by_role("button", name="Выйти", exact=True).click()
     expect(page.get_by_role("heading", name="Вход администратора")).to_be_visible()
     page.go_back()

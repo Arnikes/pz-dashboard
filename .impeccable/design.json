@@ -1,0 +1,549 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-05T00:09:16.194459+00:00",
+  "title": "Design System: PZ Пульт",
+  "extensions": {
+    "colorMeta": {
+      "bg": {
+        "role": "neutral",
+        "displayName": "Ночная основа",
+        "tonalRamp": [
+          "oklch(15.00% 0.0286 251.32)",
+          "oklch(26.43% 0.0286 251.32)",
+          "oklch(37.86% 0.0286 251.32)",
+          "oklch(49.29% 0.0286 251.32)",
+          "oklch(60.71% 0.0286 251.32)",
+          "oklch(72.14% 0.0286 251.32)",
+          "oklch(83.57% 0.0286 251.32)",
+          "oklch(95.00% 0.0286 251.32)"
+        ]
+      },
+      "bg-deep": {
+        "role": "neutral",
+        "displayName": "Углублённая основа",
+        "tonalRamp": [
+          "oklch(15.00% 0.0292 251.51)",
+          "oklch(26.43% 0.0292 251.51)",
+          "oklch(37.86% 0.0292 251.51)",
+          "oklch(49.29% 0.0292 251.51)",
+          "oklch(60.71% 0.0292 251.51)",
+          "oklch(72.14% 0.0292 251.51)",
+          "oklch(83.57% 0.0292 251.51)",
+          "oklch(95.00% 0.0292 251.51)"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Рабочий контейнер",
+        "tonalRamp": [
+          "oklch(15.00% 0.0426 252.23)",
+          "oklch(26.43% 0.0426 252.23)",
+          "oklch(37.86% 0.0426 252.23)",
+          "oklch(49.29% 0.0426 252.23)",
+          "oklch(60.71% 0.0426 252.23)",
+          "oklch(72.14% 0.0426 252.23)",
+          "oklch(83.57% 0.0426 252.23)",
+          "oklch(95.00% 0.0426 252.23)"
+        ]
+      },
+      "surface-2": {
+        "role": "neutral",
+        "displayName": "Выделенный рабочий слой",
+        "tonalRamp": [
+          "oklch(15.00% 0.0510 250.97)",
+          "oklch(26.43% 0.0510 250.97)",
+          "oklch(37.86% 0.0510 250.97)",
+          "oklch(49.29% 0.0510 250.97)",
+          "oklch(60.71% 0.0510 250.97)",
+          "oklch(72.14% 0.0510 250.97)",
+          "oklch(83.57% 0.0510 250.97)",
+          "oklch(95.00% 0.0510 250.97)"
+        ]
+      },
+      "surface-3": {
+        "role": "neutral",
+        "displayName": "Верхний рабочий слой",
+        "tonalRamp": [
+          "oklch(15.00% 0.0548 245.25)",
+          "oklch(26.43% 0.0548 245.25)",
+          "oklch(37.86% 0.0548 245.25)",
+          "oklch(49.29% 0.0548 245.25)",
+          "oklch(60.71% 0.0548 245.25)",
+          "oklch(72.14% 0.0548 245.25)",
+          "oklch(83.57% 0.0548 245.25)",
+          "oklch(95.00% 0.0548 245.25)"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Разделитель",
+        "tonalRamp": [
+          "oklch(15.00% 0.0453 247.93)",
+          "oklch(26.43% 0.0453 247.93)",
+          "oklch(37.86% 0.0453 247.93)",
+          "oklch(49.29% 0.0453 247.93)",
+          "oklch(60.71% 0.0453 247.93)",
+          "oklch(72.14% 0.0453 247.93)",
+          "oklch(83.57% 0.0453 247.93)",
+          "oklch(95.00% 0.0453 247.93)"
+        ]
+      },
+      "line-strong": {
+        "role": "neutral",
+        "displayName": "Граница управления",
+        "tonalRamp": [
+          "oklch(15.00% 0.0511 242.95)",
+          "oklch(26.43% 0.0511 242.95)",
+          "oklch(37.86% 0.0511 242.95)",
+          "oklch(49.29% 0.0511 242.95)",
+          "oklch(60.71% 0.0511 242.95)",
+          "oklch(72.14% 0.0511 242.95)",
+          "oklch(83.57% 0.0511 242.95)",
+          "oklch(95.00% 0.0511 242.95)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Основной текст",
+        "tonalRamp": [
+          "oklch(15.00% 0.0103 247.93)",
+          "oklch(26.43% 0.0103 247.93)",
+          "oklch(37.86% 0.0103 247.93)",
+          "oklch(49.29% 0.0103 247.93)",
+          "oklch(60.71% 0.0103 247.93)",
+          "oklch(72.14% 0.0103 247.93)",
+          "oklch(83.57% 0.0103 247.93)",
+          "oklch(95.00% 0.0103 247.93)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Вторичный текст",
+        "tonalRamp": [
+          "oklch(15.00% 0.0302 248.19)",
+          "oklch(26.43% 0.0302 248.19)",
+          "oklch(37.86% 0.0302 248.19)",
+          "oklch(49.29% 0.0302 248.19)",
+          "oklch(60.71% 0.0302 248.19)",
+          "oklch(72.14% 0.0302 248.19)",
+          "oklch(83.57% 0.0302 248.19)",
+          "oklch(95.00% 0.0302 248.19)"
+        ]
+      },
+      "faint": {
+        "role": "neutral",
+        "displayName": "Дополнительный текст",
+        "tonalRamp": [
+          "oklch(15.00% 0.0399 248.35)",
+          "oklch(26.43% 0.0399 248.35)",
+          "oklch(37.86% 0.0399 248.35)",
+          "oklch(49.29% 0.0399 248.35)",
+          "oklch(60.71% 0.0399 248.35)",
+          "oklch(72.14% 0.0399 248.35)",
+          "oklch(83.57% 0.0399 248.35)",
+          "oklch(95.00% 0.0399 248.35)"
+        ]
+      },
+      "accent": {
+        "role": "primary",
+        "displayName": "Голубой маршрут",
+        "tonalRamp": [
+          "oklch(15.00% 0.0676 212.81)",
+          "oklch(26.43% 0.0676 212.81)",
+          "oklch(37.86% 0.0676 212.81)",
+          "oklch(49.29% 0.0676 212.81)",
+          "oklch(60.71% 0.0676 212.81)",
+          "oklch(72.14% 0.0676 212.81)",
+          "oklch(83.57% 0.0676 212.81)",
+          "oklch(95.00% 0.0676 212.81)"
+        ]
+      },
+      "accent-hover": {
+        "role": "primary",
+        "displayName": "Наведение основного действия",
+        "tonalRamp": [
+          "oklch(15.00% 0.0540 210.94)",
+          "oklch(26.43% 0.0540 210.94)",
+          "oklch(37.86% 0.0540 210.94)",
+          "oklch(49.29% 0.0540 210.94)",
+          "oklch(60.71% 0.0540 210.94)",
+          "oklch(72.14% 0.0540 210.94)",
+          "oklch(83.57% 0.0540 210.94)",
+          "oklch(95.00% 0.0540 210.94)"
+        ]
+      },
+      "danger": {
+        "role": "tertiary",
+        "displayName": "Опасное действие",
+        "tonalRamp": [
+          "oklch(15.00% 0.1453 20.20)",
+          "oklch(26.43% 0.1453 20.20)",
+          "oklch(37.86% 0.1453 20.20)",
+          "oklch(49.29% 0.1453 20.20)",
+          "oklch(60.71% 0.1453 20.20)",
+          "oklch(72.14% 0.1453 20.20)",
+          "oklch(83.57% 0.1453 20.20)",
+          "oklch(95.00% 0.1453 20.20)"
+        ]
+      },
+      "danger-hover": {
+        "role": "tertiary",
+        "displayName": "Наведение опасного действия",
+        "tonalRamp": [
+          "oklch(15.00% 0.1507 19.36)",
+          "oklch(26.43% 0.1507 19.36)",
+          "oklch(37.86% 0.1507 19.36)",
+          "oklch(49.29% 0.1507 19.36)",
+          "oklch(60.71% 0.1507 19.36)",
+          "oklch(72.14% 0.1507 19.36)",
+          "oklch(83.57% 0.1507 19.36)",
+          "oklch(95.00% 0.1507 19.36)"
+        ]
+      },
+      "danger-text": {
+        "role": "tertiary",
+        "displayName": "Текст ошибки",
+        "tonalRamp": [
+          "oklch(15.00% 0.0890 15.66)",
+          "oklch(26.43% 0.0890 15.66)",
+          "oklch(37.86% 0.0890 15.66)",
+          "oklch(49.29% 0.0890 15.66)",
+          "oklch(60.71% 0.0890 15.66)",
+          "oklch(72.14% 0.0890 15.66)",
+          "oklch(83.57% 0.0890 15.66)",
+          "oklch(95.00% 0.0890 15.66)"
+        ]
+      },
+      "danger-tint": {
+        "role": "tertiary",
+        "displayName": "Тон ошибки",
+        "tonalRamp": [
+          "oklch(15.00% 0.0890 15.66)",
+          "oklch(26.43% 0.0890 15.66)",
+          "oklch(37.86% 0.0890 15.66)",
+          "oklch(49.29% 0.0890 15.66)",
+          "oklch(60.71% 0.0890 15.66)",
+          "oklch(72.14% 0.0890 15.66)",
+          "oklch(83.57% 0.0890 15.66)",
+          "oklch(95.00% 0.0890 15.66)"
+        ]
+      },
+      "success": {
+        "role": "secondary",
+        "displayName": "Подтверждение",
+        "tonalRamp": [
+          "oklch(15.00% 0.0716 159.64)",
+          "oklch(26.43% 0.0716 159.64)",
+          "oklch(37.86% 0.0716 159.64)",
+          "oklch(49.29% 0.0716 159.64)",
+          "oklch(60.71% 0.0716 159.64)",
+          "oklch(72.14% 0.0716 159.64)",
+          "oklch(83.57% 0.0716 159.64)",
+          "oklch(95.00% 0.0716 159.64)"
+        ]
+      },
+      "success-tint": {
+        "role": "secondary",
+        "displayName": "Тон подтверждения",
+        "tonalRamp": [
+          "oklch(15.00% 0.0716 159.64)",
+          "oklch(26.43% 0.0716 159.64)",
+          "oklch(37.86% 0.0716 159.64)",
+          "oklch(49.29% 0.0716 159.64)",
+          "oklch(60.71% 0.0716 159.64)",
+          "oklch(72.14% 0.0716 159.64)",
+          "oklch(83.57% 0.0716 159.64)",
+          "oklch(95.00% 0.0716 159.64)"
+        ]
+      },
+      "warning": {
+        "role": "tertiary",
+        "displayName": "Ожидание",
+        "tonalRamp": [
+          "oklch(15.00% 0.1236 76.88)",
+          "oklch(26.43% 0.1236 76.88)",
+          "oklch(37.86% 0.1236 76.88)",
+          "oklch(49.29% 0.1236 76.88)",
+          "oklch(60.71% 0.1236 76.88)",
+          "oklch(72.14% 0.1236 76.88)",
+          "oklch(83.57% 0.1236 76.88)",
+          "oklch(95.00% 0.1236 76.88)"
+        ]
+      },
+      "warning-tint": {
+        "role": "tertiary",
+        "displayName": "Тон ожидания",
+        "tonalRamp": [
+          "oklch(15.00% 0.1236 76.88)",
+          "oklch(26.43% 0.1236 76.88)",
+          "oklch(37.86% 0.1236 76.88)",
+          "oklch(49.29% 0.1236 76.88)",
+          "oklch(60.71% 0.1236 76.88)",
+          "oklch(72.14% 0.1236 76.88)",
+          "oklch(83.57% 0.1236 76.88)",
+          "oklch(95.00% 0.1236 76.88)"
+        ]
+      },
+      "focus": {
+        "role": "primary",
+        "displayName": "Фокус",
+        "tonalRamp": [
+          "oklch(15.00% 0.0676 212.81)",
+          "oklch(26.43% 0.0676 212.81)",
+          "oklch(37.86% 0.0676 212.81)",
+          "oklch(49.29% 0.0676 212.81)",
+          "oklch(60.71% 0.0676 212.81)",
+          "oklch(72.14% 0.0676 212.81)",
+          "oklch(83.57% 0.0676 212.81)",
+          "oklch(95.00% 0.0676 212.81)"
+        ]
+      },
+      "selection": {
+        "role": "neutral",
+        "displayName": "Выделение текста",
+        "tonalRamp": [
+          "oklch(15.00% 0.0576 240.30)",
+          "oklch(26.43% 0.0576 240.30)",
+          "oklch(37.86% 0.0576 240.30)",
+          "oklch(49.29% 0.0576 240.30)",
+          "oklch(60.71% 0.0576 240.30)",
+          "oklch(72.14% 0.0576 240.30)",
+          "oklch(83.57% 0.0576 240.30)",
+          "oklch(95.00% 0.0576 240.30)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Заголовок маршрута",
+        "purpose": "Главный заголовок рабочей страницы."
+      },
+      "title": {
+        "displayName": "Заголовок контейнера",
+        "purpose": "Локальная группа информации."
+      },
+      "body": {
+        "displayName": "Интерфейс",
+        "purpose": "Читаемый рабочий текст."
+      },
+      "label": {
+        "displayName": "Подпись управления",
+        "purpose": "Связанная подпись поля."
+      },
+      "button": {
+        "displayName": "Подпись действия",
+        "purpose": "Кнопки."
+      },
+      "source": {
+        "displayName": "Исходник",
+        "purpose": "Код, исходники и номера строк."
+      }
+    },
+    "shadows": [
+      {
+        "name": "elevation-dialog",
+        "value": "0 18px 48px rgb(0 0 0 / .4)",
+        "purpose": "Временные окна и меню."
+      },
+      {
+        "name": "toast",
+        "value": "0 8px 24px rgba(0, 0, 0, 0.35)",
+        "purpose": "Уведомление."
+      }
+    ],
+    "motion": [
+      {
+        "name": "motion",
+        "value": "160ms",
+        "purpose": "Изменение состояния кнопок и переключателей."
+      },
+      {
+        "name": "ease",
+        "value": "cubic-bezier(0.2, 0, 0, 1)",
+        "purpose": "Кривая переходов."
+      },
+      {
+        "name": "view-toast-enter",
+        "value": "180ms",
+        "purpose": "Вход маршрута (4px) и toast (6px)."
+      },
+      {
+        "name": "operation-spin",
+        "value": "0.9s linear infinite",
+        "purpose": "Активная операция."
+      },
+      {
+        "name": "loading-shimmer",
+        "value": "1.2s linear infinite",
+        "purpose": "Загрузка списка."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "animation: none !important; transition: none !important",
+        "purpose": "Отключение движения по системному предпочтению."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "mobile",
+        "value": "740px"
+      },
+      {
+        "name": "paired-containers",
+        "value": "1180px"
+      },
+      {
+        "name": "editor-two-columns",
+        "value": "1200px"
+      },
+      {
+        "name": "kpi-two-columns",
+        "value": "900px"
+      },
+      {
+        "name": "compact-dialog",
+        "value": "600px"
+      },
+      {
+        "name": "compact-journal",
+        "value": "560px"
+      },
+      {
+        "name": "compact-header",
+        "value": "500px"
+      },
+      {
+        "name": "auto-single-column",
+        "value": "460px"
+      },
+      {
+        "name": "short-height",
+        "value": "600px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Обычное действие",
+      "kind": "button",
+      "refersTo": "button-default",
+      "description": "Повседневная операция.",
+      "html": "<button type=\"button\" class=\"ds-button\">Проверить</button>",
+      "css": ".ds-button{font-family:var(--font-body,\"Golos Text\",\"Segoe UI\",system-ui,sans-serif);font-size:13.5px;font-weight:500;line-height:1.3;color:var(--ink,#eef4fa);background:var(--surface-2,#162c43);border:1px solid var(--line-strong,#58768e);border-radius:var(--r-sm,8px);padding:9px 15px;min-height:var(--control-height,44px);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:background var(--motion,160ms) var(--ease,cubic-bezier(0.2,0,0,1)),border-color var(--motion,160ms) var(--ease,cubic-bezier(0.2,0,0,1)),transform var(--motion,160ms) var(--ease,cubic-bezier(0.2,0,0,1));}.ds-button:hover:not(:disabled){background:var(--surface-3,#203d55);border-color:color-mix(in srgb,var(--ink,#eef4fa) 26%,transparent);}.ds-button:active:not(:disabled){transform:translateY(1px);}.ds-button:focus-visible{outline:2px solid var(--ink,#eef4fa);outline-offset:2px;}.ds-button:disabled{opacity:.42;cursor:not-allowed;}@media(prefers-reduced-motion:reduce){.ds-button{transition:none;}}"
+    },
+    {
+      "name": "Основное действие",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Главное доступное действие; подпись не утверждает успех.",
+      "html": "<button type=\"button\" class=\"ds-button ds-primary\">Применить</button>",
+      "css": ".ds-button{font-family:var(--font-body,\"Golos Text\",\"Segoe UI\",system-ui,sans-serif);font-size:13.5px;font-weight:500;line-height:1.3;color:var(--ink,#eef4fa);background:var(--surface-2,#162c43);border:1px solid var(--line-strong,#58768e);border-radius:var(--r-sm,8px);padding:9px 15px;min-height:var(--control-height,44px);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:background var(--motion,160ms) var(--ease,cubic-bezier(0.2,0,0,1)),border-color var(--motion,160ms) var(--ease,cubic-bezier(0.2,0,0,1)),transform var(--motion,160ms) var(--ease,cubic-bezier(0.2,0,0,1));}.ds-button:hover:not(:disabled){background:var(--surface-3,#203d55);border-color:color-mix(in srgb,var(--ink,#eef4fa) 26%,transparent);}.ds-button:active:not(:disabled){transform:translateY(1px);}.ds-button:focus-visible{outline:2px solid var(--ink,#eef4fa);outline-offset:2px;}.ds-button:disabled{opacity:.42;cursor:not-allowed;}@media(prefers-reduced-motion:reduce){.ds-button{transition:none;}}.ds-primary{background:var(--accent,#92d2e0);border-color:var(--accent,#92d2e0);color:var(--bg-deep,#0b1622);}.ds-primary:hover:not(:disabled){background:var(--accent-hover,#b1e4ee);border-color:var(--accent-hover,#b1e4ee);}"
+    },
+    {
+      "name": "Опасное действие",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Действие с существующим явным подтверждением.",
+      "html": "<button type=\"button\" class=\"ds-button ds-danger\">Остановить</button>",
+      "css": ".ds-button{font-family:var(--font-body,\"Golos Text\",\"Segoe UI\",system-ui,sans-serif);font-size:13.5px;font-weight:500;line-height:1.3;color:var(--ink,#eef4fa);background:var(--surface-2,#162c43);border:1px solid var(--line-strong,#58768e);border-radius:var(--r-sm,8px);padding:9px 15px;min-height:var(--control-height,44px);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:background var(--motion,160ms) var(--ease,cubic-bezier(0.2,0,0,1)),border-color var(--motion,160ms) var(--ease,cubic-bezier(0.2,0,0,1)),transform var(--motion,160ms) var(--ease,cubic-bezier(0.2,0,0,1));}.ds-button:hover:not(:disabled){background:var(--surface-3,#203d55);border-color:color-mix(in srgb,var(--ink,#eef4fa) 26%,transparent);}.ds-button:active:not(:disabled){transform:translateY(1px);}.ds-button:focus-visible{outline:2px solid var(--ink,#eef4fa);outline-offset:2px;}.ds-button:disabled{opacity:.42;cursor:not-allowed;}@media(prefers-reduced-motion:reduce){.ds-button{transition:none;}}.ds-danger{background:transparent;border-color:color-mix(in srgb,var(--danger-text,#ffb3b7) 55%,transparent);color:var(--danger-text,#ffb3b7);}.ds-danger:hover:not(:disabled){background:color-mix(in srgb,var(--danger-text,#ffb3b7) 12%,transparent);border-color:var(--danger,#ab3c43);}"
+    },
+    {
+      "name": "Прозрачное действие",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Вторичное действие в контексте результата.",
+      "html": "<button type=\"button\" class=\"ds-button ds-ghost\">Закрыть результат</button>",
+      "css": ".ds-button{font-family:var(--font-body,\"Golos Text\",\"Segoe UI\",system-ui,sans-serif);font-size:13.5px;font-weight:500;line-height:1.3;color:var(--ink,#eef4fa);background:var(--surface-2,#162c43);border:1px solid var(--line-strong,#58768e);border-radius:var(--r-sm,8px);padding:9px 15px;min-height:var(--control-height,44px);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:background var(--motion,160ms) var(--ease,cubic-bezier(0.2,0,0,1)),border-color var(--motion,160ms) var(--ease,cubic-bezier(0.2,0,0,1)),transform var(--motion,160ms) var(--ease,cubic-bezier(0.2,0,0,1));}.ds-button:hover:not(:disabled){background:var(--surface-3,#203d55);border-color:color-mix(in srgb,var(--ink,#eef4fa) 26%,transparent);}.ds-button:active:not(:disabled){transform:translateY(1px);}.ds-button:focus-visible{outline:2px solid var(--ink,#eef4fa);outline-offset:2px;}.ds-button:disabled{opacity:.42;cursor:not-allowed;}@media(prefers-reduced-motion:reduce){.ds-button{transition:none;}}.ds-ghost{background:transparent;}"
+    },
+    {
+      "name": "Подтверждение опасного действия",
+      "kind": "button",
+      "refersTo": "button-solid-danger",
+      "description": "Решающее действие внутри подтверждения.",
+      "html": "<button type=\"button\" class=\"ds-button ds-solid-danger\">Подтвердить</button>",
+      "css": ".ds-button{font-family:var(--font-body,\"Golos Text\",\"Segoe UI\",system-ui,sans-serif);font-size:13.5px;font-weight:500;line-height:1.3;color:var(--ink,#eef4fa);background:var(--surface-2,#162c43);border:1px solid var(--line-strong,#58768e);border-radius:var(--r-sm,8px);padding:9px 15px;min-height:var(--control-height,44px);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:background var(--motion,160ms) var(--ease,cubic-bezier(0.2,0,0,1)),border-color var(--motion,160ms) var(--ease,cubic-bezier(0.2,0,0,1)),transform var(--motion,160ms) var(--ease,cubic-bezier(0.2,0,0,1));}.ds-button:hover:not(:disabled){background:var(--surface-3,#203d55);border-color:color-mix(in srgb,var(--ink,#eef4fa) 26%,transparent);}.ds-button:active:not(:disabled){transform:translateY(1px);}.ds-button:focus-visible{outline:2px solid var(--ink,#eef4fa);outline-offset:2px;}.ds-button:disabled{opacity:.42;cursor:not-allowed;}@media(prefers-reduced-motion:reduce){.ds-button{transition:none;}}.ds-solid-danger{background:var(--danger,#ab3c43);border-color:var(--danger,#ab3c43);color:#fff;}.ds-solid-danger:hover:not(:disabled){background:var(--danger-hover,#bd4850);}"
+    },
+    {
+      "name": "Текстовое поле",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Связанная подпись и углублённое поле.",
+      "html": "<label class=\"ds-field\" for=\"ds-config-name\">Имя сервера</label><input class=\"ds-input\" id=\"ds-config-name\" value=\"PZ Server\" />",
+      "css": ".ds-field{display:block;font-family:var(--font-body,\"Golos Text\",\"Segoe UI\",system-ui,sans-serif);font-size:14px;color:var(--muted,#b9cadb);margin-bottom:8px;}.ds-input{font-family:var(--font-body,\"Golos Text\",\"Segoe UI\",system-ui,sans-serif);font-size:13.5px;line-height:1.3;width:100%;max-width:100%;height:44px;padding:10px 12px;color:var(--ink,#eef4fa);background:var(--bg-deep,#0b1622);border:1px solid var(--line-strong,#58768e);border-radius:var(--r-sm,8px);caret-color:var(--accent,#92d2e0);}.ds-input:focus-visible{outline:2px solid var(--ink,#eef4fa);outline-offset:2px;}.ds-input:disabled{opacity:.55;cursor:not-allowed;}@media(max-width:740px){.ds-input{font-size:16px;}}"
+    },
+    {
+      "name": "Прямой маршрут",
+      "kind": "nav",
+      "refersTo": "nav-active",
+      "description": "Пункт активного раздела.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Разделы\"><a href=\"#/settings\" aria-current=\"page\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\"><path d=\"M4 7h16M4 12h16M4 17h16\"/><circle cx=\"9\" cy=\"7\" r=\"2\" fill=\"currentColor\"/><circle cx=\"15\" cy=\"12\" r=\"2\" fill=\"currentColor\"/></svg>Настройки</a><a href=\"#/mods\">Моды</a></nav>",
+      "css": ".ds-nav{display:grid;gap:8px;font-family:var(--font-body,\"Golos Text\",\"Segoe UI\",system-ui,sans-serif);font-size:12px;}.ds-nav a{display:flex;align-items:center;gap:6px;min-height:44px;padding:12px;border:1px solid transparent;border-radius:8px;background:var(--bg,#101b27);color:var(--muted,#b9cadb);text-decoration:none;}.ds-nav a svg{width:15px;height:15px;}.ds-nav a[aria-current=page]{color:var(--accent,#92d2e0);background:var(--surface-2,#162c43);border-color:var(--line-strong,#58768e);}.ds-nav a:hover{color:var(--ink,#eef4fa);}.ds-nav a:focus-visible{outline:2px solid var(--ink,#eef4fa);outline-offset:2px;}"
+    },
+    {
+      "name": "Текстовый статус",
+      "kind": "chip",
+      "refersTo": "state-pill",
+      "description": "Точка дополняет слово; unknown нейтрален.",
+      "html": "<span class=\"ds-pill\" data-state=\"unknown\">RCON: неизвестно</span><span class=\"ds-pill\" data-state=\"ok\">Сервер: работает</span>",
+      "css": ".ds-pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-body,\"Golos Text\",\"Segoe UI\",system-ui,sans-serif);font-size:11.5px;font-weight:500;line-height:1;letter-spacing:.05em;padding:5px 10px;border:1px solid var(--line-strong,#58768e);border-radius:999px;color:var(--muted,#b9cadb);white-space:nowrap;}.ds-pill::before{content:\"\";width:6px;height:6px;border-radius:50%;background:var(--faint,#a0b6cc);}.ds-pill[data-state=ok]{color:var(--success,#9ed5b6);border-color:color-mix(in srgb,var(--success,#9ed5b6) 45%,transparent);}.ds-pill[data-state=ok]::before{background:var(--success,#9ed5b6);}.ds-pill[data-state=warn]{color:var(--warning,#f2ba62);}.ds-pill[data-state=bad]{color:var(--danger-text,#ffb3b7);}"
+    },
+    {
+      "name": "Рабочий контейнер",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Плоская поверхность с отделённым заголовком.",
+      "html": "<section class=\"ds-card\"><header class=\"ds-card-head\"><h2>Состояние сервера</h2></header><p>Состояние пока не подтверждено.</p></section>",
+      "css": ".ds-card{font-family:var(--font-body,\"Golos Text\",\"Segoe UI\",system-ui,sans-serif);font-size:14.5px;line-height:1.5;color:var(--ink,#eef4fa);background:var(--surface,#142538);border:1px solid var(--line,#30465b);border-radius:var(--r,12px);padding:18px;min-width:0;}.ds-card-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:var(--space-group,16px);padding-bottom:10px;border-bottom:1px solid var(--line,#30465b);}.ds-card h2{margin:0;font-size:18px;font-weight:600;line-height:1.3;letter-spacing:-.015em;}.ds-card p{color:var(--muted,#b9cadb);}"
+    },
+    {
+      "name": "Стадии изменения",
+      "kind": "custom",
+      "refersTo": "config-flow",
+      "description": "Переход к черновику, diff и существующему действию; preview не выполняет операции.",
+      "html": "<ol class=\"ds-flow\" aria-label=\"Стадии изменения конфигурации\"><li><button type=\"button\" aria-current=\"step\"><strong>Черновик</strong><span>Есть правки</span></button></li><li><button type=\"button\"><strong>Файлы</strong><span>Ожидают записи</span></button></li><li><button type=\"button\"><strong>Запуск</strong><span>После записи файлов</span></button></li></ol>",
+      "css": ".ds-flow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;list-style:none;padding:0;margin:0 0 20px;border-bottom:1px solid var(--line,#30465b);font-family:var(--font-body,\"Golos Text\",\"Segoe UI\",system-ui,sans-serif);}.ds-flow button{position:relative;display:flex;flex-direction:column;gap:5px;width:100%;min-height:68px;padding:12px 16px;border:0;background:transparent;color:var(--muted,#b9cadb);text-align:left;font:inherit;cursor:pointer;}.ds-flow strong{font-size:15px;font-weight:600;}.ds-flow span{font-size:12px;overflow-wrap:anywhere;}.ds-flow button[aria-current=step]{background:var(--surface-2,#162c43);color:var(--accent,#92d2e0);}.ds-flow button[aria-current=step]::after{content:\"\";position:absolute;inset:auto 12px 0;height:2px;background:var(--accent,#92d2e0);}.ds-flow button[data-state=ok]{color:var(--success,#9ed5b6);}.ds-flow button[data-state=bad]{color:var(--danger-text,#ffb3b7);}.ds-flow button:hover:not(:disabled){background:var(--surface-3,#203d55);}.ds-flow button:focus-visible{outline:2px solid var(--focus,#92d2e0);outline-offset:-3px;}.ds-flow button:disabled{cursor:default;}@media(max-width:740px){.ds-flow{margin-bottom:8px;}.ds-flow button{padding:8px 6px;gap:2px;min-height:48px;}.ds-flow strong{font-size:13px;}.ds-flow span{font-size:11px;}}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Ночная навигация",
+    "overview": "Синие рабочие поверхности, светлые подписи и голубой текущий маршрут собирают плотный административный интерфейс в понятную систему ориентиров. Метaфора навигации выражена через активный раздел, связанность стадий изменения и устойчивый фокус. Это реализованное объявленное предположение Impeccable; пользователь подтвердил приоритет опытного администратора и заметное обновление, но отдельно не утверждал конкретную палитру.\n\nСистема описывает завершённые HTML/CSS/JavaScript поверхности панели и входа. Источник значений — конечный каскад `dashboard/static/style.css`; поведение — `app.js`, `editor.js`, `login.js`. Сначала доступны поля и действия, а техническое состояние остаётся различимым. Графика состоит из SVG и локальных WOFF2; игровые изображения и обещания эффективности не задают визуальный язык.",
+    "keyCharacteristics": [
+      "Синие тональные слои и светлый голубой ориентир.",
+      "Golos Text для интерфейса, JetBrains Mono для исходников и значений.",
+      "Текстовые состояния рядом с цветом и реальные стадии изменения.",
+      "Плоские рабочие поверхности, мягкая глубина только у временных слоёв.",
+      "Прямые разделы и поля прежде служебных подробностей на телефоне."
+    ],
+    "rules": [
+      {
+        "name": "The State Has Words Rule",
+        "body": "Цвет сопровождает текстовое состояние; неизвестность, ожидание и подтверждение не подменяют друг друга.",
+        "section": "colors"
+      },
+      {
+        "name": "The Interface and Identifier Rule",
+        "body": "Обычный интерфейс использует Golos Text; моноширинный шрифт применяется к значениям, идентификаторам, исходникам и тексту команд.",
+        "section": "typography"
+      },
+      {
+        "name": "The Temporary Depth Rule",
+        "body": "Тень отделяет временный слой от работы; постоянные поля, карточки и черновик используют тон и границу.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** сохранять русские подписи, точные названия сущностей и текст рядом с цветовым состоянием.",
+      "**Do** использовать фактические токены и конечный каскад; значения frontmatter являются нормативными.",
+      "**Do** сохранять клавиатурный фокус, минимум 44px для мобильных действий, reduced-motion и forced-colors.",
+      "**Do** различать черновик, записанные файлы, применение и подтверждённый запуск на основании реальных данных.",
+      "**Do** держать поля первыми на мобильных маршрутах редакторов, а стадии и поточную полосу черновика после них."
+    ],
+    "donts": [
+      "**Don't** изображать неподтверждённое состояние сервера или применение как успешное.",
+      "**Don't** превращать переход между стадиями в автоматический запуск или обход подтверждения опасной операции.",
+      "**Don't** использовать реальные игровые действия ради проверки оформления; demo и review-fixtures служат иллюстративной проверке UI.",
+      "**Don't** добавлять игровую растровую декорацию или выдуманные показатели эффективности как продуктовые факты.",
+      "**Don't** превращать исторические комментарии старой палитры в действующие правила системы."
+    ]
+  }
+}
