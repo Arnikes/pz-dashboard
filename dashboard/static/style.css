@@ -1448,13 +1448,18 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--draft-heigh
   .view, .config-group { scroll-margin-top:16px; }
   .source-editor { height:300px; }
 }
-/* Вход администратора */
+/* Вход */
 .login-page { display:grid; place-items:center; min-height:100dvh; padding:24px; }
 .login-card { width:100%; max-width:400px; padding:32px; border:1px solid var(--line); background:var(--surface); border-radius:12px; }
-.login-card h1 { font-size:24px; margin:24px 0 8px; }
+.login-card .login-brand { display:flex; align-items:center; gap:12px; margin:0 0 28px; }
+.login-brand .brand-icon { width:36px; height:36px; }
+.login-brand .brand-name { font-size:22px; }
 .login-card form { display:grid; gap:12px; }
-.login-card input { width:100%; min-width:0; font-size:16px; }
-.login-card label:not(:first-child) { margin-top:8px; }
+.login-card input:not([type=checkbox]) { width:100%; min-width:0; font-size:16px; }
+.login-card form > label:not(:first-child) { margin-top:8px; }
+.login-card .login-remember { display:flex; align-items:center; gap:12px; min-height:44px; cursor:pointer; font-size:16px; }
+.login-remember input { width:20px; height:20px; margin:0; }
+.login-hint { color:var(--muted); font-size:14px; line-height:1.5; margin:-8px 0 0; }
 .login-card button { width:100%; justify-content:center; margin-top:12px; min-height:44px; }
 .login-error { color:var(--error-text); margin:4px 0; }
 

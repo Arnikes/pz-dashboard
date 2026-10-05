@@ -10,13 +10,20 @@
 </head>
 <body class="login-page">
   <main class="login-card">
-    <span class="brand-name">PZ·ПУЛЬТ</span>
-    <h1>Вход администратора</h1>
+    <h1 class="login-brand">
+      <svg class="brand-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a8 8 0 0 0-8 8c0 3 1.6 5.4 4 6.8V20a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-3.2c2.4-1.4 4-3.8 4-6.8a8 8 0 0 0-8-8Z" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="9" cy="10.5" r="1.6" fill="currentColor"/><circle cx="15" cy="10.5" r="1.6" fill="currentColor"/><path d="M10.5 15.5h3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      <span class="brand-name">PZ·ПУЛЬТ</span>
+    </h1>
     <form id="loginForm">
       <label for="login">Логин</label>
       <input id="login" name="username" type="text" autocomplete="username" maxlength="128" required autofocus />
       <label for="password">Пароль</label>
       <input id="password" name="password" type="password" autocomplete="current-password" maxlength="1024" required />
+      <label class="login-remember" for="remember">
+        <input id="remember" name="remember" type="checkbox" aria-describedby="rememberHint" />
+        <span>Запомнить меня</span>
+      </label>
+      <p id="rememberHint" class="login-hint">Сохранить вход на этом устройстве на 30 дней.</p>
       <p id="loginError" class="login-error" role="alert" hidden></p>
       <button id="loginSubmit" class="btn" type="submit">Войти</button>
     </form>

@@ -16,9 +16,9 @@ PASSWORD = "длинный-пароль-админа"
 
 
 @pytest.fixture
-def auth_server(monkeypatch):
+def auth_server(monkeypatch, tmp_path):
     key = auth.Fernet.generate_key()
-    manager = auth.Auth(LOGIN, PASSWORD, key)
+    manager = auth.Auth(LOGIN, PASSWORD, key, sessions_file=tmp_path / "auth-sessions.bin")
     monkeypatch.setattr(app.Handler, "log_message", lambda *args: None)
     server = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
     server.auth = manager
@@ -69,7 +69,8 @@ def test_bootstrap_rejects_missing_or_invalid_secrets(login, password, key):
         auth.Auth(login, password, key if key is not None else auth.Fernet.generate_key())
 
 
-def test_bootstrap_from_env_and_secure_cookie(monkeypatch):
+def test_bootstrap_from_env_and_secure_cookie(monkeypatch, tmp_path):
+    monkeypatch.setenv("DASHBOARD_DIR", str(tmp_path))
     monkeypatch.setenv("PZ_ADMIN_LOGIN", LOGIN)
     monkeypatch.setenv("PZ_ADMIN_PASSWORD", PASSWORD)
     monkeypatch.setenv("PZ_AUTH_KEY", auth.Fernet.generate_key().decode())
@@ -81,6 +82,139 @@ def test_bootstrap_from_env_and_secure_cookie(monkeypatch):
     monkeypatch.setenv("PZ_AUTH_COOKIE_SECURE", "invalid")
     with pytest.raises(auth.AuthError):
         auth.Auth.from_env()
+
+
+@pytest.mark.parametrize("remember", [False, True])
+def test_remember_cookie_and_restart(auth_server, remember):
+    status, headers, _ = request(
+        auth_server,
+        "POST",
+        "/api/auth/login",
+        {
+            "login": LOGIN,
+            "password": PASSWORD,
+            "remember": remember,
+        },
+    )
+    assert status == 200
+    cookie = headers["Set-Cookie"].split(";", 1)[0]
+    if remember:
+        assert f"Max-Age={auth.REMEMBER_SECONDS}" in headers["Set-Cookie"]
+    else:
+        assert "Max-Age" not in headers["Set-Cookie"]
+        assert "expires=" not in headers["Set-Cookie"].lower()
+    auth_server.auth = auth.Auth(
+        LOGIN, PASSWORD, auth_server.test_key, sessions_file=auth_server.auth._sessions_file
+    )
+    assert request(auth_server, "GET", "/api/auth/session", cookie=cookie)[0] == (
+        200 if remember else 401
+    )
+    if remember:
+        assert request(auth_server, "POST", "/api/auth/logout", cookie=cookie)[0] == 200
+        auth_server.auth = auth.Auth(
+            LOGIN, PASSWORD, auth_server.test_key, sessions_file=auth_server.auth._sessions_file
+        )
+        assert request(auth_server, "GET", "/api/auth/session", cookie=cookie)[0] == 401
+
+
+@pytest.mark.parametrize("remember", ["true", 1, None, [], {}])
+def test_remember_requires_boolean(auth_server, remember):
+    assert (
+        request(
+            auth_server,
+            "POST",
+            "/api/auth/login",
+            {
+                "login": LOGIN,
+                "password": PASSWORD,
+                "remember": remember,
+            },
+        )[0]
+        == 400
+    )
+
+
+@pytest.mark.parametrize("remember", [False, True])
+def test_session_lifetime_is_fixed(tmp_path, monkeypatch, remember):
+    key = auth.Fernet.generate_key()
+    path = tmp_path / "auth-sessions.bin"
+    manager = auth.Auth(LOGIN, PASSWORD, key, sessions_file=path)
+    now = auth.time.time()
+    token = manager.sign_in(LOGIN, PASSWORD, "peer", remember=remember)
+    cookie = f"pz_session={token}"
+    session_id = manager.session(cookie)
+    deadline = manager._sessions[session_id]
+    monkeypatch.setattr(auth.time, "time", lambda: now + auth.SESSION_SECONDS + 1)
+    assert bool(manager.session(cookie)) == remember
+    assert not remember or manager._sessions[session_id] == deadline
+    monkeypatch.setattr(auth.time, "time", lambda: now + auth.REMEMBER_SECONDS + 1)
+    assert not manager.session(cookie)
+    assert not auth.Auth(LOGIN, PASSWORD, key, sessions_file=path).session(cookie)
+
+
+@pytest.mark.parametrize("change", ["login", "password", "key", "damage"])
+def test_saved_sessions_revoke_on_secret_change_or_damage(tmp_path, change):
+    key = auth.Fernet.generate_key()
+    path = tmp_path / "auth-sessions.bin"
+    manager = auth.Auth(LOGIN, PASSWORD, key, sessions_file=path)
+    token = manager.sign_in(LOGIN, PASSWORD, "peer", remember=True)
+    cookie = f"pz_session={token}"
+    session_id = manager.session(cookie)
+    stored = path.read_bytes()
+    assert all(value.encode() not in stored for value in (LOGIN, PASSWORD, session_id))
+    if change == "damage":
+        path.write_bytes(b"damaged")
+    changed = auth.Auth(
+        LOGIN + "2" if change == "login" else LOGIN,
+        PASSWORD + "2" if change == "password" else PASSWORD,
+        auth.Fernet.generate_key() if change == "key" else key,
+        sessions_file=path,
+    )
+    assert not changed.session(cookie)
+    assert not auth.Auth(LOGIN, PASSWORD, key, sessions_file=path).session(cookie)
+
+
+def test_storage_failure_does_not_issue_or_resurrect_session(auth_server, monkeypatch):
+    status, headers, _ = request(
+        auth_server,
+        "POST",
+        "/api/auth/login",
+        {
+            "login": LOGIN,
+            "password": PASSWORD,
+            "remember": True,
+        },
+    )
+    assert status == 200
+    cookie = headers["Set-Cookie"].split(";", 1)[0]
+    sessions = auth_server.auth._sessions.copy()
+
+    def fail_replace(*args):
+        raise OSError("read-only")
+
+    monkeypatch.setattr(auth.os, "replace", fail_replace)
+    status, headers, _ = request(
+        auth_server,
+        "POST",
+        "/api/auth/login",
+        {
+            "login": LOGIN,
+            "password": PASSWORD,
+            "remember": True,
+        },
+    )
+    assert status == 503 and "Set-Cookie" not in headers
+    assert auth_server.auth._sessions == sessions
+    assert request(auth_server, "POST", "/api/auth/logout", cookie=cookie)[0] == 503
+    assert auth_server.auth.session(cookie)
+    assert not list(auth_server.auth._sessions_file.parent.glob(".auth-*"))
+
+
+def test_unwritable_session_store_rejects_startup(tmp_path):
+    path = tmp_path / "not-a-directory"
+    path.write_text("blocked")
+    with pytest.raises(auth.SessionStorageError):
+        auth.Auth(LOGIN, PASSWORD, auth.Fernet.generate_key(), sessions_file=path / "sessions")
 
 
 @pytest.mark.parametrize(

@@ -69,7 +69,7 @@ def test_all_pages_and_fonts_load_without_external_requests(
     )
 
     page.goto(login_url + "/login")
-    expect(page.get_by_role("heading", name="Вход администратора")).to_be_visible()
+    expect(page.get_by_role("heading", name="PZ·ПУЛЬТ")).to_be_visible()
     assert_fonts_loaded(page)
     page.screenshot(path=str(tmp_path / f"login-{width}.png"))
     fill_login(page)

@@ -17,6 +17,7 @@ form.addEventListener("submit", async (event) => {
       body: JSON.stringify({
         login: document.getElementById("login").value,
         password: document.getElementById("password").value,
+        remember: document.getElementById("remember").checked,
       }),
       signal: AbortSignal.timeout(10000),
     });

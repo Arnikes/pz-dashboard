@@ -394,18 +394,33 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/auth/login":
+            remember = data.get("remember", False)
+            if type(remember) is not bool:
+                self._send_error_json(400, "remember должен быть true или false")
+                return
             try:
                 token = self.server.auth.sign_in(
-                    data.get("login"), data.get("password"), self.client_address[0]
+                    data.get("login"),
+                    data.get("password"),
+                    self.client_address[0],
+                    remember=remember,
                 )
             except auth.RateLimited as error:
                 self._send_error_json(429, str(error))
+            except auth.SessionStorageError as error:
+                self._send_error_json(503, str(error))
             except auth.AuthError as error:
                 self._send_error_json(401, str(error))
             else:
-                self._send_json({"ok": True}, cookie=self.server.auth.cookie(token))
+                self._send_json(
+                    {"ok": True}, cookie=self.server.auth.cookie(token, remember=remember)
+                )
         elif path == "/api/auth/logout":
-            self.server.auth.sign_out(self.auth_session)
+            try:
+                self.server.auth.sign_out(self.auth_session)
+            except auth.SessionStorageError as error:
+                self._send_error_json(503, str(error))
+                return
             self._send_json({"ok": True}, cookie=self.server.auth.cookie(clear=True))
         elif path == "/api/rcon":
             command = data.get("command", "")
