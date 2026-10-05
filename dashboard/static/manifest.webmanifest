@@ -1,0 +1,23 @@
+{
+  "id": "/",
+  "name": "PZ Пульт",
+  "short_name": "PZ Пульт",
+  "description": "Управление сервером Project Zomboid",
+  "lang": "ru",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0d0b09",
+  "theme_color": "#0d0b09",
+  "icons": [
+    { "src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/static/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Настройки", "url": "/#/settings" },
+    { "name": "Моды", "url": "/#/mods" },
+    { "name": "Консоль", "url": "/#/console" }
+  ],
+  "prefer_related_applications": false
+}

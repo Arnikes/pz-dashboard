@@ -501,6 +501,7 @@ $("btnLogout").addEventListener("click", async () => {
   }
 });
 
+let pendingMutations = 0;
 async function api(path, opts = {}) {
   if (S.demo) {
     if (opts.method && opts.method !== "GET") {
@@ -525,6 +526,9 @@ async function api(path, opts = {}) {
     if (path.startsWith("/api/ops")) return { ok: true, active: null, history: [] };
     throw new Error("Демо-режим: нет данных");
   }
+  const mutation = !!opts.method && opts.method !== "GET";
+  if (mutation && !navigator.onLine) throw new Error("Нет сети. Восстановите связь и повторите действие.");
+  if (mutation) pendingMutations++;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), opts.timeout || 9000);
   try {
@@ -547,6 +551,7 @@ async function api(path, opts = {}) {
     throw error;
   } finally {
     clearTimeout(timer);
+    if (mutation) pendingMutations--;
   }
 }
 
@@ -2090,6 +2095,10 @@ const SETTING_GROUPS = {
   autoBackup: { ids: ["bkAutoSwitch", "bkAutoTime", "bkAutoKeep", "bkAutoStop"], card: "sec-bkauto", title: "Расписание бэкапов" },
 };
 const settingStates = new Map();
+document.addEventListener("pz:before-update", (event) => {
+  if (S.op?.active || S.actionPending || pendingMutations || [...settingStates.values()].some(state => state.pending || state.dirty)
+      || !$('modalRoot').hidden || $('commandDialog').open || $('consoleInput').value.trim()) event.preventDefault();
+});
 let settingsQueue = Promise.resolve();
 
 function settingGroup(id) {

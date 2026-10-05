@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0d0b09" />
+  <title>Нет связи · PZ Пульт</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
+  <link rel="stylesheet" href="/static/fonts/fonts.css" />
+  <link rel="stylesheet" href="/static/pwa.css" />
+</head>
+<body class="pwa-offline-page">
+  <main class="pwa-offline">
+    <img class="pwa-brand" src="/static/favicon.svg" width="48" height="48" alt="" />
+    <p class="pwa-name">PZ·ПУЛЬТ</p>
+    <h1>Нет связи с пультом</h1>
+    <p>Проверьте интернет, VPN и доступность сервера. Управление и свежие данные появятся после подключения.</p>
+    <p>Сохранённые на сервере черновики останутся доступны после входа. Команды без связи не отправляются.</p>
+    <button class="pwa-button" id="pwaRetry" type="button">Повторить подключение</button>
+    <p id="pwaRetryStatus" role="status" aria-live="polite"></p>
+    <noscript><p><a href="/">Открыть пульт</a></p></noscript>
+  </main>
+  <script src="/static/pwa.js" defer></script>
+</body>
+</html>

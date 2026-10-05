@@ -23,6 +23,7 @@ import dockerlib
 import notify
 import ops
 import payloads
+import pwa
 import rcon
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
@@ -148,13 +149,20 @@ class Handler(BaseHTTPRequestHandler):
         if not os.path.isfile(full):
             self._send_error_json(404, "Файл не найден")
             return
-        ctype = mimetypes.guess_type(full)[0] or "application/octet-stream"
+        ctype = (
+            "application/manifest+json"
+            if safe == "manifest.webmanifest"
+            else mimetypes.guess_type(full)[0] or "application/octet-stream"
+        )
         with open(full, "rb") as f:
             body = f.read()
         self.send_response(200)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store" if safe == "index.html" else "no-cache")
+        self.send_header(
+            "Cache-Control", "no-store" if safe in ("index.html", "login.html") else "no-cache"
+        )
+        self.send_header("X-Content-Type-Options", "nosniff")
         self.end_headers()
         self.wfile.write(body)
 
@@ -279,7 +287,13 @@ class Handler(BaseHTTPRequestHandler):
         path = parsed.path
         qs = urllib.parse.parse_qs(parsed.query)
 
-        public = path in ("/login", "/api/health", "/favicon.ico") or path.startswith("/static/")
+        public = path in (
+            "/login",
+            "/api/health",
+            "/favicon.ico",
+            "/manifest.webmanifest",
+            "/sw.js",
+        ) or path.startswith("/static/")
         # The HTML dashboard itself is protected, including its static alias.
         if path == "/static/index.html":
             public = False
@@ -296,6 +310,19 @@ class Handler(BaseHTTPRequestHandler):
                 self._static_file("login.html")
         elif path == "/api/auth/session":
             self._send_json({"ok": True, "login": self.server.auth.login})
+        elif path == "/manifest.webmanifest":
+            self._static_file("manifest.webmanifest")
+        elif path == "/sw.js":
+            # Generated per request: any shipped asset/HTML change updates the worker.
+            body = pwa.service_worker(STATIC_DIR)
+            self.send_response(200)
+            self.send_header("Content-Type", "text/javascript; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Service-Worker-Allowed", "/")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.end_headers()
+            self.wfile.write(body)
         elif path.startswith("/static/"):
             self._static_file(path[len("/static/") :])
         elif path == "/favicon.ico":

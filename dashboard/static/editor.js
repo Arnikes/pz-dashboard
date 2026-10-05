@@ -800,7 +800,10 @@ window.ConfigEditor = (() => {
   });
   document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("moreMenu").hidden) { $("moreMenu").hidden = true; $("navMore").setAttribute("aria-expanded", "false"); $("navMore").focus(); } });
   document.addEventListener("click", e => { if (!e.target.closest("#moreMenu, #navMore")) { $("moreMenu").hidden = true; $("navMore").setAttribute("aria-expanded", "false"); } });
-  window.addEventListener("beforeunload", e => { if (sourceDirty || fieldDirty || pendingFields.size) { e.preventDefault(); e.returnValue = ""; } });
+  document.addEventListener("pz:before-update", e => {
+    if (sourceDirty || fieldDirty || pendingFields.size || unsaved.length || pendingPatches || loading || resolvingWorkshop) e.preventDefault();
+  });
+  window.addEventListener("beforeunload", e => { if (sourceDirty || fieldDirty || pendingFields.size || unsaved.length) { e.preventDefault(); e.returnValue = ""; } });
   window.addEventListener("hashchange", updateBar);
   setInterval(async () => {
     if (document.hidden) return;

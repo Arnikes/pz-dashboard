@@ -1,0 +1,64 @@
+/* PWA surfaces share the application's warm palette and local typeface. */
+.pwa-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 12px max(16px, env(safe-area-inset-right, 0px)) 12px max(16px, env(safe-area-inset-left, 0px));
+  background: var(--surface, #14110e);
+  color: var(--ink, #e9e2cd);
+  border-bottom: 1px solid var(--line, rgba(233, 226, 205, .1));
+  font: 14px/1.5 "Golos Text", "Segoe UI", sans-serif;
+}
+.pwa-bar[hidden], .pwa-bar [hidden] { display: none !important; }
+.pwa-message { flex: 1 1 240px; margin: 0; }
+.pwa-help { flex-basis: 100%; color: var(--muted, #b3a78c); margin: 0; max-width: 70ch; }
+.pwa-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid var(--line-strong, #80745d);
+  border-radius: 8px;
+  background: var(--surface-2, #1a1612);
+  color: var(--ink, #e9e2cd);
+  font: 500 14px/1.4 "Golos Text", "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+.pwa-button:hover:not(:disabled) { background: var(--surface-3, #211c15); }
+.pwa-button:focus-visible { outline: 2px solid #e9e2cd; outline-offset: 3px; }
+.pwa-button:disabled { opacity: .55; cursor: wait; }
+.login-page:has(.pwa-bar:not([hidden])) { align-content: center; gap: 20px; }
+.login-page .pwa-bar { width: 100%; max-width: 400px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; }
+.pwa-offline-page {
+  margin: 0;
+  box-sizing: border-box;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: max(24px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px)) max(24px, env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 0px));
+  background: #0d0b09;
+  color: #e9e2cd;
+  color-scheme: dark;
+  font: 16px/1.6 "Golos Text", "Segoe UI", sans-serif;
+  accent-color: #e9e2cd;
+}
+.pwa-offline { width: 100%; max-width: 560px; overflow-wrap: anywhere; }
+.pwa-name { color: #e9e2cd; font-weight: 600; margin: 12px 0 32px; }
+.pwa-offline h1 { font-size: 26px; line-height: 1.2; letter-spacing: -.02em; margin: 0 0 16px; }
+.pwa-offline p { color: #b3a78c; margin-block: 16px; }
+.pwa-offline .pwa-name { color: #e9e2cd; }
+.pwa-offline a { color: #e9e2cd; text-underline-offset: 3px; }
+.pwa-offline ::selection { color: #e9e2cd; background: #304025; }
+.pwa-offline .pwa-button { margin-block: 12px 0; }
+#pwaRetryStatus { min-height: 1.6em; }
+@media (max-width: 480px) {
+  .pwa-bar { font-size: 16px; }
+  .pwa-bar .pwa-button { flex: 1 1 auto; font-size: 16px; }
+}
+@media (display-mode: standalone) {
+  .topbar { padding-top: max(10px, env(safe-area-inset-top, 0px)); padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px)); }
+  .login-page { padding-top: max(24px, env(safe-area-inset-top, 0px)); padding-bottom: max(24px, env(safe-area-inset-bottom, 0px)); }
+}

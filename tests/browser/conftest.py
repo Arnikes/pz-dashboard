@@ -8,6 +8,13 @@ from threading import Thread
 import pytest
 
 
+@pytest.fixture(scope="session")
+def browser_context_args(browser_context_args):
+    # Page.route cannot reliably observe/intercept requests made by a worker.
+    # Keep isolated UI/API fixtures deterministic; PWA tests explicitly allow it.
+    return {**browser_context_args, "service_workers": "block"}
+
+
 class StaticHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith("/static/"):

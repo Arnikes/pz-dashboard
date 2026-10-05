@@ -1,3 +1,27 @@
 {
-  "buildPath": "code"
+  "buildPath": "code",
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font",
+        "value": "text",
+        "files": [
+          "dashboard/static/offline.html"
+        ],
+        "createdAt": "2026-10-05T15:42:29.552Z",
+        "reason": "Agent: detector reports the literal value text as a font for the PZ brand paragraph; pwa.css uses the existing DESIGN.md Golos Text family and adds no font"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "16px",
+        "files": [
+          "dashboard/static/pwa.css"
+        ],
+        "createdAt": "2026-10-05T15:52:30.941Z",
+        "reason": "Agent: accessible mobile body and touch controls retain 16px, following impeccable harden guidance and the existing login input scale"
+      }
+    ]
+  }
 }
