@@ -31,7 +31,7 @@ const esc = (s) => String(s ?? "")
 
 let helpSequence = 0;
 function helpTip(text, label, id = `help-tip-${++helpSequence}`) {
-  return `<span class="help-tip"><button type="button" class="help-trigger" data-help="${esc(id)}" aria-label="${esc(label)}" aria-describedby="${esc(id)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v6M12 7v2"/></svg></button><span id="${esc(id)}" class="help-content" role="tooltip" hidden>${esc(text)}</span></span>`;
+  return `<span class="help-tip"><button type="button" class="help-trigger" data-help="${esc(id)}" aria-label="${esc(label)}" aria-describedby="${esc(id)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v6M12 7v2"/></svg></button><span id="${esc(id)}" class="help-content" role="tooltip" popover="manual" hidden>${esc(text)}</span></span>`;
 }
 document.querySelectorAll("[data-help-text]").forEach(slot => {
   slot.outerHTML = helpTip(slot.dataset.helpText, slot.dataset.helpLabel);
@@ -41,8 +41,22 @@ document.querySelectorAll("[data-help-text]").forEach(slot => {
   const close = () => {
     clearTimeout(leaveTimer);
     const tip = active && $(active.dataset.help);
-    if (tip) tip.hidden = true;
+    if (tip) { tip.hidePopover(); tip.hidden = true; }
     active = null; pinned = false;
+  };
+  const position = () => {
+    const tip = active && $(active.dataset.help);
+    if (!tip || !active.isConnected) { close(); return; }
+    const rect = active.getBoundingClientRect();
+    const width = document.documentElement.clientWidth, height = document.documentElement.clientHeight;
+    if (rect.bottom <= 0 || rect.top >= height) { close(); return; }
+    tip.style.maxWidth = `${Math.max(0, Math.min(360, width - 24))}px`;
+    // Keep long help scrollable without covering its own trigger.
+    tip.style.maxHeight = `${Math.max(0, Math.max(rect.top - 18, height - rect.bottom - 18))}px`;
+    const box = tip.getBoundingClientRect();
+    tip.style.left = `${Math.max(12, Math.min(rect.left, width - box.width - 12))}px`;
+    const below = rect.bottom + 6;
+    tip.style.top = `${Math.max(12, Math.min(height - box.height - 12, below + box.height <= height - 12 ? below : rect.top - box.height - 6))}px`;
   };
   const open = button => {
     clearTimeout(leaveTimer);
@@ -51,10 +65,9 @@ document.querySelectorAll("[data-help-text]").forEach(slot => {
     const tip = $(button.dataset.help);
     if (!tip) { close(); return; }
     tip.hidden = false;
-    const rect = button.getBoundingClientRect(), box = tip.getBoundingClientRect();
-    tip.style.left = `${Math.max(12, Math.min(rect.left, innerWidth - box.width - 12))}px`;
-    const below = rect.bottom + 6;
-    tip.style.top = `${Math.max(12, below + box.height <= innerHeight - 12 ? below : rect.top - box.height - 6)}px`;
+    // The top layer keeps viewport coordinates valid inside animated views.
+    tip.showPopover();
+    position();
   };
   document.addEventListener("pointerover", event => {
     if (active && active.closest(".help-tip").contains(event.target)) clearTimeout(leaveTimer);
@@ -82,7 +95,10 @@ document.querySelectorAll("[data-help-text]").forEach(slot => {
   document.addEventListener("keydown", event => {
     if (event.key === "Escape" && active) { close(); event.preventDefault(); }
   });
-  window.addEventListener("scroll", close, true);
+  window.addEventListener("scroll", event => {
+    const tip = active && $(active.dataset.help);
+    if (tip && !(event.target instanceof Node && tip.contains(event.target))) position();
+  }, true);
   window.addEventListener("resize", close);
   window.addEventListener("hashchange", close);
 })();

@@ -101,6 +101,60 @@ def test_field_help_supports_hover_focus_and_tap_without_changing_draft(
     page.screenshot(path=str(editing[0].parent / f"field-help-{width}.png"))
 
 
+@pytest.mark.parametrize("width", [320, 390, 1440])
+def test_field_help_keeps_viewport_coordinates_during_page_animation(
+    page, dashboard, editing, width
+):
+    page.set_viewport_size({"width": width, "height": 844})
+    page.goto(dashboard["url"] + "/#/settings")
+    expect(page.locator('[data-key="PublicName"]')).to_be_enabled()
+    # Hold the route's transform so the test does not depend on CI rendering speed.
+    page.locator("#view-settings").evaluate("""el => {
+        const animation = el.animate(
+            [{transform:'translateY(4px)'}, {transform:'translateY(0)'}],
+            {duration:1000, fill:'both'});
+        animation.pause();
+        animation.currentTime = 0;
+    }""")
+    field = page.locator('.config-field:has([data-key="Password"])')
+    trigger = field.get_by_role("button", name="О настройке «Пароль входа»")
+    tip = field.locator("[role=tooltip]")
+    trigger.focus()
+    expect(tip).to_be_visible()
+    bounds = tip.bounding_box()
+    assert bounds["x"] >= 12 and bounds["x"] + bounds["width"] <= width - 12
+    assert bounds["y"] >= 12 and bounds["y"] + bounds["height"] <= 844 - 12
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    page.screenshot(path=str(editing[0].parent / f"animated-field-help-{width}.png"))
+    page.keyboard.press("Escape")
+    expect(tip).to_be_hidden()
+    expect(trigger).to_be_focused()
+    assert dashboard["actions"] == []
+
+
+@pytest.mark.parametrize("width", [320, 1440])
+def test_field_help_survives_scroll_after_hover_and_inside_tooltip(page, dashboard, editing, width):
+    page.set_viewport_size({"width": width, "height": 844})
+    page.goto(dashboard["url"] + "/#/settings")
+    expect(page.locator('[data-key="PublicName"]')).to_be_enabled()
+    field = page.locator('.config-field:has([data-key="PublicName"])')
+    trigger = field.get_by_role("button", name="О настройке «Название сервера»")
+    tip = field.locator("[role=tooltip]")
+    tip.evaluate("el => el.textContent = 'PublicName\\n'.repeat(200)")
+    trigger.hover()
+    expect(tip).to_be_visible()
+    # A scroll notification can arrive after pointerover during browser auto-scroll.
+    page.evaluate("window.dispatchEvent(new Event('scroll'))")
+    expect(tip).to_be_visible()
+    tip.hover()
+    tip.evaluate("el => el.scrollTop = 100")
+    expect(tip).to_have_js_property("scrollTop", 100)
+    expect(tip).to_be_visible()
+    page.mouse.click(2, 2)
+    expect(tip).to_be_hidden()
+    assert dashboard["actions"] == []
+
+
 def test_attention_routes_each_problem_and_preserves_focused_action(page, dashboard, editing):
     page.goto(dashboard["url"] + "/#/settings")
     expect(page.locator("#configProfile")).to_have_value("world.ini")
@@ -225,7 +279,7 @@ def test_editor_layout_controls_and_draft_do_not_cover_content(page, dashboard, 
             headerBottom:header.bottom,headerHeight:header.height,searchWidth:search.width,cardWidth:card.width,
             columns,overflow:document.documentElement.scrollWidth > innerWidth};
     }""")
-    assert not metrics["overflow"] and metrics["columns"] <= 3
+    assert not metrics["overflow"] and metrics["columns"] <= 3, metrics
     assert metrics["searchWidth"] >= min(500, metrics["cardWidth"] - 40)
     if width <= 740:
         assert metrics["headerHeight"] < 170

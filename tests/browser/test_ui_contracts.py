@@ -133,6 +133,7 @@ def test_unchanged_events_and_journal_retain_nodes_but_changes_refresh(page, das
 
 def test_action_restrictions_show_recovery_in_context(page, dashboard):
     page.goto(dashboard["url"])
+    page.wait_for_function("typeof S !== 'undefined' && !!S.overview")
     expect(page.locator("#btnStop")).to_be_enabled()
     page.evaluate(
         "() => { liveSource?.close(); liveSource = null; clearTimeout(sseStartupTimer); }"

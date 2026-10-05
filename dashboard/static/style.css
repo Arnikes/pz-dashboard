@@ -1629,7 +1629,7 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--draft-heigh
 .help-trigger svg { width:18px; height:18px; }
 .help-trigger:hover, .help-trigger:focus-visible { color:var(--ink); background:var(--surface-3); }
 .help-trigger:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
-.help-content { position:fixed; z-index:100; width:max-content; max-width:min(360px, calc(100vw - 24px)); max-height:calc(100dvh - 24px); overflow:auto; padding:12px 14px; border-radius:8px; background:var(--surface-3); color:var(--ink); box-shadow:var(--elevation-dialog); font:13px/1.5 var(--font-body); white-space:pre-line; overflow-wrap:anywhere; }
+.help-content { position:fixed; inset:auto; margin:0; border:0; z-index:100; width:max-content; max-width:min(360px, calc(100vw - 24px)); max-height:calc(100dvh - 24px); overflow:auto; padding:12px 14px; border-radius:8px; background:var(--surface-3); color:var(--ink); box-shadow:var(--elevation-dialog); font:13px/1.5 var(--font-body); white-space:pre-line; overflow-wrap:anywhere; }
 .section-label { display:flex; align-items:center; gap:8px; }
 .section-label h3 { margin:0; }
 .card-head:has(> .help-tip) { justify-content:flex-start; gap:8px; }

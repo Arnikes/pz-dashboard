@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import pytest
-from playwright.sync_api import expect
+from playwright.sync_api import Error as PlaywrightError, expect
 
 import app
 from test_auth import LOGIN, PASSWORD, auth_server  # noqa: F401
@@ -98,9 +98,15 @@ def test_api_401_redirects_without_demo(page, login_url):
     page.goto(login_url + "/")
     fill_login(page)
     expect(page.locator("#btnLogout")).to_be_visible()
+    page.wait_for_function("typeof S !== 'undefined' && !!S.overview")
     page.context.clear_cookies()
     page.route("**/api/overview", lambda route: route.fulfill(status=401, json={"ok": False}))
     # Do not await the API promise in the departing document: the successful
     # redirect destroys that context before Playwright can receive its result.
-    page.evaluate("() => { api('/api/overview').catch(() => {}); }")
+    try:
+        page.evaluate("() => { api('/api/overview').catch(() => {}); }")
+    except PlaywrightError as error:
+        # The redirect can finish before evaluate's result crosses the browser connection.
+        if "Execution context was destroyed" not in str(error):
+            raise
     expect(page.get_by_role("heading", name="Вход администратора")).to_be_visible()
