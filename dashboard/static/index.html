@@ -553,6 +553,13 @@
         <div id="backupsBody" class="list" data-state="loading">
           <p class="skeleton-line"></p><p class="skeleton-line short"></p>
         </div>
+        <nav id="backupsPager" class="journal-pager" aria-label="Страницы архивов мира" hidden>
+          <span id="backupsRange" class="hint" role="status" aria-live="polite"></span>
+          <div class="journal-page-actions">
+            <button id="backupsPrev" class="btn small" type="button" aria-controls="backupsBody" disabled>Назад</button>
+            <button id="backupsNext" class="btn small" type="button" aria-controls="backupsBody" disabled>Далее</button>
+          </div>
+        </nav>
       </section>
 
       <section class="card c-bkjournal" id="sec-bkjournal" data-od-id="bk-journal" aria-labelledby="hBkJournal">

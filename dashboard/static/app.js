@@ -1528,27 +1528,41 @@ $("modsFile").addEventListener("change", () => {
 
 /* ───────────────────────── бэкапы ───────────────────────── */
 
+const backupsPager = { page: 0, size: 10 };
+
 function renderBackups(data) {
   const body = $("backupsBody");
   if (!data.ok) {
+    setDomProperty($("backupsPager"), "hidden", true);
     setListMessage(body, "error", `<p class="list-error">${esc(data.error || "нет данных")}</p>`);
     return;
   }
   renderBkSchedule(data);
   renderBkJournal(data.journal || [], !!data.journalHasMore);
-  const items = data.items || [];
-  S.backupsItems = items;
+  S.backupsItems = data.items || [];
   renderHealth();
   renderKpis();
+  renderBackupsPage();
+}
+
+function renderBackupsPage() {
+  const body = $("backupsBody"), items = S.backupsItems;
+  backupsPager.page = Math.min(backupsPager.page, Math.max(0, Math.ceil(items.length / backupsPager.size) - 1));
+  const start = backupsPager.page * backupsPager.size;
+  const pageItems = items.slice(start, start + backupsPager.size);
+  setDomProperty($("backupsPager"), "hidden", items.length <= backupsPager.size);
+  setDomProperty($("backupsPrev"), "disabled", backupsPager.page === 0);
+  setDomProperty($("backupsNext"), "disabled", start + pageItems.length >= items.length);
+  setDomProperty($("backupsRange"), "textContent", items.length ? `${start + 1}–${start + pageItems.length} из ${items.length} · Страница ${backupsPager.page + 1}` : "");
   if (!items.length) {
     setListMessage(body, "empty", `<p class="list-empty">Бэкапов ещё нет.</p>`);
     return;
   }
-  syncRows(body, items, (item) => item.name, (b) => {
+  syncRows(body, pageItems, (item) => item.name, (b) => {
     const template = document.createElement("template");
     template.innerHTML = `
     <div class="backup-row">
-      ${copyValue(b.name, { className: "b-name mono", title: `${b.name} — создан ${b.mtime}` })}
+      <span class="b-name mono" title="${esc(b.name)} — создан ${esc(b.mtime)}">${esc(b.name)}</span>
       <span class="b-size mono" title="размер архива">${esc(b.sizeText || fmtBytes(b.size))}</span>
       <span class="b-age mono" title="создан ${esc(b.mtime)}">${esc(relTime(b.mtime))}</span>
       <button class="icon-btn" data-b="dl" data-name="${esc(b.name)}" title="Скачать" aria-label="Скачать ${esc(b.name)}">
@@ -1572,10 +1586,21 @@ function renderBackups(data) {
     if (age.textContent !== ageText) age.textContent = ageText;
     if (age.title !== dateTitle) age.title = dateTitle;
     const title = `${b.name} — ${dateTitle}`;
-    if (!name.dataset.copied && name.title !== title) name.title = title;
+    if (name.title !== title) name.title = title;
   });
   updateButtons();
 }
+
+$("backupsPrev").addEventListener("click", () => {
+  if (backupsPager.page === 0) return;
+  backupsPager.page--;
+  renderBackupsPage();
+});
+$("backupsNext").addEventListener("click", () => {
+  if ((backupsPager.page + 1) * backupsPager.size >= S.backupsItems.length) return;
+  backupsPager.page++;
+  renderBackupsPage();
+});
 
 $("backupsBody").addEventListener("click", (event) => {
       const btn = event.target.closest("button[data-b]");

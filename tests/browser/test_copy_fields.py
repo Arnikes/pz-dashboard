@@ -111,7 +111,7 @@ def test_long_copy_values_keep_the_icon_visible_and_copy_exact_content(page, das
     assert page.evaluate("copiedValue") == value
 
 
-@pytest.mark.parametrize("surface", ["updates", "mods", "backups"])
+@pytest.mark.parametrize("surface", ["updates", "mods"])
 def test_dynamic_copy_field_feedback_survives_unchanged_data(page, dashboard, surface):
     open_fields(page, dashboard)
     page.evaluate(
@@ -122,20 +122,16 @@ def test_dynamic_copy_field_feedback_survives_unchanged_data(page, dashboard, su
             host.append(document.getElementById('modsNeedList'));
             window.refreshCopyField=()=>renderOverview({...S.overview,modsCheck:{
                 state:'needs-update',items:[{workshopId:'1234567890',raw:'Обновление'}]}});
-        } else if (surface==='mods') {
+        } else {
             window.ConfigEditor=null;
             host.append(document.getElementById('modsBody'));
             window.refreshCopyField=()=>_renderMods({ok:true,mods:['ModID'],workshop:[]});
-        } else {
-            host.append(document.getElementById('backupsBody'));
-            window.refreshCopyField=()=>renderBackups({ok:true,items:[{
-                name:'world.tar.gz',mtime:'2026-10-05T12:00:00Z',size:1000}]});
         }
         refreshCopyField();
     }""",
         surface,
     )
-    selector = {"updates": "#modsNeedList", "mods": "#modsBody", "backups": "#backupsBody"}[surface]
+    selector = {"updates": "#modsNeedList", "mods": "#modsBody"}[surface]
     field = page.locator(f"{selector} .copy-value").first
     field.click()
     expect(field).to_have_attribute("data-copied", "true")

@@ -103,11 +103,73 @@ def test_journal_failed_navigation_retries_and_empty_history_hides_pager(page, b
     expect(page.locator("#bkJournalPager")).to_be_hidden()
 
 
+def test_archive_pages_preserve_refresh_and_clamp_after_deletion(page, backups_page):
+    page.evaluate("""() => {
+        S.backupsItems = Array.from({length:21}, (_,i) => ({
+            name:`world-${String(i).padStart(3,'0')}.tar.gz`, size:i,
+            mtime:'2026-10-05T03:00:00Z'
+        }));
+        renderBackupsPage();
+    }""")
+    rows = page.locator("#backupsBody .backup-row")
+    expect(rows).to_have_count(10)
+    expect(page.locator("#backupsRange")).to_have_text("1–10 из 21 · Страница 1")
+    expect(page.locator("#backupsPrev")).to_be_disabled()
+    page.locator("#backupsNext").focus()
+    page.keyboard.press("Enter")
+    expect(rows.first.locator(".b-name")).to_have_text("world-010.tar.gz")
+    expect(page.locator("#backupsRange")).to_have_text("11–20 из 21 · Страница 2")
+    page.evaluate("renderBackups({ok:true,items:S.backupsItems})")
+    expect(page.locator("#backupsRange")).to_have_text("11–20 из 21 · Страница 2")
+    page.locator("#backupsNext").click()
+    expect(rows).to_have_count(1)
+    expect(page.locator("#backupsNext")).to_be_disabled()
+    page.evaluate("renderBackups({ok:true,items:S.backupsItems.slice(0,20)})")
+    expect(rows).to_have_count(10)
+    expect(page.locator("#backupsRange")).to_have_text("11–20 из 20 · Страница 2")
+    page.locator("#backupsPrev").click()
+    expect(rows.first.locator(".b-name")).to_have_text("world-000.tar.gz")
+    page.locator("#backupsNext").click()
+    page.locator("#backupsBody [data-b=verify]").first.click()
+    expect(page.locator("#toasts")).to_contain_text("Тест: сервер занят")
+    page.evaluate("renderBackups({ok:true,items:S.backupsItems.slice(0,10)})")
+    expect(page.locator("#backupsPager")).to_be_hidden()
+    expect(rows).to_have_count(10)
+    expect(rows.first.locator(".b-name")).to_have_text("world-000.tar.gz")
+    page.evaluate("renderBackups({ok:true,items:[]})")
+    expect(page.locator("#backupsPager")).to_be_hidden()
+    expect(page.locator("#backupsBody")).to_contain_text("Бэкапов ещё нет")
+
+
+@pytest.mark.parametrize("count", [0, 1, 10, 11])
+def test_archive_pager_visibility_at_page_boundary(page, backups_page, count):
+    page.evaluate(
+        """count => renderBackups({ok:true,items:Array.from({length:count}, (_,i) => ({
+        name:`world-${i}.tar.gz`,size:1,mtime:'2026-10-05T03:00:00Z'
+    }))})""",
+        count,
+    )
+    expect(page.locator("#backupsBody .backup-row")).to_have_count(min(count, 10))
+    if count > 10:
+        expect(page.locator("#backupsPager")).to_be_visible()
+    else:
+        expect(page.locator("#backupsPager")).to_be_hidden()
+
+
 @pytest.mark.parametrize("width", [1440, 768, 390, 320])
 def test_backup_columns_are_stable_and_schedule_is_compact(page, backups_page, width):
     page.set_viewport_size({"width": width, "height": 900})
     expect(page.locator("#bkAutoNext")).to_have_count(0)
     expect(page.locator("#sec-bksched")).not_to_contain_text("Копии сверх лимита")
+    expect(page.locator("#backupsBody .copy-value")).to_have_count(0)
+    expect(page.locator("#backupsBody span.b-name")).to_have_count(2)
+    assert (
+        page.locator("#sec-bksched .auto-block").evaluate(
+            "el => getComputedStyle(el).borderTopStyle"
+        )
+        == "none"
+    )
+    assert page.locator("#backupsBody").evaluate("el => getComputedStyle(el).maxHeight") == "none"
     geometry = page.locator("#backupsBody .backup-row").evaluate_all(
         """rows => rows.map(row => ['.b-name','.b-size','.b-age','[data-b=dl]'].map(selector => {
           const rect = row.querySelector(selector).getBoundingClientRect();
@@ -121,6 +183,12 @@ def test_backup_columns_are_stable_and_schedule_is_compact(page, backups_page, w
     expect(page.locator("#bkJournalRange")).to_have_text("26–50 · Страница 2")
     if os.getenv("PZ_BACKUP_EVIDENCE"):
         out = Path(__file__).resolve().parents[2] / ".tmp-impeccable-audit"
+        page.evaluate("""() => renderBackups({ok:true,items:Array.from({length:11}, (_,i) => ({
+            name:`world-${i}-with-a-long-name.tar.gz`,size:987654321,
+            mtime:'2026-10-05T03:00:00Z'
+        }))})""")
+        assert page.locator("#backupsBody").evaluate("el => el.scrollHeight === el.clientHeight")
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
         page.evaluate("window.scrollTo(0,0)")
         page.screenshot(path=str(out / f"backups-after-{width}.png"), full_page=True)
 

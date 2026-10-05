@@ -849,7 +849,6 @@ select { cursor: pointer; }
 
 /* списки не раздувают карточки — внутри скролл; на своих страницах списки выше */
 .c-players .list { max-height: 230px; overflow: auto; }
-.c-backups .list { max-height: 310px; overflow: auto; }
 .c-events .list  { max-height: 330px; overflow: auto; }
 .c-mods .list    { max-height: 330px; overflow: auto; }
 #view-events .c-events .list { max-height: 60vh; }
@@ -1212,7 +1211,7 @@ select { cursor: pointer; }
 .spark.ram { color: #8aa5b8; }
 
 /* ─────────── бэкапы: расписание и журнал запусков ─────────── */
-.c-bksched .auto-block { display: flex; flex-direction: column; gap: 4px; }
+.c-bksched .auto-block { display: flex; flex-direction: column; gap: 4px; margin-top: 0; padding-top: 0; border-top: none; }
 .c-bksched .field input { width: 100%; }
 
 .journal-row {
@@ -1236,7 +1235,7 @@ select { cursor: pointer; }
 .journal-page-size, .journal-page-actions { display: flex; align-items: center; gap: 8px; }
 .journal-page-size { color: var(--muted); font-size: 13px; }
 .journal-page-size select { min-height: 44px; }
-#bkJournalRange { margin: 0; font-variant-numeric: tabular-nums; }
+#bkJournalRange, #backupsRange { margin: 0; font-variant-numeric: tabular-nums; }
 .journal-page-actions { margin-left: auto; }
 
 /* telegram: подбор chat id через getUpdates */
