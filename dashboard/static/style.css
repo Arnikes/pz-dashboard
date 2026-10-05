@@ -744,7 +744,8 @@ select { cursor: pointer; }
 
 /* бэкапы */
 .backup-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 10ch 15ch repeat(4, var(--compact-height));
   align-items: center;
   gap: 10px;
   padding: 8px 0;
@@ -753,9 +754,10 @@ select { cursor: pointer; }
 }
 
 .backup-row:last-child { border-bottom: none; }
-.backup-row .b-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
-.backup-row .b-size { color: var(--muted); flex: none; }
-.backup-row .b-age { color: var(--faint); flex: none; font-size: 11.5px; }
+.backup-row .b-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.backup-row .b-size { color: var(--muted); text-align: right; }
+.backup-row .b-age { color: var(--faint); text-align: right; font-size: 11.5px; }
+.backup-row .b-size, .backup-row .b-age { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .icon-btn {
   width: var(--compact-height);
@@ -1227,6 +1229,13 @@ select { cursor: pointer; }
 .j-status { color: var(--ok); font-size: 12.5px; letter-spacing: 0.02em; }
 .journal-row.j-err .j-name { color: var(--blood-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .journal-row.j-err .j-status { color: var(--blood-text); }
+
+.journal-pager { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 16px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+.journal-page-size, .journal-page-actions { display: flex; align-items: center; gap: 8px; }
+.journal-page-size { color: var(--muted); font-size: 13px; }
+.journal-page-size select { min-height: 44px; }
+#bkJournalRange { margin: 0; font-variant-numeric: tabular-nums; }
+.journal-page-actions { margin-left: auto; }
 
 /* telegram: подбор chat id через getUpdates */
 .tg-chats { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 2px; }

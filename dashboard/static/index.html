@@ -546,8 +546,6 @@
           <label class="check" title="Надёжнее для целостности: мир сохранён и закрыт на время архива">
             <input type="checkbox" id="bkAutoStop" /> Останавливать сервер на время бэкапа
           </label>
-          <p class="hint" id="bkAutoNext" hidden>Следующий запуск: —</p>
-          <p class="hint">Копии сверх лимита удаляются автоматически.</p>
         </div>
       </section>
 
@@ -568,6 +566,22 @@
         <div id="bkJournalBody" class="list" data-state="empty">
           <p class="list-empty">Бэкапов ещё не было.</p>
         </div>
+        <nav id="bkJournalPager" class="journal-pager" aria-label="Страницы журнала запусков" hidden>
+          <label class="journal-page-size">На странице
+            <select id="bkJournalPageSize" aria-controls="bkJournalBody">
+              <option value="25" selected>25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </label>
+          <span id="bkJournalRange" class="hint" role="status" aria-live="polite"></span>
+          <div class="journal-page-actions">
+            <button id="bkJournalPrev" class="btn small" type="button" aria-controls="bkJournalBody" disabled>Назад</button>
+            <button id="bkJournalNext" class="btn small" type="button" aria-controls="bkJournalBody" disabled>Далее</button>
+          </div>
+        </nav>
+        <p id="bkJournalError" class="list-error" role="alert" hidden></p>
+        <button id="bkJournalRetry" class="btn small" type="button" hidden>Повторить загрузку</button>
       </section>
     </div>
 

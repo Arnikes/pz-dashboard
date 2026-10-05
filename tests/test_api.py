@@ -61,6 +61,25 @@ def operation_env(monkeypatch):
     return start, defer
 
 
+def test_backup_journal_paginates_all_saved_entries(api, tmp_path, monkeypatch):
+    monkeypatch.setitem(app.config.CFG, "dashboard_dir", str(tmp_path))
+    path = tmp_path / "backups.jsonl"
+    path.write_text(
+        "\n".join(json.dumps({"name": f"backup-{i}"}) for i in range(61)) + "\ninvalid\n",
+        encoding="utf-8",
+    )
+    status, first = api("GET", "/api/backups/journal")
+    assert status == 200 and len(first["items"]) == 25 and first["hasMore"]
+    assert first["items"][0]["name"] == "backup-60"
+    status, last = api("GET", "/api/backups/journal?offset=50&limit=25")
+    assert status == 200 and len(last["items"]) == 11 and not last["hasMore"]
+    assert last["items"][-1]["name"] == "backup-0"
+    assert api("GET", "/api/backups/journal?offset=100")[1]["items"] == []
+    assert api("GET", "/api/backups/journal?offset=invalid")[0] == 400
+    journal = payloads.backup_journal_payload()
+    assert journal == first
+
+
 def test_operation_log_range_is_bounded_and_passed_to_docker(api, monkeypatch):
     logs = Mock(return_value=("2026-10-01T12:00:30Z ERROR test\n", None))
     monkeypatch.setattr(app.dockerlib, "container_logs", logs)

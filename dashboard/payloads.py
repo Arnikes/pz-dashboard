@@ -44,15 +44,22 @@ def stats_payload():
     return {"ok": "error" not in data, **data}
 
 
+def backup_journal_payload(limit=25, offset=0):
+    entries = ops.get_backup_journal(limit + 1, offset)
+    return {"ok": True, "items": entries[:limit], "hasMore": len(entries) > limit}
+
+
 def backups_payload():
     s = ops.get_settings()
+    journal = backup_journal_payload()
     return {
         "ok": True,
         "items": ops.list_backups(),
         "maxBackups": s["backup"]["maxBackups"],
         "settingsVersion": s.get("version"),
         "autoBackup": ops.auto_backup_state(),
-        "journal": ops.get_backup_journal(30),
+        "journal": journal["items"],
+        "journalHasMore": journal["hasMore"],
     }
 
 

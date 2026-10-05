@@ -1028,18 +1028,23 @@ def _journal_append(entry):
             pass
 
 
-def get_backup_journal(limit=50):
+def get_backup_journal(limit=50, offset=0):
     """Последние записи журнала запусков бэкапов — новые сверху."""
     out = []
     if limit <= 0:
         return out
+    skipped = 0
     try:
         with _BJ_LOCK:
             for line in _reverse_lines(_journal_path()):
                 try:
-                    out.append(json.loads(line))
+                    entry = json.loads(line)
                 except ValueError:
                     continue
+                if skipped < offset:
+                    skipped += 1
+                    continue
+                out.append(entry)
                 if len(out) >= limit:
                     break
     except OSError:

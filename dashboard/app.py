@@ -330,6 +330,14 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(payloads.logs_payload(tail, **scope))
             else:
                 self._send_json(payloads.stream_payload(payloads.GET_CHANNELS[path]))
+        elif path == "/api/backups/journal":
+            try:
+                limit = min(100, max(1, int(qs.get("limit", [25])[0])))
+                offset = max(0, int(qs.get("offset", [0])[0]))
+            except ValueError:
+                self._send_error_json(400, "Неверные параметры страницы журнала")
+                return
+            self._send_json(payloads.backup_journal_payload(limit, offset))
         elif path == "/api/logs/full":
             self._send_full_logs()
         elif path == "/api/mods":

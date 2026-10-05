@@ -514,6 +514,12 @@ async function api(path, opts = {}) {
     if (path.startsWith("/api/players")) return DEMO.players();
     if (path.startsWith("/api/stats")) return DEMO.stats();
     if (path.startsWith("/api/logs")) return DEMO.logs();
+    if (path.startsWith("/api/backups/journal")) {
+      const params = new URL(path, location.origin).searchParams;
+      const offset = Number(params.get("offset") || 0), limit = Number(params.get("limit") || 25);
+      const journal = DEMO.backups().journal;
+      return { ok: true, items: journal.slice(offset, offset + limit), hasMore: journal.length > offset + limit };
+    }
     if (path.startsWith("/api/backups")) return DEMO.backups();
     if (path.startsWith("/api/events")) return DEMO.events();
     if (path.startsWith("/api/ops")) return { ok: true, active: null, history: [] };
@@ -1544,7 +1550,7 @@ function renderBackups(data) {
     return;
   }
   renderBkSchedule(data);
-  renderBkJournal(data.journal || []);
+  renderBkJournal(data.journal || [], !!data.journalHasMore);
   const items = data.items || [];
   S.backupsItems = items;
   renderHealth();
@@ -1612,21 +1618,44 @@ function renderBkSchedule(data) {
   if (keep && settingsCanRender("bkAutoKeep")) keep.value = data.maxBackups ?? 7;
   const stop = $("bkAutoStop");
   if (stop && settingsCanRender("bkAutoStop")) stop.checked = !!ab.stopServer;
-  const next = $("bkAutoNext");
-  if (!next) return;
-  if (ab.enabled && ab.nextRun) {
-    next.hidden = false;
-    const d = new Date(ab.nextRun);
-    next.textContent = `Следующий запуск: ${d.toLocaleString("ru-RU",
-      { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} (${relTime(ab.nextRun)})`;
+}
+
+const bkJournal = { page: 0, size: 25, shownPage: 0, shownSize: 25, retryPage: 0, retrySize: 25, signature: null, request: 0, loading: false, hasMore: false };
+
+function renderBkJournal(journal, hasMore = false) {
+  const signature = JSON.stringify([journal, hasMore]);
+  const changed = bkJournal.signature !== signature;
+  bkJournal.signature = signature;
+  if (!changed) return;
+  if (bkJournal.page === 0 && bkJournal.size === 25) {
+    // Supersede older HTTP pages when the live stream supplies the current page.
+    bkJournal.request++;
+    bkJournal.loading = false;
+    renderBkJournalPage(journal.slice(0, 25), hasMore || journal.length > 25);
   } else {
-    next.hidden = true;
+    loadBkJournalPage();
   }
 }
 
-function renderBkJournal(journal) {
+function updateBkJournalPager(count) {
+  setDomProperty($("bkJournalPager"), "hidden", count === 0 && bkJournal.page === 0);
+  setDomProperty($("bkJournalPrev"), "disabled", bkJournal.loading || bkJournal.page === 0);
+  setDomProperty($("bkJournalNext"), "disabled", bkJournal.loading || !bkJournal.hasMore);
+  setDomProperty($("bkJournalPageSize"), "disabled", bkJournal.loading);
+  setDomProperty($("bkJournalBody"), "ariaBusy", String(bkJournal.loading));
+}
+
+function renderBkJournalPage(journal, hasMore) {
   const body = $("bkJournalBody");
   if (!body) return;
+  bkJournal.shownPage = bkJournal.page;
+  bkJournal.shownSize = bkJournal.size;
+  bkJournal.hasMore = hasMore;
+  setDomProperty($("bkJournalError"), "hidden", true);
+  setDomProperty($("bkJournalRetry"), "hidden", true);
+  updateBkJournalPager(journal.length);
+  const start = bkJournal.page * bkJournal.size + 1;
+  setDomProperty($("bkJournalRange"), "textContent", journal.length ? `${start}–${start + journal.length - 1} · Страница ${bkJournal.page + 1}` : "");
   if (!journal.length) {
     setDomProperty(body.dataset, "state", "empty");
     setStaticMarkup(body, `<p class="list-empty">Бэкапов ещё не было.</p>`);
@@ -1643,6 +1672,54 @@ function renderBkJournal(journal) {
       <span class="j-status" title="${esc(j.error || "")}">${j.status === "error" ? "ошибка" : "готово"}</span>
     </div>`).join(""));
 }
+
+async function loadBkJournalPage() {
+  const request = ++bkJournal.request;
+  const page = bkJournal.page, size = bkJournal.size;
+  bkJournal.loading = true;
+  $("bkJournalError").hidden = true;
+  $("bkJournalRetry").hidden = true;
+  updateBkJournalPager($("bkJournalBody").querySelectorAll(".journal-row").length);
+  try {
+    const data = await api(`/api/backups/journal?limit=${size}&offset=${page * size}`);
+    if (request !== bkJournal.request) return;
+    if (!data.ok) throw new Error(data.error || "Не удалось загрузить журнал");
+    bkJournal.loading = false;
+    const items = data.items || [];
+    if (!items.length && page > 0) {
+      bkJournal.page = 0;
+      return loadBkJournalPage();
+    }
+    renderBkJournalPage(items, !!data.hasMore);
+  } catch (error) {
+    if (request !== bkJournal.request) return;
+    bkJournal.loading = false;
+    // Keep the loaded rows and their range visible if navigation fails.
+    bkJournal.retryPage = page;
+    bkJournal.retrySize = size;
+    bkJournal.page = bkJournal.shownPage;
+    bkJournal.size = bkJournal.shownSize;
+    $("bkJournalPageSize").value = String(bkJournal.size);
+    updateBkJournalPager($("bkJournalBody").querySelectorAll(".journal-row").length);
+    $("bkJournalError").textContent = `${error.message || error}. Повторите загрузку.`;
+    $("bkJournalError").hidden = false;
+    $("bkJournalRetry").hidden = false;
+  }
+}
+
+$("bkJournalPrev").addEventListener("click", () => { bkJournal.page--; loadBkJournalPage(); });
+$("bkJournalNext").addEventListener("click", () => { bkJournal.page++; loadBkJournalPage(); });
+$("bkJournalPageSize").addEventListener("change", () => {
+  bkJournal.size = Number($("bkJournalPageSize").value);
+  bkJournal.page = 0;
+  loadBkJournalPage();
+});
+$("bkJournalRetry").addEventListener("click", () => {
+  bkJournal.page = bkJournal.retryPage;
+  bkJournal.size = bkJournal.retrySize;
+  $("bkJournalPageSize").value = String(bkJournal.size);
+  loadBkJournalPage();
+});
 
 function confirmRestore(name) {
   modal.open({
@@ -2125,6 +2202,11 @@ function settingsFeedback(group, state, message) {
   const definition = SETTING_GROUPS[group];
   const card = $(definition.card) || $(definition.ids[0]).closest("section");
   let feedback = card.querySelector(".settings-feedback");
+  if (group === "autoBackup" && state === "ok") {
+    feedback?.remove();
+    toast(message, "ok");
+    return;
+  }
   if (!feedback) {
     feedback = document.createElement("div");
     feedback.className = "settings-feedback";
