@@ -1,4 +1,4 @@
-/* PZ Пульт: shared surfaces, controls and state tokens. */
+/* PZ Пульт: сажа, кость, кровь. Общие токены поверхностей и состояний. */
 
 /* локальные копии Google Fonts: Golos Text / JetBrains Mono / Russo One */
 @font-face {
@@ -151,34 +151,35 @@
   --layout-gap: 16px;
   --control-height: 44px;
   --compact-height: 36px;
-  --bg: #101b27;
-  --bg-deep: #0b1622;
-  --surface: #142538;
-  --surface-2: #162c43;
-  --surface-3: #203d55;
-  --line: #30465b;
-  --line-strong: #58768e;
-  --ink: #eef4fa;
-  --muted: #b9cadb;
-  --faint: #a0b6cc;
-  --accent: #92d2e0;
-  --accent-hover: #b1e4ee;
-  --danger: #ab3c43;
-  --danger-hover: #bd4850;
-  --danger-text: #ffb3b7;
-  --danger-tint: rgb(255 179 183 / .08);
-  --success: #9ed5b6;
-  --success-tint: rgb(158 213 182 / .08);
-  --warning: #f2ba62;
-  --warning-tint: rgb(242 186 98 / .08);
-  --focus: #92d2e0;
-  --selection: #284b63;
+  --bg: #0d0b09;
+  --bg-deep: #090806;
+  --surface: #14110e;
+  --surface-2: #1a1612;
+  --surface-3: #211c15;
+  --line: rgba(233, 226, 205, 0.10);
+  /* Тёплая граница сохраняет контраст управления после возврата палитры. */
+  --line-strong: #80745d;
+  --ink: #e9e2cd;
+  --muted: #b3a78c;
+  --faint: #968b73;
+  --accent: #e9e2cd;
+  --accent-hover: #f1ead5;
+  --danger: #b3352b;
+  --danger-hover: #c23f34;
+  --danger-text: #e07b6e;
+  --danger-tint: rgb(224 123 110 / .08);
+  --success: #86b060;
+  --success-tint: rgb(134 176 96 / .08);
+  --warning: #d9a441;
+  --warning-tint: rgb(217 164 65 / .08);
+  --focus: #e9e2cd;
+  --selection: #304025;
   --elevation-dialog: 0 18px 48px rgb(0 0 0 / .4);
   --space-group: 16px;
   --space-section: 24px;
   /* Aliases preserve existing state handlers. */
   --blood: var(--danger);
-  --blood-deep: var(--danger);
+  --blood-deep: #8f231c;
   --blood-hover: var(--danger-hover);
   --blood-text: var(--danger-text);
   --error-text: var(--danger-text);
@@ -1588,7 +1589,7 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--draft-heigh
 
 /* Navigation and editing share one state vocabulary. */
 .brand-name { font-weight:600; letter-spacing:0; }
-.brand-icon { color:var(--accent); }
+.brand-icon { color:var(--danger); }
 .nav { backdrop-filter:none; }
 .topbar { backdrop-filter:none; }
 .nav a[aria-current=page] { color:var(--accent); border-color:var(--line-strong); background:var(--surface-2); }
