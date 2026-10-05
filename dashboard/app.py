@@ -444,7 +444,11 @@ class Handler(BaseHTTPRequestHandler):
             except rcon.RCONError as e:
                 self._send_json({"ok": False, "error": str(e)})
         elif path == "/api/settings":
-            err = ops.patch_settings(data)
+            try:
+                err = ops.patch_settings(data)
+            except ops.OpsError as error:
+                self._send_error_json(503, str(error))
+                return
             if err:
                 self._send_error_json(400, err)
             else:

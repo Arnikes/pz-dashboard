@@ -1685,6 +1685,7 @@ def _bk_fixture(tmp_path, monkeypatch):
     monkeypatch.setattr(ops, "log_event", lambda *a, **k: None)
     monkeypatch.setattr(ops, "_set_phase", lambda *a, **k: None)
     monkeypatch.setattr(ops, "is_running", lambda: False)
+    monkeypatch.setattr(ops, "container_state", lambda: {"running": False})
     return data
 
 

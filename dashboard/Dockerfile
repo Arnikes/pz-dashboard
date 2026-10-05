@@ -14,5 +14,5 @@ COPY static ./static
 
 EXPOSE 8080
 ENV PYTHONUNBUFFERED=1
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 CMD python3 -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8080/api/health', timeout=4)"
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 CMD python3 healthcheck.py
 CMD ["python3", "app.py"]

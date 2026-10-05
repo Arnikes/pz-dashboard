@@ -1,3 +1,6 @@
 import urllib.request
 
-urllib.request.urlopen("http://127.0.0.1:8080/api/health", timeout=4)
+from config import CFG
+
+with urllib.request.urlopen(f"http://127.0.0.1:{CFG['port']}/api/health", timeout=4):
+    pass

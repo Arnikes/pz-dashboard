@@ -530,7 +530,7 @@ def check_field(field, value, errors, lua=False):
                 raise ValueError
             if field.get("choices") and number not in [v["value"] for v in field["choices"]]:
                 raise ValueError
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             errors.append({"key": field["key"], "message": "Число вне допустимого диапазона"})
     elif kind in ("string", "multiline", "list") and not isinstance(value, str):
         errors.append({"key": field["key"], "message": "Нужен текст"})

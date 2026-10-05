@@ -139,8 +139,12 @@ def literal(value):
             lambda m: "\\" + str(int(m[1], 16)).zfill(3),
             json.dumps(value, ensure_ascii=False),
         )
-    if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
-        return str(value)
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        try:
+            if math.isfinite(value):
+                return str(value)
+        except OverflowError:
+            pass
     raise FormatError("Поддерживаются строки, конечные числа и boolean")
 
 
@@ -360,7 +364,11 @@ class LuaTable:
                         )
                     except ValueError:
                         raise FormatError("Lua-функции и вычисления не поддерживаются") from None
-                    if not math.isfinite(value):
+                    try:
+                        finite = math.isfinite(value)
+                    except OverflowError:
+                        finite = False
+                    if not finite:
                         raise FormatError("Неконечное число Lua")
                 entry_end = end
                 if self.peek() in (",", ";"):

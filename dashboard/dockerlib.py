@@ -60,7 +60,7 @@ def inspect_container(name):
             "inspect",
             name,
             "--format",
-            "{{.State.Status}}|{{.State.Running}}|{{.State.StartedAt}}|{{.Config.Image}}",
+            "{{.State.Status}}|{{.State.Running}}|{{.State.StartedAt}}|{{.Config.Image}}|{{.Image}}",
         ],
         timeout=30,
     )
@@ -74,6 +74,7 @@ def inspect_container(name):
         "running": parts[1] == "true",
         "startedAt": parts[2],
         "image": parts[3],
+        "imageId": parts[4] if len(parts) > 4 else None,
     }
 
 

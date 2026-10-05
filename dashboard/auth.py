@@ -13,6 +13,8 @@ from collections import OrderedDict, deque
 from http.cookies import CookieError, SimpleCookie
 from pathlib import Path
 
+import fileio
+
 from cryptography.fernet import Fernet, InvalidToken
 
 COOKIE_NAME = "pz_session"
@@ -135,7 +137,7 @@ class Auth:
                 target.write(data)
                 target.flush()
                 os.fsync(target.fileno())
-            os.replace(temporary, self._sessions_file)
+            fileio.replace(temporary, self._sessions_file)
         except OSError:
             raise SessionStorageError("Не удалось сохранить сессию. Повторите попытку") from None
         finally:

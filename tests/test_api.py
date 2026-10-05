@@ -432,3 +432,18 @@ def test_settings_version_advances_only_for_accepted_patch(monkeypatch):
     assert ops.patch_settings({"telegram": {"chatId": "123"}}) is None
     assert before == {"epoch": "test-server", "revision": 2}
     assert ops.get_settings()["version"] == {"epoch": "test-server", "revision": 3}
+
+
+def test_settings_storage_failure_is_reported_as_unavailable(api, monkeypatch):
+    monkeypatch.setattr(ops, "_SETTINGS", json.loads(json.dumps(ops._DEFAULTS)))
+    monkeypatch.setattr(ops, "_save_settings", Mock(side_effect=ops.OpsError("Нет места")))
+    status, body = api("POST", "/api/settings", {"autoUpdate": {"enabled": True}})
+    assert status == 503 and body == {"ok": False, "error": "Нет места"}
+    assert ops._SETTINGS["autoUpdate"]["enabled"] is False
+
+
+@pytest.mark.parametrize("value", ["false", 0, 1, None, [], {}])
+def test_backup_rejects_non_boolean_stop_flag(api, operation_env, value):
+    status, body = api("POST", "/api/action", {"op": "backup", "stopServer": value})
+    assert status == 400 and body["ok"] is False
+    operation_env[0].assert_not_called()

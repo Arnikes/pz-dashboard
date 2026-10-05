@@ -15,6 +15,7 @@ import uuid
 from pathlib import Path
 
 import config
+import fileio
 import configschema
 from configschema import check_field as check_field
 from errors import EditorError as EditorError
@@ -100,7 +101,7 @@ def atomic(path, data, mode=0o600, owner=None):
                 if owner is not None:
                     os.chown(temporary, *owner)
             os.fsync(stream.fileno())
-        os.replace(temporary, path)
+        fileio.replace(temporary, path)
         sync_directory(path.parent)
     finally:
         if os.path.exists(temporary):

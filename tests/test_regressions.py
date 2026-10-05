@@ -31,6 +31,7 @@ def sandbox(tmp_path, monkeypatch):
     monkeypatch.setattr(ops, "log_event", Mock())
     monkeypatch.setattr(ops, "_set_phase", Mock())
     monkeypatch.setattr(ops, "is_running", lambda: False)
+    monkeypatch.setattr(ops, "container_state", lambda: {"running": False})
     world = Path(cfg["data_dir"]) / "world.bin"
     world.write_bytes(b"original world")
     return world

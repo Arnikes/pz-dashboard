@@ -19,6 +19,7 @@ from datetime import datetime, timedelta, timezone
 from itertools import islice
 
 import config
+import fileio
 import settingsmodel
 from settingsmodel import (
     DEFAULTS as _DEFAULTS,
@@ -92,6 +93,7 @@ def log_event(kind, text, detail=None, notify=True):
     if detail:
         rec["detail"] = str(detail)[:400]
     with _EV_LOCK:
+        _load_events()
         _EV_MEM.appendleft(rec)
         try:
             os.makedirs(os.path.dirname(config.CFG["events_file"]), exist_ok=True)
@@ -124,24 +126,30 @@ def _reverse_lines(path, chunk_size=65536):
             yield pending.decode("utf-8", errors="replace")
 
 
+def _load_events():
+    if not _EV_MEM:
+        # Load before the first new event, including the startup event.
+        try:
+            for line in islice(_reverse_lines(config.CFG["events_file"]), 200):
+                try:
+                    entry = json.loads(line)
+                    if isinstance(entry, dict):
+                        _EV_MEM.append(entry)
+                except ValueError:
+                    pass
+        except OSError:
+            pass
+
+
 def get_events(limit=100):
     with _EV_LOCK:
-        if not _EV_MEM:
-            # Load only the last 200 lines, even after years of event history.
-            try:
-                for line in islice(_reverse_lines(config.CFG["events_file"]), 200):
-                    try:
-                        _EV_MEM.append(json.loads(line))
-                    except ValueError:
-                        pass
-            except OSError:
-                pass
+        _load_events()
         return list(islice(_EV_MEM, max(0, limit)))
 
 
 # ─────────────────────────── настройки ───────────────────────────
 
-_SET_LOCK = threading.Lock()
+_SET_LOCK = threading.RLock()
 # рабочая копия настроек: мутируется в рантайме, _DEFAULTS остаётся эталоном
 _SETTINGS = json.loads(json.dumps(_DEFAULTS))
 _SETTINGS_VERSION = {"epoch": uuid.uuid4().hex, "revision": 0}
@@ -170,14 +178,38 @@ def _load_settings():
 
 
 def _save_settings():
-    try:
-        os.makedirs(os.path.dirname(config.CFG["settings_file"]), exist_ok=True)
-        tmp = config.CFG["settings_file"] + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(_SETTINGS, f, ensure_ascii=False, indent=2)
-        os.replace(tmp, config.CFG["settings_file"])
-    except OSError:
-        pass
+    with _SET_LOCK:
+        temporary = None
+        try:
+            directory = os.path.dirname(config.CFG["settings_file"]) or "."
+            os.makedirs(directory, exist_ok=True)
+            fd, temporary = tempfile.mkstemp(prefix=".settings-", dir=directory)
+            with os.fdopen(fd, "w", encoding="utf-8") as stream:
+                json.dump(_SETTINGS, stream, ensure_ascii=False, indent=2)
+                stream.flush()
+                os.fsync(stream.fileno())
+            fileio.replace(temporary, config.CFG["settings_file"])
+        except OSError as error:
+            raise OpsError(
+                "Не удалось сохранить настройки пульта. Проверьте место и права записи"
+            ) from error
+        finally:
+            if temporary is not None and os.path.exists(temporary):
+                try:
+                    os.unlink(temporary)
+                except OSError:
+                    pass
+
+
+def _set_schedule(key, value):
+    with _SET_LOCK:
+        previous = _SETTINGS[key]
+        _SETTINGS[key] = value
+        try:
+            _save_settings()
+        except OpsError:
+            _SETTINGS[key] = previous
+            raise
 
 
 def get_settings():
@@ -208,9 +240,15 @@ def patch_settings(patch):
         updated, error = settingsmodel.prepare_patch(_SETTINGS, patch, _next_daily_run)
         if error:
             return error
+        previous = _SETTINGS.copy()
         _SETTINGS.update(updated)
+        try:
+            _save_settings()
+        except OpsError:
+            _SETTINGS.clear()
+            _SETTINGS.update(previous)
+            raise
         _SETTINGS_VERSION["revision"] += 1
-        _save_settings()
         return None
 
 
@@ -324,13 +362,14 @@ def wait_until_stopped(timeout=240, started_at=None):
     waited = 0
     while waited < timeout:
         st = container_state()
-        if not st or not st["running"]:
+        if st and st.get("running") is False:
             return "stopped"
-        if started_at and st["startedAt"] and st["startedAt"] != started_at:
+        if st and started_at and st.get("startedAt") and st["startedAt"] != started_at:
             return "resurrected"
         time.sleep(5)
         waited += 5
-    return "running" if is_running() else "stopped"
+    state = container_state()
+    return "stopped" if state and state.get("running") is False else "running"
 
 
 def wait_until_running(timeout=120):
@@ -531,7 +570,8 @@ def _do_start():
     code, out, err = dockerlib.container_start(config.CFG["pz_container"])
     if code != 0:
         raise OpsError(f"Не удалось запустить: {err or out}")
-    wait_until_running(150)
+    if not wait_until_running(150):
+        raise OpsError("Сервер не запустился за 150 с — проверьте логи контейнера")
     log_event("start", "Сервер запущен")
     _set_phase("Готово", "Сервер запущен")
 
@@ -611,7 +651,8 @@ def _do_restart(
     if graceful_stop(lambda m: _set_phase("Остановка", m)) == "resurrected":
         # docker сам поднял контейнер (restart policy) — рестарт уже случился,
         # остаётся дождаться запуска сервера
-        wait_until_running(150)
+        if not wait_until_running(150):
+            raise OpsError("Сервер не запустился после рестарта за 150 с")
         log_event("restart", f"Сервер перезапущен ({reason})")
         _set_phase("Готово", "Сервер перезапущен")
         return
@@ -619,7 +660,8 @@ def _do_restart(
     code, out, err = dockerlib.container_start(config.CFG["pz_container"])
     if code != 0:
         raise OpsError(f"Не удалось запустить после рестарта: {err or out}")
-    wait_until_running(150)
+    if not wait_until_running(150):
+        raise OpsError("Сервер не запустился после рестарта за 150 с")
     log_event("restart", f"Сервер перезапущен ({reason})")
     _set_phase("Готово", "Сервер перезапущен")
 
@@ -640,6 +682,13 @@ def _image_from_state(st):
     return img
 
 
+def _installed_digest(image):
+    # A tag can already point to a newer pull while the existing container
+    # continues using its old image. Compare against that immutable image ID.
+    state = container_state()
+    return dockerlib.image_digests((state or {}).get("imageId") or image)
+
+
 _LAST_CHECK = {
     "at": None,
     "image": None,
@@ -655,7 +704,7 @@ def check_update(force_event=False):
     """Сравнить локальный и актуальный digest образа, который реально запущен."""
     image = _effective_image()
     repo, _, tag = image.rpartition(":")
-    local = dockerlib.image_digests(image)
+    local = _installed_digest(image)
     result = {
         "at": now_iso(),
         "image": image,
@@ -704,15 +753,30 @@ def update_state():
     return dict(_LAST_CHECK)
 
 
-_LOCAL_DIGEST = {"digest": None, "image": None, "at": 0.0}
+_LOCAL_DIGEST = {"digest": None, "image": None, "imageId": None, "at": 0.0}
 
 
-def local_digest_cached(ttl=60, image=None):
+def local_digest_cached(ttl=60, image=None, image_id=None):
     """Локальный digest считается сам по себе (TTL-кэш), а не только по кнопке «Проверить»."""
     now = time.time()
-    if now - _LOCAL_DIGEST["at"] > ttl or (image is not None and image != _LOCAL_DIGEST["image"]):
-        image = image or _effective_image()
-        _LOCAL_DIGEST.update({"digest": dockerlib.image_digests(image), "image": image, "at": now})
+    if (
+        now - _LOCAL_DIGEST["at"] > ttl
+        or image is not None
+        and image != _LOCAL_DIGEST["image"]
+        or image_id is not None
+        and image_id != _LOCAL_DIGEST.get("imageId")
+    ):
+        if image is None:
+            state = container_state()
+            image, image_id = _image_from_state(state), (state or {}).get("imageId")
+        _LOCAL_DIGEST.update(
+            {
+                "digest": dockerlib.image_digests(image_id or image),
+                "image": image,
+                "imageId": image_id,
+                "at": now,
+            }
+        )
     return _LOCAL_DIGEST["digest"]
 
 
@@ -720,7 +784,7 @@ def _do_apply_update(warn_seconds, reason="Обновление сервера")
     _set_phase("Проверка актуального образа", "Docker Hub")
     try:
         image = _effective_image()
-        before = dockerlib.image_digests(image)
+        before = _installed_digest(image)
         _set_phase("Скачивание нового образа", image)
         code, out, err = dockerlib.image_pull(image)
         if code != 0:
@@ -1054,6 +1118,56 @@ def _extract_backup(path, dest):
         raise OpsError(f"Архив повреждён или небезопасен: {error}") from error
 
 
+def _restore_files(dest):
+    """Stage on the data volume and retain the original world until publication succeeds."""
+    data = config.CFG["data_dir"]
+    staged = tempfile.mkdtemp(prefix=".pz-restore-", dir=data)
+    previous = None
+    moved, installed = [], []
+    retain = False
+    try:
+        shutil.copytree(dest, staged, symlinks=True, dirs_exist_ok=True)
+        if hasattr(os, "geteuid") and os.geteuid() == 0:
+            for root, dirs, files in os.walk(dest):
+                for entry in [".", *dirs, *files]:
+                    source = os.path.join(root, entry)
+                    target = os.path.join(staged, os.path.relpath(source, dest))
+                    stat = os.stat(source, follow_symlinks=False)
+                    os.chown(target, stat.st_uid, stat.st_gid, follow_symlinks=False)
+        previous = tempfile.mkdtemp(prefix=".pz-previous-", dir=data)
+        reserved = {os.path.basename(staged), os.path.basename(previous)}
+        try:
+            for entry in os.listdir(data):
+                if entry not in reserved:
+                    os.replace(os.path.join(data, entry), os.path.join(previous, entry))
+                    moved.append(entry)
+            for entry in os.listdir(staged):
+                os.replace(os.path.join(staged, entry), os.path.join(data, entry))
+                installed.append(entry)
+        except OSError as error:
+            try:
+                for entry in reversed(installed):
+                    os.replace(os.path.join(data, entry), os.path.join(staged, entry))
+                for entry in reversed(moved):
+                    os.replace(os.path.join(previous, entry), os.path.join(data, entry))
+            except OSError as rollback_error:
+                retain = True
+                raise OpsError(
+                    f"Восстановление прервано: {error}. Откат не завершён: {rollback_error}. "
+                    f"Исходные данные сохранены в {previous}; новые — в {staged}. "
+                    "Сервер оставлен остановленным"
+                ) from error
+            raise OpsError("Запись бэкапа не удалась. Исходный мир восстановлен") from error
+    finally:
+        if not retain:
+            for path in (staged, previous):
+                if path is not None:
+                    try:
+                        shutil.rmtree(path)
+                    except OSError as error:
+                        log_event("warn", f"Не удалось удалить временные данные {path}: {error}")
+
+
 def _restore_prepared(dest, name):
     if is_running():
         _set_phase("Предупреждение игроков", "отсчёт 60 с")
@@ -1064,23 +1178,11 @@ def _restore_prepared(dest, name):
             raise OpsError(
                 "Docker сам перезапустил контейнер — восстановление прервано, повторите попытку"
             )
-    _set_phase("Очистка каталога данных", "удаление старого мира")
-    for entry in os.listdir(config.CFG["data_dir"]):
-        full = os.path.join(config.CFG["data_dir"], entry)
-        if os.path.isdir(full) and not os.path.islink(full):
-            shutil.rmtree(full)
-        else:
-            os.remove(full)
+    state = container_state()
+    if not state or state.get("running") is not False:
+        raise OpsError("Остановка сервера не подтверждена Docker — восстановление отменено")
     _set_phase("Восстановление файлов", name)
-    shutil.copytree(dest, config.CFG["data_dir"], symlinks=True, dirs_exist_ok=True)
-    if hasattr(os, "geteuid") and os.geteuid() == 0:
-        # copytree сохраняет режимы и даты, но не uid/gid при переносе между volumes.
-        for root, dirs, files in os.walk(dest):
-            for entry in [".", *dirs, *files]:
-                source = os.path.join(root, entry)
-                target = os.path.join(config.CFG["data_dir"], os.path.relpath(source, dest))
-                stat = os.stat(source, follow_symlinks=False)
-                os.chown(target, stat.st_uid, stat.st_gid, follow_symlinks=False)
+    _restore_files(dest)
     _set_phase("Запуск сервера", "docker start")
     code, out, err = dockerlib.container_start(config.CFG["pz_container"])
     if code != 0:
@@ -1178,22 +1280,19 @@ def _auto_backup_tick(s, now):
     nxt = s.get("nextBackupRun")
     if not nxt:
         nxt = _next_daily_run(t, now)
-        _SETTINGS["nextBackupRun"] = nxt
-        _save_settings()
+        _set_schedule("nextBackupRun", nxt)
     if now < nxt or op_busy():
         return
     late = (now - nxt) / 60
     note = " (навёрстывание)" if late > 15 else ""
-    _SETTINGS["nextBackupRun"] = _next_daily_run(t, now)
-    _save_settings()
+    _set_schedule("nextBackupRun", _next_daily_run(t, now))
     log_event("auto", f"Автобэкап по расписанию{note}: запуск ({t})")
     try:
         start_op("backup", lambda: run_backup_job("scheduled", bool(ab.get("stopServer"))))
     except OpsError:
         # гонка: между проверкой и стартом началась другая операция —
         # откатываем время, попытка повторится на следующем тике (20 с)
-        _SETTINGS["nextBackupRun"] = nxt
-        _save_settings()
+        _set_schedule("nextBackupRun", nxt)
 
 
 def _scheduler_loop():
@@ -1206,8 +1305,7 @@ def _scheduler_loop():
                 now = time.time()
                 if not nxt:
                     nxt = now + au["intervalHours"] * 3600
-                    _SETTINGS["nextCheck"] = nxt
-                    _save_settings()
+                    _set_schedule("nextCheck", nxt)
                 if now >= nxt and not op_busy():
                     try:
                         check_update(force_event=False)
@@ -1222,16 +1320,14 @@ def _scheduler_loop():
                             )
                     except OpsError as e:
                         log_event("error", "Автообновление: " + str(e))
-                    _SETTINGS["nextCheck"] = time.time() + au["intervalHours"] * 3600
-                    _save_settings()
+                    _set_schedule("nextCheck", time.time() + au["intervalHours"] * 3600)
             mu = s.get("modsUpdate") or {}
             if mu.get("enabled"):
                 nxt_m = s.get("nextModsCheck")
                 now = time.time()
                 if not nxt_m:
                     nxt_m = now + mu["intervalHours"] * 3600
-                    _SETTINGS["nextModsCheck"] = nxt_m
-                    _save_settings()
+                    _set_schedule("nextModsCheck", nxt_m)
                 if now >= nxt_m and not op_busy():
                     try:
                         if is_running():
@@ -1261,8 +1357,7 @@ def _scheduler_loop():
                             log_event("warn", "Автопроверка модов: сервер не запущен — пропуск")
                     except OpsError as e:
                         log_event("error", "Автопроверка модов: " + str(e))
-                    _SETTINGS["nextModsCheck"] = time.time() + mu["intervalHours"] * 3600
-                    _save_settings()
+                    _set_schedule("nextModsCheck", time.time() + mu["intervalHours"] * 3600)
             _post_restart_rescan_tick(s)
             _auto_backup_tick(s, time.time())
         except Exception as e:  # noqa: BLE001
@@ -1278,9 +1373,7 @@ def defer_next_check(interval_hours):
         hours = max(1, min(168, int(interval_hours)))
     except (TypeError, ValueError):
         hours = _DEFAULTS["autoUpdate"]["intervalHours"]
-    with _SET_LOCK:
-        _SETTINGS["nextCheck"] = time.time() + hours * 3600
-        _save_settings()
+    _set_schedule("nextCheck", time.time() + hours * 3600)
 
 
 def auto_backup_state():
@@ -1648,8 +1741,9 @@ def check_mods_update(source="manual", timeout=45):
 def _do_apply_mods_update(warn_seconds):
     """Применение обновлений модов: рестарт — при старте Steam докачает свежие версии."""
     _do_restart(warn_seconds, reason="Обновление модов")
-    _SETTINGS["nextModsCheck"] = time.time() + get_settings()["modsUpdate"]["intervalHours"] * 3600
-    _save_settings()
+    _set_schedule(
+        "nextModsCheck", time.time() + get_settings()["modsUpdate"]["intervalHours"] * 3600
+    )
 
 
 # ─── рескан модов после рестарта ───
@@ -1693,9 +1787,7 @@ def _post_restart_rescan_tick(s):
         res = check_mods_update(source="post-restart")
         _POST_RESTART["dueAt"] = None
         if res["state"] == "up-to-date":
-            with _SET_LOCK:
-                _SETTINGS["nextModsCheck"] = time.time() + (mu.get("intervalHours") or 6) * 3600
-                _save_settings()
+            _set_schedule("nextModsCheck", time.time() + (mu.get("intervalHours") or 6) * 3600)
             log_event("mods", "После рестарта моды актуальны — таймер автопроверки сброшен")
         elif res["state"] == "needs-update":
             log_event(
@@ -1742,7 +1834,10 @@ def overview():
         "rconConfigured": bool(cfg["rcon_password"]),
         "rcon": dict(_RCON_CACHE),
         "containerInfo": cont,
-        "update": {**update_state(), "local": local_digest_cached(image=image)},
+        "update": {
+            **update_state(),
+            "local": local_digest_cached(image=image, image_id=(st or {}).get("imageId")),
+        },
         "modsCheck": mods_check_state(),
         "settings": get_settings(),
         "watchdog": watchdog_state(),
@@ -1798,7 +1893,7 @@ def _ph_file():
 def _parse_ts(ts):
     try:
         return datetime.fromisoformat(ts).timestamp()
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, OSError, OverflowError):
         return 0
 
 
@@ -1808,7 +1903,19 @@ def _ph_load():
         try:
             with open(_ph_file(), encoding="utf-8") as f:
                 data = json.load(f)
-            _PH = data if isinstance(data, list) else []
+            _PH = (
+                [
+                    entry
+                    for entry in data
+                    if isinstance(entry, dict)
+                    and isinstance(entry.get("ts"), str)
+                    and _parse_ts(entry["ts"]) > 0
+                    and type(entry.get("count")) in (int, float)
+                    and 0 <= entry["count"] <= 256
+                ]
+                if isinstance(data, list)
+                else []
+            )
         except (OSError, ValueError):
             _PH = []
     return _PH

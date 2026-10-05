@@ -24,6 +24,8 @@ def dispatch(data):
         except ops.OpsError as error:
             raise ActionError(409, str(error)) from error
         return {"ok": True, "cancelRequested": True}
+    if action == "backup" and type(data.get("stopServer", False)) is not bool:
+        raise ActionError(400, "stopServer должен быть true или false")
     settings = ops.get_settings()
     warn_default = settings["autoUpdate"]["warnSeconds"]
     try:

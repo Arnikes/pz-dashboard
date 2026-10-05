@@ -51,9 +51,9 @@ class RCON:
             pass
         self.sock = None
 
-    def _read_packets(self, deadline):
+    def _read_packets(self, deadline, wait_first=True):
         out = []
-        while time.time() < deadline:
+        while time.monotonic() < deadline:
             # Разбираем всё, что уже накопилось в буфере.
             while len(self._buf) >= 4:
                 size = struct.unpack("<i", self._buf[:4])[0]
@@ -70,9 +70,16 @@ class RCON:
                 body = pkt[8:-2].decode("utf-8", "replace") if len(pkt) >= 10 else ""
                 out.append((rid, typ, body))
             try:
+                self.sock.settimeout(
+                    min(self.idle_timeout, max(0.001, deadline - time.monotonic()))
+                )
                 chunk = self.sock.recv(4096)
             except socket.timeout:
-                break
+                # Idle time delimits a completed response, not the wait for its
+                # first packet or a packet split across TCP reads.
+                if (out or not wait_first) and not self._buf:
+                    break
+                continue
             except OSError:
                 break
             if not chunk:
@@ -82,8 +89,8 @@ class RCON:
 
     def _auth(self):
         self.sock.sendall(_pack(1, SERVERDATA_AUTH, self.password))
-        deadline = time.time() + self.connect_timeout + 2.0
-        while time.time() < deadline:
+        deadline = time.monotonic() + self.connect_timeout + 2.0
+        while time.monotonic() < deadline:
             for rid, typ, body in self._read_packets(deadline):
                 if typ == SERVERDATA_EXECCOMMAND and rid == 1:
                     # SERVERDATA_AUTH_RESPONSE приходит с rid==1 при успехе
@@ -101,10 +108,10 @@ class RCON:
             self._auth()
             rid = 2
             self.sock.sendall(_pack(rid, SERVERDATA_EXECCOMMAND, command))
-            deadline = time.time() + self.total_timeout
+            deadline = time.monotonic() + self.total_timeout
             parts = []
-            while time.time() < deadline:
-                packets = self._read_packets(deadline)
+            while time.monotonic() < deadline:
+                packets = self._read_packets(deadline, wait_first=not parts)
                 if not packets:
                     break
                 for p_rid, p_typ, body in packets:
@@ -113,6 +120,10 @@ class RCON:
                         SERVERDATA_EXECCOMMAND,
                     ):
                         parts.append(body)
+            if self._buf:
+                raise RCONError("Неполный ответ RCON")
+            if not parts and command.strip().lower() != "quit":
+                raise RCONError("RCON не ответил на команду")
             text = "".join(parts)
             if not text.strip():
                 # Некоторые команды PZ отвечают пустотой — это нормально.
