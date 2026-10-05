@@ -8,16 +8,13 @@ pytestmark = pytest.mark.browser
 
 def open_fields(page, dashboard):
     dashboard["overview"].update(
-        container="pz-server",
-        image="server:latest",
         update={"local": "sha256:" + "a" * 64, "remote": "sha256:" + "b" * 64},
     )
-    page.goto(dashboard["url"])
+    page.goto(dashboard["url"] + "/#/maintenance")
     expect(page.locator("#btnStop")).to_be_enabled()
     page.evaluate("""() => {
-        renderOverview({...S.overview,container:'pz-server',image:'server:latest',
+        renderOverview({...S.overview,
             update:{local:'sha256:'+'a'.repeat(64),remote:'sha256:'+'b'.repeat(64)}});
-        document.getElementById('serverDetails').open=true;
     }""")
 
 
@@ -25,7 +22,7 @@ def test_copy_feedback_restarts_and_survives_unchanged_refresh(page, dashboard):
     open_fields(page, dashboard)
     page.clock.install()
     page.clock.pause_at(page.evaluate("Date.now()"))
-    field = page.locator("#mImage")
+    field = page.locator("#updLocalCopy")
     field.click()
     expect(field).to_have_attribute("data-copied", "true")
     expect(field).to_have_attribute("aria-label", "Скопировано")
@@ -38,24 +35,26 @@ def test_copy_feedback_restarts_and_survives_unchanged_refresh(page, dashboard):
     expect(field).to_have_attribute("data-copied", "true")
     page.clock.run_for(501)
     expect(field).not_to_have_attribute("data-copied", "true")
-    expect(field).to_have_attribute("aria-label", "Скопировать имя образа")
+    expect(field).to_have_attribute("aria-label", "Скопировать локальный digest")
     expect(field.locator(".copy-icon-default")).to_be_visible()
     expect(field.locator(".copy-icon-check")).to_be_hidden()
-    expect(field).to_have_text("server:latest")
+    expect(field).to_have_text("a" * 12)
 
 
 def test_copy_fields_have_independent_feedback_and_reset_when_value_changes(page, dashboard):
     open_fields(page, dashboard)
-    page.locator("#mImage").click()
-    expect(page.locator("#mImage")).to_have_attribute("data-copied", "true")
-    expect(page.locator("#mContainer .copy-icon-default")).to_be_visible()
-    page.locator("#mContainer").click()
-    expect(page.locator("#mContainer")).to_have_attribute("data-copied", "true")
-    page.evaluate("renderOverview({...S.overview,image:'server:new',container:null})")
-    expect(page.locator("#mImage")).not_to_have_attribute("data-copied", "true")
-    expect(page.locator("#mImage")).to_have_text("server:new")
-    expect(page.locator("#mContainer")).to_be_disabled()
-    expect(page.locator("#mContainer .copy-icon")).to_be_hidden()
+    page.locator("#updLocalCopy").click()
+    expect(page.locator("#updLocalCopy")).to_have_attribute("data-copied", "true")
+    expect(page.locator("#updRemoteCopy .copy-icon-default")).to_be_visible()
+    page.locator("#updRemoteCopy").click()
+    expect(page.locator("#updRemoteCopy")).to_have_attribute("data-copied", "true")
+    page.evaluate(
+        "renderOverview({...S.overview,update:{local:'sha256:'+'c'.repeat(64),remote:null}})"
+    )
+    expect(page.locator("#updLocalCopy")).not_to_have_attribute("data-copied", "true")
+    expect(page.locator("#updLocalCopy")).to_have_text("c" * 12)
+    expect(page.locator("#updRemoteCopy")).to_be_disabled()
+    expect(page.locator("#updRemoteCopy .copy-icon")).to_be_hidden()
 
 
 @pytest.mark.parametrize("result", ["success", "failure", "changed"])
@@ -67,12 +66,14 @@ def test_copy_icon_waits_for_result_and_never_confirms_a_changed_value(page, das
         });
         document.execCommand=()=>false;
     }""")
-    field = page.locator("#mImage")
+    field = page.locator("#updLocalCopy")
     field.click()
     expect(field.locator(".copy-icon-default")).to_be_visible()
     expect(field.locator(".copy-icon-check")).to_be_hidden()
     if result == "changed":
-        page.evaluate("renderOverview({...S.overview,image:'server:new'})")
+        page.evaluate(
+            "renderOverview({...S.overview,update:{...S.overview.update,local:'sha256:'+'c'.repeat(64)}})"
+        )
     page.evaluate("failCopy(new Error('Denied'))" if result == "failure" else "finishCopy()")
     if result == "success":
         expect(field.locator(".copy-icon-check")).to_be_visible()
@@ -93,7 +94,7 @@ def test_long_copy_values_keep_the_icon_visible_and_copy_exact_content(page, das
     value = 'very_long_value_"<&>_' + "x" * 180
     page.evaluate(
         """value => {
-        document.getElementById('mImage').parentElement.insertAdjacentHTML(
+        document.getElementById('updLocalCopy').parentElement.insertAdjacentHTML(
             'beforeend',copyValue(value,{className:'mono'}));
         window.copiedValue=null;
         navigator.clipboard.writeText=async value=>{window.copiedValue=value};
@@ -117,7 +118,7 @@ def test_dynamic_copy_field_feedback_survives_unchanged_data(page, dashboard, su
     page.evaluate(
         """surface => {
         navigator.clipboard.writeText=async()=>{};
-        const host=document.getElementById('sec-status');
+        const host=document.getElementById('sec-updates');
         if (surface==='updates') {
             host.append(document.getElementById('modsNeedList'));
             window.refreshCopyField=()=>renderOverview({...S.overview,modsCheck:{

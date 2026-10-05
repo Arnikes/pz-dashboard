@@ -636,7 +636,6 @@ function renderOverview(o) {
       label.textContent = "Проверка…";
       $("uptime").textContent = "…";
     }
-    $("mStarted").textContent = "—";
   } else {
     $("absentHint").hidden = !!c;
     if (!c) {
@@ -656,11 +655,7 @@ function renderOverview(o) {
       label.textContent = "Остановлен";
       $("uptime").textContent = "—";
     }
-    $("mStarted").textContent = c ? fmtTime(c.startedAt) : "—";
   }
-  setCopyTarget("mContainer", o.container);
-  setCopyTarget("mImage", o.image);
-  setCopyTarget("mDigestCopy", o.update?.local, shortDigest(o.update?.local));
 
   // блок обновлений
   const u = o.update || {};
@@ -898,10 +893,6 @@ function renderSummaries() {
   si.textContent = img.textContent;
   sm.dataset.state = mods.dataset.state;
   sm.textContent = mods.textContent;
-  const u = (S.overview || {}).update || {};
-  $("sumImageMeta").textContent = u.at ? `проверено ${fmtTime(u.at)}` : "не проверялось";
-  const mc = (S.overview || {}).modsCheck || {};
-  $("sumModsMeta").textContent = mc.at ? `проверено ${fmtTime(mc.at)}` : "не проверялись";
 }
 
 function setAvailability(id, message) {
@@ -2635,7 +2626,7 @@ const commands = (() => {
     { label: "Найти строку в логах", hint: "Перейти к фильтру логов", reason: $("logsFilter").disabled ? "Логи контейнера недоступны в demo и remote" : "", run: async () => { await navigate("console"); $("logsFilter").focus(); } },
     { label: "Посмотреть текущую операцию", hint: "Фаза, время и переход к логам", reason: !S.op?.active ? "Сейчас нет активной операции" : "", run: () => { $("opbar").tabIndex = -1; $("opbar").focus(); } },
     { label: "Скопировать имя профиля", hint: "Имя файла конфигурации", reason: !window.ConfigEditor?.file ? "Выберите доступный профиль" : "", run: () => copyText(window.ConfigEditor.file) },
-    { label: "Скопировать digest образа", hint: "Полный идентификатор Docker", reason: !$("mDigestCopy").dataset.copy ? "Идентификатор ещё не получен" : "", run: () => copyText($("mDigestCopy").dataset.copy, $("mDigestCopy")) },
+    { label: "Скопировать digest образа", hint: "Полный идентификатор Docker", reason: !$("updLocalCopy").dataset.copy ? "Идентификатор ещё не получен" : "", run: () => copyText($("updLocalCopy").dataset.copy, $("updLocalCopy")) },
     { label: "Остановить сервер…", hint: "Открыть подтверждение с предупреждением игроков", reason: $("btnStop").disabled ? "Недоступно при операции, в demo/remote или без работающего сервера" : "", run: confirmedAction("btnStop") },
     { label: "Перезапустить сервер…", hint: "Открыть подтверждение с предупреждением игроков", reason: $("btnRestart").disabled ? "Недоступно при операции, в demo/remote или без работающего сервера" : "", run: confirmedAction("btnRestart") },
     { label: "Восстановить мир из бэкапа…", hint: "Открыть список архивов и выбрать версию для подтверждения", run: () => navigate("backups") },

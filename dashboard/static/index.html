@@ -158,12 +158,6 @@
           <button class="btn ghost" id="btnSaveWorld" title="Команда save через RCON">Сохранить мир</button>
         </div>
         <p id="operationAvailability" class="hint" role="status" hidden></p>
-        <details id="serverDetails" class="server-details"><summary>Контейнер и образ</summary><dl class="meta">
-          <div><dt>Запущен</dt><dd id="mStarted">—</dd></div>
-          <div><dt>Контейнер</dt><dd class="mono"><button type="button" class="copy-value" id="mContainer" aria-label="Скопировать имя контейнера" disabled><span class="copy-label">—</span></button></dd></div>
-          <div><dt>Образ</dt><dd class="mono"><button type="button" class="copy-value" id="mImage" aria-label="Скопировать имя образа" disabled><span class="copy-label">—</span></button></dd></div>
-          <div><dt>Локальный digest</dt><dd class="mono"><button type="button" class="copy-value" id="mDigestCopy" aria-label="Скопировать локальный digest" disabled><span class="copy-label" id="mDigest">—</span></button></dd></div>
-        </dl></details>
         <p class="hint" id="absentHint" hidden>
           Контейнер не найден. Проверьте имя (переменная PZ_CONTAINER) и что compose-проект запущен.
         </p>
@@ -224,12 +218,10 @@
           <div class="sum-row">
             <a class="sum-name" href="#/maintenance">Образ Docker</a>
             <span class="pill" id="sumImagePill" data-state="unknown">—</span>
-            <span class="sum-meta mono" id="sumImageMeta">—</span>
           </div>
           <div class="sum-row">
             <a class="sum-name" href="#/mods">Моды Workshop</a>
             <span class="pill" id="sumModsPill" data-state="unknown">—</span>
-            <span class="sum-meta mono" id="sumModsMeta">—</span>
           </div>
         </div>
       </section>

@@ -483,12 +483,13 @@ def test_explicit_copy_button_works_from_keyboard_with_full_digest(page, dashboa
     page.goto(dashboard["url"])
     expect(page.locator("#btnStop")).to_be_enabled()
     page.evaluate("value => renderOverview({...S.overview,update:{local:value}})", value)
-    page.locator("#serverDetails summary").click()
+    page.evaluate("location.hash='#/maintenance'")
+    expect(page.locator("#view-maintenance")).to_be_visible()
     button = page.get_by_role("button", name="Скопировать локальный digest").first
     button.focus()
     button.press(key)
-    expect(page.locator("#mDigestCopy")).to_have_attribute("data-copied", "true")
-    expect(page.locator("#mDigestCopy .copy-icon-check")).to_be_visible()
+    expect(page.locator("#updLocalCopy")).to_have_attribute("data-copied", "true")
+    expect(page.locator("#updLocalCopy .copy-icon-check")).to_be_visible()
     page.evaluate("""() => { const target=document.createElement('textarea');
       target.id='pasteTarget';document.body.appendChild(target); }""")
     target = page.locator("#pasteTarget")
@@ -503,9 +504,7 @@ def test_backup_schedule_switch_has_name_and_update_links_are_reachable_at_320(p
     expect(page.get_by_role("switch", name="Бэкап по расписанию")).to_be_visible()
     page.evaluate("location.hash='#/overview'")
     page.evaluate("""() => {renderOverview({...S.overview,update:{at:'2026-10-04T21:00:00Z'},
-      modsCheck:{at:'2026-10-04T21:00:00Z'}});
-      document.getElementById('sumImageMeta').textContent='Очень длинные метаданные проверки образа';
-      document.getElementById('sumModsMeta').textContent='Очень длинные метаданные проверки модов';}""")
+      modsCheck:{at:'2026-10-04T21:00:00Z'}});}""")
     for name in ["Образ Docker", "Моды Workshop"]:
         link = page.get_by_role("link", name=name, exact=True)
         expect(link).to_be_visible()

@@ -96,7 +96,7 @@ def test_paused_log_scrolling_keeps_receiving_new_lines(page, dashboard):
 @pytest.mark.parametrize("mode", ["local", "http", "denied"])
 def test_copy_field_writes_full_text_to_clipboard(page, dashboard, mode):
     value = f"sha256:0123456789abcdef — полный текст ({mode})\nвторая строка"
-    dashboard["overview"]["image"] = value
+    dashboard["overview"]["update"] = {"local": value}
     url = dashboard["url"]
     if mode == "http":
         # Keep a non-loopback HTTP origin, serving the real static assets.
@@ -130,18 +130,19 @@ def test_copy_field_writes_full_text_to_clipboard(page, dashboard, mode):
     expect(page.locator("#btnStop")).to_be_enabled()
     page.evaluate(
         """value => {
-        const field = document.getElementById('mImage');
+        const field = document.getElementById('updLocalCopy');
         field.querySelector('.copy-label').textContent = 'sha256:012…';
         field.disabled = false;
         field.dataset.copy = value;
     }""",
         value,
     )
-    page.locator("#serverDetails summary").click()
-    page.locator("#mImage").click()
-    expect(page.locator("#mImage")).to_have_attribute("data-copied", "true")
-    expect(page.locator("#mImage .copy-icon-check")).to_be_visible()
-    expect(page.locator("#mImage .copy-icon-default")).to_be_hidden()
+    page.evaluate("location.hash='#/maintenance'")
+    expect(page.locator("#view-maintenance")).to_be_visible()
+    page.locator("#updLocalCopy").click()
+    expect(page.locator("#updLocalCopy")).to_have_attribute("data-copied", "true")
+    expect(page.locator("#updLocalCopy .copy-icon-check")).to_be_visible()
+    expect(page.locator("#updLocalCopy .copy-icon-default")).to_be_hidden()
     expect(page.locator('#toasts .toast[data-kind="ok"]')).to_have_count(0)
     # Paste via the browser to check the actual clipboard, not a mocked API call.
     page.evaluate("""() => {
@@ -204,11 +205,7 @@ def test_navigation_and_layout(page, dashboard, width, height):
 def test_overview_leads_with_actions_and_backup_freshness(page, dashboard):
     page.goto(dashboard["url"])
     expect(page.locator("#btnStop")).to_be_enabled()
-    expect(page.locator("#serverDetails")).not_to_have_attribute("open", "")
-    assert (
-        page.locator("#btnStop").bounding_box()["y"]
-        < page.locator("#serverDetails").bounding_box()["y"]
-    )
+    expect(page.locator("#serverDetails")).to_have_count(0)
     page.evaluate("""() => { S.backupsItems=[{name:'old.zip',size:1024,
         mtime:new Date(Date.now()-72*3600000).toISOString()}]; renderOverview(S.overview); }""")
     expect(page.locator("#kpiBackup")).to_contain_text("3 дня назад")
