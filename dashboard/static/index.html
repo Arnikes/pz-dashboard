@@ -106,7 +106,7 @@
     Демонстрация интерфейса: данные вымышленные, операции отключены. Реальная работа начнётся после запуска в docker compose.
   </div>
 
-  <details class="health-details"><summary>Подключение и проверки</summary>
+  <details class="health-details"><summary>Подключение и проверки</summary><div class="health-tools"></div>
   <div class="healthbar" id="healthbar" data-od-id="health" role="status" aria-label="Сводка состояния сервера">
     <a class="h-chip" href="#/overview" id="hbServer" data-state="unknown">Сервер: …</a>
     <a class="h-chip" href="#/backups" id="hbBackup" data-state="unknown">Бэкап: …</a>
@@ -391,7 +391,7 @@
     </div>
 
     <div class="view" id="view-settings" tabindex="-1" hidden>
-      <section class="card editor-card" aria-labelledby="hConfig">
+      <section class="card editor-card" aria-labelledby="page-settings">
         <header class="card-head"><h2 id="hConfig">Параметры профиля</h2><span id="configStatus" class="pill">Выберите профиль</span></header>
         <div id="configError" class="editor-error" role="alert" hidden></div>
         <p id="configActionHelp" class="hint" role="status" hidden></p>
@@ -655,7 +655,7 @@
     <span id="draftLabel">Черновик</span><span id="draftSaved" class="hint" aria-live="polite"></span>
     <div id="draftExtra" class="draft-extra"><button type="button" id="editorLogs" class="btn small">Логи операции</button><button type="button" id="configRebase" class="btn small" hidden>Объединить с диском…</button><button type="button" id="configDiscard" class="btn small">Отменить черновик…</button><button type="button" id="configSave" class="btn small">Записать файлы</button></div>
     <button type="button" id="configDiff" class="btn small">Посмотреть изменения</button><button type="button" id="configApply" class="btn primary small">Применить с рестартом…</button>
-    <button type="button" id="draftMore" class="btn small draft-more" aria-label="Другие действия с черновиком" aria-expanded="false" aria-controls="draftExtra">⋯</button>
+    <button type="button" id="draftMore" class="btn small draft-more" aria-label="Другие действия с черновиком" aria-expanded="false" aria-controls="draftExtra"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button>
   </div>
 
   <footer class="foot" data-od-id="footer">

@@ -653,9 +653,18 @@ window.ConfigEditor = (() => {
     if (button) move(button.dataset.moveId, index => Math.max(0, Math.min(index + Number(button.dataset.direction), mods.mods.length - 1)), button.dataset.direction).catch(() => {});
   });
   function clearDropTarget() { $("modOrderList").querySelectorAll("[data-drop]").forEach(row => delete row.dataset.drop); }
-  function endDrag() { dragId = null; clearDropTarget(); $("modOrderList").querySelectorAll(".dragging").forEach(row => row.classList.remove("dragging")); }
+  let dragOrigin = null;
+  function endDrag() { dragId = null; dragOrigin = null; clearDropTarget(); $("modOrderList").querySelectorAll(".dragging").forEach(row => row.classList.remove("dragging")); }
+  $("modOrder").addEventListener("pointerdown", e => {
+    const grip = e.target.closest(".order-grip");
+    dragOrigin = e.button === 0 && grip && !grip.disabled ? grip.closest("[data-order-id]") : null;
+  });
+  document.addEventListener("pointerup", () => { if (!dragId) dragOrigin = null; });
   $("modOrder").addEventListener("dragstart", e => {
-    const grip = e.target.closest(".order-grip"), row = grip?.closest("[data-order-id]");
+    // Scrolling between press and native dragstart can change the event target.
+    // Keep the identity selected by the initiating press throughout the gesture.
+    const row = dragOrigin?.isConnected ? dragOrigin : e.target.closest(".order-grip")?.closest("[data-order-id]");
+    const grip = row?.querySelector(".order-grip");
     if (!row || grip.disabled || S.demo || S.op?.active) { e.preventDefault(); return; }
     dragId = row.dataset.orderId; row.classList.add("dragging"); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", dragId);
   });

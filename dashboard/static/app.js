@@ -2329,7 +2329,28 @@ const layoutObserver = new ResizeObserver(() => {
 });
 for (const selector of [".topbar", ".nav", "#draftBar"]) layoutObserver.observe(document.querySelector(selector));
 const mobileLayout = matchMedia("(max-width: 740px)");
-function adaptHealthDisclosure() { document.querySelector(".health-details").open = !mobileLayout.matches; }
+function adaptHealthDisclosure() {
+  const disclosure = document.querySelector(".health-details"), connection = document.querySelector(".connection-status");
+  const focused = document.activeElement;
+  disclosure.open = !mobileLayout.matches;
+  if (mobileLayout.matches) {
+    document.querySelector(".topbar").append($("freshness"));
+    disclosure.querySelector(".health-tools").append(connection, $("btnLogout"));
+  } else {
+    document.querySelector(".top-right").append(connection, $("btnLogout"));
+    connection.append($("freshness"));
+  }
+  if (focused === $("btnLogout")) (mobileLayout.matches ? disclosure.querySelector("summary") : focused).focus();
+  const editing = /^(settings|mods)$/.test(location.hash.replace(/^#\/?/, ""));
+  const main = document.querySelector(".main"), flow = $("configFlow");
+  if (mobileLayout.matches && editing) {
+    main.append(flow);
+    document.querySelector(".foot").before(disclosure);
+  } else {
+    main.querySelector(".view").before(flow);
+    document.querySelector(".topbar").after(disclosure);
+  }
+}
 adaptHealthDisclosure();
 mobileLayout.addEventListener("change", adaptHealthDisclosure);
 
@@ -2346,6 +2367,11 @@ const VIEWS = {
   console: "Консоль",
 };
 $("sec-status").after($("editorAttention"));
+for (const route of ["settings", "mods"]) {
+  const card = $("view-" + route).querySelector(".editor-card"), help = card.querySelector(".context-help");
+  if (route === "mods" && help.previousElementSibling?.classList.contains("hint")) help.querySelector("summary").after(help.previousElementSibling);
+  card.append(help);
+}
 
 for (const [route, label] of Object.entries(VIEWS)) {
   const view = $("view-" + route), heading = document.createElement("header");
@@ -2380,6 +2406,7 @@ function applyRoute() {
   if (!["overview", "settings", "mods"].includes(r)) $("navMore").setAttribute("aria-current", "page");
   else $("navMore").removeAttribute("aria-current");
   document.title = `${VIEWS[r]} · PZ Пульт`;
+  adaptHealthDisclosure();
   window.scrollTo(0, 0);
   const view = $("view-" + r);
   if (view) view.focus({ preventScroll: true });

@@ -103,8 +103,9 @@ def test_configuration_stages_keep_draft_and_only_navigate(page, dashboard, edit
     if width <= 740:
         page.locator("#navMore").click()
         menu = page.locator("#moreMenu").bounding_box()
-        bar = page.locator("#draftBar").bounding_box()
-        assert menu["y"] + menu["height"] <= bar["y"]
+        nav = page.locator(".nav").bounding_box()
+        assert menu["y"] + menu["height"] <= nav["y"]
+        assert menu["y"] >= 0
         page.keyboard.press("Escape")
         expect(page.locator("#freshness")).to_be_visible()
     expect(field).to_have_value("Staged draft")
@@ -184,7 +185,7 @@ def test_editor_layout_controls_and_draft_do_not_cover_content(page, dashboard, 
     assert metrics["searchWidth"] >= min(500, metrics["cardWidth"] - 40)
     if width <= 740:
         assert metrics["headerHeight"] < 170
-        assert metrics["barBottom"] < metrics["navTop"]
+        assert page.locator("#draftBar").evaluate("el=>getComputedStyle(el).position") == "static"
         assert metrics["barTop"] > 400
         assert metrics["barBottom"] - metrics["barTop"] < 160
     else:
