@@ -399,9 +399,10 @@ def test_failed_telegram_save_keeps_secret_and_stale_snapshots_do_not_erase_edit
         }
     )
     expect(page.locator("#tgToken")).to_have_value("")
-    expect(page.locator('.settings-feedback[data-state="ok"]')).to_contain_text(
-        "Telegram: сохранено"
+    expect(page.locator("#toasts")).to_contain_text(
+        "Токен сохранён. Введите новый, чтобы заменить."
     )
+    expect(page.locator("#sec-notify .settings-feedback")).to_have_count(0)
     assert list(requests[0]) == ["telegram"]
     assert requests[0] == requests[1]
 

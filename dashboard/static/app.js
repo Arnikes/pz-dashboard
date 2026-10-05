@@ -688,7 +688,6 @@ function renderOverview(o) {
   $("updNote").hidden = !(remote || u.error || (u.note && u.available == null));
   const same = u.local && u.remote && u.local === u.remote;
   $("updRemote").classList.toggle("ok-same", !!same);
-  $("updChecked").textContent = u.at ? fmtTime(u.at) : "никогда";
   $("updHubDate").textContent = u.hubUpdated ? "собрана " + fmtTime(u.hubUpdated) : "—";
   setCopyTarget("updLocalCopy", u.local, shortDigest(u.local));
   setCopyTarget("updRemoteCopy", u.remote, same ? "совпадает" : shortDigest(u.remote));
@@ -723,9 +722,6 @@ function renderOverview(o) {
   if (settingsCanRender("tgBackup")) $("tgBackup").checked = groups.backup !== false;
   if (settingsCanRender("tgUpdate")) $("tgUpdate").checked = groups.update !== false;
   if (settingsCanRender("tgProblems")) $("tgProblems").checked = groups.problems !== false;
-  const masked = tg.botTokenMasked || "";
-  $("tgNote").hidden = !masked;
-  $("tgNote").textContent = masked ? "Токен сохранён. Введите новый, чтобы заменить." : "";
   if (tgEnabled) {
     const ns = o.notify || {};
     if (ns.ok === false && ns.error) {
@@ -2191,7 +2187,7 @@ function settingsFeedback(group, state, message) {
   const definition = SETTING_GROUPS[group];
   const card = $(definition.card) || $(definition.ids[0]).closest("section");
   let feedback = card.querySelector(".settings-feedback");
-  if (group === "autoBackup" && state === "ok") {
+  if ((group === "autoBackup" || group === "telegram") && state === "ok") {
     feedback?.remove();
     toast(message, "ok");
     return;
@@ -2223,7 +2219,9 @@ function saveSettingsGroup(group, body) {
         if (group === "telegram" && $("tgToken").value.trim() === body.telegram.botToken) $("tgToken").value = "";
         state.dirty = false;
         if (res.settings) acceptSettings(res.settings);
-        settingsFeedback(group, "ok", `${SETTING_GROUPS[group].title}: сохранено`);
+        settingsFeedback(group, "ok", group === "telegram" && body.telegram.botToken
+          ? "Токен сохранён. Введите новый, чтобы заменить."
+          : `${SETTING_GROUPS[group].title}: сохранено`);
       }
       return true;
     } catch (e) {

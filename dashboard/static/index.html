@@ -425,7 +425,6 @@
           <div><dt>Локальный</dt><dd class="mono"><button type="button" class="copy-value" id="updLocalCopy" aria-label="Скопировать локальный digest" disabled><span class="copy-label" id="updLocal">—</span></button></dd></div>
           <div><dt>В Docker Hub</dt><dd class="mono"><button type="button" class="copy-value" id="updRemoteCopy" aria-label="Скопировать digest из Docker Hub" disabled><span class="copy-label" id="updRemote">—</span></button></dd></div>
           <div><dt>Сборка latest</dt><dd id="updHubDate">—</dd></div>
-          <div><dt>Проверено</dt><dd id="updChecked">никогда</dd></div>
         </dl>
         <div class="actions">
           <button class="btn" id="btnCheckUpd">Проверить</button>
@@ -486,7 +485,7 @@
       <!-- УВЕДОМЛЕНИЯ TELEGRAM -->
       <section class="card c-notify" id="sec-notify" data-od-id="notify" aria-labelledby="hNotify">
         <header class="card-head">
-          <h2 id="hNotify">Уведомления</h2><span data-help-label="Об уведомлениях Telegram" data-help-text="Бот присылает выбранные события пульта. Сохранённый токен скрыт; оставьте поле пустым, чтобы не менять его."></span>
+          <h2 id="hNotify">Уведомления</h2>
           <span class="pill" id="tgPill" data-state="unknown">—</span>
         </header>
         <div class="auto-block">
@@ -499,7 +498,7 @@
           </div>
           <div class="auto-grid">
             <label class="field">Bot token
-              <input type="password" id="tgToken" placeholder="123456:ABC-DEF…" autocomplete="off" aria-describedby="tgNote" />
+              <input type="password" id="tgToken" placeholder="123456:ABC-DEF…" autocomplete="off" />
             </label>
             <label class="field">Chat ID
               <input type="text" id="tgChat" inputmode="numeric" placeholder="123456789 или -100…" autocomplete="off" />
@@ -512,11 +511,10 @@
             <label class="check"><input type="checkbox" id="tgProblems" checked /> Проблемы</label>
           </div>
           <div class="actions">
-            <button class="btn small" id="btnTgChats" type="button">Найти чаты бота</button><span data-help-label="Как найти чат бота" data-help-text="Напишите сообщение боту в нужном чате, затем нажмите «Найти чаты бота». Выберите чат из списка — Chat ID подставится автоматически."></span>
-            <button class="btn" id="btnTgTest">Проверить</button><span data-help-label="Если Telegram не находит чат" data-help-text="При ошибке «chat not found» отправьте боту /start в личном чате или добавьте его администратором группы. ID группы отрицательный, с префиксом −100."></span>
+            <button class="btn small" id="btnTgChats" type="button">Найти чаты бота</button>
+            <button class="btn" id="btnTgTest">Проверить</button>
           </div>
           <div id="tgChatsBody" class="tg-chats" hidden></div>
-          <p class="hint" id="tgNote" hidden></p>
         </div>
       </section>
     </div>

@@ -633,6 +633,8 @@ input:disabled, select:disabled, textarea:disabled { opacity: 0.55; cursor: not-
   border-top: 1px dashed var(--line-strong);
 }
 
+.c-notify .auto-block { margin-top: 0; padding-top: 0; border-top: none; }
+
 .auto-row { margin-bottom: 12px; }
 
 .auto-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--layout-gap); }
