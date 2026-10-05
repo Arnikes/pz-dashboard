@@ -1543,7 +1543,7 @@ body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--nav-height) + 
   .editor-card .editor-tabs { margin:0 0 8px; }
   .config-group summary { padding:8px 0; min-height:44px; }
   .config-grid { padding:8px 0; }
-  .draft-bar { position:relative; margin:12px var(--page-gutter) 24px; width:auto; max-width:none; bottom:auto; left:auto; right:auto; }
+  .draft-bar { position:relative; z-index:auto; margin:12px var(--page-gutter) 24px; width:auto; max-width:none; bottom:auto; left:auto; right:auto; }
   body:has(.draft-bar:not([hidden])) .main { padding-bottom:26px; }
   .toasts { bottom:calc(var(--nav-height) + 22px); }
   body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--nav-height) + 12px); max-height:calc(100dvh - var(--nav-height) - 24px); }
@@ -1559,7 +1559,7 @@ body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--nav-height) + 
   .order-toolbar { position:relative; top:auto; }
 }
 @media (max-height:600px) {
-  .draft-bar { position:relative; margin:12px var(--page-gutter) 24px; width:auto; max-width:none; bottom:auto; left:auto; right:auto; }
+  .draft-bar { position:relative; z-index:auto; margin:12px var(--page-gutter) 24px; width:auto; max-width:none; bottom:auto; left:auto; right:auto; }
   body:has(.draft-bar:not([hidden])) .main { padding-bottom:26px; }
   .toasts { bottom:calc(var(--nav-height) + 22px); }
   body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--nav-height) + 12px); max-height:calc(100dvh - var(--nav-height) - 24px); }

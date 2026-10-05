@@ -55,6 +55,8 @@ def navigate(page, route, mobile=False):
         page.locator(f'#moreMenu a[href="#/{route}"]').click()
     else:
         page.locator(f'.nav [data-route="{route}"]').click()
+    # Hash navigation finishes before the hashchange handler updates the views.
+    expect(page.locator(f"#view-{route}")).to_be_visible()
 
 
 @pytest.mark.parametrize("width", [320, 1440])
@@ -658,6 +660,33 @@ def test_more_menu_escape_restores_focus_and_marks_extra_page(page, dashboard, e
     expect(page.locator("#navMore")).to_be_focused()
 
 
+@pytest.mark.parametrize("width,height", [(320, 844), (390, 844), (390, 500)])
+def test_scrolling_draft_does_not_block_phone_navigation(page, dashboard, editing, width, height):
+    page.set_viewport_size({"width": width, "height": height})
+    page.goto(dashboard["url"] + "/#/settings")
+    expect(page.locator('[data-key="PublicName"]')).to_be_enabled()
+    page.locator('[data-key="PublicName"]').fill("Navigation draft")
+    page.locator('[data-key="PublicName"]').press("Tab")
+    expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
+    navigate(page, "mods")
+    # Put the scrolling draft actions beneath the fixed navigation's hit target.
+    page.evaluate("""() => {
+        const bar = document.querySelector('#draftBar').getBoundingClientRect();
+        const link = document.querySelector('.nav [data-route=settings]').getBoundingClientRect();
+        window.scrollBy(0, bar.top + bar.height / 2 - link.top - link.height / 2);
+    }""")
+    assert page.evaluate("""() => {
+        const bar = document.querySelector('#draftBar').getBoundingClientRect();
+        const link = document.querySelector('.nav [data-route=settings]').getBoundingClientRect();
+        const x = link.left + link.width / 2, y = link.top + link.height / 2;
+        return bar.top < y && bar.bottom > y
+            && !!document.elementFromPoint(x, y)?.closest('.nav [data-route=settings]');
+    }""")
+    page.screenshot(path=str(editing[0].parent / f"draft-navigation-{width}-{height}.png"))
+    navigate(page, "settings", True)
+    expect(page.locator('[data-key="PublicName"]')).to_have_value("Navigation draft")
+
+
 def test_phone_draft_secondary_actions_stay_available(page, dashboard, editing):
     page.set_viewport_size({"width": 390, "height": 844})
     page.goto(dashboard["url"])
@@ -1033,6 +1062,22 @@ def test_drag_handle_inserts_before_and_after_without_off_by_one(page, dashboard
 
 
 @pytest.mark.parametrize("width", [390, 1440])
+def test_navigation_waits_for_delayed_route(page, dashboard, editing, width):
+    page.set_viewport_size({"width": width, "height": 844})
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    # Make the gap between a link click and the route update deterministic.
+    page.evaluate("""() => {
+        window.removeEventListener('hashchange', applyRoute);
+        window.addEventListener('hashchange', () => setTimeout(applyRoute, 250));
+    }""")
+    for route in ("settings", "mods", "maintenance", "console"):
+        navigate(page, route, width <= 740)
+        assert page.locator(f"#view-{route}").is_visible(), route
+        assert page.locator(".view:visible").count() == 1
+
+
+@pytest.mark.parametrize("width", [390, 1440])
 def test_select_chevron_inset_and_text_space(page, dashboard, editing, width):
     page.set_viewport_size({"width": width, "height": 844})
     page.goto(dashboard["url"])
@@ -1040,15 +1085,18 @@ def test_select_chevron_inset_and_text_space(page, dashboard, editing, width):
     for route in ("settings", "mods", "maintenance", "console"):
         navigate(page, route, width <= 740)
         styles = page.locator("select:visible").evaluate_all("""els => els.map(el => {
-            const s=getComputedStyle(el); return {appearance:s.appearance,padding:parseFloat(s.paddingRight),
+            const s=getComputedStyle(el); return {id:el.id,appearance:s.appearance,padding:parseFloat(s.paddingRight),
                 position:s.backgroundPosition,image:s.backgroundImage,height:el.clientHeight,
                 textHeight:parseFloat(s.lineHeight)+parseFloat(s.paddingTop)+parseFloat(s.paddingBottom)};
         })""")
-        assert styles
+        assert styles, route
         for style in styles:
-            assert style["appearance"] == "none" and style["padding"] >= 42
-            assert "14px" in style["position"] and "data:image/svg+xml" in style["image"]
-            assert style["height"] + 1 >= style["textHeight"]
+            assert style["appearance"] == "none" and style["padding"] >= 42, (route, style)
+            assert "14px" in style["position"] and "data:image/svg+xml" in style["image"], (
+                route,
+                style,
+            )
+            assert style["height"] + 1 >= style["textHeight"], (route, style)
     assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
 
 

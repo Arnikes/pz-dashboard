@@ -20,8 +20,11 @@ def test_connection_loss_never_adds_header_timer(page, dashboard, width, transpo
     page.goto(dashboard["url"])
     if transport == "sse":
         page.wait_for_function("window.testStream")
-        page.evaluate("""data => window.testStream.dispatchEvent(
-            new MessageEvent('overview', {data:JSON.stringify(data)}))""", dashboard["overview"])
+        page.evaluate(
+            """data => window.testStream.dispatchEvent(
+            new MessageEvent('overview', {data:JSON.stringify(data)}))""",
+            dashboard["overview"],
+        )
     expect(page.locator("#btnStop")).to_be_enabled()
     expect(page.locator("#connBanner")).to_be_hidden()
     header = page.locator(".topbar")
@@ -40,8 +43,11 @@ def test_connection_loss_never_adds_header_timer(page, dashboard, width, transpo
         assert header.bounding_box()["height"] == original_height
         assert page.locator("#connBanner").evaluate("el => !el.closest('.topbar')")
     if transport == "sse":
-        page.evaluate("""data => window.testStream.dispatchEvent(
-            new MessageEvent('overview', {data:JSON.stringify(data)}))""", dashboard["overview"])
+        page.evaluate(
+            """data => window.testStream.dispatchEvent(
+            new MessageEvent('overview', {data:JSON.stringify(data)}))""",
+            dashboard["overview"],
+        )
     else:
         page.unroute("**/api/overview")
         page.evaluate("refreshOverview()")
