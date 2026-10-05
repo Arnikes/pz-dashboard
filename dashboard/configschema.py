@@ -510,3 +510,27 @@ def field(key, value, sandbox=False, custom=None, schema=None, translations=None
     if sandbox and not custom and key in SANDBOX_APPLICABILITY:
         rec["applicationScope"] = APPLICATION_SCOPES[SANDBOX_APPLICABILITY[key]].copy()
     return rec
+
+
+def check_field(field, value, errors, lua=False):
+    kind = field["type"]
+    if kind == "boolean":
+        if not isinstance(value, bool) and (lua or value not in ("true", "false")):
+            errors.append({"key": field["key"], "message": "Нужно true или false"})
+    elif kind in ("integer", "double", "enum"):
+        try:
+            if isinstance(value, bool) or lua and type(value) not in (int, float):
+                raise ValueError
+            number = float(value)
+            if not math.isfinite(number):
+                raise ValueError
+            if kind in ("integer", "enum") and not number.is_integer():
+                raise ValueError
+            if "min" in field and number < field["min"] or "max" in field and number > field["max"]:
+                raise ValueError
+            if field.get("choices") and number not in [v["value"] for v in field["choices"]]:
+                raise ValueError
+        except (TypeError, ValueError):
+            errors.append({"key": field["key"], "message": "Число вне допустимого диапазона"})
+    elif kind in ("string", "multiline", "list") and not isinstance(value, str):
+        errors.append({"key": field["key"], "message": "Нужен текст"})

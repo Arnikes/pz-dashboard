@@ -64,6 +64,11 @@ SVG-иконки и WOFF2-шрифты находятся в `dashboard/static/`
 | `dashboard/payloads.py` | Общие данные ответов JSON API и SSE, расписание каналов |
 | `dashboard/actions.py` | Проверка и диспетчеризация команд API, параметры фоновых операций |
 | `dashboard/ops.py` | Операции: старт/стоп/бэкапы/обновления, события, планировщик |
+| `dashboard/settingsmodel.py` | Правила настроек: значения по умолчанию, нормализация старых файлов и проверка изменений |
+| `dashboard/configeditor.py` | Черновики профилей, применение настроек и восстанавливаемые файловые транзакции |
+| `dashboard/configprofiles.py` | Ревизии профилей, объединение изменений и проверка изменений конфигов при старте PZ |
+| `dashboard/configschema.py` | Метаданные настроек B42 и проверка значений полей |
+| `dashboard/errors.py` | Общие ошибки операций и редактора, независимые от HTTP |
 | `dashboard/dockerlib.py` | Обёртка над docker CLI |
 | `dashboard/rcon.py` | Клиент Source RCON |
 | `dashboard/config.py` | Чтение переменных окружения |

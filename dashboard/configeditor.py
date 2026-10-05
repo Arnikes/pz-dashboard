@@ -3,7 +3,6 @@
 import difflib
 import hashlib
 import json
-import math
 import os
 import posixpath
 import re
@@ -17,6 +16,22 @@ from pathlib import Path
 
 import config
 import configschema
+from configschema import check_field as check_field
+from errors import EditorError as EditorError
+from configprofiles import (
+    PZ_RESET_COMMENT as PZ_RESET_COMMENT,
+    revision as revision,
+    merge_source as merge_source,
+    merge_profile as merge_profile,
+    issue_identity as issue_identity,
+    preserve_existing_issues as preserve_existing_issues,
+    startup_profile_matches as startup_profile_matches,
+    adopt_startup_comment as adopt_startup_comment,
+    adopt_startup_ini as adopt_startup_ini,
+    same_lua_value as same_lua_value,
+    startup_sandbox_defaults as startup_sandbox_defaults,
+    remember_mod_order as remember_mod_order,
+)
 import dockerlib
 import ops
 import workshop
@@ -41,12 +56,6 @@ from configformats import (
 
 LOCK = threading.RLock()
 _CONTEXT = {}
-
-
-class EditorError(ops.OpsError):
-    def __init__(self, message, status=400):
-        super().__init__(message)
-        self.status = status
 
 
 def sync_directory(path):
@@ -152,185 +161,6 @@ def read_profile(file):
                 "Конфигурация должна быть в UTF-8; исходный файл не изменён"
             ) from None
     return texts
-
-
-def revision(texts):
-    return hashlib.sha256(
-        json.dumps(texts, ensure_ascii=False, sort_keys=True).encode()
-    ).hexdigest()
-
-
-def merge_source(base, desired, current):
-    """Merge disjoint line edits without evaluating Lua or rewriting secrets."""
-    if desired == base or desired == current:
-        return current
-    if current == base:
-        return desired
-    lines = base.splitlines(keepends=True)
-
-    def edits(text):
-        target = text.splitlines(keepends=True)
-        return [
-            (i1, i2, target[j1:j2])
-            for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(
-                None, lines, target, autojunk=False
-            ).get_opcodes()
-            if tag != "equal"
-        ]
-
-    working, pending = edits(current), edits(desired)
-    combined = working.copy()
-    for change in pending:
-        if change in working:
-            continue
-        start, end, _ = change
-        for left, right, _ in working:
-            # Insertions at a replacement boundary are deliberately ambiguous.
-            overlap = (
-                left <= start <= right
-                if start == end
-                else start <= left <= end
-                if left == right
-                else max(start, left) < min(end, right)
-            )
-            if overlap:
-                raise EditorError(
-                    f"Обе версии изменяют строки {start + 1}–{max(start + 1, end)}. Объедините исходник вручную",
-                    409,
-                )
-        combined.append(change)
-    for start, end, replacement in sorted(combined, key=lambda edit: edit[:2], reverse=True):
-        lines[start:end] = replacement
-    return "".join(lines)
-
-
-def merge_profile(saved, current):
-    merged = {}
-    for kind in ("ini", "sandbox"):
-        try:
-            merged[kind] = merge_source(saved["base"][kind], saved["texts"][kind], current[kind])
-        except EditorError as error:
-            raise EditorError(f"{kind}: {error}", 409) from None
-    return merged
-
-
-def issue_identity(issue):
-    return tuple(issue.get(key) for key in ("code", "modId", "dependency", "message"))
-
-
-def preserve_existing_issues(issues, previous, mod_changes):
-    """Existing composition defects must not block unrelated setting edits."""
-    known = {issue_identity(issue) for issue in previous}
-    return [
-        {
-            **issue,
-            "severity": "warning",
-            "existing": True,
-        }
-        if not mod_changes and issue["severity"] == "error" and issue_identity(issue) in known
-        else issue
-        for issue in issues
-    ]
-
-
-PZ_RESET_COMMENT = re.compile(
-    r"^(# Reset ID determines if the server has undergone a soft-reset\. "
-    r"If this number does match the client, the client must create a new character\. "
-    r"Used in conjunction with PlayerServerID\. It is strongly advised that you backup "
-    r"these IDs somewhere Min: 0 Max: 2147483647 Default: )\d+(?=\r?\nResetID=\d+\r?$)",
-    re.M,
-)
-
-
-def startup_profile_matches(expected, actual, allow_runtime_reset=False):
-    """Accept only identified PZ startup metadata, never general disk changes.
-
-    B42 also generates ResetID after loading a world without z_outfits.bin.
-    Callers may accept it only when ResetID was not a requested edit and PZ/RCON
-    readiness was checked. Optimistic concurrency stays byte-exact everywhere.
-    """
-    if expected == actual:
-        return True
-    actual_ini = actual["ini"]
-    if allow_runtime_reset:
-        old = ini_entries(expected["ini"]).get("ResetID", {}).get("value")
-        new = ini_entries(actual_ini).get("ResetID", {}).get("value")
-        if old and new and new.isdigit() and 0 <= int(new) < 100_000_000:
-            actual_ini = edit_ini(actual_ini, {"ResetID": old})
-    return expected["sandbox"] == actual["sandbox"] and PZ_RESET_COMMENT.sub(
-        r"\g<1><generated>", expected["ini"]
-    ) == PZ_RESET_COMMENT.sub(r"\g<1><generated>", actual_ini)
-
-
-def adopt_startup_comment(text, actual):
-    generated = PZ_RESET_COMMENT.search(actual)
-    return PZ_RESET_COMMENT.sub(lambda _: generated[0], text) if generated else text
-
-
-def adopt_startup_ini(text, expected, actual):
-    text = adopt_startup_comment(text, actual)
-    before = ini_entries(expected).get("ResetID", {}).get("value")
-    pending = ini_entries(text).get("ResetID", {}).get("value")
-    current = ini_entries(actual).get("ResetID", {}).get("value")
-    return (
-        edit_ini(text, {"ResetID": current}) if before and pending == before and current else text
-    )
-
-
-def same_lua_value(left, right):
-    # Lua numbers may serialize as 2.0 or 2; true is never the number 1.
-    return left == right and (
-        type(left) is type(right) or type(left) in (int, float) and type(right) in (int, float)
-    )
-
-
-def startup_sandbox_defaults(expected, actual, discovered, selected):
-    """Accept PZ's literal serialization and declared selected-mod defaults only."""
-    if expected == actual:
-        return {}
-    before, after = literal_table(expected), literal_table(actual)
-    if not before or not after or not before.values.keys() <= after.values.keys():
-        return None
-
-    if any(
-        not same_lua_value(rec["value"], after.values[path]["value"])
-        for path, rec in before.values.items()
-    ):
-        return None
-    defaults, ambiguous = {}, set()
-    for records in discovered.values():
-        for rec in records:
-            if rec.get("modId") not in selected or rec.get("metadataStale"):
-                continue
-            for option in rec.get("options", []):
-                if "default" not in option:
-                    continue
-                path = tuple(option["key"].split("."))
-                if path in defaults and not same_lua_value(defaults[path], option["default"]):
-                    ambiguous.add(path)
-                defaults[path] = option["default"]
-    added = after.values.keys() - before.values.keys()
-    if any(
-        path not in defaults
-        or path in ambiguous
-        or not same_lua_value(after.values[path]["value"], defaults[path])
-        for path in added
-    ):
-        return None
-    tables = before.tables.keys() | {path[:i] for path in added for i in range(1, len(path))}
-    if after.tables.keys() != tables:
-        return None
-    return {".".join(path): after.values[path]["value"] for path in added}
-
-
-def remember_mod_order(memory, selected):
-    """Reorder active slots while keeping positions of disabled IDs."""
-    memory = list(dict.fromkeys(memory))
-    known = set(memory).intersection(selected)
-    ordered = iter(mid for mid in selected if mid in known)
-    return [next(ordered) if mid in known else mid for mid in memory] + [
-        mid for mid in selected if mid not in memory
-    ]
 
 
 def shared_data_path(mounts, cache_dirs):
@@ -1118,30 +948,6 @@ def syntax_check(text):
         raise EditorError("Проверка синтаксиса Lua превысила время ожидания") from None
     finally:
         os.unlink(path)
-
-
-def check_field(field, value, errors, lua=False):
-    kind = field["type"]
-    if kind == "boolean":
-        if not isinstance(value, bool) and (lua or value not in ("true", "false")):
-            errors.append({"key": field["key"], "message": "Нужно true или false"})
-    elif kind in ("integer", "double", "enum"):
-        try:
-            if isinstance(value, bool) or lua and type(value) not in (int, float):
-                raise ValueError
-            number = float(value)
-            if not math.isfinite(number):
-                raise ValueError
-            if kind in ("integer", "enum") and not number.is_integer():
-                raise ValueError
-            if "min" in field and number < field["min"] or "max" in field and number > field["max"]:
-                raise ValueError
-            if field.get("choices") and number not in [v["value"] for v in field["choices"]]:
-                raise ValueError
-        except (TypeError, ValueError):
-            errors.append({"key": field["key"], "message": "Число вне допустимого диапазона"})
-    elif kind in ("string", "multiline", "list") and not isinstance(value, str):
-        errors.append({"key": field["key"], "message": "Нужен текст"})
 
 
 def confirmed_container():

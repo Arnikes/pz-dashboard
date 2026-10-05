@@ -3,7 +3,6 @@
 планировщик автообновления. Всё на стандартной библиотеке."""
 
 import json
-import math
 import os
 import re
 import shutil
@@ -20,9 +19,20 @@ from datetime import datetime, timedelta, timezone
 from itertools import islice
 
 import config
+import settingsmodel
+from settingsmodel import (
+    DEFAULTS as _DEFAULTS,
+    valid_hhmm as _valid_hhmm,
+    norm_hhmm as _norm_hhmm,
+)
+from errors import OpsError as OpsError, OpsErrorReported as OpsErrorReported
 import dockerlib
 import notify as notifylib
 import rcon as rconlib
+
+# Keep the previous helpers available to callers while the model owns the rules.
+_clamp_int = settingsmodel.clamp_int
+_TIME_RE = settingsmodel.TIME_RE
 
 # ─────────────────────────── утилиты времени ───────────────────────────
 
@@ -132,65 +142,9 @@ def get_events(limit=100):
 # ─────────────────────────── настройки ───────────────────────────
 
 _SET_LOCK = threading.Lock()
-_DEFAULTS = {
-    "autoUpdate": {
-        "enabled": False,
-        "intervalHours": 6,
-        "warnSeconds": 300,
-        "backupBeforeUpdate": True,
-    },
-    "modsUpdate": {
-        "enabled": False,
-        "intervalHours": 6,
-        "restartOnUpdate": True,
-        "warnSeconds": 600,
-    },
-    "telegram": {
-        "enabled": False,
-        "botToken": "",
-        "chatId": "",
-        "groups": {"ops": True, "backup": True, "update": True, "problems": True},
-    },
-    "backup": {"stopServer": False, "maxBackups": 7},
-    "autoBackup": {"enabled": False, "time": "03:00", "stopServer": False},
-    "watchdog": {"enabled": False, "thresholdMin": 5, "autoRestart": False},
-    "nextCheck": None,
-    "nextModsCheck": None,
-    "nextBackupRun": None,
-    "modsDisabled": {},  # workshop id -> {title, modIds, at} — выключенные из конфига
-}
-
 # рабочая копия настроек: мутируется в рантайме, _DEFAULTS остаётся эталоном
 _SETTINGS = json.loads(json.dumps(_DEFAULTS))
 _SETTINGS_VERSION = {"epoch": uuid.uuid4().hex, "revision": 0}
-
-
-def _clamp_int(value, lo, hi):
-    """int с клампом для patch_settings; None — если значение не числовое."""
-    if isinstance(value, bool):
-        return None
-    try:
-        return max(lo, min(hi, int(value)))
-    except (TypeError, ValueError, OverflowError):
-        return None
-
-
-_TIME_RE = re.compile(r"^(\d{1,2}):(\d{2})$")
-
-
-def _valid_hhmm(value):
-    """Строка «ЧЧ:ММ» с валидными часами и минутами."""
-    if not isinstance(value, str):
-        return False
-    m = _TIME_RE.match(value.strip())
-    if not m:
-        return False
-    return 0 <= int(m.group(1)) <= 23 and 0 <= int(m.group(2)) <= 59
-
-
-def _norm_hhmm(value):
-    m = _TIME_RE.match(str(value).strip())
-    return f"{int(m.group(1)):02d}:{int(m.group(2)):02d}"
 
 
 def _next_daily_run(time_str, now=None):
@@ -205,60 +159,14 @@ def _next_daily_run(time_str, now=None):
 
 def _load_settings():
     try:
-        with open(config.CFG["settings_file"], encoding="utf-8") as f:
-            data = json.load(f)
+        with open(config.CFG["settings_file"], encoding="utf-8") as stream:
+            data = json.load(stream)
         if not isinstance(data, dict):
             raise ValueError("Настройки должны быть объектом")
-        for k, v in data.items():
-            if isinstance(_DEFAULTS.get(k), dict) and isinstance(v, dict) and k != "modsDisabled":
-                _SETTINGS[k].update(v)
-            elif k == "modsDisabled" and isinstance(v, dict):
-                _SETTINGS["modsDisabled"] = v
-            elif k in ("nextCheck", "nextModsCheck", "nextBackupRun"):
-                # метка планировщика — только число; строка/список из рук
-                # иначе роняли бы планировщик TypeError'ом каждые 20 с
-                _SETTINGS[k] = (
-                    v
-                    if isinstance(v, (int, float))
-                    and not isinstance(v, bool)
-                    and not (isinstance(v, float) and not math.isfinite(v))
-                    else None
-                )
+        settingsmodel.merge_loaded(_SETTINGS, data)
     except (OSError, ValueError):
         pass
-    # значения из старого/ручного файла не должны обходить валидацию patch_settings:
-    # интервал 0 превратил бы планировщик в цикл проверок каждые 20 с
-    for section, key, lo, hi in (
-        ("autoUpdate", "intervalHours", 1, 168),
-        ("autoUpdate", "warnSeconds", 0, 3600),
-        ("modsUpdate", "intervalHours", 1, 168),
-        ("modsUpdate", "warnSeconds", 0, 3600),
-        ("watchdog", "thresholdMin", 1, 60),
-        ("backup", "maxBackups", 0, 200),
-    ):
-        val = _SETTINGS[section].get(key)
-        normalized = _clamp_int(val, lo, hi) if isinstance(val, (int, float)) else None
-        _SETTINGS[section][key] = _DEFAULTS[section][key] if normalized is None else normalized
-    for section, defaults in _DEFAULTS.items():
-        if not isinstance(defaults, dict):
-            continue
-        for key, default in defaults.items():
-            if isinstance(default, bool) and not isinstance(_SETTINGS[section].get(key), bool):
-                _SETTINGS[section][key] = default
-            elif isinstance(default, str) and not isinstance(_SETTINGS[section].get(key), str):
-                _SETTINGS[section][key] = default
-    groups = _SETTINGS["telegram"].get("groups")
-    _SETTINGS["telegram"]["groups"] = {
-        key: groups[key]
-        if isinstance(groups, dict) and isinstance(groups.get(key), bool)
-        else default
-        for key, default in _DEFAULTS["telegram"]["groups"].items()
-    }
-    # время автобэкапа — строка «ЧЧ:ММ»; мусор из рук заменяется значением по умолчанию
-    if not _valid_hhmm(_SETTINGS["autoBackup"].get("time")):
-        _SETTINGS["autoBackup"]["time"] = _DEFAULTS["autoBackup"]["time"]
-    else:
-        _SETTINGS["autoBackup"]["time"] = _norm_hhmm(_SETTINGS["autoBackup"]["time"])
+    settingsmodel.normalize_loaded(_SETTINGS)
 
 
 def _save_settings():
@@ -295,130 +203,11 @@ def telegram_settings_raw():
 
 
 def patch_settings(patch):
-    """Обновить настройки с валидацией. Возвращает текст ошибки или None."""
-    if not isinstance(patch, dict):
-        return "неверный формат настроек"
-    patch = json.loads(json.dumps(patch))
+    """Validate a detached candidate, then publish and persist it under one lock."""
     with _SET_LOCK:
-        updated = json.loads(json.dumps(_SETTINGS))
-        au = patch.get("autoUpdate")
-        if au is not None:
-            if not isinstance(au, dict):
-                return "неверный формат autoUpdate"
-            if "enabled" in au and not isinstance(au["enabled"], bool):
-                return "enabled должен быть true/false"
-            if "intervalHours" in au:
-                v = _clamp_int(au["intervalHours"], 1, 168)
-                if v is None:
-                    return "intervalHours должен быть числом 1–168"
-                au["intervalHours"] = v
-            if "warnSeconds" in au:
-                v = _clamp_int(au["warnSeconds"], 0, 3600)
-                if v is None:
-                    return "warnSeconds должен быть числом 0–3600"
-                au["warnSeconds"] = v
-            if "backupBeforeUpdate" in au and not isinstance(au["backupBeforeUpdate"], bool):
-                return "backupBeforeUpdate должен быть true/false"
-            updated["autoUpdate"].update(au)
-        mu = patch.get("modsUpdate")
-        if mu is not None:
-            if not isinstance(mu, dict):
-                return "неверный формат modsUpdate"
-            if "enabled" in mu and not isinstance(mu["enabled"], bool):
-                return "enabled должен быть true/false"
-            if "intervalHours" in mu:
-                v = _clamp_int(mu["intervalHours"], 1, 168)
-                if v is None:
-                    return "intervalHours должен быть числом 1–168"
-                mu["intervalHours"] = v
-            if "warnSeconds" in mu:
-                v = _clamp_int(mu["warnSeconds"], 0, 3600)
-                if v is None:
-                    return "warnSeconds должен быть числом 0–3600"
-                mu["warnSeconds"] = v
-            if "restartOnUpdate" in mu and not isinstance(mu["restartOnUpdate"], bool):
-                return "restartOnUpdate должен быть true/false"
-            updated["modsUpdate"].update(mu)
-        wd = patch.get("watchdog")
-        if wd is not None:
-            if not isinstance(wd, dict):
-                return "неверный формат watchdog"
-            if "enabled" in wd and not isinstance(wd["enabled"], bool):
-                return "watchdog.enabled должен быть true/false"
-            if "thresholdMin" in wd:
-                v = _clamp_int(wd["thresholdMin"], 1, 60)
-                if v is None:
-                    return "thresholdMin должен быть числом 1–60"
-                wd["thresholdMin"] = v
-            if "autoRestart" in wd and not isinstance(wd["autoRestart"], bool):
-                return "watchdog.autoRestart должен быть true/false"
-            updated["watchdog"].update(wd)
-        bk = patch.get("backup")
-        if bk is not None:
-            if not isinstance(bk, dict):
-                return "неверный формат backup"
-            if "stopServer" in bk and not isinstance(bk["stopServer"], bool):
-                return "stopServer должен быть true/false"
-            if "maxBackups" in bk:
-                v = _clamp_int(bk["maxBackups"], 0, 200)
-                if v is None:
-                    return "maxBackups должен быть числом 0–200"
-                bk["maxBackups"] = v
-            updated["backup"].update(bk)
-        abk = patch.get("autoBackup")
-        if abk is not None:
-            if not isinstance(abk, dict):
-                return "неверный формат autoBackup"
-            if "enabled" in abk and not isinstance(abk["enabled"], bool):
-                return "enabled должен быть true/false"
-            if "time" in abk:
-                if not _valid_hhmm(abk["time"]):
-                    return "time должен быть временем в формате ЧЧ:ММ"
-                abk["time"] = _norm_hhmm(abk["time"])
-            if "stopServer" in abk and not isinstance(abk["stopServer"], bool):
-                return "stopServer должен быть true/false"
-            updated["autoBackup"].update(abk)
-            if "enabled" in abk or "time" in abk:
-                # расписание изменилось — пересчитать следующий запуск
-                updated["nextBackupRun"] = (
-                    _next_daily_run(updated["autoBackup"]["time"])
-                    if updated["autoBackup"]["enabled"]
-                    else None
-                )
-        tg = patch.get("telegram")
-        if tg is not None:
-            if not isinstance(tg, dict):
-                return "неверный формат telegram"
-            if "enabled" in tg and not isinstance(tg["enabled"], bool):
-                return "telegram.enabled должен быть true/false"
-            groups = tg.get("groups")
-            if groups is not None:
-                if not isinstance(groups, dict):
-                    return "неверный формат groups"
-                tg["groups"] = {
-                    k: bool(groups[k])
-                    for k in ("ops", "backup", "update", "problems")
-                    if k in groups
-                }
-            tok = tg.get("botToken")
-            if tok is None or (isinstance(tok, str) and not tok.strip()):
-                tg.pop("botToken", None)  # пустое поле — не менять токен
-            elif isinstance(tok, str):
-                tok = tok.strip()
-                if "•" in tok:  # маска от get_settings — не менять
-                    tg.pop("botToken", None)
-                else:
-                    tg["botToken"] = tok[:80]
-            else:
-                return "botToken должен быть строкой"
-            cid = tg.get("chatId")
-            if cid is None:
-                tg.pop("chatId", None)
-            elif isinstance(cid, str):
-                tg["chatId"] = cid.strip()[:32]
-            else:
-                return "chatId должен быть строкой"
-            updated["telegram"].update(tg)
+        updated, error = settingsmodel.prepare_patch(_SETTINGS, patch, _next_daily_run)
+        if error:
+            return error
         _SETTINGS.update(updated)
         _SETTINGS_VERSION["revision"] += 1
         _save_settings()
@@ -613,16 +402,6 @@ def graceful_stop(phase_hook=None):
 
 
 # ─────────────────────────── операции ───────────────────────────
-
-
-class OpsError(Exception):
-    pass
-
-
-class OpsErrorReported(OpsError):
-    """OpsError, о которой уже сообщено (событие и журнал) — воркер не дублирует."""
-
-    pass
 
 
 _OP_LOCK = threading.Lock()
