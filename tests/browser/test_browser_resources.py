@@ -6,6 +6,55 @@ from playwright.sync_api import expect
 pytestmark = pytest.mark.browser
 
 
+@pytest.mark.parametrize("width", [390, 1440])
+@pytest.mark.parametrize("transport", ["sse", "polling"])
+def test_connection_loss_never_adds_header_timer(page, dashboard, width, transport):
+    page.set_viewport_size({"width": width, "height": 844})
+    if transport == "sse":
+        page.add_init_script("""window.EventSource = class extends EventTarget {
+            constructor() { super(); window.testStream = this; }
+            close() {}
+        };""")
+    else:
+        page.add_init_script("window.EventSource = undefined;")
+    page.goto(dashboard["url"])
+    if transport == "sse":
+        page.wait_for_function("window.testStream")
+        page.evaluate("""data => window.testStream.dispatchEvent(
+            new MessageEvent('overview', {data:JSON.stringify(data)}))""", dashboard["overview"])
+    expect(page.locator("#btnStop")).to_be_enabled()
+    expect(page.locator("#connBanner")).to_be_hidden()
+    header = page.locator(".topbar")
+    original_text = header.inner_text()
+    original_height = header.bounding_box()["height"]
+    page.clock.install()
+    page.clock.pause_at(page.evaluate("Date.now()"))
+    if transport == "polling":
+        page.route("**/api/overview", lambda route: route.abort())
+    for elapsed in [15000, 45000, 60000]:
+        page.clock.run_for(elapsed)
+        expect(page.locator("#connBanner")).to_be_visible()
+        expect(page.locator("#connBanner")).to_contain_text("Нет связи с пультом")
+        expect(page.locator("#freshness, .header-meta, #clock")).to_have_count(0)
+        expect(header).to_have_text(original_text, use_inner_text=True)
+        assert header.bounding_box()["height"] == original_height
+        assert page.locator("#connBanner").evaluate("el => !el.closest('.topbar')")
+    if transport == "sse":
+        page.evaluate("""data => window.testStream.dispatchEvent(
+            new MessageEvent('overview', {data:JSON.stringify(data)}))""", dashboard["overview"])
+    else:
+        page.unroute("**/api/overview")
+        page.evaluate("refreshOverview()")
+    expect(page.locator("#connBanner")).to_be_hidden()
+    expect(header).to_have_text(original_text, use_inner_text=True)
+    page.set_viewport_size({"width": 1440 if width == 390 else 390, "height": 844})
+    if width == 390:
+        expect(page.locator(".topbar #btnLogout")).to_be_visible()
+    else:
+        expect(page.locator(".health-tools #btnLogout")).to_have_count(1)
+    assert dashboard["actions"] == []
+
+
 def test_hidden_tab_closes_stream_and_reopens_once(page, dashboard):
     page.add_init_script("""
         window.testStreams = [];

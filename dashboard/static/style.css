@@ -168,11 +168,6 @@ a { color: var(--muted); }
 }
 
 .top-right { display:grid; grid-template-columns:minmax(160px,300px) auto auto; align-items:center; gap:4px 12px; min-width:0; }
-.header-meta { grid-column:1/-1; display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:4px 16px; min-width:0; }
-.header-meta:has(.fresh:empty) { display:none; }
-.header-meta .fresh { font-size:12px; line-height:18px; color:var(--muted); font-variant-numeric:tabular-nums; }
-.header-meta .fresh.stale { color:var(--warn); }
-.header-meta .fresh:empty { display:none; }
 .topbar #btnCommands, .topbar #btnLogout { min-height:var(--control-height); font-size:13.5px; white-space:nowrap; }
 
 .brand-version { color:var(--muted); font-size:12px; line-height:18px; }
@@ -654,7 +649,6 @@ input:disabled, select:disabled, textarea:disabled { opacity: 0.55; cursor: not-
   .pill { padding: 4px 7px; font-size: 10.5px; letter-spacing: 0.02em; }
   .brand-name { font-size: 13px; }
   .brand-icon { width: 24px; height: 24px; }
-  .fresh { font-size: 10.5px; }
 }
 
 .field {
@@ -1105,8 +1099,6 @@ select { cursor: pointer; }
 /* ───────────────────── V5: якоря, нюджеты, копирование, тултипы ───────────────────── */
 
 
-.fresh { font-size: 11.5px; color: var(--faint); }
-.fresh.stale { color: var(--warn); }
 
 /* постоянная навигация по страницам: активный пункт подсвечен */
 .nav {
@@ -1402,7 +1394,6 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--draft-heigh
   .topbar .brand { grid-column:1/-1; align-items:center; gap:8px; }
   .topbar .brand-icon { margin:0; width:24px; height:24px; }
   .brand-name { font-size:15px; font-weight:600; }
-  .header-meta { grid-row:3; gap:4px 12px; }
   .config-context { grid-column:1; grid-row:2; width:100%; }
   .profile-label { width:100%; min-width:0; }
   #btnCommands { grid-column:2; grid-row:2; align-self:end; justify-self:end; width:44px; min-height:44px; padding:10px; }

@@ -1,6 +1,6 @@
 /* PZ Пульт · V19 — логика интерфейса.
    V19: подпись события «mods» в журнале; host-only автонастройки глушатся в
-   remote-режиме; тикер свежести данных живёт и в SSE-режиме.
+   remote-режиме; предупреждение о потере связи работает и в SSE-режиме.
    Мультистраничный каркас: hash-роутинг (#/overview, #/mods, …), 7 страниц,
    SSE-поток /api/stream живёт между переключениями; при недоступности — опрос.
    При отсутствии API включается демо-режим.
@@ -2307,7 +2307,7 @@ let connFailStreak = 0;
 
 function markConnFail() {
   connFailStreak++;
-  if (!S.demo) $("connBanner").hidden = connFailStreak < 2;
+  updateConnectionWarning();
 }
 
 function applyOverview(o) {
@@ -2319,7 +2319,6 @@ function applyOverview(o) {
     consoleBootLine = null;
   }
   S.lastDataOk = Date.now();
-  updateFreshness();
   renderOverview(o);
 }
 
@@ -2377,24 +2376,10 @@ function refreshAll() {
   refreshOverview(); refreshPlayers(); refreshStats(); refreshBackups(); refreshEvents(); refreshPlayersHistory(); refreshStatsHistory(); refreshMods();
 }
 
-/* В шапке показываем только предупреждение об устаревших данных. */
-function updateFreshness() {
-  updateOperationElapsed();
-  const el = $("freshness");
-  if (!el) return;
-  if (S.demo || !S.lastDataOk) { el.textContent = ""; el.title = ""; el.classList.remove("stale"); return; }
-  const updated = timeFullFmt.format(S.lastDataOk);
-  const age = Date.now() - S.lastDataOk;
-  if (age < 15000) {
-    el.classList.remove("stale");
-    el.textContent = "";
-    el.title = "";
-  } else {
-    el.classList.add("stale");
-    const mins = Math.floor(age / 60000);
-    el.textContent = "нет данных " + (mins >= 1 ? mins + " мин" : Math.floor(age / 1000) + " с");
-    el.title = "Последние данные получены в " + updated;
-  }
+/* Потеря связи обозначается предупреждением вне шапки, без отсчёта времени. */
+function updateConnectionWarning() {
+  const stale = S.lastDataOk && Date.now() - S.lastDataOk >= 15000;
+  $("connBanner").hidden = S.demo || !(stale || connFailStreak >= 2);
 }
 
 let pollingStarted = false;
@@ -2452,7 +2437,7 @@ function adaptHealthDisclosure() {
   if (mobileLayout.matches) {
     disclosure.querySelector(".health-tools").append($("btnLogout"));
   } else {
-    document.querySelector(".header-meta").before($("btnLogout"));
+    document.querySelector(".top-right").append($("btnLogout"));
   }
   if (focused === $("btnLogout")) (mobileLayout.matches ? disclosure.querySelector("summary") : focused).focus();
   const editing = /^(settings|mods)$/.test(location.hash.replace(/^#\/?/, ""));
@@ -2633,7 +2618,6 @@ function startSse() {
     connFailStreak = 0;
     $("connBanner").hidden = true;
     S.lastDataOk = Date.now();
-    updateFreshness();
     try { apply(JSON.parse(e.data)); } catch (err) { /* битый кадр пропускаем */ }
   });
   bind("overview", applyOverview);
@@ -2668,9 +2652,11 @@ document.addEventListener("visibilitychange", () => {
 });
 
 async function boot() {
-  // тикер свежести живёт всегда: в SSE-режиме при молчащем потоке шапка
-  // честно показывает «нет данных N мин», а не замирает на старом времени
-  setInterval(() => { if (!document.hidden) updateFreshness(); }, 5000);
+  setInterval(() => {
+    if (document.hidden) return;
+    updateConnectionWarning();
+    updateOperationElapsed();
+  }, 5000);
   consoleBootLine = consoleAppend("Пульт подключается к серверу…", "c-dim");
   applyRoute();
   if (location.protocol === "file:" || new URLSearchParams(location.search).get("demo") === "1") {
@@ -2681,7 +2667,8 @@ async function boot() {
     const h = await api("/api/health", { timeout: 3500 });
     if (!h.ok) throw new Error("no health");
   } catch (e) {
-    $("connBanner").hidden = false;
+    connFailStreak = Math.max(connFailStreak, 2);
+    updateConnectionWarning();
     $("connBanner").textContent = "Нет связи с пультом. Последние данные сохраняются; повторное подключение идёт автоматически.";
     startPolling();
     return;

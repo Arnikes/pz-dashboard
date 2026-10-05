@@ -9,8 +9,8 @@
   метки nextCheck в settings.json валидируются; кэш docker compose version;
   отсчёт предупреждения работает и для длительностей не кратных 10 с;
   понятный текст таймаута tar; в журнале подпись событий «Моды»;
-  в remote-режиме host-only автонастройки отключаются; индикатор свежести
-  данных тикает в SSE-режиме; скачивание исчезнувшего бэкапа даёт 404)
+  в remote-режиме host-only автонастройки отключаются; потеря связи
+  обозначается предупреждением; скачивание исчезнувшего бэкапа даёт 404)
   Предыдущая: V17 (Telegram-уведомления о событиях с группами подписки и проверкой связи;
   Watchdog RCON без ложных сбоев на остановке/операциях, кулдаун авторестарта;
   управление составом модов из UI: выключение/включение Workshop-элементов с правкой
@@ -53,9 +53,6 @@
       </div>
       <button class="btn" id="btnCommands" type="button" title="Быстрые команды (Ctrl K)" aria-label="Быстрые команды" aria-keyshortcuts="Control+k Meta+k" aria-haspopup="dialog" aria-controls="commandDialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><span class="command-label">Быстрые команды</span></button>
       <button class="btn ghost" id="btnLogout" type="button">Выйти</button>
-      <div class="header-meta">
-        <span class="fresh" id="freshness"></span>
-      </div>
     </div>
   </header>
 

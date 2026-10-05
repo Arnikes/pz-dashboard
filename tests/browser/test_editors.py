@@ -720,7 +720,7 @@ def test_header_profile_context_is_clear_and_aligned(page, dashboard, editing, w
     expect(page.locator("#configProfile option:checked")).to_have_text("world.ini")
     expect(page.locator("#clock, #topLamp")).to_have_count(0)
     expect(page.locator("#serverName")).to_have_count(0)
-    expect(page.locator("#freshness")).to_be_hidden()
+    expect(page.locator("#freshness, .header-meta")).to_have_count(0)
     assert "Активен на сервере" not in page.locator(".topbar").inner_text()
     page.locator("#configProfile").select_option(other)
     expect(page.locator("#configActive")).to_have_text("Другой профиль")
@@ -786,30 +786,6 @@ def test_header_does_not_claim_unknown_profile_is_active(page, dashboard, editin
         "href", "static/config-help.html"
     )
     expect(page.locator("#configApply")).to_be_disabled()
-
-
-def test_header_time_describes_data_freshness_and_preserves_last_update(page, dashboard, editing):
-    page.goto(dashboard["url"])
-    expect(page.locator("#configProfile")).to_have_value("world.ini")
-    result = page.evaluate("""() => {
-        S.demo = false;
-        const lastUpdate = Date.now(); S.lastDataOk = lastUpdate;
-        updateFreshness();
-        const fresh = document.querySelector('#freshness').textContent;
-        S.lastDataOk = lastUpdate - 120000; updateFreshness();
-        const el = document.querySelector('#freshness');
-        return {fresh,stale:el.textContent,lastUpdate:el.title,warning:el.classList.contains('stale'),
-            expectedTime:timeFullFmt.format(S.lastDataOk)};
-    }""")
-    assert result["fresh"] == ""
-    assert result["stale"] == "нет данных 2 мин"
-    assert result["lastUpdate"] == "Последние данные получены в " + result["expectedTime"]
-    assert result["warning"]
-    expect(page.locator("#freshness")).to_be_visible()
-    page.evaluate("S.lastDataOk = Date.now(); updateFreshness()")
-    expect(page.locator("#freshness")).to_be_hidden()
-    expect(page.locator(".header-meta")).to_be_hidden()
-    expect(page.locator("#clock, #topLamp")).to_have_count(0)
 
 
 @pytest.mark.parametrize("width", [1440, 390])
