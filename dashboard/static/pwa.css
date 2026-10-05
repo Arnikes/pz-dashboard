@@ -31,6 +31,13 @@
 .pwa-button:disabled { opacity: .55; cursor: wait; }
 .login-page:has(.pwa-bar:not([hidden])) { align-content: center; gap: 20px; }
 .login-page .pwa-bar { width: 100%; max-width: 400px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; }
+@media (min-width: 741px) {
+  .topbar + .pwa-bar {
+    margin-left: var(--sidebar-width);
+    max-width: var(--content-width);
+    padding-inline: var(--page-gutter);
+  }
+}
 .pwa-offline-page {
   margin: 0;
   box-sizing: border-box;

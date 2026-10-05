@@ -230,3 +230,39 @@ def test_offline_layout_mobile_and_desktop(page, pwa_server, tmp_path):
         assert page.locator("#pwaRetry").bounding_box()["height"] >= 44
         page.screenshot(path=str(tmp_path / f"offline-{width}.png"), full_page=True)
     page.context.set_offline(False)
+
+
+@pytest.mark.browser_context_args(service_workers="block")
+@pytest.mark.parametrize("width", [1667, 1440, 741, 740, 390, 320])
+def test_install_bar_stays_clear_of_navigation(page, dashboard, tmp_path, width):
+    page.set_viewport_size({"width": width, "height": 900})
+    page.goto(dashboard["url"])
+    page.evaluate("""() => {
+      window.installCalls = 0;
+      const event = new Event('beforeinstallprompt', {cancelable: true});
+      event.prompt = async () => { window.installCalls++; };
+      event.userChoice = Promise.resolve({outcome: 'dismissed'});
+      window.dispatchEvent(event);
+    }""")
+    button = page.locator("#pwaInstall")
+    expect(button).to_be_visible()
+    page.screenshot(path=str(tmp_path / f"install-bar-{width}.png"))
+    nav = page.locator(".nav").bounding_box()
+    bar = page.locator(".pwa-bar").bounding_box()
+    if width >= 741:
+        assert bar["x"] >= nav["x"] + nav["width"]
+        heading = page.locator("#view-overview h1").bounding_box()
+        message = page.locator(".pwa-message").bounding_box()
+        assert abs(message["x"] - heading["x"]) <= 1
+    else:
+        assert bar["y"] + bar["height"] <= nav["y"]
+        assert bar["x"] == 0
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    box = button.bounding_box()
+    assert page.evaluate(
+        """({x, y}) => !!document.elementFromPoint(x, y)?.closest('#pwaInstall')""",
+        {"x": box["x"] + box["width"] / 2, "y": box["y"] + box["height"] / 2},
+    )
+    button.click()
+    assert page.evaluate("window.installCalls") == 1
+    expect(page.locator(".pwa-bar")).to_be_hidden()
