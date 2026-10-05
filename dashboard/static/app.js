@@ -709,15 +709,8 @@ function renderOverview(o) {
     const skipped = wds.lastResult === "skipped" && !fails;
     setPill("wdPill", fails ? "bad" : skipped ? "unknown" : "ok",
       fails ? `сбои: ${fails}` : skipped ? "ожидание" : "следит");
-    $("wdStatus").hidden = false;
-    $("wdStatus").className = "hint mono " + (fails ? "bad" : "ok");
-    $("wdStatus").textContent = `проба ${fmtTime(wds.lastProbeAt)} · ` +
-      (skipped ? "сервер остановлен или идёт операция — проба пропущена"
-               : `сбоев подряд: ${fails}`) +
-      (fails && wds.lastError ? ` · ${wds.lastError}` : "");
   } else {
     setPill("wdPill", "unknown", "выкл");
-    $("wdStatus").hidden = true;
   }
 
   // уведомления Telegram
@@ -745,10 +738,6 @@ function renderOverview(o) {
   } else {
     setPill("tgPill", "unknown", "выкл");
   }
-
-  const next = o.settings?.nextCheck;
-  $("autoNext").hidden = !(au.enabled && next);
-  if (au.enabled && next) $("autoNext").textContent = `Следующая проверка: ${new Date(next * 1000).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`;
 
   // проверка модов (RCON checkModsNeedUpdate)
   const mc = o.modsCheck || {};
