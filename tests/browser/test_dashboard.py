@@ -95,6 +95,8 @@ def test_paused_log_scrolling_keeps_receiving_new_lines(page, dashboard):
 
 @pytest.mark.parametrize("mode", ["local", "http", "denied"])
 def test_copy_field_writes_full_text_to_clipboard(page, dashboard, mode):
+    value = f"sha256:0123456789abcdef — полный текст ({mode})\nвторая строка"
+    dashboard["overview"]["image"] = value
     url = dashboard["url"]
     if mode == "http":
         # Keep a non-loopback HTTP origin, serving the real static assets.
@@ -126,18 +128,21 @@ def test_copy_field_writes_full_text_to_clipboard(page, dashboard, mode):
             }""")
 
     expect(page.locator("#btnStop")).to_be_enabled()
-    value = f"sha256:0123456789abcdef — полный текст ({mode})\nвторая строка"
     page.evaluate(
         """value => {
         const field = document.getElementById('mImage');
-        field.textContent = 'sha256:012…';
+        field.querySelector('.copy-label').textContent = 'sha256:012…';
+        field.disabled = false;
         field.dataset.copy = value;
     }""",
         value,
     )
     page.locator("#serverDetails summary").click()
     page.locator("#mImage").click()
-    expect(page.locator('#toasts .toast[data-kind="ok"]')).to_contain_text("Скопировано:")
+    expect(page.locator("#mImage")).to_have_attribute("data-copied", "true")
+    expect(page.locator("#mImage .copy-icon-check")).to_be_visible()
+    expect(page.locator("#mImage .copy-icon-default")).to_be_hidden()
+    expect(page.locator('#toasts .toast[data-kind="ok"]')).to_have_count(0)
     # Paste via the browser to check the actual clipboard, not a mocked API call.
     page.evaluate("""() => {
         const target = document.createElement('textarea');

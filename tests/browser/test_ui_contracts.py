@@ -477,15 +477,17 @@ def test_destructive_dialog_starts_with_safe_focus_and_restore_ack_stays_require
 
 @pytest.mark.parametrize("key", ["Enter", "Space"])
 def test_explicit_copy_button_works_from_keyboard_with_full_digest(page, dashboard, key):
+    value = "sha256:" + "0123456789abcdef" * 4
+    dashboard["overview"]["update"] = {"local": value}
     page.goto(dashboard["url"])
     expect(page.locator("#btnStop")).to_be_enabled()
-    value = "sha256:" + "0123456789abcdef" * 4
     page.evaluate("value => renderOverview({...S.overview,update:{local:value}})", value)
     page.locator("#serverDetails summary").click()
     button = page.get_by_role("button", name="Скопировать локальный digest").first
     button.focus()
     button.press(key)
-    expect(page.locator("#toasts")).to_contain_text("Скопировано")
+    expect(page.locator("#mDigestCopy")).to_have_attribute("data-copied", "true")
+    expect(page.locator("#mDigestCopy .copy-icon-check")).to_be_visible()
     page.evaluate("""() => { const target=document.createElement('textarea');
       target.id='pasteTarget';document.body.appendChild(target); }""")
     target = page.locator("#pasteTarget")

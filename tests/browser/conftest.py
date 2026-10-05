@@ -76,5 +76,5 @@ def dashboard(page, static_url):
             route.fulfill(json={"ok": True, "items": [], "points": [], "names": []})
 
     page.route("**/api/**", route_api)
-    yield {"url": static_url, "actions": actions, "players": players}
+    yield {"url": static_url, "actions": actions, "players": players, "overview": overview}
     assert not errors, f"Uncaught browser errors: {errors}"

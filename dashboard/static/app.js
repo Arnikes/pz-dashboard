@@ -181,7 +181,40 @@ function copyTextFallback(text) {
   }
 }
 
-async function copyText(text, label) {
+function copyIcon() {
+  return `<svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="copy-icon-default"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></g><path class="copy-icon-check" d="m5 12 4 4L19 6"/></svg>`;
+}
+
+function copyValue(value, { text = value, className = "", title = value, label = `Скопировать ${value}` } = {}) {
+  return `<button type="button" class="copy-value ${esc(className)}" data-copy="${esc(value)}" title="${esc(title)}" aria-label="${esc(label)}"><span class="copy-label">${esc(text)}</span>${copyIcon()}</button>`;
+}
+
+document.querySelectorAll(".copy-value").forEach(button => button.insertAdjacentHTML("beforeend", copyIcon()));
+const copyFeedback = new WeakMap();
+const copyStatus = document.createElement("span");
+copyStatus.className = "sr-only";
+copyStatus.setAttribute("role", "status");
+document.body.appendChild(copyStatus);
+
+function resetCopyFeedback(button) {
+  const state = copyFeedback.get(button);
+  if (state) {
+    clearTimeout(state.timer);
+    button.setAttribute("aria-label", state.label);
+    button.title = state.title;
+    copyFeedback.delete(button);
+  }
+  delete button.dataset.copied;
+}
+
+async function copyText(text, button = null) {
+  let state;
+  if (button) {
+    resetCopyFeedback(button);
+    state = { label: button.getAttribute("aria-label"), title: button.title };
+    copyFeedback.set(button, state);
+    copyStatus.textContent = "";
+  }
   try {
     // Clipboard API доступен на HTTPS и loopback, но отсутствует на обычном HTTP в LAN.
     if (navigator.clipboard?.writeText) {
@@ -194,22 +227,35 @@ async function copyText(text, label) {
       // Выполняем синхронно в обработчике клика, сохраняя пользовательскую активацию.
       copyTextFallback(text);
     }
-    toast(`Скопировано: ${label || String(text).slice(0, 42)}`, "ok", 2000);
+    if (button) {
+      // Ignore an older request or a field whose value changed while copying.
+      if (copyFeedback.get(button) !== state || button.dataset.copy !== text || !button.isConnected) return;
+      button.dataset.copied = "true";
+      button.setAttribute("aria-label", "Скопировано");
+      button.title = "Скопировано";
+      copyStatus.textContent = "Скопировано";
+      state.timer = setTimeout(() => resetCopyFeedback(button), 2000);
+    } else {
+      toast("Скопировано", "ok", 2000);
+    }
   } catch (e) {
+    if (button && copyFeedback.get(button) === state) resetCopyFeedback(button);
     toast("Не удалось скопировать", "error", 2000);
   }
 }
 
 document.addEventListener("click", (e) => {
   const t = e.target.closest("[data-copy]");
-  if (t && t.dataset.copy) copyText(t.dataset.copy);
+  if (t && !t.disabled && t.dataset.copy) copyText(t.dataset.copy, t);
 });
 
-function setCopyTarget(id, value) {
+function setCopyTarget(id, value, text = value || "—") {
   const button = $(id);
+  if (button.dataset.copy !== (value || "")) resetCopyFeedback(button);
   button.disabled = !value;
   if (value) button.dataset.copy = value;
   else delete button.dataset.copy;
+  setDomProperty(button.querySelector(".copy-label"), "textContent", text);
 }
 
 function syncTabAccessibility(id) {
@@ -608,12 +654,9 @@ function renderOverview(o) {
     }
     $("mStarted").textContent = c ? fmtTime(c.startedAt) : "—";
   }
-  $("mContainer").textContent = o.container || "—";
-  $("mImage").textContent = o.image || "—";
-  $("mDigest").textContent = shortDigest(o.update?.local);
-  $("mContainer").dataset.copy = o.container || "";
-  $("mImage").dataset.copy = o.image || "";
-  setCopyTarget("mDigestCopy", o.update?.local);
+  setCopyTarget("mContainer", o.container);
+  setCopyTarget("mImage", o.image);
+  setCopyTarget("mDigestCopy", o.update?.local, shortDigest(o.update?.local));
 
   // блок обновлений
   const u = o.update || {};
@@ -638,15 +681,13 @@ function renderOverview(o) {
     pill.dataset.state = "unknown"; pill.textContent = "не проверялось";
     $("updNote").textContent = "Сверяется digest локального образа с Docker Hub.";
   }
-  $("updLocal").textContent = shortDigest(u.local);
   $("updNote").hidden = !(remote || u.error || (u.note && u.available == null));
   const same = u.local && u.remote && u.local === u.remote;
-  $("updRemote").textContent = same ? "совпадает" : shortDigest(u.remote);
   $("updRemote").classList.toggle("ok-same", !!same);
   $("updChecked").textContent = u.at ? fmtTime(u.at) : "никогда";
   $("updHubDate").textContent = u.hubUpdated ? "собрана " + fmtTime(u.hubUpdated) : "—";
-  setCopyTarget("updLocalCopy", u.local);
-  setCopyTarget("updRemoteCopy", u.remote);
+  setCopyTarget("updLocalCopy", u.local, shortDigest(u.local));
+  setCopyTarget("updRemoteCopy", u.remote, same ? "совпадает" : shortDigest(u.remote));
 
   // автообновление
   const au = o.settings?.autoUpdate || {};
@@ -725,13 +766,13 @@ function renderOverview(o) {
   const items = mc.items || [];
   const needList = $("modsNeedList");
   needList.hidden = !(mc.state === "needs-update" && items.length);
-  needList.innerHTML = items.map((it) => `
+  setStaticMarkup(needList, items.map((it) => `
     <div class="mod-need-row">
       <span class="m-title">${it.url
         ? `<a href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.title || it.workshopId)}</a>`
         : esc(it.raw || "мод требует обновления")}</span>
-      ${it.workshopId ? `<button type="button" class="copy-value wid mono" data-copy="${esc(it.workshopId)}" title="нажмите — скопировать" aria-label="Скопировать ${esc(it.workshopId)}">${esc(it.workshopId)}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button>` : ""}
-    </div>`).join("");
+      ${it.workshopId ? copyValue(it.workshopId, { className: "wid mono" }) : ""}
+    </div>`).join(""));
   $("btnApplyMods").hidden = mc.state !== "needs-update";
   const mu = o.settings?.modsUpdate || {};
   if (settingsCanRender("modsAutoSwitch")) $("modsAutoSwitch").checked = !!mu.enabled;
@@ -1254,7 +1295,7 @@ function _renderMods(data) {
   const sel = $("modsFile");
   if (!data.ok) {
     body.dataset.state = "error";
-    body.innerHTML = `<p class="list-error">${esc(data.error || "нет данных")}</p>`;
+    setStaticMarkup(body, `<p class="list-error">${esc(data.error || "нет данных")}</p>`);
     $("modsCount").textContent = "–";
     sel.hidden = true;
     return;
@@ -1280,7 +1321,7 @@ function _renderMods(data) {
   $("modsCount").textContent = String(total);
   if (!mods.length && !ws.length) {
     body.dataset.state = "empty";
-    body.innerHTML = `<p class="list-empty"><strong>Модов нет.</strong> Параметры Mods= и WorkshopItems= в конфиге пустые.</p>`;
+    setStaticMarkup(body, `<p class="list-empty"><strong>Модов нет.</strong> Параметры Mods= и WorkshopItems= в конфиге пустые.</p>`);
     return;
   }
 
@@ -1298,14 +1339,14 @@ function _renderMods(data) {
     html += data.pairs.map((p, i) => `
       <div class="mod-row">
         <span class="m-idx mono">${i + 1}</span>
-        <button type="button" class="copy-value m-name mono" title="${esc(p.mod)}" data-copy="${esc(p.mod)}" aria-label="Скопировать ${esc(p.mod)}">${esc(p.mod)}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button>
+        ${copyValue(p.mod, { className: "m-name mono" })}
         <span class="m-ws">
           ${p.url
             ? `<a href="${esc(p.url)}" target="_blank" rel="noopener" title="Steam Workshop · ${esc(p.workshopId)}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M10 5H5v14h14v-5"/></svg>
                 <span class="ws-title">${esc(p.title || p.workshopId)}</span>
               </a>
-              <button type="button" class="copy-value wid mono" title="Workshop ID: ${esc(p.workshopId)}" data-copy="${esc(p.workshopId)}" aria-label="Скопировать ${esc(p.workshopId)}">${esc(p.workshopId)}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button>`
+              ${copyValue(p.workshopId, { className: "wid mono", title: `Workshop ID: ${p.workshopId}` })}`
             : `<span class="wid mono">${esc(p.workshopId || "—")}</span>`}
         </span>
         ${canManage ? _wsSwitch(p.workshopId, true, "Выключить мод в конфиге") : ""}
@@ -1321,7 +1362,7 @@ function _renderMods(data) {
             ${w.url
               ? `<a class="m-t" href="${esc(w.url)}" target="_blank" rel="noopener" title="${esc(w.title || w.workshopId)}">${esc(w.title || w.workshopId)}</a>`
               : `<span class="m-t">${esc(w.title || w.workshopId)}</span>`}
-            <button type="button" class="copy-value wid mono" title="Workshop ID: ${esc(w.workshopId)}" data-copy="${esc(w.workshopId)}" aria-label="Скопировать ${esc(w.workshopId)}">${esc(shortWsId(w.workshopId))}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button>
+            ${copyValue(w.workshopId, { className: "wid mono", text: shortWsId(w.workshopId), title: `Workshop ID: ${w.workshopId}` })}
             ${canManage ? _wsSwitch(w.workshopId, true, "Выключить мод в конфиге") : ""}
           </div>`).join("") + `</div>`;
       } else {
@@ -1334,22 +1375,22 @@ function _renderMods(data) {
                   <span class="ws-title">${esc(w.title || w.workshopId)}</span>
                 </a>`
               : `<span class="wid mono">${esc(w.workshopId)}</span>`}
-            ${w.title ? `<button type="button" class="copy-value wid mono" title="Workshop ID: ${esc(w.workshopId)}" data-copy="${esc(w.workshopId)}" aria-label="Скопировать ${esc(w.workshopId)}">${esc(w.workshopId)}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button>` : ""}
+            ${w.title ? copyValue(w.workshopId, { className: "wid mono", title: `Workshop ID: ${w.workshopId}` }) : ""}
             ${canManage ? _wsSwitch(w.workshopId, true, "Выключить мод в конфиге") : ""}
           </div>
           ${(w.mods || []).length
-            ? `<div class="ws-mods">${w.mods.map((m) => `<button type="button" class="copy-value chip mono" data-copy="${esc(m)}" title="нажмите — скопировать" aria-label="Скопировать ${esc(m)}">${esc(m)}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button>`).join("")}</div>`
+            ? `<div class="ws-mods">${w.mods.map((m) => copyValue(m, { className: "chip mono" })).join("")}</div>`
             : ""}
         </div>`).join("");
       }
     }
     if (mods.length) {
       html += `<p class="mods-note">Моды из конфига (Mods=) — ${mods.length}</p>`;
-      html += `<div class="mods-chips">${mods.map((m) => `<button type="button" class="copy-value chip mono" data-copy="${esc(m)}" title="нажмите — скопировать" aria-label="Скопировать ${esc(m)}">${esc(m)}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button>`).join("")}</div>`;
+      html += `<div class="mods-chips">${mods.map((m) => copyValue(m, { className: "chip mono" })).join("")}</div>`;
     }
     if ((data.unbound || []).length && data.mappingSource === "disk") {
       html += `<p class="mods-note">Без привязки к Workshop — ${data.unbound.length}</p>`;
-      html += `<div class="mods-chips">${data.unbound.map((m) => `<button type="button" class="copy-value chip mono" data-copy="${esc(m)}" aria-label="Скопировать ${esc(m)}">${esc(m)}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button>`).join("")}</div>`;
+      html += `<div class="mods-chips">${data.unbound.map((m) => copyValue(m, { className: "chip mono" })).join("")}</div>`;
     }
     if (!ws.length) {
       html += `<p class="mods-note">Один Workshop-элемент может содержать несколько модов — сопоставление по конфигу невозможно.</p>`;
@@ -1359,15 +1400,15 @@ function _renderMods(data) {
     html += `<p class="mods-note">Выключенные — ${disabledList.length}</p>`;
     html += disabledList.map((d) => `
       <div class="mod-row disabled-row">
-        <button type="button" class="copy-value m-name mono" title="${esc((d.modIds || []).join(", "))}" data-copy="${esc((d.modIds || [])[0] || d.workshopId)}" aria-label="Скопировать ${esc((d.modIds || [])[0] || d.workshopId)}">${esc(d.title || d.workshopId)}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button>
+        ${copyValue((d.modIds || [])[0] || d.workshopId, { className: "m-name mono", text: d.title || d.workshopId, title: (d.modIds || []).join(", ") })}
         <span class="m-ws">
-          <button type="button" class="copy-value wid mono" title="Workshop ID: ${esc(d.workshopId)}" data-copy="${esc(d.workshopId)}" aria-label="Скопировать ${esc(d.workshopId)}">${esc(shortWsId(d.workshopId))}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button>
+          ${copyValue(d.workshopId, { className: "wid mono", text: shortWsId(d.workshopId), title: `Workshop ID: ${d.workshopId}` })}
         </span>
         ${canManage ? _wsSwitch(d.workshopId, false, "Включить мод обратно") : ""}
       </div>`).join("");
   }
   body.dataset.state = "ok";
-  body.innerHTML = html;
+  setStaticMarkup(body, html);
 }
 
 /* реестр модов: SSE кладёт данные в кэш, отрисовка — только на активной странице
@@ -1518,7 +1559,7 @@ function renderBackups(data) {
     const template = document.createElement("template");
     template.innerHTML = `
     <div class="backup-row">
-      <button type="button" class="copy-value b-name mono" title="${esc(b.name)} — создан ${esc(b.mtime)}" data-copy="${esc(b.name)}" aria-label="Скопировать ${esc(b.name)}">${esc(b.name)}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button>
+      ${copyValue(b.name, { className: "b-name mono", title: `${b.name} — создан ${b.mtime}` })}
       <span class="b-size mono" title="размер архива">${esc(b.sizeText || fmtBytes(b.size))}</span>
       <span class="b-age mono" title="создан ${esc(b.mtime)}">${esc(relTime(b.mtime))}</span>
       <button class="icon-btn" data-b="dl" data-name="${esc(b.name)}" title="Скачать" aria-label="Скачать ${esc(b.name)}">
@@ -1542,7 +1583,7 @@ function renderBackups(data) {
     if (age.textContent !== ageText) age.textContent = ageText;
     if (age.title !== dateTitle) age.title = dateTitle;
     const title = `${b.name} — ${dateTitle}`;
-    if (name.title !== title) name.title = title;
+    if (!name.dataset.copied && name.title !== title) name.title = title;
   });
   updateButtons();
 }
@@ -2517,7 +2558,7 @@ const commands = (() => {
     { label: "Найти строку в логах", hint: "Перейти к фильтру логов", reason: $("logsFilter").disabled ? "Логи контейнера недоступны в demo и remote" : "", run: async () => { await navigate("console"); $("logsFilter").focus(); } },
     { label: "Посмотреть текущую операцию", hint: "Фаза, время и переход к логам", reason: !S.op?.active ? "Сейчас нет активной операции" : "", run: () => { $("opbar").tabIndex = -1; $("opbar").focus(); } },
     { label: "Скопировать имя профиля", hint: "Имя файла конфигурации", reason: !window.ConfigEditor?.file ? "Выберите доступный профиль" : "", run: () => copyText(window.ConfigEditor.file) },
-    { label: "Скопировать digest образа", hint: "Полный идентификатор Docker", reason: !$("mDigestCopy").dataset.copy ? "Идентификатор ещё не получен" : "", run: () => copyText($("mDigestCopy").dataset.copy) },
+    { label: "Скопировать digest образа", hint: "Полный идентификатор Docker", reason: !$("mDigestCopy").dataset.copy ? "Идентификатор ещё не получен" : "", run: () => copyText($("mDigestCopy").dataset.copy, $("mDigestCopy")) },
     { label: "Остановить сервер…", hint: "Открыть подтверждение с предупреждением игроков", reason: $("btnStop").disabled ? "Недоступно при операции, в demo/remote или без работающего сервера" : "", run: confirmedAction("btnStop") },
     { label: "Перезапустить сервер…", hint: "Открыть подтверждение с предупреждением игроков", reason: $("btnRestart").disabled ? "Недоступно при операции, в demo/remote или без работающего сервера" : "", run: confirmedAction("btnRestart") },
     { label: "Восстановить мир из бэкапа…", hint: "Открыть список архивов и выбрать версию для подтверждения", run: () => navigate("backups") },
