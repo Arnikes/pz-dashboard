@@ -35,9 +35,15 @@ def test_rcon_header_distinguishes_stopped_server_from_connection_failure(
     expect(page.locator("#pillRcon")).to_have_attribute(
         "data-state", "unknown" if inactive else "bad"
     )
+    if inactive:
+        expect(page.locator("#connectionIssue")).to_be_hidden()
+    else:
+        expect(page.locator("#connectionIssue")).to_be_visible()
+        expect(page.locator("#connectionIssue")).to_contain_text("RCON ошибка")
     page.evaluate("renderOverview({...S.overview,rcon:{state:'ok'},containerInfo:{running:true}})")
     expect(page.locator("#pillRcon")).to_have_text("RCON")
     expect(page.locator("#pillRcon")).to_have_attribute("title", "")
+    expect(page.locator("#connectionIssue")).to_be_hidden()
 
 
 def test_console_error_warning_search_and_offline_log_retention(page, dashboard):

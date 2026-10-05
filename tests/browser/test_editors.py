@@ -649,7 +649,7 @@ def test_control_text_fits_and_settings_has_navigation_icon(page, dashboard, edi
     assert dashboard["actions"] == []
 
 
-@pytest.mark.parametrize("width", [390, 768, 1440])
+@pytest.mark.parametrize("width", [320, 390, 768, 1440])
 def test_header_profile_context_is_clear_and_aligned(page, dashboard, editing, width):
     data, _ = editing
     other = "Life Before - альтернативный профиль.ini"
@@ -668,22 +668,40 @@ def test_header_profile_context_is_clear_and_aligned(page, dashboard, editing, w
     expect(page.locator("#configApply")).to_be_disabled()
     geometry = page.evaluate("""() => {
         const box = s => document.querySelector(s).getBoundingClientRect();
-        const label = box('.profile-meta label'), state = box('#configActive');
-        const select = box('#configProfile'), header = box('.topbar');
-        return {labelBottom:label.bottom,stateBottom:state.bottom,selectTop:select.top,
-            labelLeft:label.left,selectLeft:select.left,stateRight:state.right,selectRight:select.right,
+        const state = box('#configActive'), fresh = box('#freshness');
+        const select = box('#configProfile'), commands = box('#btnCommands'), header = box('.topbar');
+        const logout = box('#btnLogout'), server = box('#serverName');
+        return {stateTop:state.top,stateBottom:state.bottom,freshBottom:fresh.bottom,
+            selectTop:select.top,selectBottom:select.bottom,selectHeight:select.height,
+            commandsTop:commands.top,commandsHeight:commands.height,
+            logoutTop:logout.top,logoutHeight:logout.height,serverBottom:server.bottom,
+            stateLeft:state.left,selectLeft:select.left,stateRight:state.right,selectRight:select.right,
             height:header.height,overflow:document.documentElement.scrollWidth > innerWidth};
     }""")
-    assert abs(geometry["labelBottom"] - geometry["stateBottom"]) <= 3
-    assert geometry["selectTop"] > max(geometry["labelBottom"], geometry["stateBottom"])
-    assert geometry["labelLeft"] == geometry["selectLeft"]
+    assert geometry["stateTop"] > geometry["selectBottom"]
+    assert geometry["stateLeft"] == geometry["selectLeft"]
     assert geometry["stateRight"] <= geometry["selectRight"]
+    assert geometry["selectHeight"] == geometry["commandsHeight"] == 44
+    assert geometry["selectTop"] == geometry["commandsTop"]
     assert not geometry["overflow"]
     if width <= 740:
-        assert geometry["height"] < 170
+        assert geometry["height"] < 145
+    else:
+        assert geometry["selectTop"] == geometry["logoutTop"]
+        assert geometry["logoutHeight"] == 44
+        assert geometry["stateBottom"] == geometry["freshBottom"] == geometry["serverBottom"]
+    expect(
+        page.locator(".topbar #pillDocker, .topbar #pillRcon, .topbar #configVersion")
+    ).to_have_count(0)
+    page.locator(".health-details > summary").click()
+    expect(page.locator("#pillDocker")).to_be_visible()
+    expect(page.locator("#pillRcon")).to_be_visible()
+    expect(page.locator("#configVersion")).to_be_visible()
+    page.locator(".health-details > summary").click()
     page.locator("#configProfile").select_option("world.ini")
     expect(page.locator("#configActive")).to_have_text("Активен на сервере")
     page.locator(".topbar").screenshot(path=str(data.parent / f"review-header-{width}.png"))
+    page.screenshot(path=str(data.parent / f"review-page-{width}.png"))
     assert dashboard["actions"] == []
 
 

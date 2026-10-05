@@ -531,6 +531,7 @@ function renderOverview(o) {
   if (o.settings) o = { ...o, settings: acceptSettings(o.settings) };
   S.overview = o;
   $("serverName").textContent = o.serverName || "Project Zomboid";
+  $("serverName").title = $("serverName").textContent;
   setPill("pillDocker", o.docker ? "ok" : "bad", o.docker ? "Docker" : "Docker: вне хоста");
   setPill("pillCompose", o.compose ? "ok" : "bad", o.compose ? "compose" : "compose ✕");
   const rc = o.rcon || {};
@@ -543,6 +544,9 @@ function renderOverview(o) {
   else if (rc.state === "ok") setPill("pillRcon", "ok", "RCON");
   else if (rc.state === "error") { setPill("pillRcon", "bad", "RCON ошибка"); $("pillRcon").title = rc.error || ""; }
   else setPill("pillRcon", "unknown", "RCON");
+  const connectionIssue = $("connectionIssue");
+  connectionIssue.hidden = $("pillRcon").dataset.state !== "bad";
+  connectionIssue.textContent = connectionIssue.hidden ? "" : " · " + $("pillRcon").textContent;
 
   const remote = o.mode === "remote";
   const c = o.containerInfo;
@@ -2388,14 +2392,12 @@ const layoutObserver = new ResizeObserver(() => {
 for (const selector of [".topbar", ".nav", "#draftBar"]) layoutObserver.observe(document.querySelector(selector));
 const mobileLayout = matchMedia("(max-width: 740px)");
 function adaptHealthDisclosure() {
-  const disclosure = document.querySelector(".health-details"), connection = document.querySelector(".connection-status");
+  const disclosure = document.querySelector(".health-details");
   const focused = document.activeElement;
   if (mobileLayout.matches) {
-    document.querySelector(".topbar").append($("freshness"));
-    disclosure.querySelector(".health-tools").append(connection, $("btnLogout"));
+    disclosure.querySelector(".health-tools").append($("btnLogout"));
   } else {
-    document.querySelector(".top-right").append(connection, $("btnLogout"));
-    connection.append($("freshness"));
+    document.querySelector(".header-meta").before($("btnLogout"));
   }
   if (focused === $("btnLogout")) (mobileLayout.matches ? disclosure.querySelector("summary") : focused).focus();
   const editing = /^(settings|mods)$/.test(location.hash.replace(/^#\/?/, ""));
