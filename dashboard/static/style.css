@@ -1245,7 +1245,6 @@ select { cursor: pointer; }
 .import-button[aria-disabled="true"]:hover { background:var(--surface-2); }
 .editor-card .card-head .hint { margin:0; }
 #configSearch { width:100%; margin:0 0 var(--layout-gap); }
-.config-mod-link { margin:16px 0; }
 .editor-toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin:12px 0; }
 .editor-toolbar input:not([type=file]) { flex:1 1 230px; min-width:0; }
 .editor-toolbar select { flex:0 1 220px; width:220px; }

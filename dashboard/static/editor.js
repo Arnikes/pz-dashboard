@@ -333,7 +333,7 @@ window.ConfigEditor = (() => {
       const open = query || (groupStates.get(key) ?? name !== "Дополнительные параметры");
       return `<details class="config-group" data-group-key="${esc(key)}" ${open ? "open" : ""}><summary>${esc(name)} <span class="group-count">${entries.length}</span></summary><div class="config-grid">${entries.join("")}</div></details>`;
     }).join("");
-    $("configFields").innerHTML = (html || '<p class="hint">Нет настроек, соответствующих поиску.</p>') + (configTab === "server" ? '<p class="config-mod-link"><a href="#/mods">Mods, WorkshopItems и карты → редактор модов</a></p>' : "");
+    $("configFields").innerHTML = html || '<p class="hint">Нет настроек, соответствующих поиску.</p>';
   }
   function highlight(kind) {
     const input = $(kind + "Source"), output = $(kind + "Highlight");
