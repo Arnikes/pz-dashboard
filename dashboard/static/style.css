@@ -1425,7 +1425,34 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--draft-heigh
 }
 /* Вход */
 .login-page { display:grid; place-items:center; min-height:100dvh; padding:24px; }
-.login-card { width:100%; max-width:400px; padding:32px; border:1px solid var(--line); background:var(--surface); border-radius:12px; }
+.login-card { position:relative; width:100%; max-width:400px; padding:32px; border:1px solid var(--line); background:var(--surface); border-radius:12px; }
+.login-github { position:absolute; top:-1px; right:-1px; width:88px; height:88px; color:var(--ink); border-radius:0 12px 0 0; clip-path:polygon(0 0, 100% 0, 100% 100%, 18% 84%, 10% 35%); }
+.login-github-art { display:block; width:100%; height:100%; overflow:visible; }
+.login-github-reveal { fill:var(--bg-deep); }
+.login-github-fold { filter:drop-shadow(-3px 5px 4px rgb(0 0 0 / .5)); transform-origin:44px 44px; }
+.login-github-logo { transform-origin:64px 25px; }
+@media (max-width:359px) {
+  .login-card { padding-top:64px; }
+  .login-github { width:64px; height:64px; }
+}
+.login-github:focus-visible { outline:0; }
+.login-github:focus-visible .login-github-reveal { stroke:var(--focus); stroke-width:4px; }
+@media (hover:hover) {
+  .login-github:hover .login-github-fold { transform:translate(-3px, 3px); }
+  .login-github:hover .login-github-logo { transform:rotate(8deg); }
+}
+.login-github:focus-visible .login-github-fold { transform:translate(-3px, 3px); }
+@media (prefers-reduced-motion:no-preference) {
+  .login-github-fold, .login-github-logo { transition:transform 220ms cubic-bezier(.16, 1, .3, 1); }
+}
+@media (prefers-reduced-motion:reduce) {
+  .login-github:hover .login-github-fold, .login-github:focus-visible .login-github-fold, .login-github:hover .login-github-logo { transform:none; }
+}
+@media (forced-colors:active) {
+  .login-github-reveal { fill:Canvas; }
+  .login-github-fold { display:none; }
+  .login-github:focus-visible .login-github-reveal { stroke:Highlight; }
+}
 .login-card .login-brand { display:flex; align-items:center; gap:12px; margin:0 0 28px; }
 .login-brand .brand-icon { width:36px; height:36px; }
 .login-brand .brand-name { font-size:22px; }
