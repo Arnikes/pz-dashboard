@@ -64,13 +64,56 @@ and failed operations with isolated tests. Real integration uses the
 | `tests/`, `tests/browser/` | Backend and browser fixtures/checks |
 | `scripts/` | Quality, catalogs, acceptance utilities, benchmarks |
 | `docs/` | Installation, workflows, acceptance, screenshot source |
-| `.github/workflows/ci.yml` | GitHub checks and Docker smoke test |
+| `.github/workflows/ci.yml` | GitHub checks, Docker smoke test, GHCR and releases |
 | `.gitea/workflows/` | Existing Gitea checks and optional registry/deploy jobs |
 
 ## GitHub and Gitea CI
 
-GitHub CI runs quality checks, builds the panel image, and checks `/api/health`.
-It does not publish images or deploy a server. Browser failure artifacts are retained.
+GitHub CI runs on pushes to `main`/`master`, pull requests, manual runs, and pushed
+tags matching `v*`. It runs quality checks, builds the panel image, and checks
+`/api/health`. Browser failure artifacts are retained. Only a **tag push** publishes
+to GHCR and creates a GitHub Release; branch, pull-request, and manual runs perform checks.
+
+For tag pushes, the exact tested image is transferred to the release job instead of
+being rebuilt. The release job uses the automatic `GITHUB_TOKEN` with `packages: write`
+and `contents: write`; no registry password or personal access token is needed.
+Repository/organization policy must allow those permissions. The image's source
+label links the package to the GitHub repository. For an existing GHCR package,
+grant that repository Actions write access in the package settings. New packages
+default to private; set package visibility to public for anonymous pulls. See
+[GitHub's Container registry documentation](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
+
+### Publish a GitHub release
+
+Commit the workflow, screenshots, and release changes before tagging. Push the
+commit and tag to **GitHub** (a tag pushed only to Gitea does not run GitHub Actions).
+If `origin` points to Gitea, first add your GitHub repository as a separate remote:
+
+```bash
+git remote add github https://github.com/YOUR-OWNER/pz-console.git
+git push github HEAD:main
+git tag -a v1.0.0 -m "PZ Console v1.0.0"
+git push github v1.0.0
+```
+
+If `origin` already points to GitHub, use `origin` instead of `github`.
+
+After all checks pass, the workflow publishes the `linux/amd64` panel image as
+`ghcr.io/<owner>/<repository>:v1.0.0` and `:sha-<full-commit>` (the repository path
+is lowercased). A stable `vMAJOR.MINOR.PATCH` tag also updates `:latest`.
+Tags such as `v1.1.0-rc.1` create prereleases and leave `latest` unchanged.
+Other `v*` tags also publish; characters unsupported by Docker are replaced by
+hyphens and image tags are limited to 128 characters. Release notes include the
+versioned image and its immutable digest, so deployments can pin the exact image.
+
+The GitHub Release includes generated change notes, `pz-console-source.tar.gz`,
+`pz-console-source.zip`, and `SHA256SUMS`, built from the tagged commit's tracked
+files. It remains a draft until all assets are uploaded. Failed uploads can be
+retried by rerunning the workflow; an already published release is left intact.
+Use a new version tag for each release rather than moving published tags.
+The workflow does not restart a running server; see
+[using a released image](docs/installation.md#released-images-from-ghcr).
+
 The existing Gitea workflows remain available for installations using that forge.
 
 Gitea CD publishes `latest`, `sha-<commit>`, and version tags with `REGISTRY_TOKEN`

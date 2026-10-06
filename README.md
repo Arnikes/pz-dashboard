@@ -116,6 +116,14 @@ docker compose -f docker-compose.yml -f docker-compose.dashboard.yml up -d --bui
 See the [installation guide](docs/installation.md) for authentication, HTTPS, volume mappings,
 updates, and an RCON-only setup.
 
+### Release images
+
+GitHub releases publish the panel image to `ghcr.io/<owner>/<repository>:v1.0.0`
+after code, browser, and Docker startup checks pass. Stable version tags also
+update `:latest`; release notes provide an immutable image digest.
+See [installing a released image](docs/installation.md#released-images-from-ghcr)
+or [publishing a release with a `v*` tag](CONTRIBUTING.md#publish-a-github-release).
+
 ## Workspaces
 
 | Workspace | What you can do |

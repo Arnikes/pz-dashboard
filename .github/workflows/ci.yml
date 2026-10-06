@@ -1,18 +1,24 @@
-name: CI
+name: CI and release
 
 on:
   push:
     branches: [main, master]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   test:
     name: Code and browser checks
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -40,10 +46,20 @@ jobs:
     name: Docker build and health check
     runs-on: ubuntu-latest
     needs: test
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Build panel image
-        run: docker build -t pz-console:ci ./dashboard
+        env:
+          SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
+          REVISION: ${{ github.sha }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          docker build -t pz-console:ci \
+            --label "org.opencontainers.image.source=$SOURCE_URL" \
+            --label "org.opencontainers.image.revision=$REVISION" \
+            --label "org.opencontainers.image.version=$VERSION" \
+            --label "org.opencontainers.image.licenses=MIT" ./dashboard
       - name: Check container startup
         run: |
           auth_key=$(docker run --rm pz-console:ci python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
@@ -59,8 +75,107 @@ jobs:
             sleep 1
           done
           exit 1
+      - name: Export tested release image
+        if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+        run: docker save pz-console:ci | gzip > "$RUNNER_TEMP/panel-image.tar.gz"
+      - name: Transfer tested image to release job
+        if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: tested-panel-image
+          path: ${{ runner.temp }}/panel-image.tar.gz
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 1
       - name: Container diagnostics and cleanup
         if: always()
         run: |
           docker logs pz-console-smoke || true
           docker rm -f pz-console-smoke || true
+
+  release:
+    name: Publish GHCR image and GitHub release
+    if: github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    needs: [test, image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      packages: write
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: tested-panel-image
+          path: ${{ runner.temp }}/tested-image
+      - name: Check whether release is already published
+        id: existing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ $(gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' 2>/dev/null || true) == false ]]; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "Release already published; keeping its image and assets unchanged."
+          fi
+      - name: Publish the tested image to GHCR
+        if: steps.existing.outputs.published != 'true'
+        id: publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_ACTOR: ${{ github.actor }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          # Git permits characters that Docker tags do not; normalize those tags.
+          version=$(printf '%s' "$RELEASE_TAG" | sed 's/[^a-zA-Z0-9_.-]/-/g' | cut -c1-128)
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
+          docker load -i "$RUNNER_TEMP/tested-image/panel-image.tar.gz"
+          docker tag pz-console:ci "$image:$version"
+          docker tag pz-console:ci "$image:sha-$GITHUB_SHA"
+          docker push "$image:$version"
+          docker push "$image:sha-$GITHUB_SHA"
+          digest=$(docker image inspect "$image:$version" --format '{{index .RepoDigests 0}}')
+          echo "image=$image:$version" >> "$GITHUB_OUTPUT"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          if [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            docker tag pz-console:ci "$image:latest"
+            docker push "$image:latest"
+          fi
+      - name: Package tagged source and checksums
+        if: steps.existing.outputs.published != 'true'
+        run: |
+          mkdir -p dist
+          git archive --format=tar.gz --prefix=pz-console/ --output=dist/pz-console-source.tar.gz HEAD
+          git archive --format=zip --prefix=pz-console/ --output=dist/pz-console-source.zip HEAD
+          cd dist
+          sha256sum pz-console-source.tar.gz pz-console-source.zip > SHA256SUMS
+      - name: Publish GitHub release
+        if: steps.existing.outputs.published != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE: ${{ steps.publish.outputs.image }}
+          DIGEST: ${{ steps.publish.outputs.digest }}
+        run: |
+          printf 'Container image (linux/amd64): `%s`\n\nPinned image: `%s`\n\n```bash\ndocker pull %s\n```\n' \
+            "$IMAGE" "$DIGEST" "$DIGEST" > "$RUNNER_TEMP/release-notes.md"
+          flags=()
+          if [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+- ]]; then
+            flags+=(--prerelease --latest=false)
+          fi
+          # Keep partial uploads in a draft so failed runs can be retried.
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --verify-tag --draft \
+              --title "PZ Console $RELEASE_TAG" --generate-notes \
+              --notes-file "$RUNNER_TEMP/release-notes.md" "${flags[@]}"
+          fi
+          if [[ $(gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft') == true ]]; then
+            gh release upload "$RELEASE_TAG" dist/pz-console-source.tar.gz dist/pz-console-source.zip dist/SHA256SUMS --clobber
+            gh release edit "$RELEASE_TAG" --draft=false
+          fi
+      - name: Log out of GHCR
+        if: always()
+        run: docker logout ghcr.io

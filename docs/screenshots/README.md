@@ -7,6 +7,7 @@ Workshop IDs 111, 222, and 333 are fixture identifiers, not package recommendati
 
 Desktop captures use 1440 × 900; the mobile viewport is 390 × 844.
 Desktop images capture the full page; mobile captures the visible viewport.
+The browser locale is `en-US` and its timezone is UTC.
 The interface is English, fonts are bundled locally,
 the clock starts at 2026-10-06 18:00 UTC, and animations are disabled.
 No game server, Docker socket, Steam download, or production credentials are used.

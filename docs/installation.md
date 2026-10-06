@@ -147,6 +147,31 @@ docker compose up -d --build pz-dashboard
 For an overlay, include both `-f` arguments. Recreate the panel after changing its
 environment. Do not remove persistent volumes during an update.
 
+### Released images from GHCR
+
+GitHub tag releases publish the panel to `ghcr.io/<owner>/<repository>` for
+`linux/amd64`. Use the exact image path shown in the GitHub Release notes.
+In the `pz-dashboard` service, replace `build: ./dashboard` with:
+
+```yaml
+image: ghcr.io/YOUR-OWNER/pz-console:v1.0.0
+```
+
+Use a lowercase owner/repository path. Keep the service's environment, volumes,
+ports, and CPU settings. `PZ_IMAGE` still identifies the **game server** image;
+it is separate from the panel image above. To update only the panel:
+
+```bash
+docker compose pull pz-dashboard
+docker compose up -d --no-deps pz-dashboard
+```
+
+For the existing-server overlay, include both `-f` arguments in both commands.
+Use the `ghcr.io/...@sha256:...` reference from the release notes to pin an
+immutable image, or `:latest` to follow the most recently published stable tag.
+Private packages require `docker login ghcr.io` with read access; public packages
+can be pulled anonymously. See [release setup](../CONTRIBUTING.md#publish-a-github-release).
+
 ## Language and PWA
 
 The interface supports English and Russian. Its selector is available on the login,

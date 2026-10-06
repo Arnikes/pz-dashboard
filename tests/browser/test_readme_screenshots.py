@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import shutil
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -20,6 +21,11 @@ pytestmark = [
         reason="Opt-in screenshots: PZ_README_SCREENSHOTS=1",
     ),
 ]
+
+
+@pytest.fixture(scope="session")
+def browser_context_args(browser_context_args):
+    return {**browser_context_args, "locale": "en-US", "timezone_id": "UTC"}
 
 
 def test_capture_readme(page, dashboard, editing, monkeypatch):  # noqa: F811
@@ -201,6 +207,7 @@ def test_capture_readme(page, dashboard, editing, monkeypatch):  # noqa: F811
         page.wait_for_timeout(250)
         page.evaluate("window.scrollTo(0,0)")
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        assert not re.search("[А-Яа-яЁё]", page.locator(f"#view-{route}").inner_text())
         page.screenshot(path=str(out / f"{route}.png"), full_page=True)
     page.set_viewport_size({"width": 390, "height": 844})
     page.evaluate("location.hash='#/overview'")
