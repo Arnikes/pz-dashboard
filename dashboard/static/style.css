@@ -1309,7 +1309,7 @@ select { cursor: pointer; }
 #modPackages { gap:8px; }
 #modPackages .workshop-package { margin:0; }
 .group-count { margin-left:8px; font:12px var(--font-mono); color:var(--faint); }
-.config-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px 20px; padding:16px; }
+.config-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:0; padding:0; }
 .config-field { min-width:0; }
 .config-label { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:44px; margin-bottom:6px; }
 .config-field label { display:block; min-width:0; margin:0; overflow-wrap:anywhere; cursor:pointer; }
@@ -1411,9 +1411,6 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--draft-heigh
   .banner { margin-left:calc(var(--sidebar-width) + var(--page-gutter)); width:calc(100% - var(--sidebar-width) - 2 * var(--page-gutter)); }
   .topbar .brand { max-width:360px; }
 }
-@media (min-width:741px) and (max-width:1200px) {
-  .config-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
-}
 @media (max-width:740px) {
   .topbar { position:relative; grid-template-columns:minmax(0,1fr) auto auto; gap:8px; padding-block:8px; }
   .top-right { display:contents; }
@@ -1446,7 +1443,7 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--draft-heigh
   #mapList { scroll-margin-bottom:calc(var(--nav-height) + var(--draft-height) + 88px); }
   .editor-toolbar { align-items:stretch; }
   .editor-tabs button { flex:0 0 auto; }
-  .config-grid { grid-template-columns:minmax(0,1fr); gap:20px; padding:14px; }
+  .config-grid { grid-template-columns:minmax(0,1fr); }
   .config-field label { min-height:0; }
   .workshop-package summary { grid-template-columns:16px minmax(0,1fr) auto; gap:8px; padding:12px; }
   .workshop-package summary strong { grid-column:2 / -1; }
@@ -1607,6 +1604,72 @@ body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--nav-height) + 
 }
 @media (max-height:600px) and (min-width:741px) {
   .draft-bar { margin-left:calc(var(--sidebar-width) + var(--page-gutter)); }
+}
+
+/* Компактные строки: подпись и значение, название мода и идентификатор. */
+#view-settings .editor-card, #view-mods .editor-card { border-color:transparent; }
+#view-mods .editor-card > .card-head { border:0; padding:0; margin-bottom:4px; gap:8px; }
+#view-mods #modSummary { margin-left:0; margin-right:auto; }
+.editor-card .editor-tabs { gap:20px; padding:0; margin:0 0 16px; border-color:var(--line); }
+.editor-card .editor-tabs button { padding:10px 0; border:0; border-bottom:2px solid transparent; border-radius:0; background:transparent; font-size:13.5px; }
+.editor-card .editor-tabs button[aria-selected=true] { background:transparent; border-bottom-color:var(--accent); color:var(--ink); }
+.editor-card .editor-tabs button:hover { color:var(--ink); background:transparent; }
+.editor-card .editor-tabs button:focus-visible { outline-offset:-2px; }
+#view-settings .config-group { margin:0; }
+#view-settings .config-group summary { padding:12px 0; font-weight:500; }
+#view-settings .config-field { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:start; gap:4px 24px; padding:12px 0; border-top:1px solid var(--line); }
+#view-settings .config-field:first-child { border-top:0; }
+#view-settings .config-label { margin:0; min-width:0; }
+#view-settings .config-label strong { font-weight:500; }
+#view-settings .config-control { min-width:0; }
+#view-settings .config-field > .hint, #view-settings .config-field > .config-scope, #view-settings .config-field > .field-error, #view-settings .config-field > [data-remove-option] { grid-column:2; margin:0; }
+#view-settings .config-field > .config-scope { padding:0; }
+#view-settings .config-field > [data-remove-option] { justify-self:start; }
+#view-settings .config-group .config-grid { padding:0 0 12px; }
+#view-mods .editor-toolbar { gap:8px; margin:12px 0; }
+#view-mods .editor-toolbar select { flex-basis:200px; width:200px; }
+#view-mods .mod-secondary-actions { gap:4px 16px; margin:4px 0 12px; }
+#view-mods .mod-secondary-actions .btn { border-color:transparent; background:transparent; padding-inline:0; color:var(--muted); }
+#view-mods .mod-secondary-actions .btn:hover:not(:disabled):not([aria-disabled=true]) { color:var(--ink); background:transparent; text-decoration:underline; text-underline-offset:4px; }
+#view-mods .workshop-package > summary { grid-template-columns:16px minmax(0,1fr) 14ch 20ch; padding:12px 0; }
+#view-mods .workshop-package > summary strong { font-weight:500; }
+#view-mods .workshop-package > summary > code { min-width:0; justify-self:end; overflow-wrap:anywhere; }
+#view-mods .workshop-package > summary > .pill { justify-self:end; }
+#view-mods .package-content { padding:0 0 12px 28px; }
+#view-mods .package-content > .editor-toolbar { justify-content:space-between; gap:8px 16px; margin:0 0 8px; }
+#view-mods .package-content > .editor-toolbar .btn { border-color:transparent; background:transparent; color:var(--danger-text); padding-inline:0; }
+#view-mods .package-content > .editor-toolbar .btn:hover:not(:disabled) { text-decoration:underline; text-underline-offset:4px; }
+#view-mods .package-content > .editor-toolbar a { font-size:12.5px; color:var(--muted); }
+#view-mods .mod-option { padding:8px 0; }
+#view-mods .mod-option label { display:grid; grid-template-columns:20px minmax(0,1fr) minmax(16ch,32%); gap:10px; }
+#view-mods .mod-option label strong { min-width:0; overflow-wrap:anywhere; font-weight:500; }
+#view-mods .mod-option label code { min-width:0; }
+#view-mods .mod-option > .hint { margin:0 0 4px 30px; font-size:12px; }
+#view-mods .mod-option > a { margin-left:30px; display:inline-flex; align-items:center; min-height:44px; }
+.config-flow { margin-bottom:16px; }
+.config-flow button { flex-direction:row; flex-wrap:wrap; align-items:center; gap:4px 8px; padding:8px 12px; min-height:44px; }
+.config-flow button strong { font-size:13px; font-weight:500; }
+.config-flow button[aria-current=step] { background:transparent; }
+.config-flow button[aria-current=step]::after { height:1px; }
+@media (max-width:1000px) and (min-width:741px) {
+  #view-mods .workshop-package > summary { grid-template-columns:16px minmax(0,1fr) 12ch 17ch; gap:8px; }
+  #view-mods .mod-option label { grid-template-columns:20px minmax(0,1fr) minmax(12ch,32%); }
+}
+@media (max-width:740px) {
+  .editor-card .editor-tabs { gap:16px; margin-bottom:12px; }
+  #view-settings .config-field { grid-template-columns:minmax(0,1fr); gap:8px; }
+  #view-settings .config-label { min-height:44px; }
+  #view-settings .config-field > .hint, #view-settings .config-field > .config-scope, #view-settings .config-field > .field-error, #view-settings .config-field > [data-remove-option] { grid-column:1; }
+  #view-mods .editor-toolbar select { flex:1 1 140px; }
+  #view-mods .mod-secondary-actions .btn { min-height:44px; }
+  #view-mods .workshop-package > summary { grid-template-columns:16px minmax(0,1fr) auto; gap:8px; }
+  #view-mods .workshop-package > summary strong { grid-column:2/-1; }
+  #view-mods .workshop-package > summary > code { grid-column:2; justify-self:start; }
+  #view-mods .package-content { padding-left:0; }
+  #view-mods .mod-option label { grid-template-columns:20px minmax(0,1fr); gap:4px 10px; padding:4px 0; }
+  #view-mods .mod-option label code { grid-column:2; }
+  .config-flow button { align-content:center; padding:8px 6px; }
+  .config-flow button strong { font-size:12px; }
 }
 
 /* Собранный обзор: состояние и команды, затем нагрузка и короткие сводки. */

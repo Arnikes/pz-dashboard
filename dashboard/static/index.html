@@ -260,7 +260,7 @@
     <!-- МОДЫ: реестр + обновления -->
     <div class="view" id="view-mods" tabindex="-1" hidden>
       <section class="card editor-card" aria-labelledby="hModsEditor">
-        <header class="card-head"><h2 id="hModsEditor">Состав модов</h2><span id="modSummary" class="hint"></span><span data-help-label="О составе модов" data-help-text="Workshop item — пакет Steam. После загрузки выберите отдельные ModID внутри пакета. Карты добавляются отдельно. Изменения сохраняются в черновике."></span></header>
+        <header class="card-head"><h2 id="hModsEditor" class="sr-only">Состав модов</h2><span id="modSummary" class="hint"></span><span data-help-label="О составе модов" data-help-text="Workshop item — пакет Steam. После загрузки выберите отдельные ModID внутри пакета. Карты добавляются отдельно. Изменения сохраняются в черновике."></span></header>
         <p class="tab-scroll-help" id="modTabsHelp">Вкладки можно прокручивать влево и вправо.</p>
         <div class="editor-tabs" id="modTabs" role="tablist" aria-label="Редактор модов" aria-describedby="modTabsHelp">
           <button type="button" role="tab" aria-selected="true" aria-controls="modComposition" data-tab="composition">Состав</button>
@@ -274,7 +274,7 @@
             <select id="modFilter" aria-label="Состояние пакета"><option value="all">Все</option><option value="selected">Выбранные</option><option value="disabled">Выключенные</option><option value="pending">Ожидают загрузки</option><option value="problems">С проблемами</option><option value="updates">С обновлениями</option></select>
             <select id="modSortNew" aria-label="Порядок отображения"><option value="config">Как в конфиге</option><option value="title">По названию</option></select>
           </div>
-          <div class="editor-toolbar"><button type="button" id="modExport" class="btn small">Экспорт набора</button><label class="btn small import-button">Импорт набора<input type="file" id="modImport" accept="application/json,.json" class="sr-only" /></label><button type="button" class="btn small" id="modRescan">Перечитать метаданные</button></div>
+          <div class="editor-toolbar mod-secondary-actions"><button type="button" id="modExport" class="btn small ghost">Экспорт набора</button><label class="btn small ghost import-button">Импорт набора<input type="file" id="modImport" accept="application/json,.json" class="sr-only" /></label><button type="button" class="btn small ghost" id="modRescan">Перечитать метаданные</button></div>
           <div id="installNotice" class="install-notice" hidden></div>
           <div id="modPackages" class="list"><p class="hint">Выберите профиль конфигурации.</p></div>
         </div>
