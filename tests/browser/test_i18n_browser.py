@@ -153,6 +153,28 @@ def test_login_language_changes_in_place_without_storing_credentials(page, dashb
     expect(page.locator("#password")).to_have_value("секрет <private>")
 
 
+@pytest.mark.parametrize("value", ["ru", "en", "ru&injected=<img src=x onerror=alert(1)>"])
+def test_language_change_uses_only_supported_language_codes(page, dashboard, value):
+    page.goto(dashboard["url"] + "/login.html")
+    page.evaluate(
+        """value => {
+            const select = document.querySelector('[data-language-switch]');
+            select.add(new Option('Injected option', value));
+            select.value = value;
+            select.dispatchEvent(new Event('change'));
+        }""",
+        value,
+    )
+    language = "ru" if value == "ru" else "en"
+    expect(page.locator("html")).to_have_attribute("lang", language)
+    assert page.evaluate("I18n.language") == language
+    assert page.evaluate("localStorage.getItem('pz-language')") == language
+    assert page.evaluate("document.cookie") == f"pz_language={language}"
+    assert page.locator('link[rel="manifest"]').get_attribute("href") == (
+        f"/manifest.webmanifest?lang={language}"
+    )
+
+
 @pytest.mark.browser_context_args(locale="en-US", service_workers="allow")
 def test_english_offline_shell_has_cached_translations(page, context, pwa_server):  # noqa: F811
     ready(page, pwa_server)

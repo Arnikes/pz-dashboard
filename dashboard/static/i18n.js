@@ -11,7 +11,7 @@ window.I18n = (() => {
   const detected = (navigator.languages || [navigator.language]).find(supported);
   let language, locale, catalog, plurals;
   function activate(value) {
-    language = value;
+    language = normalize(value) === "ru" ? "ru" : "en";
     locale = language === "ru" ? "ru-RU" : "en-US";
     catalog = window.PZ_TRANSLATIONS?.[language] || {};
     plurals = new Intl.PluralRules(locale);
@@ -85,7 +85,7 @@ window.I18n = (() => {
       if (boundSwitches.has(node)) continue;
       boundSwitches.add(node);
       node.addEventListener("change", async () => {
-        const next = node.value;
+        const next = node.value === "ru" ? "ru" : "en";
         node.disabled = true;
         try {
           // Standalone pages can change language in place. Credentials and

@@ -268,7 +268,7 @@ function syncTabAccessibility(id) {
     const selected = tab.getAttribute("aria-selected") === "true";
     tab.id = `${id}-${tab.dataset.tab}`;
     tab.tabIndex = selected ? 0 : -1;
-    const panel = $(tab.getAttribute("aria-controls"));
+    const panel = document.getElementById(tab.getAttribute("aria-controls"));
     panel.setAttribute("role", "tabpanel");
     panel.setAttribute("aria-labelledby", tab.id);
     panel.tabIndex = 0;
