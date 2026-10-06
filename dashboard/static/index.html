@@ -143,15 +143,17 @@
     <div class="view" id="view-overview" tabindex="-1">
 
       <section class="card c-status" id="sec-status" data-od-id="status" aria-labelledby="hStatus">
-        <header class="card-head">
-          <h2 id="hStatus">Состояние сервера</h2>
-          <span class="pill" id="pillCompose" data-state="unknown">compose</span>
-        </header>
-        <div class="state-line">
-          <span class="lamp" id="stateLamp" data-state="unknown" aria-hidden="true"></span>
-          <span class="state-label" id="stateLabel">Подключение…</span>
+        <h2 id="hStatus" class="sr-only">Состояние сервера</h2>
+        <div class="overview-state">
+          <div class="state-line">
+            <span class="lamp" id="stateLamp" data-state="unknown" aria-hidden="true"></span>
+            <span class="state-label" id="stateLabel">Подключение…</span>
+          </div>
+          <div class="overview-status-meta">
+            <div class="uptime" id="uptime" aria-label="Время работы">—</div>
+            <span class="pill" id="pillCompose" data-state="unknown">compose</span>
+          </div>
         </div>
-        <div class="uptime mono" id="uptime" aria-label="Время работы">—</div>
         <div class="actions">
           <button class="btn" id="btnStart">Запустить</button>
           <button class="btn danger" id="btnStop">Остановить</button>
@@ -171,16 +173,6 @@
             <span class="k-value mono" id="kpiOnline">–</span>
             <span class="k-sub" id="kpiOnlineSub">…</span>
           </a>
-          <div class="kpi">
-            <span class="k-label">CPU</span>
-            <span class="k-value mono" id="kpiCpu">—</span>
-            <div class="bar"><i id="kpiCpuBar" style="width:0%"></i></div>
-          </div>
-          <div class="kpi">
-            <span class="k-label">RAM</span>
-            <span class="k-value mono" id="kpiRam">—</span>
-            <span class="k-sub mono" id="kpiRamSub">…</span>
-          </div>
           <a class="kpi" href="#/backups">
             <span class="k-label">Бэкап</span>
             <span class="k-value mono" id="kpiBackup">—</span>
@@ -189,54 +181,58 @@
         </div>
       </section>
 
-      <!-- МЕТРИКИ -->
-      <section class="card c-metrics" id="sec-metrics" data-od-id="metrics" aria-labelledby="hMetrics">
-        <header class="card-head"><h2 id="hMetrics">Нагрузка контейнера</h2><span data-help-label="О графиках нагрузки" data-help-text="Графики показывают историю CPU и RAM за час."></span></header>
-        <div class="metric">
-          <div class="metric-row"><span>CPU</span><span class="mono" id="cpuVal">—</span></div>
-          <div class="bar"><i id="cpuBar" style="width:0%"></i></div>
-          <svg class="spark" id="cpuSpark" viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><polyline id="cpuSparkLine" fill="none" stroke="currentColor" stroke-width="1.6" points=""/></svg>
-        </div>
-        <div class="metric">
-          <div class="metric-row"><span>RAM</span><span class="mono" id="ramVal">—</span></div>
-          <div class="bar"><i id="ramBar" style="width:0%"></i></div>
-          <svg class="spark ram" id="ramSpark" viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><polyline id="ramSparkLine" fill="none" stroke="currentColor" stroke-width="1.6" points=""/></svg>
-          <div class="metric-sub mono" id="ramSub">—</div>
-        </div>
-        <dl class="net-row">
-          <div><dt>Сеть ↓</dt><dd class="mono" id="netIn">—</dd></div>
-          <div><dt>Сеть ↑</dt><dd class="mono" id="netOut">—</dd></div>
-          <div><dt>Процессов</dt><dd class="mono" id="pids">—</dd></div>
-        </dl>
-      </section>
-
-      <!-- СВОДКА ОБНОВЛЕНИЙ -->
-      <section class="card c-sumupd" id="sec-sumupd" data-od-id="updates-summary" aria-labelledby="hSumUpd">
-        <header class="card-head">
-          <h2 id="hSumUpd">Обновления</h2>
-        </header>
-        <div class="sum-rows">
-          <div class="sum-row">
-            <a class="sum-name" href="#/maintenance">Образ Docker</a>
-            <span class="pill" id="sumImagePill" data-state="unknown">—</span>
+      <div class="overview-content">
+        <!-- МЕТРИКИ -->
+        <section class="card c-metrics" id="sec-metrics" data-od-id="metrics" aria-labelledby="hMetrics">
+          <header class="card-head"><h2 id="hMetrics">Нагрузка контейнера</h2><span data-help-label="О графиках нагрузки" data-help-text="Графики показывают историю CPU и RAM за час."></span></header>
+          <div class="metric">
+            <div class="metric-row"><span>CPU</span><span class="mono" id="cpuVal">—</span></div>
+            <div class="bar"><i id="cpuBar" style="width:0%"></i></div>
+            <svg class="spark" id="cpuSpark" viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><polyline id="cpuSparkLine" fill="none" stroke="currentColor" stroke-width="1.6" points=""/></svg>
           </div>
-          <div class="sum-row">
-            <a class="sum-name" href="#/mods">Моды Workshop</a>
-            <span class="pill" id="sumModsPill" data-state="unknown">—</span>
+          <div class="metric">
+            <div class="metric-row"><span>RAM</span><span class="mono" id="ramVal">—</span></div>
+            <div class="bar"><i id="ramBar" style="width:0%"></i></div>
+            <svg class="spark ram" id="ramSpark" viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><polyline id="ramSparkLine" fill="none" stroke="currentColor" stroke-width="1.6" points=""/></svg>
+            <div class="metric-sub mono" id="ramSub">—</div>
           </div>
-        </div>
-      </section>
+          <dl class="net-row">
+            <div><dt>Сеть ↓</dt><dd class="mono" id="netIn">—</dd></div>
+            <div><dt>Сеть ↑</dt><dd class="mono" id="netOut">—</dd></div>
+            <div><dt>Процессов</dt><dd class="mono" id="pids">—</dd></div>
+          </dl>
+        </section>
 
-      <!-- ПОСЛЕДНИЕ СОБЫТИЯ -->
-      <section class="card c-recent" id="sec-recent" data-od-id="recent" aria-labelledby="hRecent">
-        <header class="card-head">
-          <h2 id="hRecent">Последние события</h2>
-          <a class="head-link" href="#/events">Вся история</a>
-        </header>
-        <div id="recentBody" class="list" data-state="loading">
-          <p class="skeleton-line"></p><p class="skeleton-line short"></p>
+        <div class="overview-secondary">
+          <!-- СВОДКА ОБНОВЛЕНИЙ -->
+          <section class="card c-sumupd" id="sec-sumupd" data-od-id="updates-summary" aria-labelledby="hSumUpd">
+            <header class="card-head">
+              <h2 id="hSumUpd">Обновления</h2>
+            </header>
+            <div class="sum-rows">
+              <div class="sum-row">
+                <a class="sum-name" href="#/maintenance">Образ Docker</a>
+                <span class="pill" id="sumImagePill" data-state="unknown">—</span>
+              </div>
+              <div class="sum-row">
+                <a class="sum-name" href="#/mods">Моды Workshop</a>
+                <span class="pill" id="sumModsPill" data-state="unknown">—</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- ПОСЛЕДНИЕ СОБЫТИЯ -->
+          <section class="card c-recent" id="sec-recent" data-od-id="recent" aria-labelledby="hRecent">
+            <header class="card-head">
+              <h2 id="hRecent">Последние события</h2>
+              <a class="head-link" href="#/events">Вся история</a>
+            </header>
+            <div id="recentBody" class="list" data-state="loading">
+              <p class="skeleton-line"></p><p class="skeleton-line short"></p>
+            </div>
+          </section>
         </div>
-      </section>
+      </div>
     </div>
 
     <!-- ИГРОКИ -->

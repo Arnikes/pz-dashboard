@@ -765,7 +765,7 @@ function renderOverview(o) {
   updateButtons();
 }
 
-/* KPI-строка обзора: те же данные, что и в карточках, но одним взглядом */
+/* Строка обзора: онлайн и последний бэкап; CPU и RAM показаны рядом с графиками. */
 function renderKpis() {
   const o = S.overview;
   const remote = !!(o && o.mode === "remote");
@@ -778,22 +778,6 @@ function renderKpis() {
     const peak = S.phPoints.reduce((m, x) => Math.max(m, x.count || 0), 0);
     $("kpiOnlineSub").textContent = I18n.msg`пик за сутки: ${peak}`;
   } else $("kpiOnlineSub").textContent = "…";
-
-  const st = S.stats;
-  if (remote || !st || !st.ok) {
-    $("kpiCpu").textContent = "—";
-    $("kpiCpuBar").style.width = "0%";
-    $("kpiRam").textContent = "—";
-    $("kpiRamSub").textContent = remote ? I18n.t("только с хоста") : "…";
-  } else {
-    const cpu = Math.max(0, Math.min(100, st.cpuPct || 0));
-    $("kpiCpu").textContent = `${cpu.toFixed(0)}%`;
-    $("kpiCpuBar").style.width = `${cpu}%`;
-    $("kpiCpuBar").className = cpu >= 85 ? "hot" : cpu >= 60 ? "warm" : "";
-    const memPct = Math.max(0, Math.min(100, st.memPct || 0));
-    $("kpiRam").textContent = `${memPct.toFixed(0)}%`;
-    $("kpiRamSub").textContent = `${fmtBytes(st.memUsed)} / ${fmtBytes(st.memLimit)}`;
-  }
 
   const last = S.backupsItems && S.backupsItems[0];
   $("kpiBackup").title = "";
