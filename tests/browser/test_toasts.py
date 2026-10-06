@@ -97,28 +97,32 @@ def test_stack_waits_for_each_message_and_keyboard_dismissal_keeps_focus(page, d
     expect(page.locator("#btnCommands")).to_be_focused()
 
 
+def settled_toast_boxes(page):
+    # The mocked JS clock does not advance CSS animations or transitions.
+    return page.locator("#toasts").evaluate("""async root => {
+      await Promise.all(root.getAnimations({subtree: true}).map(animation => animation.finished));
+      return [...root.children].map(node => node.getBoundingClientRect().toJSON());
+    }""")
+
+
 @pytest.mark.parametrize("width", [320, 390, 1440])
-def test_stack_layout_long_messages_and_expansion(page, dashboard, width):
+@pytest.mark.parametrize("motion", ["no-preference", "reduce"])
+def test_stack_layout_long_messages_and_expansion(page, dashboard, width, motion):
     page.set_viewport_size({"width": width, "height": 900})
+    page.emulate_media(reduced_motion=motion)
     open_toasts(page, dashboard)
     page.evaluate("""() => {
       toast('Проверка модов завершена', 'ok');
       toast('Изменения записаны. Перезапустите сервер, чтобы применить настройки.', 'info');
       toast('Не удалось выполнить операцию: ' + 'WorkshopID'.repeat(20), 'error');
     }""")
-    page.clock.run_for(200)
-    boxes = page.locator(".toast").evaluate_all(
-        "nodes => nodes.map(n => n.getBoundingClientRect().toJSON())"
-    )
+    boxes = settled_toast_boxes(page)
     assert boxes[0]["y"] < boxes[1]["y"] < boxes[2]["y"]
     assert boxes[0]["width"] < boxes[1]["width"] < boxes[2]["width"]
     assert all(box["x"] >= 0 and box["right"] <= width for box in boxes)
     page.screenshot(path=f".tmp-toast-evidence/stack-{width}.png")
     page.locator('.toast[data-front="true"] button').focus()
-    page.clock.run_for(200)
-    boxes = page.locator(".toast").evaluate_all(
-        "nodes => nodes.map(n => n.getBoundingClientRect().toJSON())"
-    )
+    boxes = settled_toast_boxes(page)
     assert all(a["bottom"] <= b["top"] for a, b in zip(boxes, boxes[1:]))
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     page.screenshot(path=f".tmp-toast-evidence/expanded-{width}.png")
