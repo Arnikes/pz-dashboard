@@ -59,7 +59,8 @@ window.I18n = (() => {
     const walker = document.createTreeWalker(document, NodeFilter.SHOW_TEXT);
     while (walker.nextNode()) {
       const node = walker.currentNode;
-      if (node.parentElement?.closest("script,style,textarea,pre,code")) continue;
+      // Language names stay recognizable in their own language in every locale.
+      if (node.parentElement?.closest("script,style,textarea,pre,code,option[lang]")) continue;
       if (!sourceTexts.has(node) && Object.hasOwn(window.PZ_TRANSLATIONS?.en || {}, canonical(node.nodeValue))) sourceTexts.set(node, node.nodeValue);
       if (sourceTexts.has(node)) node.nodeValue = t(sourceTexts.get(node));
     }

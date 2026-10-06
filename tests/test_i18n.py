@@ -61,9 +61,14 @@ def test_static_pages_have_complete_translations():
     class Texts(HTMLParser):
         skip = 0
         missing = []
+        language_option = False
 
         def handle_starttag(self, tag, attrs):
             if tag in ("script", "style", "textarea", "pre", "code"):
+                self.skip += 1
+            if tag == "option" and dict(attrs).get("lang") in ("en", "ru"):
+                # Autonyms identify the target language, independent of UI locale.
+                self.language_option = True
                 self.skip += 1
             for name, value in attrs:
                 if name in (
@@ -79,6 +84,9 @@ def test_static_pages_have_complete_translations():
 
         def handle_endtag(self, tag):
             if tag in ("script", "style", "textarea", "pre", "code"):
+                self.skip -= 1
+            if tag == "option" and self.language_option:
+                self.language_option = False
                 self.skip -= 1
 
         def handle_data(self, value):

@@ -141,11 +141,15 @@ def test_login_language_changes_in_place_without_storing_credentials(page, dashb
     page.locator("#password").fill("секрет <private>")
     page.locator("[data-language-switch]").select_option("en")
     expect(page.get_by_role("button", name="Sign in", exact=True)).to_be_visible()
+    expect(page.locator('[data-language-switch] option[lang="ru"]')).to_have_text("Русский")
+    expect(page.locator('[data-language-switch] option[lang="en"]')).to_have_text("English")
     expect(page.locator("#login")).to_have_value("имя {{0}}")
     expect(page.locator("#password")).to_have_value("секрет <private>")
     assert page.evaluate("JSON.stringify(localStorage)") == '{"pz-language":"en"}'
     page.locator("[data-language-switch]").select_option("ru")
     expect(page.get_by_role("button", name="Войти", exact=True)).to_be_visible()
+    expect(page.locator('[data-language-switch] option[lang="ru"]')).to_have_text("Русский")
+    expect(page.locator('[data-language-switch] option[lang="en"]')).to_have_text("English")
     expect(page.locator("#password")).to_have_value("секрет <private>")
 
 

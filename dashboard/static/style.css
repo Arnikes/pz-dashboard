@@ -153,7 +153,7 @@ a { color: var(--muted); }
   top: 0;
   z-index: 50;
   display: grid;
-  grid-template-columns: minmax(140px, 1fr) auto;
+  grid-template-columns: minmax(140px, 1fr) minmax(0, auto);
   align-items: center;
   justify-content: space-between;
   gap: var(--space-section);
@@ -176,8 +176,23 @@ a { color: var(--muted); }
   color: var(--ink);
 }
 
-.top-right { display:grid; grid-template-columns:minmax(160px,300px) auto auto auto; align-items:center; gap:4px 12px; min-width:0; }
+.top-right { display:grid; grid-template-columns:minmax(160px,300px) auto auto; align-items:center; gap:4px 12px; min-width:0; }
 .topbar #btnCommands, .topbar #btnLogout { min-height:var(--control-height); font-size:13.5px; white-space:nowrap; }
+
+@media (min-width:741px) and (max-width:1000px) {
+  .topbar #btnCommands { width:44px; padding:10px; }
+  #btnCommands .command-label { display:none; }
+}
+
+.session-tools { display:flex; align-items:center; gap:8px; min-width:max-content; padding-inline-start:12px; border-inline-start:1px solid var(--line); }
+.language-control { display:flex; align-items:center; position:relative; color:var(--muted); }
+.language-control > svg { position:absolute; inset-inline-start:10px; width:18px; height:18px; pointer-events:none; }
+.language-control .language-switch { min-width:0; padding:8px 8px 8px 36px; border-color:transparent; background:transparent; color:var(--muted); font:500 13.5px/1.3 var(--font-body); }
+.language-control .language-switch:hover:not(:disabled) { background:var(--surface-2); color:var(--ink); }
+.language-control .language-switch option { background:var(--surface); color:var(--ink); }
+.session-tools .session-logout { border-color:transparent; color:var(--muted); padding:9px 10px; }
+.session-logout svg { width:18px; height:18px; flex:none; }
+.session-tools .session-logout:hover:not(:disabled) { color:var(--ink); background:var(--surface-2); border-color:transparent; }
 
 .brand-version { position:absolute; inset:auto 0 0; color:var(--muted); font-size:12px; line-height:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
@@ -561,10 +576,8 @@ select:focus-visible,
 /* ───────────────────────── watchdog ───────────────────────── */
 
 .watchdog-block {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+  display: grid;
+  gap: var(--space-group);
   margin-top: 14px;
   padding-top: 12px;
   border-top: 1px dashed var(--line-strong);
@@ -572,6 +585,8 @@ select:focus-visible,
 
 /* watchdog выделен в отдельную карточку на странице обслуживания */
 .c-watchdog .watchdog-block { margin: 0; padding: 0; border-top: none; }
+.watchdog-fields { align-items:end; }
+.c-watchdog #wdGraceHint { margin:var(--space-group) 0 0; }
 
 #wdStatus { margin: 10px 0 0; font-size: 11.5px; }
 #wdStatus.ok { color: var(--faint); }
@@ -610,7 +625,8 @@ input:disabled, select:disabled, textarea:disabled { opacity: 0.55; cursor: not-
   border-top: 1px dashed var(--line-strong);
 }
 
-.c-notify .auto-block { margin-top: 0; padding-top: 0; border-top: none; }
+.c-notify .auto-block { display:grid; gap:var(--space-group); margin-top:0; padding-top:0; border-top:none; }
+.c-notify .auto-row, .c-notify .check-row, .c-notify .check { margin:0; }
 
 .auto-row { margin-bottom: 12px; }
 
@@ -1381,8 +1397,9 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--draft-heigh
   .config-context { grid-column:1/3; grid-row:2; width:100%; }
   .profile-label { width:100%; min-width:0; }
   #btnCommands { grid-column:3; grid-row:2; align-self:end; justify-self:end; width:44px; min-height:44px; padding:10px; }
-  .topbar #btnLogout { grid-column:3; grid-row:1; justify-self:end; width:auto; padding:7px 12px; }
-  #languageSwitch { grid-column:2; grid-row:1; min-width:58px; }
+  .session-tools { grid-column:2/-1; grid-row:1; justify-self:end; gap:4px; padding:0; border:0; }
+  .topbar #btnLogout { width:44px; padding:10px; }
+  .logout-label { display:none; }
   #btnCommands .command-label { display:none; }
   #btnCommands svg { display:block; }
   .nav { display:grid; grid-template-columns:repeat(4,1fr); padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px)); gap:4px; }
@@ -1463,6 +1480,8 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--draft-heigh
 .login-remember input { width:20px; height:20px; margin:0; }
 .login-hint { color:var(--muted); font-size:14px; line-height:1.5; margin:-8px 0 0; }
 .login-card button { width:100%; justify-content:center; margin-top:12px; min-height:44px; }
+.login-language { display:flex; justify-content:center; margin-top:var(--space-section); padding-top:12px; border-top:1px solid var(--line); }
+.login-language .language-switch { font-size:16px; }
 .login-error { color:var(--error-text); margin:4px 0; }
 
 /* Navigation and editing share one state vocabulary. */

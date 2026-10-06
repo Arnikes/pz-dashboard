@@ -59,8 +59,16 @@
         </div>
       </div>
       <button class="btn" id="btnCommands" type="button" title="Быстрые команды (Ctrl K)" aria-label="Быстрые команды" aria-keyshortcuts="Control+k Meta+k" aria-haspopup="dialog" aria-controls="commandDialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><span class="command-label">Быстрые команды</span></button>
-      <button class="btn ghost" id="btnLogout" type="button">Выйти</button>
-      <select id="languageSwitch" class="language-switch" data-language-switch aria-label="Язык интерфейса"><option value="en" lang="en">EN</option><option value="ru" lang="ru">RU</option></select>
+      <div class="session-tools">
+        <div class="language-control">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 4 6 4 9s-1 6-4 9c-3-3-4-6-4-9s1-6 4-9Z"/></svg>
+          <select id="languageSwitch" class="language-switch" data-language-switch aria-label="Язык интерфейса"><option value="en" lang="en">EN</option><option value="ru" lang="ru">RU</option></select>
+        </div>
+        <button class="btn ghost session-logout" id="btnLogout" type="button" aria-label="Выйти" title="Выйти">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4H4v16h5M9 12h12m-4-4 4 4-4 4"/></svg>
+          <span class="logout-label">Выйти</span>
+        </button>
+      </div>
     </div>
   </header>
 
@@ -456,14 +464,18 @@
             <span class="switch-track" aria-hidden="true"></span>
               <span class="switch-label">Включён</span>
           </label>
-          <select id="wdThreshold" aria-label="Порог тишины RCON">
-            <option value="3">3 мин тишины</option>
-            <option value="5" selected>5 мин тишины</option>
-            <option value="10">10 мин тишины</option>
-          </select>
-          <label class="field">Пауза после рестарта, мин
-            <input type="number" id="wdGracePeriod" min="0" max="60" step="1" value="5" required aria-describedby="wdGraceHint" />
-          </label>
+          <div class="auto-grid watchdog-fields">
+            <label class="field">Порог тишины RCON
+              <select id="wdThreshold">
+                <option value="3">3 мин тишины</option>
+                <option value="5" selected>5 мин тишины</option>
+                <option value="10">10 мин тишины</option>
+              </select>
+            </label>
+            <label class="field">Пауза после рестарта, мин
+              <input type="number" id="wdGracePeriod" min="0" max="60" step="1" value="5" required aria-describedby="wdGraceHint" />
+            </label>
+          </div>
           <label class="check" title="Только при запуске пульта на хосте сервера">
             <input type="checkbox" id="wdRestart" /> авто-рестарт при зависании
           </label>
