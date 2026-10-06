@@ -100,3 +100,31 @@ def test_multiple_invalid_fields_preserve_the_first_api_error(patch, error):
     candidate, actual = settingsmodel.prepare_patch(settingsmodel.DEFAULTS, patch, Mock())
     assert candidate is None
     assert actual == error
+
+
+@pytest.mark.parametrize("value, expected", [(0, 0), (12, 12), (99, 60), (-1, 0), ("7", 7)])
+def test_watchdog_grace_setting_is_validated_and_persisted(tmp_path, monkeypatch, value, expected):
+    monkeypatch.setattr(ops, "_SETTINGS", deepcopy(settingsmodel.DEFAULTS))
+    monkeypatch.setitem(config.CFG, "settings_file", str(tmp_path / "settings.json"))
+    assert ops.patch_settings({"watchdog": {"gracePeriodMin": value}}) is None
+    assert ops.get_settings()["watchdog"]["gracePeriodMin"] == expected
+    monkeypatch.setattr(ops, "_SETTINGS", deepcopy(settingsmodel.DEFAULTS))
+    ops._load_settings()
+    assert ops.get_settings()["watchdog"]["gracePeriodMin"] == expected
+
+
+@pytest.mark.parametrize("value", [True, None, [], "bad"])
+def test_invalid_grace_setting_is_rejected(value):
+    candidate, error = settingsmodel.prepare_patch(
+        settingsmodel.DEFAULTS, {"watchdog": {"gracePeriodMin": value}}, Mock()
+    )
+    assert candidate is None
+    assert error == "gracePeriodMin должен быть числом 0–60"
+
+
+@pytest.mark.parametrize("loaded", [{}, {"gracePeriodMin": "bad"}, {"gracePeriodMin": True}])
+def test_legacy_or_invalid_loaded_grace_uses_five_minutes(loaded):
+    current = deepcopy(settingsmodel.DEFAULTS)
+    settingsmodel.merge_loaded(current, {"watchdog": loaded})
+    settingsmodel.normalize_loaded(current)
+    assert current["watchdog"]["gracePeriodMin"] == 5

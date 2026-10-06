@@ -8,6 +8,14 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "dashboard"))
 
 import auth  # noqa: E402
+import ops  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def isolated_watchdog(monkeypatch):
+    """Controlled launches in one test must not mute probes in another."""
+    monkeypatch.setattr(ops, "_WD", dict(ops._WD))
+    monkeypatch.setattr(ops, "_WD_GRACE", {"until": 0.0, "generation": 0})
 
 
 @pytest.fixture(scope="session")

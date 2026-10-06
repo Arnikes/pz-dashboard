@@ -7,6 +7,57 @@ from playwright.sync_api import expect
 pytestmark = pytest.mark.browser
 
 
+@pytest.mark.parametrize("width", [390, 1440])
+def test_watchdog_grace_setting_and_status(page, dashboard, width):
+    page.set_viewport_size({"width": width, "height": 900})
+    dashboard["overview"]["settings"] = {
+        "watchdog": {"enabled": True, "thresholdMin": 5, "autoRestart": False}
+    }
+    dashboard["overview"]["watchdog"] = {"graceRemainingSec": 240, "consecutiveFailures": 0}
+    requests = []
+
+    def save(route):
+        payload = route.request.post_data_json
+        requests.append(payload)
+        dashboard["overview"]["settings"]["watchdog"].update(payload["watchdog"])
+        route.fulfill(json={"ok": True, "settings": dashboard["overview"]["settings"]})
+
+    page.route("**/api/settings", save)
+    page.goto(dashboard["url"] + "/#/maintenance")
+    grace = page.get_by_role("spinbutton", name="Пауза после рестарта, мин")
+    expect(grace).to_have_value("5")
+    expect(page.locator("#wdPill")).to_have_text("пауза: 4 мин")
+    grace.fill("12")
+    grace.press("Tab")
+    expect(page.locator("#sec-watchdog .settings-feedback")).to_contain_text("сохранено")
+    assert requests == [
+        {
+            "watchdog": {
+                "enabled": True,
+                "thresholdMin": 5,
+                "autoRestart": False,
+                "gracePeriodMin": 12,
+            }
+        }
+    ]
+    page.evaluate("renderOverview(S.overview)")
+    expect(grace).to_have_value("12")
+    grace.fill("61")
+    grace.press("Tab")
+    assert len(requests) == 1
+    grace.fill("0")
+    grace.press("Tab")
+    page.wait_for_function("settingState('watchdog').pending === 0")
+    assert requests[-1]["watchdog"]["gracePeriodMin"] == 0
+    page.evaluate("renderOverview({...S.overview,watchdog:{graceRemainingSec:0,lastResult:'ok'}})")
+    expect(page.locator("#wdPill")).to_have_text("следит")
+    page.locator("#sec-watchdog").scroll_into_view_if_needed()
+    page.screenshot(path=f".tmp-watchdog/maintenance-{width}.png", full_page=True)
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    page.evaluate("renderOverview({...S.overview,mode:'remote'})")
+    expect(grace).to_be_disabled()
+
+
 def test_missing_backup_notice_remains_available_without_a_config_profile(page, dashboard):
     page.goto(dashboard["url"])
     expect(page.locator("#configProfile")).to_have_value("")

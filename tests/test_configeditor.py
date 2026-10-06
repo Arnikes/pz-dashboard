@@ -74,6 +74,49 @@ def change(**kwargs):
     return editor.patch({"file": "world.ini", "draftRevision": current["draftRevision"], **kwargs})
 
 
+@pytest.mark.parametrize("prepare", [False, True])
+def test_controlled_config_restart_refreshes_watchdog_grace(env, monkeypatch, prepare):
+    data, _ = env
+    current = (
+        change(mods={"items": ["111", "222"]}) if prepare else change(ini={"PublicName": "New"})
+    )
+    clock = [1000.0]
+    running = [True]
+    monkeypatch.setattr(ops.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(ops, "_SETTINGS", json.loads(json.dumps(ops._DEFAULTS)))
+    monkeypatch.setattr(ops, "is_running", lambda: running[0])
+    monkeypatch.setattr(ops, "container_state", lambda: {"running": running[0]})
+
+    def stop():
+        assert ops._watchdog_in_grace()
+        running[0] = False
+        clock[0] += 400
+        return "stopped"
+
+    def start(name):
+        assert ops.watchdog_state()["graceRemainingSec"] == 300
+        if prepare:
+            metadata = data / "steamapps/workshop/content/108600/222/mods/New/42"
+            metadata.mkdir(parents=True)
+            (metadata / "mod.info").write_text("id=new-id\nname=New\n", encoding="utf-8")
+        running[0] = True
+        return 0, "", ""
+
+    monkeypatch.setattr(ops, "graceful_stop", stop)
+    monkeypatch.setattr(editor.dockerlib, "container_start", start)
+    monkeypatch.setattr(editor, "wait_ready", lambda: None)
+    editor.run(
+        {
+            "file": "world.ini",
+            "draftRevision": current["draftRevision"],
+            "restart": True,
+            "warnSeconds": 0,
+        },
+        prepare=prepare,
+    )
+    assert ops.watchdog_state()["graceRemainingSec"] == 300
+
+
 def test_ini_lossless_and_secret_masking():
     result = edit_ini(INI, {"PublicName": "Другой"})
     assert result == INI.replace("Сервер", "Другой")

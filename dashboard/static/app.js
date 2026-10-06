@@ -688,13 +688,15 @@ function renderOverview(o) {
   const wdCfg = o.settings?.watchdog || {};
   if (settingsCanRender("wdSwitch")) $("wdSwitch").checked = !!wdCfg.enabled;
   if (settingsCanRender("wdThreshold")) $("wdThreshold").value = String(wdCfg.thresholdMin ?? 5);
+  if (settingsCanRender("wdGracePeriod")) $("wdGracePeriod").value = String(wdCfg.gracePeriodMin ?? 5);
   if (settingsCanRender("wdRestart")) $("wdRestart").checked = !!wdCfg.autoRestart;
   const wds = o.watchdog || {};
   if (wdCfg.enabled) {
     const fails = wds.consecutiveFailures || 0;
     const skipped = wds.lastResult === "skipped" && !fails;
-    setPill("wdPill", fails ? "bad" : skipped ? "unknown" : "ok",
-      fails ? `сбои: ${fails}` : skipped ? "ожидание" : "следит");
+    const grace = wds.graceRemainingSec > 0;
+    setPill("wdPill", grace || skipped ? "unknown" : fails ? "bad" : "ok",
+      grace ? `пауза: ${Math.ceil(wds.graceRemainingSec / 60)} мин` : fails ? `сбои: ${fails}` : skipped ? "ожидание" : "следит");
   } else {
     setPill("wdPill", "unknown", "выкл");
   }
@@ -856,6 +858,7 @@ function updateButtons() {
   $("buBackup").disabled = hostOnly;
   $("wdSwitch").disabled = hostOnly;
   $("wdThreshold").disabled = hostOnly;
+  $("wdGracePeriod").disabled = hostOnly;
   $("modsAutoSwitch").disabled = hostOnly;
   $("modsAutoInterval").disabled = hostOnly;
   $("modsAutoAction").disabled = hostOnly;
@@ -865,7 +868,7 @@ function updateButtons() {
   $("bkAutoKeep").disabled = hostOnly;
   $("bkAutoStop").disabled = hostOnly;
   for (const id of ["btnStart", "btnStop", "btnRestart", "btnCheckUpd", "btnApplyUpd", "btnBackup", "btnCheckMods", "btnApplyMods",
-                    "autoSwitch", "autoInterval", "autoWarn", "buBackup", "wdSwitch", "wdThreshold",
+                    "autoSwitch", "autoInterval", "autoWarn", "buBackup", "wdSwitch", "wdThreshold", "wdGracePeriod",
                     "modsAutoSwitch", "modsAutoInterval", "modsAutoAction", "modsAutoWarn",
                     "bkAutoSwitch", "bkAutoTime", "bkAutoKeep", "bkAutoStop"]) {
     $(id).title = remote ? hostHint : (id === "btnApplyUpd" && o && o.compose === false
@@ -2116,7 +2119,7 @@ $("btnModsRestart").addEventListener("click", () => {
 
 const SETTING_GROUPS = {
   autoUpdate: { ids: ["autoSwitch", "autoInterval", "autoWarn", "buBackup"], card: "sec-updates", title: "Автообновление образа" },
-  watchdog: { ids: ["wdSwitch", "wdThreshold", "wdRestart"], card: "sec-watchdog", title: "Watchdog RCON" },
+  watchdog: { ids: ["wdSwitch", "wdThreshold", "wdGracePeriod", "wdRestart"], card: "sec-watchdog", title: "Watchdog RCON" },
   modsUpdate: { ids: ["modsAutoSwitch", "modsAutoInterval", "modsAutoAction", "modsAutoWarn"], card: "sec-modscheck", title: "Автообновление модов" },
   telegram: { ids: ["tgSwitch", "tgToken", "tgChat", "tgOps", "tgBackup", "tgUpdate", "tgProblems"], card: "sec-telegram", title: "Telegram" },
   autoBackup: { ids: ["bkAutoSwitch", "bkAutoTime", "bkAutoKeep", "bkAutoStop"], card: "sec-bkauto", title: "Расписание бэкапов" },
@@ -2210,6 +2213,7 @@ function saveSettingsGroup(group, body) {
 
 function pushSettings(eventOrGroup) {
   const group = typeof eventOrGroup === "string" ? eventOrGroup : settingGroup(eventOrGroup?.target?.id) || "telegram";
+  if (group === "watchdog" && !$("wdGracePeriod").reportValidity()) return Promise.resolve(false);
   const body = {
     autoUpdate: {
       enabled: $("autoSwitch").checked,
@@ -2220,6 +2224,7 @@ function pushSettings(eventOrGroup) {
     watchdog: {
       enabled: $("wdSwitch").checked,
       thresholdMin: Number($("wdThreshold").value),
+      gracePeriodMin: Number($("wdGracePeriod").value),
       autoRestart: $("wdRestart").checked,
     },
     modsUpdate: {
@@ -2281,6 +2286,7 @@ $("autoWarn").addEventListener("change", pushSettings);
 $("buBackup").addEventListener("change", pushSettings);
 $("wdSwitch").addEventListener("change", pushSettings);
 $("wdThreshold").addEventListener("change", pushSettings);
+$("wdGracePeriod").addEventListener("change", pushSettings);
 $("wdRestart").addEventListener("change", pushSettings);
 $("modsAutoSwitch").addEventListener("change", pushSettings);
 $("modsAutoInterval").addEventListener("change", pushSettings);

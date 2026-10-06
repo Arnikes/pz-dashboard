@@ -459,10 +459,14 @@
             <option value="5" selected>5 мин тишины</option>
             <option value="10">10 мин тишины</option>
           </select>
+          <label class="field">Пауза после рестарта, мин
+            <input type="number" id="wdGracePeriod" min="0" max="60" step="1" value="5" required aria-describedby="wdGraceHint" />
+          </label>
           <label class="check" title="Только при запуске пульта на хосте сервера">
             <input type="checkbox" id="wdRestart" /> авто-рестарт при зависании
           </label>
         </div>
+        <p class="hint" id="wdGraceHint">После управляемого рестарта сбои RCON не вызывают уведомлений и авторестартов в течение этой паузы. Затем порог тишины отсчитывается заново. 0 — без паузы.</p>
       </section>
 
       <!-- УВЕДОМЛЕНИЯ TELEGRAM -->

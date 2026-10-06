@@ -1151,6 +1151,7 @@ def run(data, prepare=False):
                 ops._set_phase("Предупреждение игроков", "Применение конфигурации")
                 ops.rcon_warn_broadcast(warn, "Изменение конфигурации")
             ops._set_phase("Остановка", "Сохранение мира")
+            ops._begin_watchdog_grace()
             if ops.graceful_stop() != "stopped":
                 raise EditorError("Сервер сам перезапустился; запись отменена", 409)
             stopped = True
@@ -1213,7 +1214,7 @@ def run(data, prepare=False):
                 "Загрузка пакетов" if prepare else "Запуск",
                 "Ожидание готовности PZ и RCON; подробности в логах сервера",
             )
-            code, _, _ = dockerlib.container_start(config.CFG["pz_container"])
+            code, _, _ = ops._start_container()
             if code != 0:
                 raise EditorError("Не удалось запустить контейнер", 500)
             wait_ready()
@@ -1398,7 +1399,7 @@ def run(data, prepare=False):
             and not (root / "transaction.json").exists()
             and revision(read_profile(file)) == saved["baseRevision"]
         ):
-            dockerlib.container_start(config.CFG["pz_container"])
+            ops._start_container()
         raise
 
 

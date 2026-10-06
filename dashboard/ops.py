@@ -3,6 +3,7 @@
 планировщик автообновления. Всё на стандартной библиотеке."""
 
 import json
+import math
 import os
 import re
 import shutil
@@ -276,7 +277,12 @@ def rcon(command, quiet=False):
         # сбойный RCON опрашивается каждые 5 с (SSE players) — пишем событие
         # на переход «было ok» и далее раз в 5 минут, иначе журнал и Telegram
         # заливаются дубликатами
-        if not quiet and (was_ok or now - _RCON_LOG["at"] >= 300):
+        if (
+            not quiet
+            and not op_busy()
+            and not _watchdog_in_grace()
+            and (was_ok or now - _RCON_LOG["at"] >= 300)
+        ):
             _RCON_LOG["at"] = now
             log_event("rcon-error", "RCON: " + str(e))
         raise
@@ -563,11 +569,17 @@ def start_op(op, fn):
 # ─── старт / стоп / рестарт ───
 
 
+def _start_container():
+    """Give controlled launches time to initialize PZ and RCON."""
+    _begin_watchdog_grace()
+    return dockerlib.container_start(config.CFG["pz_container"])
+
+
 def _do_start():
     if is_running():
         raise OpsError("Сервер уже запущен")
     _set_phase("Запуск", "docker start")
-    code, out, err = dockerlib.container_start(config.CFG["pz_container"])
+    code, out, err = _start_container()
     if code != 0:
         raise OpsError(f"Не удалось запустить: {err or out}")
     if not wait_until_running(150):
@@ -648,16 +660,18 @@ def _do_restart(
             log_event("auto", msg)
             _set_phase("Готово", "Авторестарт отменён: сервер уже перезапущен")
             return "aborted"
+    _begin_watchdog_grace()
     if graceful_stop(lambda m: _set_phase("Остановка", m)) == "resurrected":
         # docker сам поднял контейнер (restart policy) — рестарт уже случился,
         # остаётся дождаться запуска сервера
+        _begin_watchdog_grace()
         if not wait_until_running(150):
             raise OpsError("Сервер не запустился после рестарта за 150 с")
         log_event("restart", f"Сервер перезапущен ({reason})")
         _set_phase("Готово", "Сервер перезапущен")
         return
     _set_phase("Запуск", "docker start")
-    code, out, err = dockerlib.container_start(config.CFG["pz_container"])
+    code, out, err = _start_container()
     if code != 0:
         raise OpsError(f"Не удалось запустить после рестарта: {err or out}")
     if not wait_until_running(150):
@@ -813,13 +827,15 @@ def _do_apply_update(warn_seconds, reason="Обновление сервера")
         if was_running and warn_seconds > 0:
             _set_phase("Предупреждение игроков", f"отсчёт {warn_seconds} с")
             rcon_warn_broadcast(warn_seconds, reason)
+        _begin_watchdog_grace()
         if was_running:
             graceful_stop(lambda m: _set_phase("Остановка сервера", m))
         _set_phase("Пересоздание контейнера", "docker compose up -d")
+        _begin_watchdog_grace()
         code, out, err = dockerlib.compose_up(config.CFG)
         if code != 0:
             # пробуем поднять старый контейнер обратно
-            dockerlib.container_start(config.CFG["pz_container"])
+            _start_container()
             raise OpsError(
                 f"docker compose up не удался: {(err or out)[:200]}. "
                 "Сервер оставлен остановленным — проверьте конфиг"
@@ -1005,6 +1021,7 @@ def _do_backup(stop_server, trigger="manual", started=None):
             raise OpsError("Сервер не запущен — «бэкап с остановкой» не нужен, снимите флажок")
         _set_phase("Предупреждение игроков", "отсчёт 60 с")
         rcon_warn_broadcast(60, "Бэкап сервера")
+        _begin_watchdog_grace()
         if graceful_stop(lambda m: _set_phase("Остановка для бэкапа", m)) == "resurrected":
             # docker сам поднял контейнер посреди остановки — архивировать
             # полуживой мир нельзя, файлы могут быть в записи
@@ -1027,7 +1044,7 @@ def _do_backup(stop_server, trigger="manual", started=None):
     finally:
         if stop_server and was_running:
             _set_phase("Запуск сервера", "docker start")
-            code, out, err = dockerlib.container_start(config.CFG["pz_container"])
+            code, out, err = _start_container()
             restart_error = None
             if code != 0:
                 restart_error = f"Не удалось запустить сервер после бэкапа: {err or out}"
@@ -1172,6 +1189,7 @@ def _restore_prepared(dest, name):
     if is_running():
         _set_phase("Предупреждение игроков", "отсчёт 60 с")
         rcon_warn_broadcast(60, "Восстановление из бэкапа")
+        _begin_watchdog_grace()
         if graceful_stop(lambda m: _set_phase("Остановка сервера", m)) == "resurrected":
             # docker сам поднял контейнер посреди остановки — стирать данные
             # под живым сервером нельзя: мир будет в записи
@@ -1184,7 +1202,7 @@ def _restore_prepared(dest, name):
     _set_phase("Восстановление файлов", name)
     _restore_files(dest)
     _set_phase("Запуск сервера", "docker start")
-    code, out, err = dockerlib.container_start(config.CFG["pz_container"])
+    code, out, err = _start_container()
     if code != 0:
         raise OpsError(f"Данные восстановлены, но запуск не удался: {err or out}")
     if not wait_until_running(180):
@@ -1951,6 +1969,9 @@ def get_players_history():
 
 # ─────────────────────────── watchdog RCON ───────────────────────────
 
+_WD_LOCK = threading.RLock()
+_WD_GRACE = {"until": 0.0, "generation": 0}
+
 _WD = {
     "lastProbeAt": None,
     "lastResult": None,
@@ -1958,38 +1979,84 @@ _WD = {
     "consecutiveFailures": 0,
     "alerted": False,
     "lastRestartAt": None,
+    "graceUntil": None,
 }
 
 
+def _begin_watchdog_grace():
+    """Reset failures at a controlled stop/start; use a monotonic deadline."""
+    seconds = get_settings()["watchdog"]["gracePeriodMin"] * 60
+    with _WD_LOCK:
+        _WD_GRACE["until"] = time.monotonic() + seconds
+        _WD_GRACE["generation"] += 1
+        _WD.update(
+            lastResult="grace" if seconds else "skipped",
+            lastError=None,
+            consecutiveFailures=0,
+            alerted=False,
+            graceUntil=time.time() + seconds if seconds else None,
+        )
+
+
+def _watchdog_in_grace():
+    with _WD_LOCK:
+        return time.monotonic() < _WD_GRACE["until"]
+
+
 def watchdog_state():
-    return dict(_WD)
+    with _WD_LOCK:
+        remaining = max(0, _WD_GRACE["until"] - time.monotonic())
+        return {
+            **_WD,
+            "graceUntil": _WD["graceUntil"] if remaining else None,
+            "graceRemainingSec": math.ceil(remaining),
+        }
+
+
+def _watchdog_skip(result="skipped"):
+    _WD.update(lastResult=result, lastError=None, consecutiveFailures=0, alerted=False)
 
 
 def _watchdog_probe(wd):
     """Одна проба RCON: решает skip/fail/alert/авторестарт, мутирует _WD."""
-    _WD["lastProbeAt"] = now_iso()
+    with _WD_LOCK:
+        _WD["lastProbeAt"] = now_iso()
+        generation = _WD_GRACE["generation"]
     st = container_state() if docker_ok_cached(ttl=120) else None
-    if op_busy() or not st or not st["running"]:
-        # сервер остановлен или идёт операция — это не зависание
-        _WD.update(
-            {"lastResult": "skipped", "lastError": None, "consecutiveFailures": 0, "alerted": False}
-        )
-        return
+    with _WD_LOCK:
+        if _watchdog_in_grace():
+            _watchdog_skip("grace")
+            return
+        if op_busy() or not st or not st["running"]:
+            # сервер остановлен или идёт операция — это не зависание
+            _watchdog_skip()
+            return
     try:
         rconlib.run_command(
             config.CFG["rcon_host"], config.CFG["rcon_port"], config.CFG["rcon_password"], "players"
         )
-        _WD.update(
-            {"lastResult": "ok", "lastError": None, "consecutiveFailures": 0, "alerted": False}
-        )
     except rconlib.RCONError as e:
+        error = str(e)
+    else:
+        error = None
+    with _WD_LOCK:
+        # A probe started before a controlled restart must not publish a stale failure.
+        if _watchdog_in_grace():
+            _watchdog_skip("grace")
+            return
+        if generation != _WD_GRACE["generation"] or op_busy():
+            _watchdog_skip()
+            return
+        if error is None:
+            _WD.update(lastResult="ok", lastError=None, consecutiveFailures=0, alerted=False)
+            return
         _WD["lastResult"] = "fail"
-        _WD["lastError"] = str(e)
+        _WD["lastError"] = error
         _WD["consecutiveFailures"] += 1
         silent_min = _WD["consecutiveFailures"] * 30 / 60
         if silent_min >= wd["thresholdMin"] and not _WD["alerted"]:
             _WD["alerted"] = True
-            log_event("warn", f"Watchdog: RCON не отвечает {silent_min:.0f} мин — {e}")
+            log_event("warn", f"Watchdog: RCON не отвечает {silent_min:.0f} мин — {error}")
             cooldown = max(15, int(wd["thresholdMin"]) * 3) * 60
             cooled = not _WD["lastRestartAt"] or time.time() - _WD["lastRestartAt"] >= cooldown
             if wd["autoRestart"] and not cooled:
