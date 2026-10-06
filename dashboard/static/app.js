@@ -279,18 +279,115 @@ for (const id of ["configTabs", "modTabs"]) syncTabAccessibility(id);
 
 /* ───────────────────────── тосты ───────────────────────── */
 
-function toast(text, kind = "info", ms = 5200) {
-  const box = document.createElement("div");
-  box.className = "toast";
-  box.dataset.kind = kind;
-  box.textContent = text;
-  box.addEventListener("mouseenter", () => { box.dataset.hold = "1"; });
-  box.addEventListener("mouseleave", () => { box.dataset.hold = ""; });
-  $("toasts").appendChild(box);
-  const kill = () => box.remove();
-  const timer = setTimeout(() => { if (!box.dataset.hold) kill(); else box.addEventListener("transitionend", kill, { once: true }); }, ms);
-  box.addEventListener("dblclick", () => { clearTimeout(timer); kill(); });
-}
+const toast = (() => {
+  const root = $("toasts");
+  const entries = [];
+  let focused = document.hasFocus(), hovered = false, keyboard = false, expandedByTouch = false;
+  let returnFocus = null;
+
+  function pause(entry) {
+    if (entry.startedAt === null) return;
+    entry.remaining = Math.max(0, entry.remaining - (performance.now() - entry.startedAt));
+    clearTimeout(entry.timer);
+    entry.startedAt = null;
+  }
+
+  function dismiss(entry) {
+    const index = entries.indexOf(entry);
+    if (index < 0) return;
+    const hadFocus = entry.box.contains(document.activeElement);
+    pause(entry);
+    entries.splice(index, 1);
+    entry.box.remove();
+    if (!entries.length) expandedByTouch = false;
+    sync();
+    if (hadFocus) {
+      const next = entries[Math.min(index, entries.length - 1)];
+      if (next) next.close.focus({ preventScroll: true });
+      else if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
+    }
+  }
+
+  function sync() {
+    keyboard = root.contains(document.activeElement);
+    const expanded = hovered || keyboard || expandedByTouch;
+    root.dataset.expanded = String(expanded);
+    const front = entries.at(-1);
+    if (front) root.style.setProperty("--toast-height", `${front.box.offsetHeight}px`);
+    entries.forEach((entry, index) => {
+      const depth = entries.length - index - 1;
+      entry.box.style.setProperty("--toast-depth", Math.min(depth, 2));
+      entry.box.style.zIndex = index + 1;
+      entry.box.dataset.front = String(entry === front);
+      entry.box.dataset.hidden = String(!expanded && depth > 2);
+      entry.box.inert = !expanded && entry !== front;
+      // Covered messages wait their turn; interacting with the stack pauses reading time.
+      const running = focused && !document.hidden && !expanded && entry === front;
+      if (!running) pause(entry);
+      else if (entry.startedAt === null) {
+        entry.startedAt = performance.now();
+        entry.timer = setTimeout(() => {
+          if (document.hidden || !document.hasFocus()) {
+            focused = false;
+            sync();
+          } else dismiss(entry);
+        }, entry.remaining);
+      }
+    });
+  }
+
+  window.addEventListener("blur", () => { focused = false; sync(); });
+  window.addEventListener("focus", () => { focused = document.hasFocus(); sync(); });
+  document.addEventListener("visibilitychange", () => { focused = document.hasFocus(); sync(); });
+  window.addEventListener("pagehide", () => { focused = false; sync(); });
+  window.addEventListener("pageshow", () => { focused = document.hasFocus(); sync(); });
+  root.addEventListener("pointerenter", event => {
+    if (event.pointerType === "mouse") { hovered = true; sync(); }
+  });
+  root.addEventListener("pointerleave", event => {
+    if (event.pointerType === "mouse") { hovered = false; sync(); }
+  });
+  root.addEventListener("focusin", event => {
+    if (event.relatedTarget && !root.contains(event.relatedTarget)) returnFocus = event.relatedTarget;
+    sync();
+  });
+  root.addEventListener("focusout", () => queueMicrotask(sync));
+  document.addEventListener("pointerdown", event => {
+    if (!root.contains(event.target)) {
+      expandedByTouch = false;
+      sync();
+    } else if (event.pointerType === "touch" && !event.target.closest("button")) {
+      expandedByTouch = !expandedByTouch;
+      sync();
+    }
+  });
+  const resize = new ResizeObserver(() => {
+    const front = entries.at(-1);
+    if (front) root.style.setProperty("--toast-height", `${front.box.offsetHeight}px`);
+  });
+  resize.observe(root);
+
+  return (text, kind = "info", ms = 5200) => {
+    const box = document.createElement("div");
+    box.className = "toast";
+    box.dataset.kind = kind;
+    const message = document.createElement("span");
+    message.className = "toast-message";
+    message.textContent = text;
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "toast-close";
+    close.setAttribute("aria-label", I18n.t("Закрыть"));
+    close.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>';
+    box.append(message, close);
+    const entry = { box, close, remaining: ms, startedAt: null, timer: null };
+    close.addEventListener("click", () => dismiss(entry));
+    box.addEventListener("dblclick", () => dismiss(entry));
+    entries.push(entry);
+    root.appendChild(box);
+    sync();
+  };
+})();
 
 /* ───────────────────────── модальное окно ───────────────────────── */
 
