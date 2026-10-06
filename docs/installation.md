@@ -4,6 +4,25 @@ PZ Console runs beside one Project Zomboid dedicated server on a Docker host wit
 Compose v2. Use [the README quick start](../README.md#quick-start) for a new server
 or the dashboard overlay for an existing project.
 
+## Panel CPU budget
+
+Both production Compose examples limit `pz-dashboard` to `PZ_DASHBOARD_CPUS=0.5`
+by default (half one CPU, not half the host's total capacity) and set
+`cpu_shares: 128`. The lower relative weight favors the game container when CPU
+is contested; the CPU quota also limits panel work when the host is otherwise idle.
+These settings follow [Docker's CPU resource controls](https://docs.docker.com/engine/containers/resource_constraints/#cpu).
+
+Change `PZ_DASHBOARD_CPUS` in `.env` for your host, then recreate only the panel
+with `docker compose up -d --no-deps --build pz-dashboard` (include the overlay files for an
+existing-server installation). Set it to `0` to remove the hard quota while keeping
+the lower relative weight. Compression and archive verification can take longer
+under a quota; large archives still have the existing operation timeouts.
+
+The budget covers the panel and its child processes, including `tar`/compression.
+Docker daemon work, image builds/pulls and commands executed inside the game
+container have their own resource accounting. Reducing monitoring calls still
+matters; the panel quota does not cap the game server or all Docker work.
+
 ## Volumes and server identity
 
 The full example uses `pz-data` for `/project-zomboid-config` in the game container

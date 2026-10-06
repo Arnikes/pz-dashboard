@@ -6,6 +6,7 @@ import subprocess
 import threading
 from collections import OrderedDict, deque
 from concurrent.futures import ThreadPoolExecutor
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -14,6 +15,7 @@ import app
 import auth
 import config
 import dockerlib
+import i18n
 import ops
 import payloads
 import workshop
@@ -23,7 +25,7 @@ def test_stream_collects_once_for_concurrent_subscribers(monkeypatch):
     barrier = threading.Barrier(8)
     entered, release = threading.Event(), threading.Event()
 
-    def collect(name):
+    def collect(name, **_kwargs):
         entered.set()
         assert release.wait(5)
         return {"ok": True, "text": "Игроки"}
@@ -43,7 +45,7 @@ def test_stream_collects_once_for_concurrent_subscribers(monkeypatch):
         finally:
             release.set()
         frames = [future.result(timeout=5) for future in futures]
-    provider.assert_called_once_with("players")
+    provider.assert_called_once_with("players", telemetry=cache)
     assert all(frame is frames[0] for frame in frames)
     assert "Игроки" in frames[0].decode("utf-8")
 
@@ -51,7 +53,7 @@ def test_stream_collects_once_for_concurrent_subscribers(monkeypatch):
 def test_slow_stream_does_not_block_other_channels(monkeypatch):
     entered, release = threading.Event(), threading.Event()
 
-    def collect(name):
+    def collect(name, **_kwargs):
         if name == "logs":
             entered.set()
             assert release.wait(5)
@@ -74,7 +76,7 @@ def test_stream_ttl_starts_after_collection_and_shares_errors(monkeypatch):
     clock = [0.0]
     monkeypatch.setattr(payloads.time, "monotonic", lambda: clock[0])
 
-    def collect(name):
+    def collect(name, **_kwargs):
         clock[0] += 20
         raise OSError("offline")
 
@@ -92,6 +94,153 @@ def test_stream_ttl_starts_after_collection_and_shares_errors(monkeypatch):
     # A new HTTP server must start with fresh data, rather than a process-global cache.
     payloads.StreamCache().frame("logs", 5)
     assert provider.call_count == 3
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_stream_localizes_once_per_snapshot_and_preserves_raw_data(monkeypatch, language):
+    data = {"ok": False, "error": "Сервер остановлен", "text": "Сервер остановлен"}
+    monkeypatch.setattr(payloads, "stream_payload", lambda _name, **_kwargs: data)
+    present = Mock(wraps=i18n.present)
+    monkeypatch.setattr(payloads.i18n, "present", present)
+    token = i18n.LANGUAGE.set(language)
+    try:
+        cache = payloads.StreamCache()
+        frames = [cache.frame("logs", 5) for _ in range(8)]
+    finally:
+        i18n.LANGUAGE.reset(token)
+    assert sum(call.args == (data,) for call in present.call_args_list) == 1
+    assert all(frame is frames[0] for frame in frames)
+    result = json.loads(frames[0].decode().split("data: ")[1])
+    assert result["error"] == ("Server stopped" if language == "en" else data["error"])
+    assert result["text"] == data["text"]
+    assert data["error"] == "Сервер остановлен"
+
+
+@pytest.mark.parametrize("logs", [True, False])
+@pytest.mark.parametrize("empty", [False, True])
+def test_stream_skips_unsubscribed_logs_and_sleeps_until_due(monkeypatch, logs, empty):
+    clock = [0.0]
+    monkeypatch.setattr(app.time, "monotonic", lambda: clock[0])
+    if empty:
+        monkeypatch.setattr(payloads, "STREAM_PLAN", ())
+    collected = []
+
+    def collect(name, **_kwargs):
+        collected.append(name)
+        clock[0] += 0.02
+        return {"ok": True}
+
+    monkeypatch.setattr(payloads, "stream_payload", collect)
+    handler = object.__new__(app.Handler)
+    handler.server = SimpleNamespace(auth=Mock())
+    handler.server.auth.is_active.return_value = True
+    handler.auth_session = "test-session"
+    handler.connection = Mock()
+    handler.wfile = io.BytesIO()
+    handler.send_response = Mock()
+    handler.send_header = Mock()
+    handler.end_headers = Mock()
+    chunks = []
+    handler._sse_write = chunks.append
+    sleeps = []
+
+    def sleep(seconds):
+        sleeps.append(seconds)
+        clock[0] += seconds
+        # Revocation is noticed on the next wake, before another collection.
+        handler.server.auth.is_active.return_value = False
+
+    monkeypatch.setattr(app.time, "sleep", sleep)
+    handler._serve_stream(logs=logs)
+    assert ("logs" in collected) is (logs and not empty)
+    assert {name for name, _ in payloads.STREAM_PLAN} - {"logs"} <= set(collected)
+    assert sleeps == pytest.approx([1.0 if empty else 1.02 - (0.2 if logs else 0.18)])
+    assert chunks[-1] == b"event: auth-expired\ndata: {}\n\n"
+
+
+def test_stream_collection_errors_are_localized_inside_cache(monkeypatch):
+    monkeypatch.setattr(payloads, "stream_payload", Mock(side_effect=OSError("Сервер остановлен")))
+    token = i18n.LANGUAGE.set("en")
+    try:
+        frame = payloads.StreamCache().frame("logs", 5)
+    finally:
+        i18n.LANGUAGE.reset(token)
+    assert json.loads(frame.decode().split("data: ")[1])["error"] == "Server stopped"
+
+
+@pytest.mark.parametrize("channel,collections", [("players", 1), ("mods", 2)])
+def test_monitoring_collection_is_shared_across_languages_except_workshop(
+    monkeypatch, channel, collections
+):
+    provider = Mock(return_value={"ok": False, "error": "Сервер остановлен", "names": ["Игрок"]})
+    monkeypatch.setattr(payloads, "stream_payload", provider)
+    cache = payloads.StreamCache()
+    frames = {}
+    for language in ("ru", "en", "ru", "en"):
+        token = i18n.LANGUAGE.set(language)
+        try:
+            frames[language] = cache.frame(channel, 5).decode()
+        finally:
+            i18n.LANGUAGE.reset(token)
+    assert provider.call_count == collections
+    assert "Server stopped" in frames["en"]
+    assert "Сервер остановлен" in frames["ru"]
+    assert "Игрок" in frames["ru"] and "Игрок" in frames["en"]
+
+
+def test_stream_reuses_container_inspection_and_stats_without_caching_controls(monkeypatch):
+    clock = [0.0]
+    monkeypatch.setattr(payloads.time, "monotonic", lambda: clock[0])
+    state = Mock(
+        return_value={"status": "running", "running": True, "startedAt": "", "image": "pz"}
+    )
+    stats = Mock(return_value={"cpuPct": 12, "memPct": 30})
+    players = Mock(return_value={"names": ["Player"], "count": 1})
+    monkeypatch.setattr(ops, "container_state", state)
+    monkeypatch.setattr(dockerlib, "container_stats", stats)
+    monkeypatch.setattr(ops, "fetch_players", players)
+    monkeypatch.setattr(ops, "docker_ok_cached", lambda: True)
+    monkeypatch.setattr(ops, "compose_ok_cached", lambda: True)
+    monkeypatch.setattr(ops, "local_digest_cached", lambda **_kwargs: None)
+    monkeypatch.setattr(ops, "list_backups", lambda: [])
+    cache = payloads.StreamCache()
+    for language in ("en", "ru"):
+        token = i18n.LANGUAGE.set(language)
+        try:
+            for channel, interval in (("overview", 3), ("players", 5), ("stats", 5)):
+                assert b'"ok":true' in cache.frame(channel, interval)
+        finally:
+            i18n.LANGUAGE.reset(token)
+    assert state.call_count == stats.call_count == players.call_count == 1
+    # A control check must see a stopped server even while the monitoring frame
+    # from its previous running state is still within its three-second TTL.
+    state.return_value = {**state.return_value, "running": False}
+    assert not ops.is_running()
+    assert state.call_count == 2
+    clock[0] = 3
+    frame = cache.frame("overview", 3)
+    assert b'"running":false' in frame
+    assert state.call_count == 3
+    # Direct HTTP providers retain fresh reads and bypass the stream snapshot.
+    assert payloads.stats_payload()["ok"] is False
+    assert state.call_count == 4
+
+
+def test_container_snapshot_caches_missing_state_and_tracks_target(monkeypatch):
+    clock = [0.0]
+    monkeypatch.setattr(payloads.time, "monotonic", lambda: clock[0])
+    state = Mock(return_value=None)
+    monkeypatch.setattr(ops, "container_state", state)
+    cache = payloads.StreamCache()
+    assert cache.container_state() is None
+    assert cache.container_state() is None
+    assert state.call_count == 1
+    monkeypatch.setitem(config.CFG, "pz_container", "different-server")
+    assert cache.container_state() is None
+    assert state.call_count == 2
+    clock[0] = 3
+    cache.container_state()
+    assert state.call_count == 3
 
 
 @pytest.mark.parametrize("chunk_size", [1, 2, 7, 65536])

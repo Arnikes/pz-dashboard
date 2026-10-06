@@ -26,7 +26,7 @@ def login_url(page, auth_server, monkeypatch):  # noqa: F811
         "settings": {},
         "backupsCount": 0,
     }
-    monkeypatch.setattr(app.payloads, "stream_payload", lambda name: overview)
+    monkeypatch.setattr(app.payloads, "stream_payload", lambda name, **_kwargs: overview)
 
     def route_api(route):
         path = route.request.url.split("/api/", 1)[1].split("?", 1)[0]

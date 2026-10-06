@@ -50,16 +50,42 @@ or auto-restart. Operation failures are still recorded. Set zero to disable the 
 
 ## Live data and resources
 
-A shared SSE snapshot gathers and encodes each channel once per interval for all
-subscribers. Ordinary API reads remain direct, and control actions do not use this cache.
+A shared SSE snapshot gathers each monitoring channel once per interval across
+English and Russian subscribers, then localizes/encodes once per language.
+Workshop metadata retains separate language-specific snapshots. Overview, players
+and stats share one container inspection for up to three seconds. Ordinary API
+reads remain direct; lifecycle actions, watchdog checks and stop/start waits do
+not use the monitoring cache.
 Hidden tabs close SSE and suspend polling; server schedulers and operations continue.
 Returning to the tab reconnects. Fallback polling avoids overlapping requests.
-Container logs are polled only on Console.
+The browser connects to `/api/stream?logs=0` and polls container logs only on a
+visible Console, including when SSE is working. Opening Console or returning to
+its tab refreshes immediately; slow log requests do not overlap. Plain
+`/api/stream` retains log events for existing API clients. Stream threads sleep
+until the next update is due and recheck session revocation at least once per
+second between collections.
 
 Event/backup journals are read from the end in 64 KiB blocks. Workshop and translation
 metadata caches hold up to eight sets. Full-log downloads spool to a temporary file
 and stream in 256 KiB blocks. Run `python scripts/benchmark_resources.py` to inspect
 synthetic algorithm-level measurements; these are not production server benchmarks.
+Run `python scripts/benchmark_cpu.py` for repeatable monitoring-call counts and
+SSE localization CPU comparisons with the previous algorithm. The Compose panel
+CPU budget is documented in [installation](installation.md#panel-cpu-budget).
+
+The isolated 60-second monitoring model (eight clients, Console closed, normal
+channel intervals, immediate mocked Docker/RCON responses) produced these counts:
+
+| Clients | Docker CLI calls before / after | RCON player queries before / after |
+| --- | --- | --- |
+| Russian only | 68 / 32 | 12 / 12 |
+| Mixed English/Russian | 136 / 32 | 24 / 12 |
+
+This counts container inspections, stats, log tails and RCON player reads only,
+excluding availability/digest probes, scheduler, watchdog and manual work.
+Real collector latency changes exact rates.
+The reduction in command count is not a measured reduction in total host CPU.
+Monitoring can briefly show cached state; control checks always read fresh state.
 
 ## API
 

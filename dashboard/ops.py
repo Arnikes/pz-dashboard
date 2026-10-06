@@ -1455,8 +1455,8 @@ def fetch_players():
     return {"names": names[:64], "raw": raw[:4000], "count": len(names)}
 
 
-def fetch_stats():
-    st = container_state()
+def fetch_stats(*, state_provider=None):
+    st = (state_provider or container_state)()
     if not st:
         return {"error": "контейнер не найден"}
     if not st["running"]:
@@ -1834,10 +1834,10 @@ def _post_restart_rescan_tick(s):
             log_event("warn", f"Рескан модов после рестарта не удался: {e}")
 
 
-def overview():
+def overview(*, state_provider=None):
     cfg = config.CFG
     docker_ok = docker_ok_cached()
-    st = container_state()
+    st = (state_provider or container_state)()
     image = _image_from_state(st)
     cont = None
     if st:

@@ -75,7 +75,7 @@ def main():
         calls = [0]
         raw = json.dumps({"ok": True, "items": [{"id": i, "text": "x" * 150} for i in range(1000)]})
 
-        def collect(name):
+        def collect(name, **_kwargs):
             calls[0] += 1
             return json.loads(raw)
 

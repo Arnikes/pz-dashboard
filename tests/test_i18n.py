@@ -212,14 +212,18 @@ def test_simultaneous_languages_keep_stream_caches_isolated(monkeypatch):
     monkeypatch.setattr(
         payloads,
         "stream_payload",
-        lambda _name: {"ok": True, "fields": [{"label": "Название сервера"}], "text": "Логи"},
+        lambda _name, **_kwargs: {
+            "ok": True,
+            "fields": [{"label": "Название сервера"}],
+            "text": "Логи",
+        },
     )
     cache = payloads.StreamCache()
 
     def frame(locale):
         token = i18n.LANGUAGE.set(locale)
         try:
-            return i18n.stream_frame(cache.frame("mods", 60)).decode("utf-8")
+            return cache.frame("mods", 60).decode("utf-8")
         finally:
             i18n.LANGUAGE.reset(token)
 

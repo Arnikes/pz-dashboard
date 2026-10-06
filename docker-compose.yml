@@ -30,6 +30,10 @@ services:
     build: ./dashboard
     container_name: pz-dashboard
     restart: unless-stopped
+    # Keep panel work (including archive compression) below half one CPU by
+    # default, and give the game container preference under CPU contention.
+    cpus: ${PZ_DASHBOARD_CPUS:-0.5}
+    cpu_shares: 128
     depends_on:
       - pzserver
     ports:

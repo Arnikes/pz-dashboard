@@ -107,7 +107,7 @@ def test_polling_has_no_overlapping_requests_and_pauses_hidden_tab(page, dashboa
         window.testPolls[0]();
         window.testPolls[0]();
     }""")
-    assert page.evaluate("window.testPolls.length") == 10
+    assert page.evaluate("window.testPolls.length") == 9
     assert page.evaluate("window.overviewCalls") == 1
     page.evaluate("window.finishOverview()")
     page.evaluate("""() => {
@@ -143,3 +143,58 @@ def test_identical_logs_keep_dom_and_recover_after_error_or_remote_mode(page, da
         applyLogs(window.logFrame);
     }""")
     expect(page.locator("#logsOut")).to_contain_text("ERROR test")
+
+
+@pytest.mark.parametrize("width", [390, 1440])
+@pytest.mark.parametrize("transport", ["sse", "polling"])
+def test_logs_refresh_only_on_visible_console_without_overlaps(page, dashboard, width, transport):
+    page.set_viewport_size({"width": width, "height": 844})
+    page.clock.install()
+    page.add_init_script("""window.testHidden = false;
+        Object.defineProperty(document, 'hidden', {get: () => window.testHidden});
+        window.EventSource = class extends EventTarget {
+            constructor(url) { super(); this.url = url; window.testStream = this; }
+            close() {}
+        };
+    """)
+    if transport == "polling":
+        page.add_init_script("window.EventSource = undefined;")
+    held = []
+    page.route("**/api/logs**", lambda route: held.append(route))
+    page.goto(dashboard["url"])
+    if transport == "sse":
+        page.wait_for_function("window.testStream")
+        assert page.evaluate("testStream.url") == "/api/stream?logs=0"
+        page.evaluate(
+            """data => testStream.dispatchEvent(
+            new MessageEvent('overview', {data:JSON.stringify(data)}))""",
+            dashboard["overview"],
+        )
+    expect(page.locator("#btnStop")).to_be_enabled()
+    page.clock.run_for(15000)
+    assert held == []
+    page.evaluate("location.hash='#/console'")
+    expect(page.locator("#view-console")).to_be_visible()
+    page.wait_for_function("logsPollRunning")
+    page.clock.run_for(6000)
+    assert len(held) == 1
+    held[0].fulfill(json={"ok": True, "text": "INFO fresh console data"})
+    expect(page.locator("#logsOut")).to_contain_text("fresh console data")
+    page.evaluate("""() => {
+        window.testHidden = true;
+        document.dispatchEvent(new Event('visibilitychange'));
+    }""")
+    page.clock.run_for(15000)
+    assert len(held) == 1
+    page.evaluate("""() => {
+        window.testHidden = false;
+        document.dispatchEvent(new Event('visibilitychange'));
+    }""")
+    page.wait_for_function("logsPollRunning")
+    assert len(held) == 2
+    held[1].fulfill(json={"ok": True, "text": "INFO resumed console data"})
+    expect(page.locator("#logsOut")).to_contain_text("resumed console data")
+    page.evaluate("location.hash='#/players'")
+    expect(page.locator("#view-players")).to_be_visible()
+    page.clock.run_for(15000)
+    assert len(held) == 2

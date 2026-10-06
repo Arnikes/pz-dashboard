@@ -140,6 +140,8 @@ def test_session_lifetime_is_fixed(tmp_path, monkeypatch, remember):
     path = tmp_path / "auth-sessions.bin"
     manager = auth.Auth(LOGIN, PASSWORD, key, sessions_file=path)
     now = auth.time.time()
+    # Keep password-hash duration from moving the session's issuance deadline.
+    monkeypatch.setattr(auth.time, "time", lambda: now)
     token = manager.sign_in(LOGIN, PASSWORD, "peer", remember=remember)
     cookie = f"pz_session={token}"
     session_id = manager.session(cookie)
@@ -329,7 +331,7 @@ def test_tampering_expiry_and_restart_invalidate_sessions(auth_server, monkeypat
 def test_sse_closes_when_session_revoked(auth_server, monkeypatch):
     cookie = sign_in(auth_server)
     monkeypatch.setattr(app.payloads, "STREAM_PLAN", (("overview", 100),))
-    monkeypatch.setattr(app.payloads, "stream_payload", lambda name: {"ok": True})
+    monkeypatch.setattr(app.payloads, "stream_payload", lambda name, **_kwargs: {"ok": True})
     connection = http.client.HTTPConnection(*auth_server.server_address, timeout=5)
     try:
         connection.request("GET", "/api/stream", headers={"Cookie": cookie})

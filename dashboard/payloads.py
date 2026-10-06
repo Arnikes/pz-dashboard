@@ -11,9 +11,9 @@ import ops
 import rcon
 
 
-def players_payload():
+def players_payload(*, state_provider=None):
     if ops.docker_ok_cached():
-        st = ops.container_state()
+        st = (state_provider or ops.container_state)()
         if not st:
             return {"ok": False, "error": "Контейнер не найден"}
         if not st["running"]:
@@ -38,10 +38,10 @@ def logs_payload(tail=None, since=None, until=None):
     return result
 
 
-def stats_payload():
+def stats_payload(*, state_provider=None):
     """Кадр метрик: ошибка контейнера отдаётся как ok:false + error, иначе
     интерфейс рисует фиктивные нули вместо состояния ошибки."""
-    data = ops.fetch_stats()
+    data = ops.fetch_stats(state_provider=state_provider) if state_provider else ops.fetch_stats()
     return {"ok": "error" not in data, **data}
 
 
@@ -84,36 +84,65 @@ STREAM_PLAN = (
 
 
 class StreamCache:
-    """One bounded, serialized snapshot per channel, locale and HTTP server.
+    """Bounded monitoring snapshots and localized frames per HTTP server.
 
-    Per-channel locks coalesce simultaneous subscribers without letting a slow
-    Docker/Steam request block unrelated channels. HTTP polling stays uncached.
+    Locale-neutral collectors are shared across EN/RU subscribers; Workshop
+    metadata keeps its language-specific collection. Control actions and direct
+    HTTP reads never use the short-lived container inspection snapshot.
     """
 
     def __init__(self):
         self._channels = {
-            (name, language): [threading.Lock(), None, 0.0]
+            (name, language): [threading.Lock(), None, 0.0, {}]
             for name, _ in STREAM_PLAN
-            for language in ("en", "ru")
+            for language in (("en", "ru") if name == "mods" else (None,))
         }
+        self._state_lock = threading.Lock()
+        self._state = None
+        self._state_container = None
+        self._state_until = 0.0
+
+    def container_state(self):
+        # Only telemetry uses this snapshot. Lifecycle waits, watchdog probes and
+        # actions continue calling ops.container_state() directly.
+        with self._state_lock:
+            container = config.CFG["pz_container"]
+            if container != self._state_container or time.monotonic() >= self._state_until:
+                self._state = ops.container_state()
+                self._state_container = container
+                self._state_until = time.monotonic() + 3.0
+            return self._state
 
     def frame(self, name, interval):
-        channel = self._channels[name, i18n.language()]
+        language = i18n.language()
+        channel = self._channels[name, language if name == "mods" else None]
         with channel[0]:
-            if channel[1] is None or time.monotonic() >= channel[2]:
+            refreshed = channel[1] is None or time.monotonic() >= channel[2]
+            if refreshed:
                 try:
-                    data = stream_payload(name)
-                    encoded = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+                    channel[1] = stream_payload(name, telemetry=self)
                 except Exception as error:  # noqa: BLE001 — share failures too
-                    encoded = json.dumps({"ok": False, "error": str(error)}, ensure_ascii=False)
-                channel[1] = f"event: {name}\ndata: {encoded}\n\n".encode("utf-8")
-                # Start TTL after collection: slow calls must not cause a stampede.
+                    channel[1] = {"ok": False, "error": str(error)}
+                channel[3] = {}
+            if language not in channel[3]:
+                try:
+                    encoded = json.dumps(
+                        i18n.present(channel[1]), ensure_ascii=False, separators=(",", ":")
+                    )
+                except Exception as error:  # noqa: BLE001 — share encoding failures too
+                    encoded = json.dumps(
+                        i18n.present({"ok": False, "error": str(error)}), ensure_ascii=False
+                    )
+                channel[3][language] = f"event: {name}\ndata: {encoded}\n\n".encode("utf-8")
+            if refreshed:
+                # Start TTL after collection/encoding: slow calls must not stampede.
                 channel[2] = time.monotonic() + interval
-            return channel[1]
+            return channel[3][language]
 
 
-def overview_payload():
-    return {"ok": True, **ops.overview()}
+def overview_payload(*, state_provider=None):
+    data = ops.overview(state_provider=state_provider) if state_provider else ops.overview()
+    return {"ok": True, **data}
 
 
 def operation_payload():
@@ -155,7 +184,15 @@ GET_CHANNELS = {
 }
 
 
-def stream_payload(name):
+def stream_payload(name, *, telemetry=None):
+    if telemetry is not None:
+        monitoring = {
+            "overview": overview_payload,
+            "players": players_payload,
+            "stats": stats_payload,
+        }
+        if name in monitoring:
+            return monitoring[name](state_provider=telemetry.container_state)
     provider = PAYLOADS.get(name)
     if provider is None:
         return {"ok": False, "error": "нет такого потока"}

@@ -2527,20 +2527,36 @@ function updateConnectionWarning() {
 let pollingStarted = false;
 let liveSource = null;
 let sseStartupTimer = null;
+let logsPollingStarted = false;
+let logsPollRunning = false;
+
+async function pollVisibleLogs() {
+  if (!logsPollingStarted || document.hidden || activeView !== "console" || logsPollRunning) return;
+  logsPollRunning = true;
+  try { await refreshLogs(); } finally { logsPollRunning = false; }
+}
+
+function startLogsPolling() {
+  if (logsPollingStarted) return;
+  logsPollingStarted = true;
+  setInterval(pollVisibleLogs, 5000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) pollVisibleLogs(); });
+  pollVisibleLogs();
+}
 
 function startPolling() {
   if (pollingStarted) return;
   pollingStarted = true;
+  startLogsPolling();
   for (const [refresh, interval] of [
     [refreshOverview, 3000], [refreshPlayers, 5000], [refreshStats, 5000],
-    [refreshLogs, 5000], [refreshBackups, 10000], [refreshEvents, 12000],
+    [refreshBackups, 10000], [refreshEvents, 12000],
     [refreshOps, 1500], [refreshPlayersHistory, 60000], [refreshStatsHistory, 30000],
     [refreshMods, 60000],
   ]) {
     let running = false;
     const poll = async () => {
       if (document.hidden || running) return;
-      if (refresh === refreshLogs && activeView !== "console") return;
       running = true;
       try { await refresh(); } finally { running = false; }
     };
@@ -2643,6 +2659,7 @@ function applyRoute() {
   if (view) view.focus({ preventScroll: true });
   if (r === "mods" && modsPending) renderModsFiltered();
   window.ConfigEditor?.route(r);
+  pollVisibleLogs();
 }
 
 window.addEventListener("hashchange", applyRoute);
@@ -2737,7 +2754,8 @@ const commands = (() => {
 function startSse() {
   if (document.hidden || liveSource || pollingStarted) return;
   if (typeof EventSource === "undefined") { startPolling(); return; }
-  const es = new EventSource("/api/stream");
+  startLogsPolling();
+  const es = new EventSource("/api/stream?logs=0");
   liveSource = es;
   es.addEventListener("auth-expired", () => { es.close(); liveSource = null; clearTimeout(sseStartupTimer); requireLogin(); });
   let messages = 0;
@@ -2762,7 +2780,6 @@ function startSse() {
   bind("overview", applyOverview);
   bind("players", applyPlayers);
   bind("stats", applyStats);
-  bind("logs", data => { if (S.logsSince) refreshLogs(); else applyLogs(data); });
   bind("backups", applyBackups);
   bind("events", applyEvents);
   bind("ops", applyOps);

@@ -258,7 +258,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(("%x\r\n" % len(chunk)).encode("ascii") + chunk + b"\r\n")
         self.wfile.flush()
 
-    def _serve_stream(self):
+    def _serve_stream(self, *, logs=True):
         with _STREAM_CACHE_LOCK:
             if not hasattr(self.server, "stream_cache"):
                 self.server.stream_cache = payloads.StreamCache()
@@ -273,7 +273,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Transfer-Encoding", "chunked")
         self.end_headers()
         self.connection.settimeout(75)
-        last = {name: float("-inf") for name, _ in payloads.STREAM_PLAN}
+        plan = tuple(
+            (name, interval) for name, interval in payloads.STREAM_PLAN if logs or name != "logs"
+        )
+        last = {name: float("-inf") for name, _ in plan}
         last_beat = time.monotonic()
         try:
             self._sse_write(b"retry: 3000\n\n")
@@ -282,19 +285,25 @@ class Handler(BaseHTTPRequestHandler):
                     self._sse_write(b"event: auth-expired\ndata: {}\n\n")
                     break
                 now = time.monotonic()
-                for name, interval in payloads.STREAM_PLAN:
+                for name, interval in plan:
                     if now - last[name] < interval:
                         continue
                     frame = cache.frame(name, interval)
                     if not self.server.auth.is_active(self.auth_session):
                         self._sse_write(b"event: auth-expired\ndata: {}\n\n")
                         return
-                    self._sse_write(i18n.stream_frame(frame))
+                    self._sse_write(frame)
                     last[name] = time.monotonic()
+                now = time.monotonic()
                 if now - last_beat >= 15.0:
                     self._sse_write(b": heartbeat\n\n")
                     last_beat = now
-                time.sleep(0.4)
+                next_due = min(
+                    (last[name] + interval for name, interval in plan), default=last_beat + 15.0
+                )
+                # Sleep until useful work is due; still check session revocation
+                # at least once per second, including on otherwise quiet streams.
+                time.sleep(max(0.0, min(1.0, next_due - now, last_beat + 15.0 - now)))
         except OSError:
             pass  # клиент отключился
         finally:
@@ -420,7 +429,7 @@ class Handler(BaseHTTPRequestHandler):
                 limit = 100
             self._send_json(payloads.events_payload(limit))
         elif path == "/api/stream":
-            self._serve_stream()
+            self._serve_stream(logs=qs.get("logs", [""])[0] != "0")
         elif path == "/api/backup/download":
             self._serve_backup((qs.get("name", [""])[0]))
         else:
