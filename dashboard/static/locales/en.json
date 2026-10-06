@@ -1394,5 +1394,19 @@
   "Сохраните ввод и завершите действие перед сменой языка.": "Save your input and finish the action before changing language.",
   "{{0}} КБ": "{{0}} KB",
   "{{0}} МБ": "{{0}} MB",
-  "{{0}} ГБ": "{{0}} GB"
+  "{{0}} ГБ": "{{0}} GB",
+  "Сервер пока использует прежние значения": "The server is still using the previous values",
+  "Файлы записаны · запуск ещё не подтверждён": "Files written · startup is not yet verified",
+  "Включено": "Enabled",
+  "Выключено": "Disabled",
+  "Добавить пакет или коллекцию": "Add a package or collection",
+  "Следующий запуск: {0} · ваше время": "Next run: {0} · your local time",
+  "Следующий запуск рассчитывается": "Calculating the next run",
+  "Расписание выключено": "Schedule disabled",
+  " · Часовой пояс сервера: {0}": " · Server time zone: {0}",
+  "Бэкап создан: {0} ({1})": "Backup created: {0} ({1})",
+  "Изменено": "Changed",
+  "Черновик · строк: {0}": "Draft · lines: {0}",
+  "Проверен {0} · файлов: {1}": "Verified {0} · files: {1}",
+  " · Проверьте состав архива в событиях": " · Review archive contents in events"
 }

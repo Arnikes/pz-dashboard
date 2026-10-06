@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-05T08:13:44.995618+00:00",
+  "generatedAt": "2026-10-06T15:27:58.775107+00:00",
   "title": "Design System: PZ Пульт",
   "extensions": {
     "colorMeta": {
@@ -337,6 +337,10 @@
       "source": {
         "displayName": "Исходник",
         "purpose": "Код, исходники и номера строк."
+      },
+      "caption": {
+        "displayName": "Caption",
+        "purpose": "Visible technical keys, saved-draft context and schedule details."
       }
     },
     "shadows": [
@@ -463,9 +467,9 @@
       "name": "Текстовое поле",
       "kind": "input",
       "refersTo": "input",
-      "description": "Строка настройки: связанная подпись слева, углублённое поле справа; на телефоне значение под подписью.",
+      "description": "Bounded desktop label and control columns; stacked mobile fields.",
       "html": "<div class=\"ds-config-row\"><label class=\"ds-field\" for=\"ds-config-name\">Имя сервера</label><input class=\"ds-input\" id=\"ds-config-name\" value=\"PZ Server\" /></div>",
-      "css": ".ds-config-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start;gap:4px 24px;padding:12px 0;border-top:1px solid var(--line,rgba(233, 226, 205, 0.10));}.ds-config-row:first-child{border-top:0;}.ds-field{font-family:var(--font-body,\"Golos Text\",\"Segoe UI\",system-ui,sans-serif);font-size:14px;color:var(--muted,#b3a78c);margin:0;min-width:0;}.ds-input{font-family:var(--font-body,\"Golos Text\",\"Segoe UI\",system-ui,sans-serif);font-size:13.5px;line-height:1.3;width:100%;max-width:100%;min-width:0;height:44px;padding:10px 12px;color:var(--ink,#e9e2cd);background:var(--bg-deep,#090806);border:1px solid var(--line-strong,#80745d);border-radius:var(--r-sm,8px);caret-color:var(--accent,#e9e2cd);}.ds-input:focus-visible{outline:2px solid var(--ink,#e9e2cd);outline-offset:2px;}.ds-input:disabled{opacity:.55;cursor:not-allowed;}@media(max-width:740px){.ds-config-row{grid-template-columns:minmax(0,1fr);gap:8px;}.ds-field{min-height:44px;}.ds-input{font-size:16px;}}"
+      "css": ".ds-config-row{display:grid;grid-template-columns:minmax(180px,260px) minmax(0,560px);align-items:start;gap:4px 24px;padding:12px 0;border-top:1px solid var(--line,rgba(233, 226, 205, 0.10));}.ds-config-row:first-child{border-top:0;}.ds-field{font-family:var(--font-body,\"Golos Text\",\"Segoe UI\",system-ui,sans-serif);font-size:14px;color:var(--muted,#b3a78c);margin:0;min-width:0;}.ds-input{font-family:var(--font-body,\"Golos Text\",\"Segoe UI\",system-ui,sans-serif);font-size:13.5px;line-height:1.3;width:100%;max-width:100%;min-width:0;height:44px;padding:10px 12px;color:var(--ink,#e9e2cd);background:var(--bg-deep,#090806);border:1px solid var(--line-strong,#80745d);border-radius:var(--r-sm,8px);caret-color:var(--accent,#e9e2cd);}.ds-input:focus-visible{outline:2px solid var(--ink,#e9e2cd);outline-offset:2px;}.ds-input:disabled{opacity:.55;cursor:not-allowed;}@media(max-width:740px){.ds-config-row{grid-template-columns:minmax(0,1fr);gap:8px;}.ds-field{min-height:0;}.ds-input{font-size:16px;}}"
     },
     {
       "name": "Прямой маршрут",
@@ -516,7 +520,7 @@
   ],
   "narrative": {
     "northStar": "Карантинный пункт управления",
-    "overview": "По запросу пользователя от 05.10.2026 возвращена прежняя палитра «сажа, кость, кровь»: почти чёрные тёплые поверхности, бежевые подписи, оливковые подтверждения, янтарные предупреждения и кирпично-красная опасность. Навигация, стадии изменения, типографика и поведение обновлённого интерфейса сохранены. Основные цвета взяты из реализации до редизайна (7d49482); заметная тёплая граница управления сохраняет улучшенный контраст.\n\nСистема описывает завершённые HTML/CSS/JavaScript поверхности панели и входа. Источник значений — конечный каскад `dashboard/static/style.css`; поведение — `app.js`, `editor.js`, `login.js`. Сначала доступны поля и действия, а техническое состояние остаётся различимым. Графика состоит из SVG и локальных WOFF2; игровые изображения и обещания эффективности не задают визуальный язык.",
+    "overview": "Warm dark surfaces for server configuration and operations. Golos Text carries forms and navigation; JetBrains Mono carries source, IDs and measurements. Status text accompanies color. Drafts, files and verified startup remain distinct.",
     "keyCharacteristics": [
       "Тёплые почти чёрные слои, бежевый ориентир и кирпично-красные опасные действия.",
       "Golos Text для интерфейса, JetBrains Mono для исходников и значений.",
@@ -526,19 +530,19 @@
     ],
     "rules": [
       {
-        "name": "The State Has Words Rule",
-        "body": "Цвет сопровождает текстовое состояние; неизвестность, ожидание и подтверждение не подменяют друг друга.",
-        "section": "colors"
+        "name": "Draft and server state",
+        "body": "Fixed draft actions remain available above mobile navigation; viewports up to 600px high use document flow. Page headings precede editor stages. Saving a draft does not apply it to the server.",
+        "section": "components"
       },
       {
-        "name": "The Interface and Identifier Rule",
-        "body": "Обычный интерфейс использует Golos Text; моноширинный шрифт применяется к значениям, идентификаторам, исходникам и тексту команд.",
-        "section": "typography"
+        "name": "Forms",
+        "body": "Desktop labels are bounded to 260px and controls to 560px. Boolean draft fields use a full clickable row of at least 44px. Technical keys and changed labels remain visible.",
+        "section": "components"
       },
       {
-        "name": "The Temporary Depth Rule",
-        "body": "Тень отделяет временный слой от работы; постоянные поля, карточки и черновик используют тон и границу.",
-        "section": "elevation"
+        "name": "Archive actions",
+        "body": "Download, verify and restore have visible labels. Destructive confirmations remain mandatory. Verification results come only from operation history. Scheduled times include an explicit server offset and the next run in browser-local time.",
+        "section": "components"
       }
     ],
     "dos": [

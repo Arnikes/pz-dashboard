@@ -1892,3 +1892,34 @@ def test_external_verification_rejects_unconfirmed_state_without_clearing_error(
     with pytest.raises(editor.EditorError):
         editor.verify_running(request)
     assert editor.load_json(editor.state_dir("world.ini") / "state.json") == before
+
+
+def test_changed_field_markers_survive_reload_and_reset_without_leaking_secrets(env):
+    current = editor.draft("world.ini")
+    assert not any(rec["changed"] for rec in current["fields"] + current["sandboxFields"])
+    editor.patch(
+        {
+            "file": "world.ini",
+            "draftRevision": current["draftRevision"],
+            "ini": {"PublicName": "New season", "Password": "new-private-password"},
+            "sandbox": {"Zombies": 2},
+        }
+    )
+    reloaded = editor.draft("world.ini")
+    assert {rec["key"] for rec in reloaded["fields"] if rec["changed"]} == {
+        "PublicName",
+        "Password",
+    }
+    assert {rec["key"] for rec in reloaded["sandboxFields"] if rec["changed"]} == {"Zombies"}
+    assert "new-private-password" not in json.dumps(reloaded)
+    editor.patch(
+        {
+            "file": "world.ini",
+            "draftRevision": reloaded["draftRevision"],
+            "ini": {"PublicName": "Сервер"},
+            "sandbox": {"Zombies": 4},
+        }
+    )
+    reverted = editor.draft("world.ini")
+    assert not next(rec for rec in reverted["fields"] if rec["key"] == "PublicName")["changed"]
+    assert not next(rec for rec in reverted["sandboxFields"] if rec["key"] == "Zombies")["changed"]

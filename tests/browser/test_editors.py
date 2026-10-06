@@ -291,8 +291,8 @@ def test_editor_layout_controls_and_draft_do_not_cover_content(page, dashboard, 
     assert metrics["searchWidth"] >= min(500, metrics["cardWidth"] - 40)
     if width <= 740:
         assert metrics["headerHeight"] < 170
-        assert page.locator("#draftBar").evaluate("el=>getComputedStyle(el).position") == "relative"
-        assert metrics["barTop"] > 400
+        assert page.locator("#draftBar").evaluate("el=>getComputedStyle(el).position") == "fixed"
+        assert metrics["barBottom"] <= metrics["navTop"]
         assert metrics["barBottom"] - metrics["barTop"] < 160
     else:
         assert metrics["navTop"] >= metrics["headerBottom"]
@@ -452,8 +452,7 @@ def test_explicit_rebase_keeps_settings_and_fresh_reset_id_without_server_write(
     path.write_bytes(external.encode())
     page.reload()
     expect(page.locator("#configError")).to_contain_text("Рабочие файлы изменились")
-    if width <= 740:
-        page.locator("#draftMore").click()
+    page.locator("#draftMore").click()
     page.locator("#configRebase").click()
     expect(page.get_by_role("alertdialog")).to_contain_text("Keep my draft")
     page.locator("#modalOk").click()
@@ -481,6 +480,7 @@ def test_rebase_overlap_keeps_draft_and_reports_manual_resolution(page, dashboar
     path.write_bytes(external.encode())
     page.goto(dashboard["url"] + "/#/settings")
     expect(page.locator("#configError")).to_contain_text("Рабочие файлы изменились")
+    page.locator("#draftMore").click()
     page.locator("#configRebase").click()
     expect(page.locator("#configError")).to_contain_text("Обе версии изменяют строки")
     assert editor.draft("world.ini")["conflict"]
@@ -489,9 +489,8 @@ def test_rebase_overlap_keeps_draft_and_reports_manual_resolution(page, dashboar
 
 
 @pytest.mark.parametrize("width", [390, 1440])
-@pytest.mark.parametrize("entry", ["configDiff", "configApply"])
 def test_conflict_review_action_updates_draft_and_then_allows_apply_review(
-    page, dashboard, editing, width, entry
+    page, dashboard, editing, width
 ):
     data, _ = editing
     path = data / "Server/world.ini"
@@ -512,7 +511,8 @@ def test_conflict_review_action_updates_draft_and_then_allows_apply_review(
     expect(page.locator("#configProfile")).to_have_value("world.ini")
     navigate(page, "settings", width <= 740)
     expect(page.locator("#configSaveHint")).to_contain_text("Сервер работает")
-    page.locator(f"#{entry}").click()
+    expect(page.locator("#configApply")).to_be_disabled()
+    page.locator("#configDiff").click()
     expect(page.get_by_role("alertdialog")).to_contain_text("Сейчас на диске")
     expect(page.locator("#modalOk")).to_have_text("Обновить основу черновика")
     page.locator("#modalOk").click()
@@ -562,8 +562,7 @@ def test_apply_review_can_skip_world_backup(page, dashboard, editing, width, ent
         page.evaluate(
             "renderOverview({...S.overview,containerInfo:{running:false,status:'exited'}})"
         )
-        if width <= 740:
-            page.locator("#draftMore").click()
+        page.locator("#draftMore").click()
         page.locator("#configSave").click()
     elif entry == "apply":
         page.locator("#configApply").click()
@@ -685,7 +684,8 @@ def test_scrolling_draft_does_not_block_phone_navigation(page, dashboard, editin
         const bar = document.querySelector('#draftBar').getBoundingClientRect();
         const link = document.querySelector('.nav [data-route=settings]').getBoundingClientRect();
         const x = link.left + link.width / 2, y = link.top + link.height / 2;
-        return bar.top < y && bar.bottom > y
+        const fixed = getComputedStyle(document.querySelector('#draftBar')).position === 'fixed';
+        return (fixed ? bar.bottom <= link.top : bar.top < y && bar.bottom > y)
             && !!document.elementFromPoint(x, y)?.closest('.nav [data-route=settings]');
     }""")
     page.screenshot(path=str(editing[0].parent / f"draft-navigation-{width}-{height}.png"))
@@ -756,7 +756,7 @@ def test_header_profile_context_is_clear_and_aligned(page, dashboard, editing, w
     expect(page.locator("#clock, #topLamp")).to_have_count(0)
     expect(page.locator("#serverName")).to_have_count(0)
     expect(page.locator("#freshness, .header-meta")).to_have_count(0)
-    assert "Активен на сервере" not in page.locator(".topbar").inner_text()
+    expect(page.locator("#configActive")).to_be_visible()
     page.locator("#configProfile").select_option(other)
     expect(page.locator("#configActive")).to_have_text("Другой профиль")
     expect(page.locator("#configProfile")).to_have_attribute("data-state", "other")
@@ -782,11 +782,11 @@ def test_header_profile_context_is_clear_and_aligned(page, dashboard, editing, w
     assert geometry["selectTop"] == geometry["commandsTop"]
     assert not geometry["overflow"]
     if width <= 740:
-        assert geometry["height"] < 120
+        assert geometry["height"] < 150
     else:
         assert geometry["selectTop"] == geometry["logoutTop"]
         assert geometry["logoutHeight"] == 44
-        assert geometry["height"] == 69
+        assert geometry["height"] <= 110
     expect(page.locator(".health-details, #healthbar, #pillDocker, #pillRcon")).to_have_count(0)
     expect(page.locator(".brand-text #configVersion")).to_be_visible()
     expect(page.locator("#configVersion")).to_have_attribute("title", "PZ 42.15.1")
@@ -1153,6 +1153,7 @@ def test_steam_response_after_profile_switch_does_not_change_other_profile(
     page.goto(dashboard["url"])
     expect(page.locator("#configProfile")).to_have_value("world.ini")
     navigate(page, "mods")
+    page.locator("#workshopDisclosure > summary").click()
     page.locator("#workshopInput").fill("222")
     page.locator("#workshopAdd button").click()
     page.locator("#configProfile").select_option("another.ini")
@@ -1195,6 +1196,7 @@ def test_collection_candidates_filter_and_add_only_selected_packages(
     page.goto(dashboard["url"])
     expect(page.locator("#configProfile")).to_have_value("world.ini")
     navigate(page, "mods", width <= 740)
+    page.locator("#workshopDisclosure > summary").click()
     page.locator("#workshopInput").fill("999")
     page.locator("#workshopAdd button").click()
     expect(page.locator("#collectionQuery")).to_be_focused()
@@ -1252,6 +1254,7 @@ def test_collection_cancel_keeps_draft_and_next_modal_usable(page, dashboard, ed
     page.goto(dashboard["url"])
     expect(page.locator("#configProfile")).to_have_value("world.ini")
     navigate(page, "mods", True)
+    page.locator("#workshopDisclosure > summary").click()
     page.locator("#workshopInput").fill("999")
     page.locator("#workshopAdd button").click()
     expect(page.locator("#collectionQuery")).to_be_visible()
@@ -2050,6 +2053,7 @@ def test_discard_removes_pending_map_input_and_unload_warning(page, dashboard, m
     navigate(page, "mods")
     page.get_by_role("tab", name="Порядок", exact=True).click()
     page.locator("#mapList").fill("TestTown;Muldraugh, KY")
+    page.locator("#draftMore").click()
     page.locator("#configDiscard").click()
     page.locator("#modalOk").click()
     expect(page.get_by_role("alertdialog")).to_be_hidden()

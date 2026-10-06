@@ -48,6 +48,11 @@ typography:
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: "0"
+  caption:
+    fontFamily: '"Golos Text", "Segoe UI", system-ui, -apple-system, sans-serif'
+    fontSize: "12px"
+    fontWeight: 400
+    lineHeight: 1.5
   button:
     fontFamily: '"Golos Text", "Segoe UI", system-ui, -apple-system, sans-serif'
     fontSize: "13.5px"
@@ -146,11 +151,15 @@ menus, dialogs, and tooltips. Status text accompanies color.
 
 Desktop uses a sidebar; mobile uses Overview, Settings, Mods, and More in the bottom
 bar. The top bar contains the active profile, language selector, quick commands,
-and sign-out action. Ctrl/Cmd+K opens section, setting, and mod search.
+and sign-out action. The profile has a persistent textual status.
+Mods put search and filtering first and disclose package/collection addition
+separately; export, import and metadata refresh remain available. Ctrl/Cmd+K opens section, setting, and mod search.
 One SSE connection persists across route changes.
 
-On mobile, editing fields precede stage and draft controls. Desktop shows the
-Draft → Files → Startup stages above the editor. Stage selection reviews changes
+On mobile, editing fields precede the stage controls; draft actions stay fixed
+above the bottom navigation. Viewports up to 600 pixels high keep the draft bar
+in the document flow. Desktop shows Draft → Files → Startup inside the editor
+below the page heading. Stage selection reviews changes
 or focuses an action; it does not execute an operation.
 
 ## Forms, source, and feedback
@@ -161,7 +170,9 @@ Use inline errors with a retry action and concise success notifications.
 Source editing preserves native formats and masks secrets. Tabs expose linked
 panels and clear selected states. Field help opens on hover, focus, or tap,
 uses aria-describedby, stays within the viewport, and closes with Escape.
-Mobile help controls have 44-pixel touch targets.
+Mobile help controls have 44-pixel touch targets. Desktop labels are bounded
+to 260 pixels and controls to 560 pixels. Boolean draft fields use one clickable
+44-pixel row. Technical keys and changed-field labels remain visible.
 
 ## Workspace layout
 
@@ -169,7 +180,10 @@ Overview groups server state/actions, player and backup summaries, container loa
 updates, and recent events. Maintenance places image updates beside watchdog and
 Telegram settings, stacking at narrow widths. Digest fields share copy feedback.
 Backup archives use aligned name, size, date, and action columns; mobile places
-them on separate rows. Archive pages contain ten items. The run journal uses
+them on separate rows. Download, verify and restore actions have visible labels;
+delete retains a named icon and confirmation. Show verified archive results
+only from operation history, and scheduled times with the server offset and
+the next run in browser-local time. Archive pages contain ten items. The run journal uses
 25/50/100-item pages and preserves the current page during refresh.
 The login form uses the red brand mark, login/password fields, and an opt-in
 Remember me checkbox with a 30-day explanation. Errors stay beside the login action.

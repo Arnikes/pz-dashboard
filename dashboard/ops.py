@@ -511,6 +511,11 @@ def _start_worker(op, fn):
                         "message": _ACTIVE["message"],
                         "finishedAt": now_iso(),
                         **({"cancelled": True} if result == "cancelled" else {}),
+                        **(
+                            {"archive": result}
+                            if op == "verify-backup" and isinstance(result, dict)
+                            else {}
+                        ),
                     }
                 )
         except OpsErrorReported as e:
@@ -1417,6 +1422,7 @@ def auto_backup_state():
         "time": ab["time"],
         "stopServer": bool(ab["stopServer"]),
         "nextRun": next_iso,
+        "timeZone": datetime.now().astimezone().isoformat()[-6:],
     }
 
 

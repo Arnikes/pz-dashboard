@@ -494,6 +494,17 @@ const S = {
 
 function demoNow() { return new Date().toISOString(); }
 
+const demoScenarioAt = Date.now();
+function demoArchive(daysAgo) {
+  const mtime = new Date(Date.parse(demoNextBackup()) - (daysAgo + 1) * 86400e3).toISOString();
+  return { name: `pz-backup-${mtime.slice(0, 10).replaceAll("-", "")}-${mtime.slice(11, 19).replaceAll(":", "")}.tar.gz`, mtime, size: 684000000 - daysAgo * 12000000 };
+}
+function demoNextBackup() {
+  const next = new Date(demoScenarioAt); next.setUTCHours(3, 0, 0, 0);
+  if (next.getTime() <= demoScenarioAt) next.setUTCDate(next.getUTCDate() + 1);
+  return next.toISOString();
+}
+
 const DEMO = {
   overview: () => ({
     ok: true, serverName: I18n.t("Кастом-Нокс (демо)"), container: "pzserver",
@@ -543,29 +554,22 @@ const DEMO = {
   },
   logs: () => ({
     ok: true,
-    text: `${demoNow()} PZ SERVER: v44.3.2 MP dedicated\n${demoNow()} [save] World saved (demo line)\n${demoNow()} INFO: 3 players online\n`,
+    text: `${demoNow()} PZ SERVER: v42.21.0 MP dedicated\n${demoNow()} [save] World saved (demo line)\n${demoNow()} INFO: 3 players online\n`,
   }),
   backups: () => ({
     ok: true, maxBackups: 7,
-    autoBackup: { enabled: true, time: "03:00", stopServer: false,
-                  nextRun: new Date(Date.now() + 36e5 * 11).toISOString() },
-    items: [
-      { name: "pz-backup-20260901-040000.tar.gz", size: 684000000, sizeText: I18n.t("652.3 МБ"), mtime: "2026-09-01T04:00:00" },
-      { name: "pz-backup-20260831-040000.tar.gz", size: 672000000, sizeText: I18n.t("640.9 МБ"), mtime: "2026-08-31T04:00:00" },
-    ],
-    journal: [
-      { ts: "2026-09-01T04:00:03", trigger: "scheduled", type: "full", name: "pz-backup-20260901-040000.tar.gz", size: 684000000, status: "success", duration: 42.5 },
-      { ts: "2026-08-31T04:00:02", trigger: "scheduled", type: "full", name: "pz-backup-20260831-040000.tar.gz", size: 672000000, status: "success", duration: 41.2 },
-      { ts: "2026-08-30T04:00:05", trigger: "scheduled", type: "full", name: "", size: 0, status: "error", error: I18n.t("Каталог данных PZ пуст или не смонтирован"), duration: 0.4 },
-    ],
+    autoBackup: { enabled: true, time: "03:00", stopServer: false, nextRun: demoNextBackup(), timeZone: "UTC" },
+    items: [demoArchive(0), demoArchive(1)],
+    journal: [...[0, 1].map(day => ({ ...demoArchive(day), ts: demoArchive(day).mtime, trigger: "scheduled", type: "full", status: "success", duration: 42.5 })),
+      { ts: demoArchive(2).mtime, trigger: "scheduled", type: "full", name: "", size: 0, status: "error", error: I18n.t("Каталог данных PZ пуст или не смонтирован"), duration: 0.4 }],
   }),
   events: () => ({
     ok: true,
     items: [
       { ts: demoNow(), type: "update-check", text: I18n.t("Плановая проверка обновлений: обновлений нет") },
-      { ts: new Date(Date.now() - 3600e3).toISOString(), type: "backup", text: I18n.t("Бэкап создан: pz-backup-20260901-040000.tar.gz (652.3 МБ)") },
       { ts: new Date(Date.now() - 7200e3).toISOString(), type: "restart", text: I18n.t("Сервер перезапущен") },
-    ],
+      { ts: demoArchive(0).mtime, type: "backup", text: I18n.msg`Бэкап создан: ${demoArchive(0).name} (${fmtBytes(demoArchive(0).size)})` },
+    ].sort((a, b) => Date.parse(b.ts) - Date.parse(a.ts)),
   }),
 };
 
@@ -1010,6 +1014,7 @@ function renderOp(op) {
   }
   S.lastOpActive = !!(active);
   S.op = op;
+  if (activeView === "backups" && S.backupsItems?.length) renderBackupsPage();
   updateOperationElapsed();
   updateButtons();
   window.ConfigEditor?.operationChanged();
@@ -1563,18 +1568,20 @@ function renderBackupsPage() {
       <span class="b-name mono" title="${esc(b.name)} — создан ${esc(b.mtime)}">${esc(b.name)}</span>
       <span class="b-size mono" title="размер архива">${esc(b.size != null ? fmtBytes(b.size) : b.sizeText || "—")}</span>
       <span class="b-age mono" title="создан ${esc(b.mtime)}">${esc(relTime(b.mtime))}</span>
-      <button class="icon-btn" data-b="dl" data-name="${esc(b.name)}" title="Скачать" aria-label="Скачать ${esc(b.name)}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
+      <div class="backup-actions"><button class="icon-btn backup-action" data-b="dl" data-name="${esc(b.name)}" title="Скачать" aria-label="Скачать ${esc(b.name)}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 20h14"/></svg><span>Скачать</span>
       </button>
-      <button class="icon-btn" data-b="verify" data-name="${esc(b.name)}" title="Проверить архив" aria-label="Проверить ${esc(b.name)}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.4-2.9 8.2-7 10-4.1-1.8-7-5.6-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
+      <button class="icon-btn backup-action" data-b="verify" data-name="${esc(b.name)}" title="Проверить архив" aria-label="Проверить ${esc(b.name)}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.4-2.9 8.2-7 10-4.1-1.8-7-5.6-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg><span>Проверить</span>
       </button>
-      <button class="icon-btn" data-b="restore" data-name="${esc(b.name)}" title="Восстановить" aria-label="Восстановить из ${esc(b.name)}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9a8 8 0 1 1 2 6"/><path d="M4 4v5h5"/></svg>
+      <button class="icon-btn backup-action" data-b="restore" data-name="${esc(b.name)}" title="Восстановить" aria-label="Восстановить из ${esc(b.name)}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9a8 8 0 1 1 2 6"/><path d="M4 4v5h5"/></svg><span>Восстановить…</span>
       </button>
       <button class="icon-btn danger" data-b="del" data-name="${esc(b.name)}" title="Удалить" aria-label="Удалить ${esc(b.name)}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5h6v2m-8 0 1 13h8l1-13"/></svg>
       </button>
+      </div>
+      <p class="backup-result hint" hidden></p>
     </div>`;
     return template.content.firstElementChild;
   }, (row, b) => {
@@ -1585,6 +1592,11 @@ function renderBackupsPage() {
     if (age.title !== dateTitle) age.title = dateTitle;
     const title = `${b.name} — ${dateTitle}`;
     if (name.title !== title) name.title = title;
+    const verified = S.op?.history?.find(h => h.op === "verify-backup" && h.ok && h.archive?.name === b.name);
+    const result = row.querySelector(".backup-result");
+    setDomProperty(result, "hidden", !verified);
+    const note = verified && (!verified.archive.hasServerIni || !verified.archive.hasMapData) ? I18n.t(" · Проверьте состав архива в событиях") : "";
+    setDomProperty(result, "textContent", verified ? I18n.msg`Проверен ${fmtTime(verified.finishedAt)} · файлов: ${verified.archive.files}` + note : "");
   });
   updateButtons();
 }
@@ -1626,6 +1638,10 @@ function renderBkSchedule(data) {
   if (keep && settingsCanRender("bkAutoKeep")) keep.value = data.maxBackups ?? 7;
   const stop = $("bkAutoStop");
   if (stop && settingsCanRender("bkAutoStop")) stop.checked = !!ab.stopServer;
+  const offset = ab.nextRun?.match(/(?:Z|[+-]\d{2}:\d{2})$/)?.[0] || ab.timeZone;
+  const zone = offset === "Z" || offset === "+00:00" ? "UTC" : offset?.startsWith("+") || offset?.startsWith("-") ? `UTC${offset}` : offset;
+  const next = ab.enabled && ab.nextRun ? I18n.msg`Следующий запуск: ${fmtTime(ab.nextRun)} · ваше время` : ab.enabled ? I18n.t("Следующий запуск рассчитывается") : I18n.t("Расписание выключено");
+  setDomProperty($("bkScheduleContext"), "textContent", next + (zone ? I18n.msg` · Часовой пояс сервера: ${zone}` : ""));
 }
 
 const bkJournal = { page: 0, size: 25, shownPage: 0, shownSize: 25, retryPage: 0, retrySize: 25, signature: null, request: 0, loading: false, hasMore: false };
@@ -2560,8 +2576,11 @@ const mobileLayout = matchMedia("(max-width: 740px)");
 function adaptConfigFlow() {
   const editing = /^(settings|mods)$/.test(location.hash.replace(/^#\/?/, ""));
   const main = document.querySelector(".main"), flow = $("configFlow");
-  if (mobileLayout.matches && editing) main.append(flow);
-  else main.querySelector(".view").before(flow);
+  if (editing) {
+    const card = $("view-" + location.hash.replace(/^#\/?/, "")).querySelector(".editor-card");
+    if (mobileLayout.matches) card.append(flow);
+    else card.querySelector(".editor-tabs").before(flow);
+  } else main.querySelector(".view").before(flow);
 }
 adaptConfigFlow();
 mobileLayout.addEventListener("change", adaptConfigFlow);
@@ -2588,7 +2607,7 @@ for (const route of ["settings", "mods"]) {
 for (const [route, label] of Object.entries(VIEWS)) {
   const view = $("view-" + route), heading = document.createElement("header");
   heading.className = "page-heading";
-  heading.innerHTML = `<h1 id="page-${route}">${esc(label)}</h1>` + (route === "overview" ? I18n.html('<div class="page-actions"><a class="btn" href="#/settings">Редактировать настройки</a><a class="btn" href="#/mods">Изменить состав модов</a></div>') : "");
+  heading.innerHTML = `<h1 id="page-${route}">${esc(label)}</h1>` + (route === "overview" ? I18n.html('<div class="page-actions"><a class="btn" href="#/settings">Редактировать настройки</a><a class="btn" href="#/mods">Изменить состав модов</a><a id="overviewDraft" class="btn" href="#/settings" hidden>Черновик</a></div>') : "");
   view.prepend(heading);
   view.setAttribute("aria-labelledby", "page-" + route);
 }

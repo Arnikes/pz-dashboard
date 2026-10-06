@@ -1614,10 +1614,7 @@ body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--nav-height) + 
   .editor-card .editor-tabs { margin:0 0 8px; }
   .config-group summary { padding:8px 0; min-height:44px; }
   .config-grid { padding:8px 0; }
-  .draft-bar { position:relative; z-index:auto; margin:12px var(--page-gutter) 24px; width:auto; max-width:none; bottom:auto; left:auto; right:auto; }
-  body:has(.draft-bar:not([hidden])) .main { padding-bottom:26px; }
-  .toasts { bottom:calc(var(--nav-height) + 22px); }
-  body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--nav-height) + 12px); max-height:calc(100dvh - var(--nav-height) - 24px); }
+
 }
 @media (forced-colors:active) {
   .source-editor pre { display:none; }
@@ -1650,7 +1647,7 @@ body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--nav-height) + 
 .editor-card .editor-tabs button:focus-visible { outline-offset:-2px; }
 #view-settings .config-group { margin:0; }
 #view-settings .config-group summary { padding:12px 0; font-weight:500; }
-#view-settings .config-field { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:start; gap:4px 24px; padding:12px 0; border-top:1px solid var(--line); }
+#view-settings .config-field { display:grid; grid-template-columns:minmax(180px,260px) minmax(0,560px); align-items:start; gap:4px 24px; padding:12px 0; border-top:1px solid var(--line); }
 #view-settings .config-field:first-child { border-top:0; }
 #view-settings .config-label { margin:0; min-width:0; }
 #view-settings .config-label strong { font-weight:500; }
@@ -1757,3 +1754,77 @@ body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--nav-height) + 
   #view-overview .k-value { font-size:16px; }
   #view-overview .c-recent .card-head { gap:4px 12px; }
 }
+
+/* Approved editor refinement: clear state, compact actions and bounded fields. */
+.profile-label { display:flex; align-items:center; gap:10px; }
+.profile-label select { width:auto; flex:1; }
+#configActive { font-size:12px; line-height:1.4; color:var(--warn); }
+#configActive[data-state=active] { color:var(--ok); }
+.draft-copy { min-width:0; display:grid; gap:4px; }
+.draft-status { display:flex; flex-wrap:wrap; gap:0 8px; }
+.draft-status .hint { font-size:12px; margin:0; }
+.draft-copy #draftLabel { grid-column:auto; }
+.draft-status #draftSaved { flex:0 1 auto; }
+.draft-status #draftSaved:not(:empty):has(+ #draftContext:not(:empty))::after { content:" ·"; }
+.draft-bar #draftLabel, .draft-bar #draftSaved { white-space:normal; }
+.draft-bar #draftContext { flex:1; }
+.draft-bar { display:grid; grid-template-columns:minmax(0,1fr) auto auto 44px; }
+.draft-extra { display:none; position:absolute; bottom:calc(100% + 8px); right:0; width:260px; max-height:calc(100dvh - var(--draft-height) - var(--nav-height) - 30px); overflow:auto; padding:12px; background:var(--surface-2); border-radius:var(--r); box-shadow:var(--elevation-dialog); }
+.draft-extra[data-open=true] { display:flex; flex-direction:column; align-items:stretch; }
+.draft-bar .draft-extra { grid-column:auto; }
+.draft-more { display:inline-flex; }
+#view-settings .config-label { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:2px 8px; }
+#view-settings .config-label .help-tip { grid-column:2; grid-row:1/3; }
+.config-key { grid-column:1; font:12px/1.5 var(--font-mono); color:var(--muted); overflow-wrap:anywhere; }
+#view-settings .config-field[data-changed=true] .config-change { display:inline; }
+.config-field label.config-toggle { display:flex; width:100%; align-items:center; gap:10px; min-height:44px; padding:8px 12px; border:1px solid var(--line-strong); border-radius:var(--r-sm); background:var(--bg-deep); cursor:pointer; }
+.config-toggle:has(input:disabled) { cursor:default; }
+.config-toggle:has(input:focus-visible) { outline:2px solid var(--focus); outline-offset:2px; }
+.config-toggle .toggle-on { display:none; }
+.config-toggle:has(input:checked) .toggle-on { display:inline; }
+.config-toggle:has(input:checked) .toggle-off { display:none; }
+.workshop-add { margin-top:16px; border-top:1px solid var(--line); }
+.workshop-add summary { min-height:44px; padding:12px 0; cursor:pointer; font-weight:500; }
+.backup-row { grid-template-columns:minmax(0,1fr) 9ch 15ch auto; }
+.backup-actions { display:flex; align-items:center; gap:8px; }
+.backup-action { width:auto; gap:6px; padding:6px 10px; font:12px var(--font-body); white-space:nowrap; }
+.backup-action svg { width:16px; }
+#bkScheduleContext { margin:12px 0; font-size:12px; }
+@media (max-width:1000px) and (min-width:741px) {
+  .backup-row { grid-template-columns:minmax(0,1fr) 9ch; }
+  .backup-row .b-age { grid-row:2; }
+  .backup-actions { grid-column:1/-1; }
+  .profile-label { flex-wrap:wrap; gap:2px; }
+  #configActive { flex-basis:100%; }
+}
+@media (max-width:740px) {
+  .profile-label { flex-wrap:wrap; gap:2px; }
+  #configActive { flex-basis:100%; }
+  .draft-bar { grid-template-columns:minmax(0,1fr) minmax(0,1fr) 44px; gap:8px; }
+  .draft-copy { grid-column:1/-1; }
+  .draft-bar #configDiff { grid-column:1; }
+  .draft-bar #configApply { grid-column:2; grid-row:auto; }
+  .draft-bar #draftMore { grid-column:3; grid-row:auto; align-self:stretch; }
+  .draft-bar .btn { min-height:44px; }
+  .draft-status #draftContext { flex-basis:100%; }
+  #view-settings .config-label { min-height:0; }
+  #view-settings .config-label .help-tip { align-self:center; }
+  .backup-row { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .backup-row .b-name { grid-column:1/-1; }
+  .backup-row .b-size { grid-column:1; }
+  .backup-row .b-age { grid-column:2; }
+  .backup-actions { grid-column:1/-1; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) 44px; gap:8px; }
+  .backup-actions [data-b=dl] { grid-column:1; grid-row:1; }
+  .backup-actions [data-b=verify] { grid-column:2; grid-row:1; }
+  .backup-actions [data-b=restore] { grid-column:1/3; grid-row:2; }
+  .backup-actions [data-b=del] { grid-column:3; grid-row:1/3; align-self:stretch; }
+}
+
+.config-change { display:none; grid-column:1; color:var(--warn); font-size:12px; }
+#view-settings .config-label .help-tip { grid-row:1/4; }
+.backup-result { grid-column:1/-1; margin:0; font-size:12px; }
+@media (max-width:740px) { .draft-bar .btn { font-size:12px; padding-inline:8px; } }
+
+/* Keep the command and session controls aligned with the profile selector. */
+.top-right { align-items:start; }
+@media (max-width:740px) { #btnCommands { align-self:start; } }

@@ -517,7 +517,13 @@ def response(saved, current):
         for key, rec in ini_entries(texts["ini"]).items()
         if key not in MOD_KEYS
     ]
+    base_entries = ini_entries(saved["base"]["ini"])
+    current_entries = ini_entries(texts["ini"])
     for rec in fields:
+        rec["changed"] = (
+            rec["key"] not in base_entries
+            or current_entries[rec["key"]]["value"] != base_entries[rec["key"]]["value"]
+        )
         rec["secret"] = bool(SECRET_KEY.search(rec["key"]))
         if rec["secret"]:
             rec["value"] = SECRET
@@ -526,6 +532,10 @@ def response(saved, current):
     masked_lua = mask_lua(texts["sandbox"]) if texts["sandbox"] else ""
     try:
         table = LuaTable(texts["sandbox"]) if texts["sandbox"] else None
+        try:
+            base_table = LuaTable(saved["base"]["sandbox"]) if saved["base"]["sandbox"] else None
+        except FormatError:
+            base_table = None
         if table:
             for path, entry in table.values.items():
                 key = ".".join(path)
@@ -533,6 +543,11 @@ def response(saved, current):
                     continue
                 rec = configschema.field(
                     key, entry["value"], sandbox=True, schema=schema, translations=translations
+                )
+                rec["changed"] = (
+                    not base_table
+                    or path not in base_table.values
+                    or entry["value"] != base_table.values[path]["value"]
                 )
                 rec["secret"] = bool(SECRET_KEY.search(key))
                 if rec["secret"]:

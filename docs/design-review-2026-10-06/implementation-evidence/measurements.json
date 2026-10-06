@@ -1,0 +1,2850 @@
+[
+  {
+    "route": "overview",
+    "lang": "ru",
+    "width": 320,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": []
+  },
+  {
+    "route": "settings",
+    "lang": "ru",
+    "width": 320,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "configTabs-world",
+        "tag": "BUTTON",
+        "text": "Мир",
+        "width": 28,
+        "height": 44
+      }
+    ]
+  },
+  {
+    "route": "mods",
+    "lang": "ru",
+    "width": 320,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "",
+        "tag": "A",
+        "text": "",
+        "width": 114,
+        "height": 19
+      }
+    ]
+  },
+  {
+    "route": "players",
+    "lang": "ru",
+    "width": 320,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": []
+  },
+  {
+    "route": "maintenance",
+    "lang": "ru",
+    "width": 320,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": []
+  },
+  {
+    "route": "backups",
+    "lang": "ru",
+    "width": 320,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "bkAutoSwitch",
+        "tag": "INPUT",
+        "text": "",
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "bkAutoStop",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      }
+    ]
+  },
+  {
+    "route": "events",
+    "lang": "ru",
+    "width": 320,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": []
+  },
+  {
+    "route": "console",
+    "lang": "ru",
+    "width": 320,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": []
+  },
+  {
+    "route": "overview",
+    "lang": "ru",
+    "width": 390,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": []
+  },
+  {
+    "route": "settings",
+    "lang": "ru",
+    "width": 390,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "configTabs-world",
+        "tag": "BUTTON",
+        "text": "Мир",
+        "width": 28,
+        "height": 44
+      }
+    ]
+  },
+  {
+    "route": "mods",
+    "lang": "ru",
+    "width": 390,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "",
+        "tag": "A",
+        "text": "",
+        "width": 114,
+        "height": 19
+      },
+      {
+        "id": "",
+        "tag": "INPUT",
+        "text": "",
+        "width": 20,
+        "height": 20
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "",
+        "width": 114,
+        "height": 19
+      },
+      {
+        "id": "",
+        "tag": "INPUT",
+        "text": "",
+        "width": 20,
+        "height": 20
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "",
+        "width": 114,
+        "height": 19
+      },
+      {
+        "id": "",
+        "tag": "INPUT",
+        "text": "",
+        "width": 20,
+        "height": 20
+      },
+      {
+        "id": "modImport",
+        "tag": "INPUT",
+        "text": "",
+        "width": 1,
+        "height": 1
+      }
+    ]
+  },
+  {
+    "route": "players",
+    "lang": "ru",
+    "width": 390,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": []
+  },
+  {
+    "route": "maintenance",
+    "lang": "ru",
+    "width": 390,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "autoSwitch",
+        "tag": "INPUT",
+        "text": "",
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "buBackup",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      }
+    ]
+  },
+  {
+    "route": "backups",
+    "lang": "ru",
+    "width": 390,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "bkAutoSwitch",
+        "tag": "INPUT",
+        "text": "",
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "bkAutoStop",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      }
+    ]
+  },
+  {
+    "route": "events",
+    "lang": "ru",
+    "width": 390,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": []
+  },
+  {
+    "route": "console",
+    "lang": "ru",
+    "width": 390,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "logsAuto",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      }
+    ]
+  },
+  {
+    "route": "overview",
+    "lang": "ru",
+    "width": 768,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "",
+        "tag": "A",
+        "text": "Онлайн\n4\nпик за сутки: 7",
+        "width": 254,
+        "height": 37
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "Бэкап\n15 ч назад\n658,0 МБ",
+        "width": 254,
+        "height": 37
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "О графиках нагрузки",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "Образ Docker",
+        "width": 106,
+        "height": 20
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "Моды Workshop",
+        "width": 104,
+        "height": 20
+      }
+    ]
+  },
+  {
+    "route": "settings",
+    "lang": "ru",
+    "width": 768,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "configTabs-world",
+        "tag": "BUTTON",
+        "text": "Мир",
+        "width": 28,
+        "height": 44
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "О настройке «Название сервера»",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "О настройке «Описание сервера»",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "О настройке «Лимит игроков»",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "О настройке «Пароль входа»",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "О настройке «PvP»",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "config-field-3",
+        "tag": "INPUT",
+        "text": "",
+        "width": 22,
+        "height": 22
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "О настройке «Пауза пустого сервера»",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "config-field-4",
+        "tag": "INPUT",
+        "text": "",
+        "width": 22,
+        "height": 22
+      }
+    ]
+  },
+  {
+    "route": "mods",
+    "lang": "ru",
+    "width": 768,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "О составе модов",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "",
+        "width": 114,
+        "height": 19
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "",
+        "width": 214,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "INPUT",
+        "text": "",
+        "width": 20,
+        "height": 20
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "",
+        "width": 114,
+        "height": 19
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "",
+        "width": 214,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "INPUT",
+        "text": "",
+        "width": 20,
+        "height": 20
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "",
+        "width": 114,
+        "height": 19
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "",
+        "width": 214,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "INPUT",
+        "text": "",
+        "width": 20,
+        "height": 20
+      },
+      {
+        "id": "modExport",
+        "tag": "BUTTON",
+        "text": "Экспорт набора",
+        "width": 101,
+        "height": 36
+      },
+      {
+        "id": "modImport",
+        "tag": "INPUT",
+        "text": "",
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "modRescan",
+        "tag": "BUTTON",
+        "text": "Перечитать метаданные",
+        "width": 153,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "",
+        "width": 267,
+        "height": 17
+      }
+    ]
+  },
+  {
+    "route": "players",
+    "lang": "ru",
+    "width": 768,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Кикнуть Maple",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Забанить Maple",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Кикнуть Sledge",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Забанить Sledge",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Кикнуть RiverScout",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Забанить RiverScout",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Кикнуть Ash",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Забанить Ash",
+        "width": 36,
+        "height": 36
+      }
+    ]
+  },
+  {
+    "route": "maintenance",
+    "lang": "ru",
+    "width": 768,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "autoSwitch",
+        "tag": "INPUT",
+        "text": "",
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "buBackup",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      },
+      {
+        "id": "wdSwitch",
+        "tag": "INPUT",
+        "text": "Watchdog RCON",
+        "width": 1,
+        "height": 1
+      }
+    ]
+  },
+  {
+    "route": "backups",
+    "lang": "ru",
+    "width": 768,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "bkAutoSwitch",
+        "tag": "INPUT",
+        "text": "",
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "bkAutoStop",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      },
+      {
+        "id": "btnBackup",
+        "tag": "BUTTON",
+        "text": "Создать",
+        "width": 77,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Скачать",
+        "width": 91,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Проверить",
+        "width": 108,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Восстановить…",
+        "width": 137,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Удалить riverside-20261006-030000.tar.gz",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Скачать",
+        "width": 91,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Проверить",
+        "width": 108,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Восстановить…",
+        "width": 137,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Удалить riverside-20261005-030000.tar.gz",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Скачать",
+        "width": 91,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Проверить",
+        "width": 108,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Восстановить…",
+        "width": 137,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Удалить riverside-20261004-030000.tar.gz",
+        "width": 36,
+        "height": 36
+      }
+    ]
+  },
+  {
+    "route": "events",
+    "lang": "ru",
+    "width": 768,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Все",
+        "width": 46,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Управление",
+        "width": 96,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Бэкапы",
+        "width": 68,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Обновления",
+        "width": 97,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Проблемы",
+        "width": 86,
+        "height": 36
+      }
+    ]
+  },
+  {
+    "route": "console",
+    "lang": "ru",
+    "width": 768,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "save",
+        "width": 53,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "players",
+        "width": 74,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "help",
+        "width": 53,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Объявить…",
+        "width": 93,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Все",
+        "width": 46,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "WARN",
+        "width": 53,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "ERROR",
+        "width": 60,
+        "height": 36
+      },
+      {
+        "id": "logsAuto",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      },
+      {
+        "id": "logsDownload",
+        "tag": "A",
+        "text": "Скачать лог",
+        "width": 100,
+        "height": 36
+      }
+    ]
+  },
+  {
+    "route": "overview",
+    "lang": "ru",
+    "width": 1440,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "",
+        "tag": "A",
+        "text": "Онлайн\n4\nпик за сутки: 7",
+        "width": 590,
+        "height": 37
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "Бэкап\n15 ч назад\n658,0 МБ",
+        "width": 590,
+        "height": 37
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "О графиках нагрузки",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "Образ Docker",
+        "width": 414,
+        "height": 20
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "Моды Workshop",
+        "width": 412,
+        "height": 20
+      }
+    ]
+  },
+  {
+    "route": "settings",
+    "lang": "ru",
+    "width": 1440,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "configTabs-world",
+        "tag": "BUTTON",
+        "text": "Мир",
+        "width": 28,
+        "height": 44
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "О настройке «Название сервера»",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "О настройке «Описание сервера»",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "О настройке «Лимит игроков»",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "О настройке «Пароль входа»",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "О настройке «PvP»",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "config-field-3",
+        "tag": "INPUT",
+        "text": "",
+        "width": 22,
+        "height": 22
+      }
+    ]
+  },
+  {
+    "route": "mods",
+    "lang": "ru",
+    "width": 1440,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "О составе модов",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "",
+        "width": 114,
+        "height": 19
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "",
+        "width": 214,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "INPUT",
+        "text": "",
+        "width": 20,
+        "height": 20
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "",
+        "width": 114,
+        "height": 19
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "",
+        "width": 214,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "INPUT",
+        "text": "",
+        "width": 20,
+        "height": 20
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "",
+        "width": 114,
+        "height": 19
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "",
+        "width": 214,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "INPUT",
+        "text": "",
+        "width": 20,
+        "height": 20
+      },
+      {
+        "id": "modExport",
+        "tag": "BUTTON",
+        "text": "Экспорт набора",
+        "width": 101,
+        "height": 36
+      },
+      {
+        "id": "modImport",
+        "tag": "INPUT",
+        "text": "",
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "modRescan",
+        "tag": "BUTTON",
+        "text": "Перечитать метаданные",
+        "width": 153,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "",
+        "width": 267,
+        "height": 17
+      }
+    ]
+  },
+  {
+    "route": "players",
+    "lang": "ru",
+    "width": 1440,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Кикнуть Maple",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Забанить Maple",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Кикнуть Sledge",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Забанить Sledge",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Кикнуть RiverScout",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Забанить RiverScout",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Кикнуть Ash",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Забанить Ash",
+        "width": 36,
+        "height": 36
+      }
+    ]
+  },
+  {
+    "route": "maintenance",
+    "lang": "ru",
+    "width": 1440,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "autoSwitch",
+        "tag": "INPUT",
+        "text": "",
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "buBackup",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      },
+      {
+        "id": "wdSwitch",
+        "tag": "INPUT",
+        "text": "Watchdog RCON",
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "wdRestart",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      },
+      {
+        "id": "tgSwitch",
+        "tag": "INPUT",
+        "text": "",
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "tgOps",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      },
+      {
+        "id": "tgBackup",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      },
+      {
+        "id": "tgUpdate",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      },
+      {
+        "id": "tgProblems",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      }
+    ]
+  },
+  {
+    "route": "backups",
+    "lang": "ru",
+    "width": 1440,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "bkAutoSwitch",
+        "tag": "INPUT",
+        "text": "",
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "bkAutoStop",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      },
+      {
+        "id": "btnBackup",
+        "tag": "BUTTON",
+        "text": "Создать",
+        "width": 77,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Скачать",
+        "width": 91,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Проверить",
+        "width": 108,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Восстановить…",
+        "width": 137,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Удалить riverside-20261006-030000.tar.gz",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Скачать",
+        "width": 91,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Проверить",
+        "width": 108,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Восстановить…",
+        "width": 137,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Удалить riverside-20261005-030000.tar.gz",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Скачать",
+        "width": 91,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Проверить",
+        "width": 108,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Восстановить…",
+        "width": 137,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Удалить riverside-20261004-030000.tar.gz",
+        "width": 36,
+        "height": 36
+      }
+    ]
+  },
+  {
+    "route": "events",
+    "lang": "ru",
+    "width": 1440,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Все",
+        "width": 46,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Управление",
+        "width": 96,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Бэкапы",
+        "width": 68,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Обновления",
+        "width": 97,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Проблемы",
+        "width": 86,
+        "height": 36
+      }
+    ]
+  },
+  {
+    "route": "console",
+    "lang": "ru",
+    "width": 1440,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "save",
+        "width": 53,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "players",
+        "width": 74,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "help",
+        "width": 53,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Объявить…",
+        "width": 93,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Все",
+        "width": 46,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "WARN",
+        "width": 53,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "ERROR",
+        "width": 60,
+        "height": 36
+      },
+      {
+        "id": "logsAuto",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      },
+      {
+        "id": "logsDownload",
+        "tag": "A",
+        "text": "Скачать лог",
+        "width": 100,
+        "height": 36
+      }
+    ]
+  },
+  {
+    "route": "overview",
+    "lang": "en",
+    "width": 320,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": []
+  },
+  {
+    "route": "settings",
+    "lang": "en",
+    "width": 320,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "configTabs-server",
+        "tag": "BUTTON",
+        "text": "Server",
+        "width": 43,
+        "height": 44
+      },
+      {
+        "id": "configTabs-world",
+        "tag": "BUTTON",
+        "text": "World",
+        "width": 38,
+        "height": 44
+      }
+    ]
+  },
+  {
+    "route": "mods",
+    "lang": "en",
+    "width": 320,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "modTabs-order",
+        "tag": "BUTTON",
+        "text": "Order",
+        "width": 37,
+        "height": 44
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "",
+        "width": 114,
+        "height": 19
+      }
+    ]
+  },
+  {
+    "route": "players",
+    "lang": "en",
+    "width": 320,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": []
+  },
+  {
+    "route": "maintenance",
+    "lang": "en",
+    "width": 320,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": []
+  },
+  {
+    "route": "backups",
+    "lang": "en",
+    "width": 320,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "bkAutoSwitch",
+        "tag": "INPUT",
+        "text": "",
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "bkAutoStop",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      }
+    ]
+  },
+  {
+    "route": "events",
+    "lang": "en",
+    "width": 320,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "All",
+        "width": 40,
+        "height": 44
+      }
+    ]
+  },
+  {
+    "route": "console",
+    "lang": "en",
+    "width": 320,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": []
+  },
+  {
+    "route": "overview",
+    "lang": "en",
+    "width": 390,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": []
+  },
+  {
+    "route": "settings",
+    "lang": "en",
+    "width": 390,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "configTabs-server",
+        "tag": "BUTTON",
+        "text": "Server",
+        "width": 43,
+        "height": 44
+      },
+      {
+        "id": "configTabs-world",
+        "tag": "BUTTON",
+        "text": "World",
+        "width": 38,
+        "height": 44
+      }
+    ]
+  },
+  {
+    "route": "mods",
+    "lang": "en",
+    "width": 390,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "modTabs-order",
+        "tag": "BUTTON",
+        "text": "Order",
+        "width": 37,
+        "height": 44
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "",
+        "width": 114,
+        "height": 19
+      },
+      {
+        "id": "",
+        "tag": "INPUT",
+        "text": "",
+        "width": 20,
+        "height": 20
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "",
+        "width": 114,
+        "height": 19
+      },
+      {
+        "id": "",
+        "tag": "INPUT",
+        "text": "",
+        "width": 20,
+        "height": 20
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "",
+        "width": 114,
+        "height": 19
+      },
+      {
+        "id": "",
+        "tag": "INPUT",
+        "text": "",
+        "width": 20,
+        "height": 20
+      },
+      {
+        "id": "modImport",
+        "tag": "INPUT",
+        "text": "",
+        "width": 1,
+        "height": 1
+      }
+    ]
+  },
+  {
+    "route": "players",
+    "lang": "en",
+    "width": 390,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": []
+  },
+  {
+    "route": "maintenance",
+    "lang": "en",
+    "width": 390,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "autoSwitch",
+        "tag": "INPUT",
+        "text": "",
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "buBackup",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      }
+    ]
+  },
+  {
+    "route": "backups",
+    "lang": "en",
+    "width": 390,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "bkAutoSwitch",
+        "tag": "INPUT",
+        "text": "",
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "bkAutoStop",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      }
+    ]
+  },
+  {
+    "route": "events",
+    "lang": "en",
+    "width": 390,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "All",
+        "width": 40,
+        "height": 44
+      }
+    ]
+  },
+  {
+    "route": "console",
+    "lang": "en",
+    "width": 390,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "All",
+        "width": 40,
+        "height": 44
+      },
+      {
+        "id": "logsAuto",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      }
+    ]
+  },
+  {
+    "route": "overview",
+    "lang": "en",
+    "width": 768,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "",
+        "tag": "A",
+        "text": "Online\n4\n24-hour peak: 7",
+        "width": 254,
+        "height": 37
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "Backup\n15 h ago\n658.0 MB",
+        "width": 254,
+        "height": 37
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "About load charts",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "Docker image",
+        "width": 108,
+        "height": 20
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "Workshop mods",
+        "width": 108,
+        "height": 20
+      }
+    ]
+  },
+  {
+    "route": "settings",
+    "lang": "en",
+    "width": 768,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "configTabs-server",
+        "tag": "BUTTON",
+        "text": "Server",
+        "width": 43,
+        "height": 44
+      },
+      {
+        "id": "configTabs-world",
+        "tag": "BUTTON",
+        "text": "World",
+        "width": 38,
+        "height": 44
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "About “Server name”",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "About “Server description”",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "About “Player limit”",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "About “Join password”",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "About “PvP”",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "config-field-3",
+        "tag": "INPUT",
+        "text": "",
+        "width": 22,
+        "height": 22
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "About “Pause empty server”",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "config-field-4",
+        "tag": "INPUT",
+        "text": "",
+        "width": 22,
+        "height": 22
+      }
+    ]
+  },
+  {
+    "route": "mods",
+    "lang": "en",
+    "width": 768,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "About mod composition",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "modTabs-order",
+        "tag": "BUTTON",
+        "text": "Order",
+        "width": 37,
+        "height": 44
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "",
+        "width": 114,
+        "height": 19
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "",
+        "width": 230,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "INPUT",
+        "text": "",
+        "width": 20,
+        "height": 20
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "",
+        "width": 114,
+        "height": 19
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "",
+        "width": 230,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "INPUT",
+        "text": "",
+        "width": 20,
+        "height": 20
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "",
+        "width": 114,
+        "height": 19
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "",
+        "width": 230,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "INPUT",
+        "text": "",
+        "width": 20,
+        "height": 20
+      },
+      {
+        "id": "modExport",
+        "tag": "BUTTON",
+        "text": "Export preset",
+        "width": 84,
+        "height": 36
+      },
+      {
+        "id": "modImport",
+        "tag": "INPUT",
+        "text": "",
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "modRescan",
+        "tag": "BUTTON",
+        "text": "Rescan metadata",
+        "width": 106,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "",
+        "width": 279,
+        "height": 17
+      }
+    ]
+  },
+  {
+    "route": "players",
+    "lang": "en",
+    "width": 768,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Kick Maple",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Ban Maple",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Kick Sledge",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Ban Sledge",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Kick RiverScout",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Ban RiverScout",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Kick Ash",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Ban Ash",
+        "width": 36,
+        "height": 36
+      }
+    ]
+  },
+  {
+    "route": "maintenance",
+    "lang": "en",
+    "width": 768,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "autoSwitch",
+        "tag": "INPUT",
+        "text": "",
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "buBackup",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      },
+      {
+        "id": "wdSwitch",
+        "tag": "INPUT",
+        "text": "Watchdog RCON",
+        "width": 1,
+        "height": 1
+      }
+    ]
+  },
+  {
+    "route": "backups",
+    "lang": "en",
+    "width": 768,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "bkAutoSwitch",
+        "tag": "INPUT",
+        "text": "",
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "bkAutoStop",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      },
+      {
+        "id": "btnBackup",
+        "tag": "BUTTON",
+        "text": "Create",
+        "width": 66,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Download",
+        "width": 102,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Check",
+        "width": 80,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Восстановить…",
+        "width": 137,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Delete riverside-20261006-030000.tar.gz",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Download",
+        "width": 102,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Check",
+        "width": 80,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Восстановить…",
+        "width": 137,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Delete riverside-20261005-030000.tar.gz",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Download",
+        "width": 102,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Check",
+        "width": 80,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Восстановить…",
+        "width": 137,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Delete riverside-20261004-030000.tar.gz",
+        "width": 36,
+        "height": 36
+      }
+    ]
+  },
+  {
+    "route": "events",
+    "lang": "en",
+    "width": 768,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "All",
+        "width": 40,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Controls",
+        "width": 74,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Backups",
+        "width": 73,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Updates",
+        "width": 73,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Problems",
+        "width": 79,
+        "height": 36
+      }
+    ]
+  },
+  {
+    "route": "console",
+    "lang": "en",
+    "width": 768,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "save",
+        "width": 53,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "players",
+        "width": 74,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "help",
+        "width": 53,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Announce…",
+        "width": 93,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "All",
+        "width": 40,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "WARN",
+        "width": 53,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "ERROR",
+        "width": 60,
+        "height": 36
+      },
+      {
+        "id": "logsAuto",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      },
+      {
+        "id": "logsDownload",
+        "tag": "A",
+        "text": "Download log",
+        "width": 109,
+        "height": 36
+      }
+    ]
+  },
+  {
+    "route": "overview",
+    "lang": "en",
+    "width": 1440,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "",
+        "tag": "A",
+        "text": "Online\n4\n24-hour peak: 7",
+        "width": 590,
+        "height": 37
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "Backup\n15 h ago\n658.0 MB",
+        "width": 590,
+        "height": 37
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "About load charts",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "Docker image",
+        "width": 416,
+        "height": 20
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "Workshop mods",
+        "width": 416,
+        "height": 20
+      }
+    ]
+  },
+  {
+    "route": "settings",
+    "lang": "en",
+    "width": 1440,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "configTabs-server",
+        "tag": "BUTTON",
+        "text": "Server",
+        "width": 43,
+        "height": 44
+      },
+      {
+        "id": "configTabs-world",
+        "tag": "BUTTON",
+        "text": "World",
+        "width": 38,
+        "height": 44
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "About “Server name”",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "About “Server description”",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "About “Player limit”",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "About “Join password”",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "About “PvP”",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "config-field-3",
+        "tag": "INPUT",
+        "text": "",
+        "width": 22,
+        "height": 22
+      }
+    ]
+  },
+  {
+    "route": "mods",
+    "lang": "en",
+    "width": 1440,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "About mod composition",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "id": "modTabs-order",
+        "tag": "BUTTON",
+        "text": "Order",
+        "width": 37,
+        "height": 44
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "",
+        "width": 114,
+        "height": 19
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "",
+        "width": 230,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "INPUT",
+        "text": "",
+        "width": 20,
+        "height": 20
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "",
+        "width": 114,
+        "height": 19
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "",
+        "width": 230,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "INPUT",
+        "text": "",
+        "width": 20,
+        "height": 20
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "",
+        "width": 114,
+        "height": 19
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "",
+        "width": 230,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "INPUT",
+        "text": "",
+        "width": 20,
+        "height": 20
+      },
+      {
+        "id": "modExport",
+        "tag": "BUTTON",
+        "text": "Export preset",
+        "width": 84,
+        "height": 36
+      },
+      {
+        "id": "modImport",
+        "tag": "INPUT",
+        "text": "",
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "modRescan",
+        "tag": "BUTTON",
+        "text": "Rescan metadata",
+        "width": 106,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "A",
+        "text": "",
+        "width": 279,
+        "height": 17
+      }
+    ]
+  },
+  {
+    "route": "players",
+    "lang": "en",
+    "width": 1440,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Kick Maple",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Ban Maple",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Kick Sledge",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Ban Sledge",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Kick RiverScout",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Ban RiverScout",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Kick Ash",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Ban Ash",
+        "width": 36,
+        "height": 36
+      }
+    ]
+  },
+  {
+    "route": "maintenance",
+    "lang": "en",
+    "width": 1440,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "autoSwitch",
+        "tag": "INPUT",
+        "text": "",
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "buBackup",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      },
+      {
+        "id": "wdSwitch",
+        "tag": "INPUT",
+        "text": "Watchdog RCON",
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "wdRestart",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      },
+      {
+        "id": "tgSwitch",
+        "tag": "INPUT",
+        "text": "",
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "tgOps",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      },
+      {
+        "id": "tgBackup",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      },
+      {
+        "id": "tgUpdate",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      },
+      {
+        "id": "tgProblems",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      }
+    ]
+  },
+  {
+    "route": "backups",
+    "lang": "en",
+    "width": 1440,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "bkAutoSwitch",
+        "tag": "INPUT",
+        "text": "",
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "bkAutoStop",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      },
+      {
+        "id": "btnBackup",
+        "tag": "BUTTON",
+        "text": "Create",
+        "width": 66,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Download",
+        "width": 102,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Check",
+        "width": 80,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Восстановить…",
+        "width": 137,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Delete riverside-20261006-030000.tar.gz",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Download",
+        "width": 102,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Check",
+        "width": 80,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Восстановить…",
+        "width": 137,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Delete riverside-20261005-030000.tar.gz",
+        "width": 36,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Download",
+        "width": 102,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Check",
+        "width": 80,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Восстановить…",
+        "width": 137,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Delete riverside-20261004-030000.tar.gz",
+        "width": 36,
+        "height": 36
+      }
+    ]
+  },
+  {
+    "route": "events",
+    "lang": "en",
+    "width": 1440,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "All",
+        "width": 40,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Controls",
+        "width": 74,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Backups",
+        "width": 73,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Updates",
+        "width": 73,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Problems",
+        "width": 79,
+        "height": 36
+      }
+    ]
+  },
+  {
+    "route": "console",
+    "lang": "en",
+    "width": 1440,
+    "overflow": false,
+    "axe": [],
+    "smallTargets": [
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "save",
+        "width": 53,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "players",
+        "width": 74,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "help",
+        "width": 53,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "Announce…",
+        "width": 93,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "All",
+        "width": 40,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "WARN",
+        "width": 53,
+        "height": 36
+      },
+      {
+        "id": "",
+        "tag": "BUTTON",
+        "text": "ERROR",
+        "width": 60,
+        "height": 36
+      },
+      {
+        "id": "logsAuto",
+        "tag": "INPUT",
+        "text": "",
+        "width": 18,
+        "height": 18
+      },
+      {
+        "id": "logsDownload",
+        "tag": "A",
+        "text": "Download log",
+        "width": 109,
+        "height": 36
+      }
+    ]
+  },
+  {
+    "state": "changed-draft-mobile",
+    "bar": {
+      "x": 14,
+      "y": 637.0625,
+      "width": 362,
+      "height": 135.9375
+    },
+    "viewportHeight": 844,
+    "position": "fixed"
+  }
+]
