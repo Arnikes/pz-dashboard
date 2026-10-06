@@ -628,6 +628,34 @@ input:disabled, select:disabled, textarea:disabled { opacity: 0.55; cursor: not-
 .c-notify .auto-block { display:grid; gap:var(--space-group); margin-top:0; padding-top:0; border-top:none; }
 .c-notify .auto-row, .c-notify .check-row, .c-notify .check { margin:0; }
 
+/* Обслуживание: обновления слева, Watchdog и Telegram в правой колонке. */
+#view-maintenance { grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; }
+#view-maintenance > .card { grid-column:auto; padding:22px; }
+#view-maintenance .c-updates { grid-row:span 2; }
+#view-maintenance .card-head { border-bottom:0; padding-bottom:0; margin-bottom:20px; }
+#view-maintenance .card-head > .pill { margin-left:auto; }
+#view-maintenance .meta { grid-template-columns:1fr; gap:8px; margin-bottom:20px; }
+#view-maintenance .meta > div { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:center; gap:16px; }
+#view-maintenance .meta dt { font-size:13px; text-transform:none; letter-spacing:0; color:var(--muted); margin:0; }
+#view-maintenance .meta dd { justify-self:end; max-width:100%; white-space:normal; overflow-wrap:anywhere; text-align:right; }
+#view-maintenance .copy-value { border-color:transparent; padding-inline:0; }
+#view-maintenance .meta .copy-label { text-align:right; }
+#view-maintenance .c-updates .auto-block { margin-top:24px; padding-top:20px; border-top:1px solid var(--line); }
+#view-maintenance .auto-grid { grid-template-columns:1fr; }
+#view-maintenance .maintenance-help { margin:18px 0 0; }
+#view-maintenance .maintenance-help summary { color:var(--muted); font-size:13px; }
+#view-maintenance .maintenance-help summary:hover { color:var(--ink); }
+#view-maintenance .maintenance-help p { margin:8px 0 0; }
+#view-maintenance .c-notify .check-row { gap:6px 16px; }
+@media (max-width:1000px) {
+  #view-maintenance { grid-template-columns:1fr; }
+  #view-maintenance .c-updates { grid-row:auto; }
+}
+@media (max-width:740px) {
+  #view-maintenance > .card { padding:18px; }
+  #view-maintenance .field input, #view-maintenance .field select { font-size:16px; }
+}
+
 .auto-row { margin-bottom: 12px; }
 
 .auto-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--layout-gap); }

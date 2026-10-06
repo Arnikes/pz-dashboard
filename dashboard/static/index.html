@@ -410,7 +410,7 @@
       <p id="maintenanceAvailability" class="hint availability" role="status" hidden></p>
       <section class="card c-updates" id="sec-updates" data-od-id="updates" aria-labelledby="hUpdates">
         <header class="card-head">
-          <h2 id="hUpdates">Обновления образа</h2><span data-help-label="Как проверяется образ" data-help-text="Пульт сравнивает digest локального образа с Docker Hub."></span>
+          <h2 id="hUpdates">Обновления образа</h2>
           <span class="pill" id="updPill" data-state="unknown">—</span>
         </header>
         <p class="upd-note" id="updNote" hidden></p>
@@ -423,6 +423,10 @@
           <button class="btn" id="btnCheckUpd">Проверить</button>
           <button class="btn primary" id="btnApplyUpd">Обновить сейчас</button>
         </div>
+        <details class="context-help maintenance-help">
+          <summary>Как проверяется образ</summary>
+          <p class="hint">Пульт сравнивает digest локального образа с Docker Hub.</p>
+        </details>
         <div class="auto-block">
           <div class="auto-row">
             <label class="switch">
@@ -455,7 +459,7 @@
 
       <section class="card c-watchdog" id="sec-watchdog" data-od-id="watchdog" aria-labelledby="hWatchdog">
         <header class="card-head">
-          <h2 id="hWatchdog">Watchdog RCON</h2><span data-help-label="Как работает Watchdog" data-help-text="Если RCON не отвечает дольше заданного порога, пульт фиксирует зависание. Включите авторестарт, чтобы перезапускать контейнер."></span>
+          <h2 id="hWatchdog">Watchdog RCON</h2>
           <span class="pill" id="wdPill" data-state="unknown">—</span>
         </header>
         <div class="watchdog-block">
@@ -480,7 +484,11 @@
             <input type="checkbox" id="wdRestart" /> авто-рестарт при зависании
           </label>
         </div>
-        <p class="hint" id="wdGraceHint">После управляемого рестарта сбои RCON не вызывают уведомлений и авторестартов в течение этой паузы. Затем порог тишины отсчитывается заново. 0 — без паузы.</p>
+        <details class="context-help maintenance-help">
+          <summary>Как работает Watchdog</summary>
+          <p class="hint">Если RCON не отвечает дольше заданного порога, пульт фиксирует зависание. Включите авторестарт, чтобы перезапускать контейнер.</p>
+          <p class="hint" id="wdGraceHint">После управляемого рестарта сбои RCON не вызывают уведомлений и авторестартов в течение этой паузы. Затем порог тишины отсчитывается заново. 0 — без паузы.</p>
+        </details>
       </section>
 
       <!-- УВЕДОМЛЕНИЯ TELEGRAM -->
