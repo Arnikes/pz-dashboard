@@ -91,6 +91,58 @@ def test_failed_backup_restarts_server_and_removes_partial_archive(sandbox, monk
     assert ops.get_backup_journal()[0]["status"] == "error"
 
 
+@pytest.mark.parametrize("trigger", ["manual", "scheduled"])
+def test_backup_excludes_logs_and_preserves_server_data(sandbox, trigger):
+    data = Path(config.CFG["data_dir"])
+    retained = {
+        "world.bin": b"original world",
+        "Saves/Multiplayer/test/map.bin": b"map data",
+        "Server/test.ini": b"Mods=\n",
+        "Server/test_SandboxVars.lua": b"SandboxVars = {}\n",
+        "db/test.db": b"whitelist data",
+        "Server/notes.txt": b"server notes",
+        "Server/catalog.txt": b"catalog data",
+    }
+    excluded = [
+        "Logs/2026-10-05_DebugLog-server.txt",
+        "Logs/logs_2026-10-04/server.txt",
+        "nested/logs/mod.txt",
+        "nested/LOGS/debug.txt",
+        "ItemTracker.log",
+        "nested/server.LOG",
+        "nested/server.Log.1",
+        "nested/server.log.gz",
+        "console.txt",
+        "console.txt.1",
+        "server-console.txt",
+        "nested/server-console.txt.gz",
+        "2026-10-05_DebugLog-server.txt",
+        "nested/2026-10-04_DebugLog-server.txt.1",
+    ]
+    for relative, content in retained.items():
+        path = data / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+    for relative in excluded:
+        path = data / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"log output")
+
+    result = ops.run_backup_job(trigger, False)
+
+    with tarfile.open(Path(config.CFG["backup_dir"]) / result["name"]) as archive:
+        files = {member.name.removeprefix("./") for member in archive if member.isfile()}
+        assert files == set(retained)
+        for relative, content in retained.items():
+            assert archive.extractfile(f"./{relative}").read() == content
+        assert not any(
+            part.lower() == "logs"
+            for member in archive.getmembers()
+            for part in Path(member.name).parts
+        )
+    assert all((data / relative).read_bytes() == b"log output" for relative in excluded)
+
+
 def test_backups_in_same_second_preserve_both_world_versions(sandbox, monkeypatch):
     monkeypatch.setattr(ops.time, "strftime", lambda fmt: "pz-backup-20260930-120000")
     first = ops.run_backup_job("manual", False)

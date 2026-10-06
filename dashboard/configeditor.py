@@ -1403,7 +1403,58 @@ def run(data, prepare=False):
         raise
 
 
-def verify_running(data):
+def auto_verify_running():
+    """Retry saved-profile verification on scheduler ticks until PZ/RCON is ready."""
+    global _AUTO_VERIFY_FAILURE
+    if ops.op_busy():
+        return
+    container = ops.container_state() or {}
+    if not container.get("running") or not container.get("startedAt"):
+        return
+    with LOCK:
+        if ops.op_busy():
+            return
+        file = context()["activeFile"]
+        if not file:
+            return
+        root = state_dir(file)
+        state = load_json(root / "state.json")
+        saved = load_json(root / "draft.json")
+        # Never adopt an unrecorded configuration or recover a file transaction
+        # while the game is running. Verification only updates panel metadata.
+        if not saved or not state.get("savedRevision") or (root / "transaction.json").exists():
+            return
+        current = read_profile(file)
+        if (
+            state.get("status") in ("applied", "select-mods")
+            and state.get("startedAt") == container["startedAt"]
+            and state.get("appliedRevision") == state["savedRevision"] == revision(current)
+        ):
+            return
+        try:
+            verify_running(
+                {
+                    "file": file,
+                    "draftRevision": saved["draftRevision"],
+                    "currentRevision": revision(current),
+                },
+                automatic=True,
+            )
+        except EditorError as error:
+            # Startup readiness failures are expected. Other failures remain
+            # unconfirmed and are reported once per distinct failure/start.
+            failure = (file, container["startedAt"], state["savedRevision"], str(error))
+            if "PZ/RCON пока" not in str(error) and failure != _AUTO_VERIFY_FAILURE:
+                ops.log_event("warn", f"Автопроверка конфигурации {file}: {error}")
+            _AUTO_VERIFY_FAILURE = failure
+            return
+        _AUTO_VERIFY_FAILURE = None
+
+
+_AUTO_VERIFY_FAILURE = None
+
+
+def verify_running(data, *, automatic=False):
     """Recheck a saved revision after an external restart; never write game files."""
     file = choose(data.get("file"))
     with LOCK:
@@ -1549,12 +1600,20 @@ def verify_running(data):
             verifiedAt=ops.now_iso(),
             verificationProblems=current_mods["problems"],
         )
+        previous_draft_revision = saved["draftRevision"]
         saved.update(
             base=current.copy(),
             texts=merged,
             baseRevision=revision(current),
             draftRevision=uuid.uuid4().hex,
         )
+        if automatic:
+            state["autoVerifiedDraft"] = {
+                "from": previous_draft_revision,
+                "to": saved["draftRevision"],
+            }
+        else:
+            state.pop("autoVerifiedDraft", None)
         save_json(state_dir(file) / "draft.json", saved)
         save_json(state_dir(file) / "state.json", state)
         ops.log_event(

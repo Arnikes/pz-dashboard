@@ -835,12 +835,19 @@ window.ConfigEditor = (() => {
     route(view) { updateBar(); if (view === "mods") updateModTab(); },
     background() {
       // Live registry payloads contain committed state, not this editor's draft.
-      if (!file || sourceDirty || fieldDirty || pendingFields.size || loading || Date.now() - lastRefresh < 15000) return;
+      if (!file || sourceDirty || fieldDirty || pendingFields.size || unsaved.length || pendingPatches || loading || resolvingWorkshop || Date.now() - lastRefresh < 15000) return;
       lastRefresh = Date.now();
       const profile = file, requestedRevision = draft?.draftRevision;
-      call(`/api/config-draft?file=${encodeURIComponent(profile)}`).then(data => {
-        if (data.file !== file || profile !== file || sourceDirty || fieldDirty || pendingFields.size || loading || draft?.draftRevision !== requestedRevision) return;
-        if (draft && data.draftRevision !== draft.draftRevision) { draft.conflict = true; $("draftSaved").textContent = "Черновик изменён другой вкладкой. Перевыберите профиль для загрузки."; }
+      call(`/api/config-draft?file=${encodeURIComponent(profile)}`).then(async data => {
+        if (data.file !== file || profile !== file || sourceDirty || fieldDirty || pendingFields.size || unsaved.length || pendingPatches || loading || resolvingWorkshop || draft?.draftRevision !== requestedRevision) return;
+        const verified = data.state?.autoVerifiedDraft;
+        if (draft && data.draftRevision !== draft.draftRevision && verified?.from === requestedRevision && verified?.to === data.draftRevision) {
+          draft = data;
+          clearError();
+          renderFields(); renderSources();
+          await loadMods();
+        }
+        else if (draft && data.draftRevision !== draft.draftRevision) { draft.conflict = true; $("draftSaved").textContent = "Черновик изменён другой вкладкой. Перевыберите профиль для загрузки."; }
         else if (draft) { draft.conflict = data.conflict; draft.status = data.status; draft.state = data.state; }
         updateBar();
       }).catch(() => { /* retain last visible data on disconnect */ });

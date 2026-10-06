@@ -1312,6 +1312,108 @@ def test_result_card_does_not_claim_previous_verification_after_another_restart(
     expect(page.locator("#configOperationResult")).to_have_attribute("data-state", "warn")
 
 
+@pytest.mark.parametrize("width", [390, 1440])
+def test_auto_verification_updates_open_settings_and_mods_without_click(
+    page, dashboard, editing, monkeypatch, width
+):
+    data, _ = saved_verification(editing, monkeypatch, installed=True)
+    original = editor.read_profile("world.ini")
+    page.set_viewport_size({"width": width, "height": 844})
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "mods")
+    expect(page.locator("#installNotice")).to_contain_text("Загрузка требует проверки")
+    editor.auto_verify_running()
+    # Move the refresh throttle forward without waiting for the real timer.
+    page.evaluate(
+        "const now = Date.now; Date.now = () => now() + 16000; ConfigEditor.background();"
+    )
+    expect(page.locator("#installNotice")).to_be_hidden()
+    expect(page.locator("#configOperationResult > strong")).to_have_text("Проверено после запуска")
+    expect(page.locator("#configOperationResult .editor-error")).to_have_count(0)
+    navigate(page, "settings", width <= 740)
+    expect(page.locator("#configStatus")).to_have_text("Применено")
+    expect(page.locator("#configError")).to_be_hidden()
+    expect(page.locator("#configRebase")).to_be_hidden()
+    assert editor.read_profile("world.ini") == original
+    assert (data / "Server/world.ini").exists()
+    assert dashboard["actions"] == []
+    assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
+    evidence = Path(__file__).resolve().parents[2] / ".tmp-auto-verify-browser"
+    evidence.mkdir(exist_ok=True)
+    page.screenshot(path=str(evidence / f"settings-{width}.png"), full_page=True)
+
+
+def test_auto_verification_refresh_keeps_saved_draft_mod_selection(
+    page, dashboard, editing, monkeypatch
+):
+    saved_verification(editing, monkeypatch)
+    current = editor.draft("world.ini")
+    editor.patch(
+        {
+            "file": "world.ini",
+            "draftRevision": current["draftRevision"],
+            "mods": {"selected": ["library"]},
+        }
+    )
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "mods")
+    expect(page.locator("#modSummary")).to_contain_text("1 выбранных ModID")
+    editor.auto_verify_running()
+    page.evaluate(
+        "const now = Date.now; Date.now = () => now() + 16000; ConfigEditor.background();"
+    )
+    expect(page.locator("#configOperationResult > strong")).to_have_text("Проверено после запуска")
+    expect(page.locator("#modSummary")).to_contain_text("1 выбранных ModID")
+    page.locator("#modPackages summary").click()
+    expect(page.locator('[data-modid="plugin"]')).not_to_be_checked()
+    expect(page.locator("#configRebase")).to_be_hidden()
+    assert editor.draft("world.ini")["changed"]
+
+
+def test_auto_verification_background_does_not_overwrite_unsaved_source(
+    page, dashboard, editing, monkeypatch
+):
+    saved_verification(editing, monkeypatch)
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "settings")
+    page.get_by_role("tab", name="Исходники", exact=True).click()
+    source = page.locator("#iniSource")
+    pending = source.input_value().replace("PublicName=Сервер", "PublicName=Local unsaved edit")
+    source.fill(pending)
+    editor.auto_verify_running()
+    page.evaluate(
+        "const now = Date.now; Date.now = () => now() + 16000; ConfigEditor.background();"
+    )
+    expect(source).to_have_value(pending)
+    assert "Local unsaved edit" not in editor.read_profile("world.ini")["ini"]
+
+
+def test_auto_verification_marker_cannot_accept_later_edit_from_another_tab(
+    page, dashboard, editing, monkeypatch
+):
+    saved_verification(editing, monkeypatch)
+    page.goto(dashboard["url"])
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    navigate(page, "settings")
+    editor.auto_verify_running()
+    verified = editor.draft("world.ini")
+    editor.patch(
+        {
+            "file": "world.ini",
+            "draftRevision": verified["draftRevision"],
+            "ini": {"PublicName": "Another tab"},
+        }
+    )
+    page.evaluate(
+        "const now = Date.now; Date.now = () => now() + 16000; ConfigEditor.background();"
+    )
+    expect(page.locator("#draftSaved")).to_contain_text("Черновик изменён другой вкладкой")
+    expect(page.locator('[data-key="PublicName"]')).to_have_value("Сервер")
+
+
 @pytest.mark.parametrize("width", [1440, 390])
 def test_discovered_map_requires_explicit_edit_and_preserves_existing_order(
     page, dashboard, editing, width

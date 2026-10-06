@@ -53,6 +53,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setattr(ops, "log_event", Mock())
     monkeypatch.setattr(ops, "_set_phase", Mock())
     monkeypatch.setattr(ops, "run_backup_job", Mock())
+    monkeypatch.setattr(editor, "_AUTO_VERIFY_FAILURE", None)
     monkeypatch.setattr(workshop, "container_files", lambda items: {})
     monkeypatch.setattr(workshop, "download_manifest", lambda items: None)
     monkeypatch.setattr(workshop, "validate_items", Mock())
@@ -1592,7 +1593,137 @@ def test_external_verification_clears_old_failure_and_finished_installation_with
     ops.run_backup_job.assert_not_called()
 
 
-def test_external_verification_keeps_downloaded_unselected_package_as_stage_two(env, monkeypatch):
+@pytest.mark.parametrize("installed", [False, True])
+def test_auto_verification_waits_for_rcon_then_confirms_once_per_start(env, monkeypatch, installed):
+    data, _ = saved_verification(env, monkeypatch, installed=installed)
+    root = editor.state_dir("world.ini")
+    before = editor.load_json(root / "state.json")
+    original = editor.read_profile("world.ini")
+    monkeypatch.setattr(ops, "graceful_stop", Mock())
+    monkeypatch.setattr(editor.dockerlib, "container_start", Mock())
+    probe = Mock(side_effect=[ops.rconlib.RCONError("not ready"), "", "Players connected (0):"])
+    monkeypatch.setattr(ops, "rcon", probe)
+    for _ in range(2):
+        editor.auto_verify_running()
+        assert editor.load_json(root / "state.json") == before
+    editor.auto_verify_running()
+    result = editor.draft("world.ini")
+    assert result["status"] == "applied"
+    assert result["state"]["startedAt"] == "external-start"
+    assert not result["state"].get("installation")
+    assert not result["state"].get("error")
+    assert result["state"]["lastFailure"]["error"] == before["error"]
+    assert result["state"]["autoVerifiedDraft"]["to"] == result["draftRevision"]
+    editor.auto_verify_running()
+    assert probe.call_count == 3
+    monkeypatch.setattr(
+        ops, "container_state", lambda: {"running": True, "startedAt": "next-start"}
+    )
+    probe.side_effect = None
+    probe.return_value = "Players connected (0):"
+    editor.auto_verify_running()
+    assert editor.draft("world.ini")["state"]["startedAt"] == "next-start"
+    assert probe.call_count == 4
+    assert editor.read_profile("world.ini") == original
+    assert (data / "Server/world.ini").exists()
+    ops.graceful_stop.assert_not_called()
+    editor.dockerlib.container_start.assert_not_called()
+    ops.run_backup_job.assert_not_called()
+
+
+@pytest.mark.parametrize("kind", ["settings", "mods"])
+def test_auto_verification_preserves_pending_draft_changes(env, monkeypatch, kind):
+    saved_verification(env, monkeypatch)
+    if kind == "settings":
+        pending = change(ini={"PublicName": "Pending edit"})
+    else:
+        pending = change(mods={"selected": ["library"], "items": ["111"]})
+    editor.auto_verify_running()
+    result = editor.draft("world.ini")
+    assert result["status"] == "draft" and result["changed"] and not result["conflict"]
+    assert result["state"]["status"] == "applied"
+    assert result["state"]["autoVerifiedDraft"]["from"] == pending["draftRevision"]
+    if kind == "settings":
+        assert "Pending edit" in result["texts"]["ini"]
+    else:
+        assert editor.mod_response("world.ini", draft_mode=True)["mods"] == ["library"]
+        assert editor.mod_response("world.ini")["mods"] == ["library", "plugin"]
+
+
+@pytest.mark.parametrize("blocked", ["busy", "stopped", "unknown-start", "no-saved", "transaction"])
+def test_auto_verification_skips_unverifiable_server_without_probe(env, monkeypatch, blocked):
+    saved_verification(env, monkeypatch)
+    root = editor.state_dir("world.ini")
+    if blocked == "busy":
+        monkeypatch.setattr(ops, "op_busy", lambda: True)
+    elif blocked == "stopped":
+        monkeypatch.setattr(ops, "container_state", lambda: {"running": False})
+    elif blocked == "unknown-start":
+        monkeypatch.setattr(ops, "container_state", lambda: {"running": True})
+    elif blocked == "no-saved":
+        editor.save_json(root / "state.json", {})
+    else:
+        editor.save_json(root / "transaction.json", {"historyId": "incomplete"})
+    before = editor.load_json(root / "state.json")
+    editor.auto_verify_running()
+    assert editor.load_json(root / "state.json") == before
+    ops.rcon.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "failure", ["ini", "sandbox", "manifest", "metadata", "restart", "profile"]
+)
+def test_auto_verification_keeps_mismatches_unconfirmed_and_retries(env, monkeypatch, failure):
+    data, _ = saved_verification(env, monkeypatch, installed=True)
+    if failure in ("ini", "sandbox"):
+        path = data / "Server" / ("world.ini" if failure == "ini" else "world_SandboxVars.lua")
+        text = path.read_bytes()
+        path.write_bytes(
+            text.replace(b"PublicName=", b"PublicName=changed ")
+            if failure == "ini"
+            else text.replace(b"Zombies = 4", b"Zombies = 3")
+        )
+    elif failure == "manifest":
+        monkeypatch.setattr(workshop, "download_manifest", lambda items: {"111": False})
+    elif failure == "metadata":
+        monkeypatch.setattr(workshop, "scan", lambda *args, **kwargs: {"111": []})
+    elif failure == "profile":
+        env[1]["activeFile"] = "other.ini"
+        (data / "Server/other.ini").write_bytes(INI.encode())
+    else:
+        monkeypatch.setattr(
+            ops,
+            "container_state",
+            Mock(side_effect=lambda: {"running": True, "startedAt": next(starts)}),
+        )
+        starts = itertools.cycle(["external-start", "external-start", "another-start"])
+    before = editor.load_json(editor.state_dir("world.ini") / "state.json")
+    editor.auto_verify_running()
+    editor.auto_verify_running()
+    assert editor.load_json(editor.state_dir("world.ini") / "state.json") == before
+    if failure != "profile":
+        assert ops.log_event.call_count == 1
+
+
+def test_scheduler_verifies_saved_profile_with_all_auto_operations_disabled(env, monkeypatch):
+    saved_verification(env, monkeypatch)
+    monkeypatch.setattr(
+        ops,
+        "get_settings",
+        lambda: {"autoUpdate": {"enabled": False}, "modsUpdate": {"enabled": False}},
+    )
+    monkeypatch.setattr(ops, "_post_restart_rescan_tick", Mock())
+    monkeypatch.setattr(ops, "_auto_backup_tick", Mock())
+    monkeypatch.setattr(ops.time, "sleep", Mock(side_effect=StopIteration))
+    with pytest.raises(StopIteration):
+        ops._scheduler_loop()
+    assert editor.draft("world.ini")["state"]["status"] == "applied"
+
+
+@pytest.mark.parametrize("automatic", [False, True])
+def test_external_verification_keeps_downloaded_unselected_package_as_stage_two(
+    env, monkeypatch, automatic
+):
     _, request = saved_verification(env, monkeypatch, installed=True)
     state_path = editor.state_dir("world.ini") / "state.json"
     state = editor.load_json(state_path)
@@ -1608,7 +1739,13 @@ def test_external_verification_keeps_downloaded_unselected_package_as_stage_two(
         return result
 
     monkeypatch.setattr(editor, "mod_state", mods)
-    result = editor.verify_running(request)
+    if automatic:
+        editor.auto_verify_running()
+        result = editor.draft("world.ini")
+        editor.auto_verify_running()
+        assert editor.draft("world.ini")["draftRevision"] == result["draftRevision"]
+    else:
+        result = editor.verify_running(request)
     assert result["state"]["installation"]["stage"] == "select-mods"
     assert result["status"] == "select-mods"
 

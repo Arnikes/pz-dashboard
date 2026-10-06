@@ -644,6 +644,7 @@ def test_mods_restart_rejects_late_cancel_and_completes(mods_restart_env, monkey
 
 
 def test_scheduler_cancel_keeps_next_mods_check(mods_restart_env, monkeypatch):
+    monkeypatch.setattr(configeditor, "auto_verify_running", Mock())
     stop, start, threads = mods_restart_env
     settings = {
         "autoUpdate": {"enabled": False},

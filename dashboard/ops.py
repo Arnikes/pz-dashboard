@@ -979,9 +979,12 @@ def _create_backup_archive(bdir, ddir):
                 "tar",
                 "-czf",
                 temp_path,
-                "--exclude=Logs",
-                "--exclude=logs",
-                "--exclude=*.log",
+                "--exclude=[Ll][Oo][Gg][Ss]",
+                "--exclude=*.[Ll][Oo][Gg]",
+                "--exclude=*.[Ll][Oo][Gg].*",
+                "--exclude=console.txt*",
+                "--exclude=*-console.txt*",
+                "--exclude=*DebugLog*.txt*",
                 "-C",
                 ddir,
                 ".",
@@ -1314,8 +1317,12 @@ def _auto_backup_tick(s, now):
 
 
 def _scheduler_loop():
+    # Local import avoids the editor/operations module initialization cycle.
+    import configeditor
+
     while True:
         try:
+            configeditor.auto_verify_running()
             s = get_settings()
             au = s["autoUpdate"]
             if au["enabled"]:
