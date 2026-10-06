@@ -1502,27 +1502,26 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--draft-heigh
 /* Вход */
 .login-page { display:grid; place-items:center; min-height:100dvh; padding:24px; }
 .login-card { position:relative; width:100%; max-width:400px; padding:32px; border:1px solid var(--line); background:var(--surface); border-radius:12px; }
-.login-github { position:absolute; top:-1px; right:-1px; width:88px; height:88px; color:var(--ink); border-radius:0 12px 0 0; clip-path:polygon(0 0, 100% 0, 100% 100%, 18% 84%, 10% 35%); }
+.login-github { position:absolute; top:-1px; right:-1px; width:64px; height:64px; color:var(--ink); border-radius:0 12px 0 0; clip-path:polygon(0 0, 100% 0, 100% 100%, 10% 90%, 6% 35%); }
 .login-github-art { display:block; width:100%; height:100%; overflow:visible; }
 .login-github-reveal { fill:var(--bg-deep); }
-.login-github-fold { filter:drop-shadow(-3px 5px 4px rgb(0 0 0 / .5)); transform-origin:44px 44px; }
-.login-github-logo { transform-origin:64px 25px; }
+.login-github-fold { filter:drop-shadow(-2px 3px 2px rgb(0 0 0 / .45)); }
 @media (max-width:359px) {
   .login-card { padding-top:64px; }
-  .login-github { width:64px; height:64px; }
 }
 .login-github:focus-visible { outline:0; }
 .login-github:focus-visible .login-github-reveal { stroke:var(--focus); stroke-width:4px; }
-@media (hover:hover) {
-  .login-github:hover .login-github-fold { transform:translate(-3px, 3px); }
-  .login-github:hover .login-github-logo { transform:rotate(8deg); }
-}
-.login-github:focus-visible .login-github-fold { transform:translate(-3px, 3px); }
 @media (prefers-reduced-motion:no-preference) {
-  .login-github-fold, .login-github-logo { transition:transform 220ms cubic-bezier(.16, 1, .3, 1); }
-}
-@media (prefers-reduced-motion:reduce) {
-  .login-github:hover .login-github-fold, .login-github:focus-visible .login-github-fold, .login-github:hover .login-github-logo { transform:none; }
+  /* Only the curl changes shape: its two ends stay attached to the card. */
+  .login-github-curl, .login-github-rim { transition:d 240ms cubic-bezier(.16, 1, .3, 1); }
+  @supports (d:path("M0 0")) {
+    .login-github:focus-visible .login-github-curl { d:path("M0 0C27 3 47 12 54 26C62 41 67 60 72 72C52 67 30 63 12 61C19 38 12 16 0 0Z"); }
+    .login-github:focus-visible .login-github-rim { d:path("M0 0C27 3 47 12 54 26C62 41 67 60 72 72"); }
+    @media (hover:hover) {
+      .login-github:hover .login-github-curl { d:path("M0 0C27 3 47 12 54 26C62 41 67 60 72 72C52 67 30 63 12 61C19 38 12 16 0 0Z"); }
+      .login-github:hover .login-github-rim { d:path("M0 0C27 3 47 12 54 26C62 41 67 60 72 72"); }
+    }
+  }
 }
 @media (forced-colors:active) {
   .login-github-reveal { fill:Canvas; }
