@@ -13,7 +13,7 @@ def test_draft_stays_reachable(page, dashboard, editing, width):  # noqa: F811
     original = (data / "Server/world.ini").read_bytes()
     page.set_viewport_size({"width": width, "height": 844})
     page.goto(dashboard["url"])
-    expect(page.locator("#configActive")).to_be_visible()
+    expect(page.locator("#configActive")).to_be_hidden()
     expect(page.locator("#configActive")).to_have_text("Активен на сервере")
     navigate(page, "settings", width <= 740)
     page.locator('[data-key="PublicName"]').fill("Review season")
@@ -21,6 +21,19 @@ def test_draft_stays_reachable(page, dashboard, editing, width):  # noqa: F811
     expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
     expect(page.locator("#draftContext")).to_have_text("Сервер пока использует прежние значения")
     expect(page.locator(".config-field[data-changed=true] .config-change")).to_have_text("Изменено")
+    expect(page.locator("#navDraftCount")).to_be_visible()
+    field = page.locator('.config-field:has([data-key="PublicName"])')
+    expect(field.locator(".config-control .config-key")).to_have_text("PublicName")
+    assert (
+        field.locator(".config-meta").bounding_box()["y"]
+        >= field.locator("input").bounding_box()["y"]
+        + field.locator("input").bounding_box()["height"]
+    )
+    assert page.locator("#configSearch").bounding_box()["width"] <= 600
+    assert (
+        page.locator("#configFlow").bounding_box()["y"]
+        < page.locator("#configTabs").bounding_box()["y"]
+    )
     if width <= 740:
         bar = page.locator("#draftBar").bounding_box()
         nav = page.locator(".nav").bounding_box()
@@ -73,3 +86,18 @@ def test_demo_archive_dates_agree_across_sections(page, dashboard):
     assert backup_event["ts"] == latest["mtime"] and latest["name"] in backup_event["text"]
     assert "v42." in scenario["logs"]["text"]
     assert backups["journal"][-1]["status"] == "error"
+
+
+def test_mod_settings_shortcut_preserves_draft(page, dashboard, editing):  # noqa: F811
+    page.goto(dashboard["url"] + "/#/settings")
+    page.locator('[data-key="PublicName"]').fill("Retained through shortcut")
+    page.locator('[data-key="PublicName"]').press("Tab")
+    expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
+    navigate(page, "mods")
+    page.locator("#view-mods .page-heading").get_by_role("link", name="Настройки модов").click()
+    expect(page.get_by_role("tab", name="Настройки модов", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    page.get_by_role("tab", name="Сервер", exact=True).click()
+    expect(page.locator('[data-key="PublicName"]')).to_have_value("Retained through shortcut")
+    assert dashboard["actions"] == []

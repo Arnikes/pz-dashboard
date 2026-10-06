@@ -1408,5 +1408,12 @@
   "Изменено": "Changed",
   "Черновик · строк: {0}": "Draft · lines: {0}",
   "Проверен {0} · файлов: {1}": "Verified {0} · files: {1}",
-  " · Проверьте состав архива в событиях": " · Review archive contents in events"
+  " · Проверьте состав архива в событиях": " · Review archive contents in events",
+  "Найти настройку": "Find a setting",
+  "Правки сохраняются в черновике. Сервер меняется после применения.": "Changes are saved in a draft. The server changes after you apply them.",
+  "Workshop-пакеты, ModID и порядок загрузки — в одном черновике.": "Workshop packages, ModIDs and load order share one draft.",
+  "Создавайте архивы, проверяйте их и восстанавливайте мир.": "Create archives, verify them and restore your world.",
+  "Размер": "Size",
+  "Создан": "Created",
+  "Действия": "Actions"
 }

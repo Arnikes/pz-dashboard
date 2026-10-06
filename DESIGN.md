@@ -149,17 +149,23 @@ menus, dialogs, and tooltips. Status text accompanies color.
 
 ## Navigation and responsive behavior
 
-Desktop uses a sidebar; mobile uses Overview, Settings, Mods, and More in the bottom
-bar. The top bar contains the active profile, language selector, quick commands,
-and sign-out action. The profile has a persistent textual status.
+Desktop uses a sidebar (204 pixels) with a page gutter (28 pixels); mobile uses
+Overview, Settings, Mods, and More in the bottom bar. The top bar contains the
+active profile, language selector, quick commands,
+and sign-out action. The active profile's status remains available through its
+accessible description without a visible active-state label. Other-profile and
+unconfirmed-profile warnings remain visible. Settings navigation shows a count
+of changed draft lines when a draft has changes.
 Mods put search and filtering first and disclose package/collection addition
-separately; export, import and metadata refresh remain available. Ctrl/Cmd+K opens section, setting, and mod search.
+separately; search has a visible label, and the page heading links to custom mod
+settings while preserving the shared draft. Export, import and metadata refresh
+remain available. Ctrl/Cmd+K opens section, setting, and mod search.
 One SSE connection persists across route changes.
 
-On mobile, editing fields precede the stage controls; draft actions stay fixed
-above the bottom navigation. Viewports up to 600 pixels high keep the draft bar
-in the document flow. Desktop shows Draft → Files → Startup inside the editor
-below the page heading. Stage selection reviews changes
+Desktop and mobile show Draft → Files → Startup inside the editor, below the
+page heading and above the tabs and editing fields. On mobile, draft actions stay
+fixed above the bottom navigation. Viewports up to 600 pixels high keep the draft
+bar in the document flow. Stage selection reviews changes
 or focuses an action; it does not execute an operation.
 
 ## Forms, source, and feedback
@@ -171,20 +177,25 @@ Source editing preserves native formats and masks secrets. Tabs expose linked
 panels and clear selected states. Field help opens on hover, focus, or tap,
 uses aria-describedby, stays within the viewport, and closes with Escape.
 Mobile help controls have 44-pixel touch targets. Desktop labels are bounded
-to 260 pixels and controls to 560 pixels. Boolean draft fields use one clickable
-44-pixel row. Technical keys and changed-field labels remain visible.
+to 260 pixels and controls to 560 pixels; labeled setting search is bounded to
+600 pixels. Boolean draft fields use one transparent clickable 44-pixel row.
+Technical keys and brief context or numeric ranges sit below the controls.
+Changed-field labels remain visible, and changed text controls use the warning
+border. Help stays above the mobile navigation and draft actions.
 
 ## Workspace layout
 
 Overview groups server state/actions, player and backup summaries, container load,
 updates, and recent events. Maintenance places image updates beside watchdog and
 Telegram settings, stacking at narrow widths. Digest fields share copy feedback.
-Backup archives use aligned name, size, date, and action columns; mobile places
-them on separate rows. Download, verify and restore actions have visible labels;
+Backup archives use aligned name, size, date, and action columns, sharing desktop
+column widths with their headings; mobile places them on separate rows.
+Download, verify and restore actions have visible labels;
 delete retains a named icon and confirmation. Show verified archive results
 only from operation history, and scheduled times with the server offset and
 the next run in browser-local time. Archive pages contain ten items. The run journal uses
-25/50/100-item pages and preserves the current page during refresh.
+25/50/100-item pages and preserves the current page during refresh. Journal dates
+and triggers remain visible in the stacked mobile rows.
 The login form uses the red brand mark, login/password fields, and an opt-in
 Remember me checkbox with a 30-day explanation. Errors stay beside the login action.
 

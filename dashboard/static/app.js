@@ -48,7 +48,11 @@ document.querySelectorAll("[data-help-text]").forEach(slot => {
     const tip = active && $(active.dataset.help);
     if (!tip || !active.isConnected) { close(); return; }
     const rect = active.getBoundingClientRect();
-    const width = document.documentElement.clientWidth, height = document.documentElement.clientHeight;
+    const width = document.documentElement.clientWidth;
+    const bar = $("draftBar"), nav = document.querySelector(".nav");
+    const height = Math.min(document.documentElement.clientHeight,
+      bar && !bar.hidden ? bar.getBoundingClientRect().top : Infinity,
+      matchMedia("(max-width:740px)").matches ? nav.getBoundingClientRect().top : Infinity);
     if (rect.bottom <= 0 || rect.top >= height) { close(); return; }
     tip.style.maxWidth = `${Math.max(0, Math.min(360, width - 24))}px`;
     // Keep long help scrollable without covering its own trigger.
@@ -2594,8 +2598,7 @@ function adaptConfigFlow() {
   const main = document.querySelector(".main"), flow = $("configFlow");
   if (editing) {
     const card = $("view-" + location.hash.replace(/^#\/?/, "")).querySelector(".editor-card");
-    if (mobileLayout.matches) card.append(flow);
-    else card.querySelector(".editor-tabs").before(flow);
+    card.querySelector(".editor-tabs").before(flow);
   } else main.querySelector(".view").before(flow);
 }
 adaptConfigFlow();
@@ -2626,6 +2629,28 @@ for (const [route, label] of Object.entries(VIEWS)) {
   heading.innerHTML = `<h1 id="page-${route}">${esc(label)}</h1>` + (route === "overview" ? I18n.html('<div class="page-actions"><a class="btn" href="#/settings">Редактировать настройки</a><a class="btn" href="#/mods">Изменить состав модов</a><a id="overviewDraft" class="btn" href="#/settings" hidden>Черновик</a></div>') : "");
   view.prepend(heading);
   view.setAttribute("aria-labelledby", "page-" + route);
+}
+const modSettingsLink = document.createElement("a");
+modSettingsLink.className = "btn";
+modSettingsLink.href = "#/settings";
+modSettingsLink.textContent = I18n.t("Настройки модов");
+modSettingsLink.addEventListener("click", async event => {
+  event.preventDefault();
+  try {
+    await window.ConfigEditor.focusSettings("custom");
+    location.hash = "#/settings";
+  } catch (error) { toast(error.message, "error"); }
+});
+$("view-mods").querySelector(".page-heading").append(modSettingsLink);
+for (const [route, description] of Object.entries({
+  settings: I18n.t("Правки сохраняются в черновике. Сервер меняется после применения."),
+  mods: I18n.t("Workshop-пакеты, ModID и порядок загрузки — в одном черновике."),
+  backups: I18n.t("Создавайте архивы, проверяйте их и восстанавливайте мир."),
+})) {
+  const copy = document.createElement("p");
+  copy.className = "page-description";
+  copy.textContent = description;
+  $("view-" + route).querySelector(".page-heading").append(copy);
 }
 // Primary editing routes share the same DOM, visual and keyboard order.
 const primaryNav = document.querySelector(".nav");

@@ -177,6 +177,8 @@ def test_backup_columns_are_stable_and_schedule_is_compact(page, backups_page, w
         }))"""
     )
     assert geometry[0] == geometry[1]
+    expect(page.locator("#bkJournalBody .j-date").first).to_be_visible()
+    expect(page.locator("#bkJournalBody .j-trig").first).to_be_visible()
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     page.locator("#bkJournalNext").focus()
     page.keyboard.press("Enter")

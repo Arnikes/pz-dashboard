@@ -288,7 +288,7 @@ def test_editor_layout_controls_and_draft_do_not_cover_content(page, dashboard, 
             columns,overflow:document.documentElement.scrollWidth > innerWidth};
     }""")
     assert not metrics["overflow"] and metrics["columns"] <= 3, metrics
-    assert metrics["searchWidth"] >= min(500, metrics["cardWidth"] - 40)
+    assert min(500, metrics["cardWidth"] - 50) <= metrics["searchWidth"] <= 600
     if width <= 740:
         assert metrics["headerHeight"] < 170
         assert page.locator("#draftBar").evaluate("el=>getComputedStyle(el).position") == "fixed"
@@ -756,7 +756,7 @@ def test_header_profile_context_is_clear_and_aligned(page, dashboard, editing, w
     expect(page.locator("#clock, #topLamp")).to_have_count(0)
     expect(page.locator("#serverName")).to_have_count(0)
     expect(page.locator("#freshness, .header-meta")).to_have_count(0)
-    expect(page.locator("#configActive")).to_be_visible()
+    expect(page.locator("#configActive")).to_be_hidden()
     page.locator("#configProfile").select_option(other)
     expect(page.locator("#configActive")).to_have_text("Другой профиль")
     expect(page.locator("#configProfile")).to_have_attribute("data-state", "other")

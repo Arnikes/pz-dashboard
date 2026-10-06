@@ -33,7 +33,7 @@ window.ConfigEditor = (() => {
   }
   function clearError() { $("configError").hidden = true; delete $("configError").dataset.source; }
   function updateBar() {
-    if (!draft) { setDomProperty($("draftBar"), "hidden", true); setDomProperty($("configFlow"), "hidden", true); attention(); return; }
+    if (!draft) { setDomProperty($("draftBar"), "hidden", true); setDomProperty($("configFlow"), "hidden", true); setDomProperty($("navDraftCount"), "hidden", true); attention(); return; }
     const busy = !!S.op?.active;
     const locked = busy || loading || S.demo;
     const running = S.overview?.containerInfo?.running;
@@ -46,6 +46,9 @@ window.ConfigEditor = (() => {
     const overviewDraft = $("overviewDraft");
     setDomProperty(overviewDraft, "hidden", !edited);
     setDomProperty(overviewDraft, "textContent", I18n.msg`Черновик · строк: ${draft.changedLines || 1}`);
+    setDomProperty($("navDraftCount"), "hidden", !draft.changed);
+    setDomProperty($("navDraftCount"), "textContent", draft.changed ? String(draft.changedLines || 1) : "");
+    setDomProperty($("navDraftCount"), "title", I18n.msg`Черновик · строк: ${draft.changedLines || 1}`);
     const recorded = !edited && !!draft.state?.savedRevision && draft.state.savedRevision === draft.currentRevision;
     const verified = recorded && !draft.conflict && draft.status === "applied" && !!draft.state?.verifiedAt;
     const stage = edited ? "draft" : verified ? "launch" : recorded ? "launch" : "draft";
@@ -99,6 +102,7 @@ window.ConfigEditor = (() => {
     const profile = $("configProfile");
     const profileLabel = draft.canApply ? I18n.t("Активен на сервере") : draft.activeFile ? I18n.t("Другой профиль") : I18n.t("Не подтверждён");
     setDomProperty(profileState, "textContent", profileLabel);
+    setDomProperty(profileState, "hidden", !!draft.canApply);
     setDomProperty(profileState.dataset, "state", draft.canApply ? "active" : "warning");
     setDomProperty(profile.dataset, "state", draft.canApply ? "active" : draft.activeFile ? "other" : "unknown");
     setDomProperty(profile, "title", profileLabel + ". " + (draft.activeFile ? I18n.msg`Сервер использует ${draft.activeFile}` : I18n.t("Не удалось определить профиль запуска сервера")));
@@ -317,7 +321,7 @@ window.ConfigEditor = (() => {
     $("configFields").hidden = ["sources", "history"].includes(configTab);
     $("configSources").hidden = configTab !== "sources";
     $("configHistory").hidden = configTab !== "history";
-    $("configSearch").hidden = ["sources", "history"].includes(configTab);
+    $("configSearchLabel").hidden = ["sources", "history"].includes(configTab);
     $("configWorldNotice").hidden = !["world", "custom"].includes(configTab);
     if (!draft || ["sources", "history"].includes(configTab)) return;
     if (configTab !== "server" && draft.sandboxDiagnostic) {
@@ -330,7 +334,10 @@ window.ConfigEditor = (() => {
     fields().filter(o => `${o.key} ${o.label}`.toLowerCase().includes(query)).forEach((rec, i) => {
       if (!groups.has(rec.group)) groups.set(rec.group, []);
       const description = [rec.key, gameDescription(rec.hint), rec.applicationScope?.hint, rec.absent ? I18n.t("Значение по умолчанию ещё не записано в файл.") : ""].filter(Boolean).join("\n\n");
-      groups.get(rec.group).push(`<div class="config-field"${rec.changed ? ' data-changed="true"' : ""}><div class="config-label"><label for="config-field-${i}"><strong>${esc(rec.label)}</strong></label><code class="config-key">${esc(rec.key)}</code><span class="config-change">${esc(I18n.t("Изменено"))}</span>${helpTip(description, I18n.msg`О настройке «${rec.label}»`, `config-hint-${i}`)}</div><div class="config-control">${fieldControl(rec, i)}</div>${rec.applicationScope ? `<p id="config-scope-${i}" class="config-scope" data-scope="${esc(rec.applicationScope.kind)}"><strong>${esc(rec.applicationScope.label)}</strong></p>` : ""}${rec.owner ? I18n.msg`<p class="hint">Источник: ${esc(rec.owner)}. Измените в окружении контейнера.</p>` : rec.type === "list" ? I18n.html('<p class="hint">По одной записи в строке.</p>') : ""}<p class="field-error" data-error-key="${esc(rec.key)}" role="alert" hidden></p>${configTab !== "server" && rec.preserved ? I18n.msg`<button type="button" class="btn small" data-remove-option="${esc(rec.key)}">Удалить параметр…</button>` : ""}</div>`);
+      const hint = gameDescription(rec.hint).split("\n").find(line => line.trim()) || "";
+      const range = rec.min !== undefined && rec.max !== undefined ? `${rec.min}–${rec.max}` : "";
+      const note = range || (hint.length <= 180 ? hint : "");
+      groups.get(rec.group).push(`<div class="config-field"${rec.changed ? ' data-changed="true"' : ""}><div class="config-label"><label for="config-field-${i}"><strong>${esc(rec.label)}</strong></label><span class="config-change">${esc(I18n.t("Изменено"))}</span>${helpTip(description, I18n.msg`О настройке «${rec.label}»`, `config-hint-${i}`)}</div><div class="config-control">${fieldControl(rec, i)}<p class="config-meta"><code class="config-key">${esc(rec.key)}</code>${note ? ` · ${esc(note)}` : ""}</p></div>${rec.applicationScope ? `<p id="config-scope-${i}" class="config-scope" data-scope="${esc(rec.applicationScope.kind)}"><strong>${esc(rec.applicationScope.label)}</strong></p>` : ""}${rec.owner ? I18n.msg`<p class="hint">Источник: ${esc(rec.owner)}. Измените в окружении контейнера.</p>` : rec.type === "list" ? I18n.html('<p class="hint">По одной записи в строке.</p>') : ""}<p class="field-error" data-error-key="${esc(rec.key)}" role="alert" hidden></p>${configTab !== "server" && rec.preserved ? I18n.msg`<button type="button" class="btn small" data-remove-option="${esc(rec.key)}">Удалить параметр…</button>` : ""}</div>`);
     });
     const order = [I18n.t("Доступ и игроки"), "PvP", I18n.t("Чат"), I18n.t("Сохранение мира"), I18n.t("Безопасные дома"), I18n.t("Сеть"), I18n.t("Дополнительные параметры")];
     const ordered = [...groups].sort(([a], [b]) => configTab === "server" ? order.indexOf(a) - order.indexOf(b) : 0);
