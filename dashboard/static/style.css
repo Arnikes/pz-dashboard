@@ -824,11 +824,10 @@ select { cursor: pointer; }
   margin-top: 4px;
 }
 
-/* списки не раздувают карточки — внутри скролл; на своих страницах списки выше */
+/* игроки и моды прокручиваются внутри; история событий использует пагинацию */
 .c-players .list { max-height: 230px; overflow: auto; }
-.c-events .list  { max-height: 330px; overflow: auto; }
+.c-events .list  { max-height: none; overflow: visible; }
 .c-mods .list    { max-height: 330px; overflow: auto; }
-#view-events .c-events .list { max-height: 60vh; }
 
 /* моды */
 .mod-row {
@@ -1212,7 +1211,7 @@ select { cursor: pointer; }
 .journal-page-size, .journal-page-actions { display: flex; align-items: center; gap: 8px; }
 .journal-page-size { color: var(--muted); font-size: 13px; }
 .journal-page-size select { min-height: 44px; }
-#bkJournalRange, #backupsRange { margin: 0; font-variant-numeric: tabular-nums; }
+#bkJournalRange, #backupsRange, #eventsRange { margin: 0; font-variant-numeric: tabular-nums; }
 .journal-page-actions { margin-left: auto; }
 
 /* telegram: подбор chat id через getUpdates */

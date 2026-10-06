@@ -1716,11 +1716,13 @@ const EVENT_GROUPS = {
 };
 let eventsFilter = "all";
 let eventsData = null;
+const eventsPager = { page: 0, size: 25 };
 
 function renderEvents(data) {
   eventsData = data;
   const body = $("eventsBody");
   if (!data.ok) {
+    setDomProperty($("eventsPager"), "hidden", true);
     setDomProperty(body.dataset, "state", "error");
     setStaticMarkup(body, `<p class="list-error">${esc(data.error || "нет данных")}</p>`);
     return;
@@ -1730,6 +1732,14 @@ function renderEvents(data) {
   const visible = eventsFilter === "all"
     ? items
     : items.filter((ev) => (EVENT_GROUPS[eventsFilter] || []).includes(ev.type));
+  eventsPager.page = Math.min(eventsPager.page, Math.max(0, Math.ceil(visible.length / eventsPager.size) - 1));
+  const offset = eventsPager.page * eventsPager.size;
+  const pageItems = visible.slice(offset, offset + eventsPager.size);
+  setDomProperty($("eventsPager"), "hidden", visible.length <= eventsPager.size);
+  setDomProperty($("eventsPrev"), "disabled", eventsPager.page === 0);
+  setDomProperty($("eventsNext"), "disabled", offset + eventsPager.size >= visible.length);
+  setDomProperty($("eventsRange"), "textContent", visible.length
+    ? `${offset + 1}–${offset + pageItems.length} из ${visible.length} · Страница ${eventsPager.page + 1}` : "");
   if (!visible.length) {
     setDomProperty(body.dataset, "state", "empty");
     setStaticMarkup(body, eventsFilter === "all"
@@ -1743,7 +1753,7 @@ function renderEvents(data) {
   const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
   let html = "";
   let lastDay = "";
-  for (const ev of visible) {
+  for (const ev of pageItems) {
     const d = new Date(ev.ts);
     const key = isNaN(d) ? "" : d.toDateString();
     if (key && key !== lastDay) {
@@ -1763,7 +1773,24 @@ $("eventFilters").addEventListener("click", (e) => {
   const btn = e.target.closest(".chip[data-ef]");
   if (!btn) return;
   eventsFilter = btn.dataset.ef;
+  eventsPager.page = 0;
   document.querySelectorAll("#eventFilters .chip").forEach((c) => c.setAttribute("aria-pressed", String(c === btn)));
+  if (eventsData) renderEvents(eventsData);
+});
+
+$("eventsPrev").addEventListener("click", () => {
+  if (eventsPager.page === 0) return;
+  eventsPager.page--;
+  if (eventsData) renderEvents(eventsData);
+});
+$("eventsNext").addEventListener("click", () => {
+  if ($("eventsNext").disabled) return;
+  eventsPager.page++;
+  if (eventsData) renderEvents(eventsData);
+});
+$("eventsPageSize").addEventListener("change", () => {
+  eventsPager.size = Number($("eventsPageSize").value);
+  eventsPager.page = 0;
   if (eventsData) renderEvents(eventsData);
 });
 
