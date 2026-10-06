@@ -162,6 +162,8 @@ class Handler(BaseHTTPRequestHandler):
             if safe == "manifest.webmanifest"
             else mimetypes.guess_type(full)[0] or "application/octet-stream"
         )
+        # MIME mappings may come from the host; never emit header delimiters.
+        ctype = ctype.replace("\r", "").replace("\n", "")
         with open(full, "rb") as f:
             body = f.read()
         if safe == "manifest.webmanifest":
@@ -212,12 +214,17 @@ class Handler(BaseHTTPRequestHandler):
             self._send_error_json(404, "Файл бэкапа не найден")
             return
         try:
+            # RFC 5987 keeps Unicode and quoted filenames out of raw HTTP headers.
+            download_name = urllib.parse.quote(os.path.basename(path), safe="")
+            disposition = (
+                f"attachment; filename=\"backup.tar.gz\"; filename*=UTF-8''{download_name}"
+            )
+            # Enforce the same CR/LF boundary as for host-derived MIME headers.
+            disposition = disposition.replace("\r", "").replace("\n", "")
             self.send_response(200)
             self.send_header("Content-Type", "application/gzip")
             self.send_header("Content-Length", str(size))
-            self.send_header(
-                "Content-Disposition", f'attachment; filename="{os.path.basename(path)}"'
-            )
+            self.send_header("Content-Disposition", disposition)
             self.end_headers()
             with open(path, "rb") as f:
                 while True:
