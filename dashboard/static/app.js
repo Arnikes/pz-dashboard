@@ -103,11 +103,11 @@ document.querySelectorAll("[data-help-text]").forEach(slot => {
   window.addEventListener("hashchange", close);
 })();
 
-const timeFmt = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
-const dateFmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-const timeFullFmt = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-const dayFmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit" });
-const relativeDayFmt = new Intl.RelativeTimeFormat("ru", { numeric: "auto" });
+const timeFmt = new Intl.DateTimeFormat(I18n.locale, { hour: "2-digit", minute: "2-digit" });
+const dateFmt = new Intl.DateTimeFormat(I18n.locale, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+const timeFullFmt = new Intl.DateTimeFormat(I18n.locale, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const dayFmt = new Intl.DateTimeFormat(I18n.locale, { day: "2-digit", month: "2-digit" });
+const relativeDayFmt = new Intl.RelativeTimeFormat(I18n.locale, { numeric: "auto" });
 
 function fmtTime(iso) {
   if (!iso) return "—";
@@ -118,20 +118,20 @@ function fmtTime(iso) {
 
 function fmtUptime(sec) {
   if (sec == null) return "—";
-  if (sec < 60) return `${sec} с`;
+  if (sec < 60) return I18n.msg`${sec} с`;
   const m = Math.floor(sec / 60);
-  if (m < 60) return `${m} мин`;
+  if (m < 60) return I18n.msg`${m} мин`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h} ч ${m % 60} мин`;
-  return `${Math.floor(h / 24)} д ${h % 24} ч`;
+  if (h < 24) return I18n.msg`${h} ч ${m % 60} мин`;
+  return I18n.msg`${Math.floor(h / 24)} д ${h % 24} ч`;
 }
 
 function fmtBytes(n) {
   if (n == null) return "—";
-  const units = ["Б", "КБ", "МБ", "ГБ", "ТБ"];
+  const units = [I18n.t("Б"), I18n.t("КБ"), I18n.t("МБ"), I18n.t("ГБ"), I18n.t("ТБ")];
   let v = Number(n) || 0, u = 0;
   while (v >= 1024 && u < units.length - 1) { v /= 1024; u++; }
-  return `${u === 0 ? v : v.toFixed(1)} ${units[u]}`;
+  return `${I18n.number(v, { minimumFractionDigits: u === 0 ? 0 : 1, maximumFractionDigits: u === 0 ? 0 : 1 })} ${units[u]}`;
 }
 
 const shortDigest = (d) => (d ? d.replace("sha256:", "").slice(0, 12) : "—");
@@ -145,14 +145,14 @@ function relTime(iso) {
   if (s < -45) {
     // будущее время (например, следующий запуск автобэкапа)
     const f = -s;
-    if (f < 3600) return `через ${Math.max(1, Math.round(f / 60))} мин`;
-    if (f < 86400) return `через ${Math.round(f / 3600)} ч`;
+    if (f < 3600) return I18n.msg`через ${Math.max(1, Math.round(f / 60))} мин`;
+    if (f < 86400) return I18n.msg`через ${Math.round(f / 3600)} ч`;
     return fmtTime(iso);
   }
-  if (s < 45) return "только что";
-  if (s < 3600) return `${Math.max(1, Math.round(s / 60))} мин назад`;
-  if (s < 86400) return `${Math.round(s / 3600)} ч назад`;
-  if (s < 172800) return "вчера";
+  if (s < 45) return I18n.t("только что");
+  if (s < 3600) return I18n.msg`${Math.max(1, Math.round(s / 60))} мин назад`;
+  if (s < 86400) return I18n.msg`${Math.round(s / 3600)} ч назад`;
+  if (s < 172800) return I18n.t("вчера");
   return fmtTime(iso);
 }
 
@@ -185,7 +185,7 @@ function copyIcon() {
   return `<svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="copy-icon-default"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></g><path class="copy-icon-check" d="m5 12 4 4L19 6"/></svg>`;
 }
 
-function copyValue(value, { text = value, className = "", title = value, label = `Скопировать ${value}` } = {}) {
+function copyValue(value, { text = value, className = "", title = value, label = I18n.msg`Скопировать ${value}` } = {}) {
   return `<button type="button" class="copy-value ${esc(className)}" data-copy="${esc(value)}" title="${esc(title)}" aria-label="${esc(label)}"><span class="copy-label">${esc(text)}</span>${copyIcon()}</button>`;
 }
 
@@ -231,16 +231,16 @@ async function copyText(text, button = null) {
       // Ignore an older request or a field whose value changed while copying.
       if (copyFeedback.get(button) !== state || button.dataset.copy !== text || !button.isConnected) return;
       button.dataset.copied = "true";
-      button.setAttribute("aria-label", "Скопировано");
-      button.title = "Скопировано";
-      copyStatus.textContent = "Скопировано";
+      button.setAttribute("aria-label", I18n.t("Скопировано"));
+      button.title = I18n.t("Скопировано");
+      copyStatus.textContent = I18n.t("Скопировано");
       state.timer = setTimeout(() => resetCopyFeedback(button), 2000);
     } else {
-      toast("Скопировано", "ok", 2000);
+      toast(I18n.t("Скопировано"), "ok", 2000);
     }
   } catch (e) {
     if (button && copyFeedback.get(button) === state) resetCopyFeedback(button);
-    toast("Не удалось скопировать", "error", 2000);
+    toast(I18n.t("Не удалось скопировать"), "error", 2000);
   }
 }
 
@@ -300,7 +300,7 @@ const modal = (() => {
   let returnFocus = null;
   let submitting = false;
 
-  function open({ title, bodyHTML, okLabel = "Подтвердить", danger = false, onConfirm }) {
+  function open({ title, bodyHTML, okLabel = I18n.t("Подтвердить"), danger = false, onConfirm }) {
     if (submitting) return;
     returnFocus = document.activeElement;
     $("modalTitle").textContent = title;
@@ -362,7 +362,7 @@ const modal = (() => {
   });
 
   function error(e) {
-    $("modalError").textContent = `${e.message || e} Параметры сохранены — повторите действие.`;
+    $("modalError").textContent = I18n.msg`${e.message || e} Параметры сохранены — повторите действие.`;
     $("modalError").hidden = false;
   }
   return { open, close, error };
@@ -399,7 +399,7 @@ function demoNow() { return new Date().toISOString(); }
 
 const DEMO = {
   overview: () => ({
-    ok: true, serverName: "Кастом-Нокс (демо)", container: "pzserver",
+    ok: true, serverName: I18n.t("Кастом-Нокс (демо)"), container: "pzserver",
     image: "indifferentbrokkoli/pzserver:latest", docker: true, compose: true,
     rconConfigured: true, rcon: { state: "ok", error: null, at: demoNow() },
     containerInfo: { status: "running", running: true, startedAt: new Date(Date.now() - 569000 * 1000).toISOString(), image: "indifferentbrokkoli/pzserver:latest", uptimeSec: 569000 },
@@ -410,7 +410,7 @@ const DEMO = {
     notify: { at: demoNow(), ok: true, error: null },
     backupsCount: 2, now: demoNow(),
   }),
-  players: () => ({ ok: true, names: ["Дмитрий", "Sledge", "Katya_V"], raw: "Дмитрий\nSledge\nKatya_V", count: 3 }),
+  players: () => ({ ok: true, names: [I18n.t("Дмитрий"), "Sledge", "Katya_V"], raw: I18n.t("Дмитрий\nSledge\nKatya_V"), count: 3 }),
   statsHistory: () => {
     const pts = [];
     const now = Date.now();
@@ -453,21 +453,21 @@ const DEMO = {
     autoBackup: { enabled: true, time: "03:00", stopServer: false,
                   nextRun: new Date(Date.now() + 36e5 * 11).toISOString() },
     items: [
-      { name: "pz-backup-20260901-040000.tar.gz", size: 684000000, sizeText: "652.3 МБ", mtime: "2026-09-01T04:00:00" },
-      { name: "pz-backup-20260831-040000.tar.gz", size: 672000000, sizeText: "640.9 МБ", mtime: "2026-08-31T04:00:00" },
+      { name: "pz-backup-20260901-040000.tar.gz", size: 684000000, sizeText: I18n.t("652.3 МБ"), mtime: "2026-09-01T04:00:00" },
+      { name: "pz-backup-20260831-040000.tar.gz", size: 672000000, sizeText: I18n.t("640.9 МБ"), mtime: "2026-08-31T04:00:00" },
     ],
     journal: [
       { ts: "2026-09-01T04:00:03", trigger: "scheduled", type: "full", name: "pz-backup-20260901-040000.tar.gz", size: 684000000, status: "success", duration: 42.5 },
       { ts: "2026-08-31T04:00:02", trigger: "scheduled", type: "full", name: "pz-backup-20260831-040000.tar.gz", size: 672000000, status: "success", duration: 41.2 },
-      { ts: "2026-08-30T04:00:05", trigger: "scheduled", type: "full", name: "", size: 0, status: "error", error: "Каталог данных PZ пуст или не смонтирован", duration: 0.4 },
+      { ts: "2026-08-30T04:00:05", trigger: "scheduled", type: "full", name: "", size: 0, status: "error", error: I18n.t("Каталог данных PZ пуст или не смонтирован"), duration: 0.4 },
     ],
   }),
   events: () => ({
     ok: true,
     items: [
-      { ts: demoNow(), type: "update-check", text: "Плановая проверка обновлений: обновлений нет" },
-      { ts: new Date(Date.now() - 3600e3).toISOString(), type: "backup", text: "Бэкап создан: pz-backup-20260901-040000.tar.gz (652.3 МБ)" },
-      { ts: new Date(Date.now() - 7200e3).toISOString(), type: "restart", text: "Сервер перезапущен" },
+      { ts: demoNow(), type: "update-check", text: I18n.t("Плановая проверка обновлений: обновлений нет") },
+      { ts: new Date(Date.now() - 3600e3).toISOString(), type: "backup", text: I18n.t("Бэкап создан: pz-backup-20260901-040000.tar.gz (652.3 МБ)") },
+      { ts: new Date(Date.now() - 7200e3).toISOString(), type: "restart", text: I18n.t("Сервер перезапущен") },
     ],
   }),
 };
@@ -493,10 +493,10 @@ $("btnLogout").addEventListener("click", async () => {
       headers: { "X-PZ-Request": "1" },
       signal: AbortSignal.timeout(9000),
     });
-    if (!response.ok && response.status !== 401) throw new Error("Не удалось выйти");
+    if (!response.ok && response.status !== 401) throw new Error(I18n.t("Не удалось выйти"));
     requireLogin();
   } catch (error) {
-    toast(error.message || "Не удалось выйти", "error");
+    toast(error.message || I18n.t("Не удалось выйти"), "error");
     button.disabled = false;
   }
 });
@@ -505,7 +505,7 @@ let pendingMutations = 0;
 async function api(path, opts = {}) {
   if (S.demo) {
     if (opts.method && opts.method !== "GET") {
-      throw new Error("Демо-режим: операции недоступны");
+      throw new Error(I18n.t("Демо-режим: операции недоступны"));
     }
     await new Promise((r) => setTimeout(r, 120));
     if (path.startsWith("/api/overview")) return DEMO.overview();
@@ -524,30 +524,30 @@ async function api(path, opts = {}) {
     if (path.startsWith("/api/backups")) return DEMO.backups();
     if (path.startsWith("/api/events")) return DEMO.events();
     if (path.startsWith("/api/ops")) return { ok: true, active: null, history: [] };
-    throw new Error("Демо-режим: нет данных");
+    throw new Error(I18n.t("Демо-режим: нет данных"));
   }
   const mutation = !!opts.method && opts.method !== "GET";
-  if (mutation && !navigator.onLine) throw new Error("Нет сети. Восстановите связь и повторите действие.");
+  if (mutation && !navigator.onLine) throw new Error(I18n.t("Нет сети. Восстановите связь и повторите действие."));
   if (mutation) pendingMutations++;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), opts.timeout || 9000);
   try {
     const res = await fetch(path, {
       method: opts.method || "GET",
-      headers: { "X-PZ-Request": "1", ...(opts.body ? { "Content-Type": "application/json" } : {}) },
+      headers: { "X-PZ-Request": "1", "X-PZ-Language": I18n.language, ...(opts.body ? { "Content-Type": "application/json" } : {}) },
       body: opts.body ? JSON.stringify(opts.body) : undefined,
       signal: ctrl.signal,
     });
     if (res.status === 401) {
       requireLogin();
-      throw new Error("Сессия завершена. Войдите снова");
+      throw new Error(I18n.t("Сессия завершена. Войдите снова"));
     }
     const data = await res.json().catch(() => ({}));
     if (!res.ok && !data.error) data.error = `HTTP ${res.status}`;
     return data;
   } catch (error) {
-    if (error.name === "AbortError") throw new Error("Сервер не ответил вовремя. Проверьте состояние операции перед повтором.");
-    if (error instanceof TypeError) throw new Error("Нет соединения с пультом. Восстановите связь и повторите запрос.");
+    if (error.name === "AbortError") throw new Error(I18n.t("Сервер не ответил вовремя. Проверьте состояние операции перед повтором."));
+    if (error instanceof TypeError) throw new Error(I18n.t("Нет соединения с пультом. Восстановите связь и повторите запрос."));
     throw error;
   } finally {
     clearTimeout(timer);
@@ -561,8 +561,8 @@ async function action(op, extra = {}) {
   updateButtons();
   try {
     const res = await api("/api/action", { method: "POST", body: { op, ...extra } });
-    if (res.error || res.ok === false) throw new Error(res.error || "Запрос не принят");
-    toast(`Операция «${OP_TITLES[op] || op}» запущена`, "ok");
+    if (res.error || res.ok === false) throw new Error(res.error || I18n.t("Запрос не принят"));
+    toast(I18n.msg`Операция «${OP_TITLES[op] || op}» запущена`, "ok");
     S.localOpResult = null;
     $("operationResult").hidden = true;
     await refreshOps();
@@ -579,7 +579,7 @@ async function action(op, extra = {}) {
 }
 
 function showActionError(op, error) {
-  showLocalResult("error", `${OP_TITLES[op] || op} — запрос не принят`, `${error.message || error} Проверьте соединение и события, затем повторите действие.`);
+  showLocalResult("error", I18n.msg`${OP_TITLES[op] || op} — запрос не принят`, I18n.msg`${error.message || error} Проверьте соединение и события, затем повторите действие.`);
 }
 
 function showLocalResult(state, title, message) {
@@ -613,38 +613,38 @@ function renderOverview(o) {
     const rs = rc.state || "unknown";
     $("absentHint").hidden = false;
     $("absentHint").textContent =
-      "Пульт запущен вне хоста сервера: активны RCON-консоль, игроки, объявления и сохранение мира. " +
-      "Управление контейнером, бэкапы и обновление заработают при запуске пульта на сервере (README, вариант Б).";
+      I18n.t("Пульт запущен вне хоста сервера: активны RCON-консоль, игроки, объявления и сохранение мира. ") +
+      I18n.t("Управление контейнером, бэкапы и обновление заработают при запуске пульта на сервере (README, вариант Б).");
     if (rs === "ok") {
       lamp.dataset.state = "ok";
-      label.textContent = "Работает (RCON)";
-      $("uptime").textContent = "удалённое управление по RCON";
+      label.textContent = I18n.t("Работает (RCON)");
+      $("uptime").textContent = I18n.t("удалённое управление по RCON");
     } else if (rs === "error") {
       lamp.dataset.state = "bad";
-      label.textContent = "Нет ответа RCON";
-      $("uptime").textContent = "проверьте сервер, порт и пароль";
+      label.textContent = I18n.t("Нет ответа RCON");
+      $("uptime").textContent = I18n.t("проверьте сервер, порт и пароль");
     } else {
       lamp.dataset.state = "warn";
-      label.textContent = "Проверка…";
+      label.textContent = I18n.t("Проверка…");
       $("uptime").textContent = "…";
     }
   } else {
     $("absentHint").hidden = !!c;
     if (!c) {
       lamp.dataset.state = "bad";
-      label.textContent = "Контейнер не найден";
+      label.textContent = I18n.t("Контейнер не найден");
       $("uptime").textContent = "—";
     } else if (c.running) {
       lamp.dataset.state = "ok";
-      label.textContent = "Работает";
-      $("uptime").textContent = `в работе ${fmtUptime(c.uptimeSec)}`;
+      label.textContent = I18n.t("Работает");
+      $("uptime").textContent = I18n.msg`в работе ${fmtUptime(c.uptimeSec)}`;
     } else if (c.status === "restarting") {
       lamp.dataset.state = "warn";
-      label.textContent = "Перезапускается";
+      label.textContent = I18n.t("Перезапускается");
       $("uptime").textContent = "—";
     } else {
       lamp.dataset.state = "bad";
-      label.textContent = "Остановлен";
+      label.textContent = I18n.t("Остановлен");
       $("uptime").textContent = "—";
     }
   }
@@ -654,30 +654,30 @@ function renderOverview(o) {
   const pill = $("updPill");
   if (remote) {
     pill.dataset.state = "unknown";
-    pill.textContent = "только на хосте сервера";
-    $("updNote").textContent = "Сравнение digest требует доступа к локальному образу — обновление выполняется с хоста сервера.";
+    pill.textContent = I18n.t("только на хосте сервера");
+    $("updNote").textContent = I18n.t("Сравнение digest требует доступа к локальному образу — обновление выполняется с хоста сервера.");
   } else if (u.available === true) {
-    pill.dataset.state = "warn"; pill.textContent = "есть обновление";
-    $("updNote").textContent = "Сверяется digest локального образа с Docker Hub.";
+    pill.dataset.state = "warn"; pill.textContent = I18n.t("есть обновление");
+    $("updNote").textContent = I18n.t("Сверяется digest локального образа с Docker Hub.");
   } else if (u.available === false) {
-    pill.dataset.state = "ok"; pill.textContent = "актуально";
-    $("updNote").textContent = "Сверяется digest локального образа с Docker Hub.";
+    pill.dataset.state = "ok"; pill.textContent = I18n.t("актуально");
+    $("updNote").textContent = I18n.t("Сверяется digest локального образа с Docker Hub.");
   } else if (u.error) {
-    pill.dataset.state = "bad"; pill.textContent = "ошибка проверки";
+    pill.dataset.state = "bad"; pill.textContent = I18n.t("ошибка проверки");
     $("updNote").textContent = u.error;
   } else if (u.note) {
     pill.dataset.state = "unknown"; pill.textContent = "—";
     $("updNote").textContent = u.note;
   } else {
-    pill.dataset.state = "unknown"; pill.textContent = "не проверялось";
-    $("updNote").textContent = "Сверяется digest локального образа с Docker Hub.";
+    pill.dataset.state = "unknown"; pill.textContent = I18n.t("не проверялось");
+    $("updNote").textContent = I18n.t("Сверяется digest локального образа с Docker Hub.");
   }
   $("updNote").hidden = !(remote || u.error || (u.note && u.available == null));
   const same = u.local && u.remote && u.local === u.remote;
   $("updRemote").classList.toggle("ok-same", !!same);
-  $("updHubDate").textContent = u.hubUpdated ? "собрана " + fmtTime(u.hubUpdated) : "—";
+  $("updHubDate").textContent = u.hubUpdated ? I18n.t("собрана ") + fmtTime(u.hubUpdated) : "—";
   setCopyTarget("updLocalCopy", u.local, shortDigest(u.local));
-  setCopyTarget("updRemoteCopy", u.remote, same ? "совпадает" : shortDigest(u.remote));
+  setCopyTarget("updRemoteCopy", u.remote, same ? I18n.t("совпадает") : shortDigest(u.remote));
 
   // автообновление
   const au = o.settings?.autoUpdate || {};
@@ -696,9 +696,9 @@ function renderOverview(o) {
     const skipped = wds.lastResult === "skipped" && !fails;
     const grace = wds.graceRemainingSec > 0;
     setPill("wdPill", grace || skipped ? "unknown" : fails ? "bad" : "ok",
-      grace ? `пауза: ${Math.ceil(wds.graceRemainingSec / 60)} мин` : fails ? `сбои: ${fails}` : skipped ? "ожидание" : "следит");
+      grace ? I18n.msg`пауза: ${Math.ceil(wds.graceRemainingSec / 60)} мин` : fails ? I18n.msg`сбои: ${fails}` : skipped ? I18n.t("ожидание") : I18n.t("следит"));
   } else {
-    setPill("wdPill", "unknown", "выкл");
+    setPill("wdPill", "unknown", I18n.t("выкл"));
   }
 
   // уведомления Telegram
@@ -714,30 +714,30 @@ function renderOverview(o) {
   if (tgEnabled) {
     const ns = o.notify || {};
     if (ns.ok === false && ns.error) {
-      setPill("tgPill", "bad", "ошибка отправки");
+      setPill("tgPill", "bad", I18n.t("ошибка отправки"));
     } else if (ns.ok) {
-      setPill("tgPill", "ok", "вкл");
+      setPill("tgPill", "ok", I18n.t("вкл"));
     } else {
-      setPill("tgPill", "ok", "вкл");
+      setPill("tgPill", "ok", I18n.t("вкл"));
     }
   } else {
-    setPill("tgPill", "unknown", "выкл");
+    setPill("tgPill", "unknown", I18n.t("выкл"));
   }
 
   // проверка модов (RCON checkModsNeedUpdate)
   const mc = o.modsCheck || {};
   if (mc.state === "up-to-date") {
-    setPill("modsPill", "ok", "актуальны");
-    $("modsCheckNote").textContent = mc.at ? `Проверено ${fmtTime(mc.at)}` : "";
+    setPill("modsPill", "ok", I18n.t("актуальны"));
+    $("modsCheckNote").textContent = mc.at ? I18n.msg`Проверено ${fmtTime(mc.at)}` : "";
   } else if (mc.state === "needs-update") {
     const n = (mc.items || []).length;
-    setPill("modsPill", "warn", n ? `обновить: ${n}` : "есть обновления");
-    $("modsCheckNote").textContent = mc.at ? `Проверено ${fmtTime(mc.at)}. Для загрузки обновлений нужен рестарт.` : "Для загрузки обновлений нужен рестарт.";
+    setPill("modsPill", "warn", n ? I18n.msg`обновить: ${n}` : I18n.t("есть обновления"));
+    $("modsCheckNote").textContent = mc.at ? I18n.msg`Проверено ${fmtTime(mc.at)}. Для загрузки обновлений нужен рестарт.` : I18n.t("Для загрузки обновлений нужен рестарт.");
   } else if (mc.state === "inconclusive") {
-    setPill("modsPill", "warn", "нет ответа");
-    $("modsCheckNote").textContent = "Сервер не вернул результат вовремя. Повторите проверку позже.";
+    setPill("modsPill", "warn", I18n.t("нет ответа"));
+    $("modsCheckNote").textContent = I18n.t("Сервер не вернул результат вовремя. Повторите проверку позже.");
   } else {
-    setPill("modsPill", "unknown", "не проверялись");
+    setPill("modsPill", "unknown", I18n.t("не проверялись"));
     $("modsCheckNote").textContent = "";
   }
   $("modsCheckNote").hidden = !$("modsCheckNote").textContent;
@@ -748,7 +748,7 @@ function renderOverview(o) {
     <div class="mod-need-row">
       <span class="m-title">${it.url
         ? `<a href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.title || it.workshopId)}</a>`
-        : esc(it.raw || "мод требует обновления")}</span>
+        : esc(it.raw || I18n.t("мод требует обновления"))}</span>
       ${it.workshopId ? copyValue(it.workshopId, { className: "wid mono" }) : ""}
     </div>`).join(""));
   $("btnApplyMods").hidden = mc.state !== "needs-update";
@@ -759,7 +759,7 @@ function renderOverview(o) {
   if (settingsCanRender("modsAutoWarn")) $("modsAutoWarn").value = String(mu.warnSeconds ?? 600);
   const nextM = o.settings?.nextModsCheck;
   $("modsAutoNext").hidden = !(mu.enabled && nextM);
-  if (mu.enabled && nextM) $("modsAutoNext").textContent = `Следующая проверка: ${new Date(nextM * 1000).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`;
+  if (mu.enabled && nextM) $("modsAutoNext").textContent = I18n.msg`Следующая проверка: ${new Date(nextM * 1000).toLocaleString(I18n.locale, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`;
 
   renderSummaries();
   updateButtons();
@@ -776,7 +776,7 @@ function renderKpis() {
   if (remote) $("kpiOnlineSub").textContent = "RCON";
   else if (S.phPoints && S.phPoints.length) {
     const peak = S.phPoints.reduce((m, x) => Math.max(m, x.count || 0), 0);
-    $("kpiOnlineSub").textContent = `пик за сутки: ${peak}`;
+    $("kpiOnlineSub").textContent = I18n.msg`пик за сутки: ${peak}`;
   } else $("kpiOnlineSub").textContent = "…";
 
   const st = S.stats;
@@ -784,7 +784,7 @@ function renderKpis() {
     $("kpiCpu").textContent = "—";
     $("kpiCpuBar").style.width = "0%";
     $("kpiRam").textContent = "—";
-    $("kpiRamSub").textContent = remote ? "только с хоста" : "…";
+    $("kpiRamSub").textContent = remote ? I18n.t("только с хоста") : "…";
   } else {
     const cpu = Math.max(0, Math.min(100, st.cpuPct || 0));
     $("kpiCpu").textContent = `${cpu.toFixed(0)}%`;
@@ -799,15 +799,15 @@ function renderKpis() {
   $("kpiBackup").title = "";
   if (remote) {
     $("kpiBackup").textContent = "—";
-    $("kpiBackupSub").textContent = "на хосте";
+    $("kpiBackupSub").textContent = I18n.t("на хосте");
   } else if (!last) {
-    $("kpiBackup").textContent = "Нет копий";
-    $("kpiBackupSub").textContent = "архивов ещё нет";
+    $("kpiBackup").textContent = I18n.t("Нет копий");
+    $("kpiBackupSub").textContent = I18n.t("архивов ещё нет");
   } else {
     const timestamp = Date.parse(last.mtime), days = Math.floor((Date.now() - timestamp) / 86400000);
-    $("kpiBackup").textContent = !Number.isFinite(timestamp) ? "Дата неизвестна" : timestamp > Date.now() ? "Дата в будущем" : days >= 2 ? relativeDayFmt.format(-days, "day") : relTime(last.mtime);
+    $("kpiBackup").textContent = !Number.isFinite(timestamp) ? I18n.t("Дата неизвестна") : timestamp > Date.now() ? I18n.t("Дата в будущем") : days >= 2 ? relativeDayFmt.format(-days, "day") : relTime(last.mtime);
     $("kpiBackup").title = fmtTime(last.mtime);
-    $("kpiBackupSub").textContent = last.sizeText || fmtBytes(last.size);
+    $("kpiBackupSub").textContent = last.size != null ? fmtBytes(last.size) : last.sizeText || "—";
   }
 }
 
@@ -834,7 +834,7 @@ function updateButtons() {
   const rconOk = !!(o && o.rcon && o.rcon.state === "ok");
   const running = !remote && !!(o && o.containerInfo && o.containerInfo.running);
   const found = !!(o && o.containerInfo);
-  const hostHint = "Доступно только при запуске пульта на хосте сервера";
+  const hostHint = I18n.t("Доступно только при запуске пульта на хосте сервера");
   const consoleLive = busy ? false : (remote ? rconOk : running);
   $("btnStart").disabled = busy || remote || !found || running;
   $("btnStop").disabled = busy || S.demo || remote || !running;
@@ -848,7 +848,7 @@ function updateButtons() {
   const cancelPending = modsRestart && !!S.op.active.cancelRequested;
   $("btnCancelMods").hidden = !modsRestart || (!S.op.active.cancellable && !cancelPending);
   $("btnCancelMods").disabled = remote || cancelPending || !S.op?.active?.cancellable;
-  $("btnCancelMods").textContent = cancelPending ? "Отмена…" : "Отменить обновление модов";
+  $("btnCancelMods").textContent = cancelPending ? I18n.t("Отмена…") : I18n.t("Отменить обновление модов");
   // автонастройки и watchdog пишут в настройки и работают только с хоста —
   // в remote-режиме они тихо ничего не делают, честно их глушим
   const hostOnly = busy || S.demo || remote;
@@ -872,7 +872,7 @@ function updateButtons() {
                     "modsAutoSwitch", "modsAutoInterval", "modsAutoAction", "modsAutoWarn",
                     "bkAutoSwitch", "bkAutoTime", "bkAutoKeep", "bkAutoStop"]) {
     $(id).title = remote ? hostHint : (id === "btnApplyUpd" && o && o.compose === false
-      ? "Недоступен плагин docker compose в контейнере пульта" : "");
+      ? I18n.t("Недоступен плагин docker compose в контейнере пульта") : "");
   }
   $("btnBackup").disabled = busy || S.demo || remote;
   $("logsDownload").style.display = (remote || S.demo) ? "none" : "";
@@ -882,16 +882,16 @@ function updateButtons() {
   document.querySelectorAll("#quickCmds .chip").forEach((b) => { b.disabled = !consoleLive; });
   $("consoleInput").disabled = !consoleLive;
   $("consoleForm").querySelector("button").disabled = !consoleLive;
-  const commonReason = S.demo ? "Демо: операции отключены. Откройте пульт своего сервера для управления."
-    : S.op?.active ? "Идёт операция: " + (OP_TITLES[S.op.active.op] || S.op.active.op) + ". Дождитесь результата; прогресс показан над разделом."
-    : S.actionPending ? "Запрос отправляется. Дождитесь принятия или сообщения об ошибке."
+  const commonReason = S.demo ? I18n.t("Демо: операции отключены. Откройте пульт своего сервера для управления.")
+    : S.op?.active ? I18n.t("Идёт операция: ") + (OP_TITLES[S.op.active.op] || S.op.active.op) + I18n.t(". Дождитесь результата; прогресс показан над разделом.")
+    : S.actionPending ? I18n.t("Запрос отправляется. Дождитесь принятия или сообщения об ошибке.")
     : "";
-  const hostReason = commonReason || (remote ? "Remote: управление контейнером, обновления и архивы доступны в пульте на хосте сервера. Здесь доступны RCON и игроки." : "");
-  setAvailability("operationAvailability", hostReason || (!found ? "Контейнер не найден или его состояние ещё не получено. Проверьте подключение и имя контейнера."
-    : !running ? "Сервер остановлен. Для остановки и перезапуска сначала запустите его." : ""));
-  setAvailability("maintenanceAvailability", hostReason || (o?.compose === false ? "Обновление образа недоступно: установите docker compose в контейнере пульта и проверьте подключение." : ""));
+  const hostReason = commonReason || (remote ? I18n.t("Remote: управление контейнером, обновления и архивы доступны в пульте на хосте сервера. Здесь доступны RCON и игроки.") : "");
+  setAvailability("operationAvailability", hostReason || (!found ? I18n.t("Контейнер не найден или его состояние ещё не получено. Проверьте подключение и имя контейнера.")
+    : !running ? I18n.t("Сервер остановлен. Для остановки и перезапуска сначала запустите его.") : ""));
+  setAvailability("maintenanceAvailability", hostReason || (o?.compose === false ? I18n.t("Обновление образа недоступно: установите docker compose в контейнере пульта и проверьте подключение.") : ""));
   setAvailability("backupAvailability", hostReason);
-  setAvailability("consoleAvailability", commonReason || (!consoleLive ? "RCON недоступен. Проверьте запуск сервера, пароль и порт RCON; последние ответы сохранены." : ""));
+  setAvailability("consoleAvailability", commonReason || (!consoleLive ? I18n.t("RCON недоступен. Проверьте запуск сервера, пароль и порт RCON; последние ответы сохранены.") : ""));
   for (const id of ["btnStart", "btnStop", "btnRestart", "btnSaveWorld"]) $(id).setAttribute("aria-describedby", "operationAvailability");
   for (const id of ["btnCheckUpd", "btnApplyUpd"]) $(id).setAttribute("aria-describedby", "maintenanceAvailability");
   $("btnBackup").setAttribute("aria-describedby", "backupAvailability");
@@ -916,15 +916,15 @@ function renderOp(op) {
       if (S.localOpResult && key !== S.localOpResult.historyKey) S.localOpResult = null;
       S.lastOpResult = key;
       if (S.lastOpActive) {
-        toast(h.cancelled ? h.message : h.ok ? `Готово: ${h.message || h.op}` : `Не удалось: ${h.message || h.op}`, h.ok ? "ok" : "error", 8000);
+        toast(h.cancelled ? h.message : h.ok ? I18n.msg`Готово: ${h.message || h.op}` : I18n.msg`Не удалось: ${h.message || h.op}`, h.ok ? "ok" : "error", 8000);
         refreshAll();
       }
     }
     if (!S.localOpResult) {
       $("operationResult").hidden = key === S.dismissedOpResult;
       $("operationResult").dataset.state = h.cancelled ? "cancelled" : h.ok ? "ok" : "error";
-      $("operationResultTitle").textContent = `${OP_TITLES[h.op] || h.op} — ${h.cancelled ? "отменено" : h.ok ? "готово" : "не удалось"}`;
-      $("operationResultMessage").textContent = h.message || (h.ok ? "Операция завершена. Подробности в событиях." : "Откройте логи, устраните причину и повторите действие.");
+      $("operationResultTitle").textContent = `${OP_TITLES[h.op] || h.op} — ${h.cancelled ? I18n.t("отменено") : h.ok ? I18n.t("готово") : I18n.t("не удалось")}`;
+      $("operationResultMessage").textContent = h.message || (h.ok ? I18n.t("Операция завершена. Подробности в событиях.") : I18n.t("Откройте логи, устраните причину и повторите действие."));
     }
   }
   S.lastOpActive = !!(active);
@@ -936,7 +936,7 @@ function renderOp(op) {
 
 function updateOperationElapsed() {
   const started = Date.parse(S.op?.active?.startedAt);
-  $("opElapsed").textContent = Number.isFinite(started) ? `Прошло ${fmtUptime(Math.floor(Math.max(0, (Date.now() - started) / 1000)))}` : "";
+  $("opElapsed").textContent = Number.isFinite(started) ? I18n.msg`Прошло ${fmtUptime(Math.floor(Math.max(0, (Date.now() - started) / 1000)))}` : "";
 }
 
 $("operationResultDismiss").addEventListener("click", () => {
@@ -948,12 +948,12 @@ $("operationResultDismiss").addEventListener("click", () => {
 
 /* человеческие названия операций для полосы прогресса и тостов */
 const OP_TITLES = {
-  start: "Запуск", stop: "Остановка", restart: "Рестарт",
-  "check-update": "Проверка обновлений", "apply-update": "Обновление сервера",
-  "check-mods-update": "Проверка модов", "apply-mods-update": "Обновление модов",
-  "mods-restart": "Авторестарт модов",
-  backup: "Бэкап", restore: "Восстановление", "verify-backup": "Проверка архива",
-  "apply-config": "Применение конфигурации", "prepare-workshop": "Подготовка Workshop",
+  start: I18n.t("Запуск"), stop: I18n.t("Остановка"), restart: I18n.t("Рестарт"),
+  "check-update": I18n.t("Проверка обновлений"), "apply-update": I18n.t("Обновление сервера"),
+  "check-mods-update": I18n.t("Проверка модов"), "apply-mods-update": I18n.t("Обновление модов"),
+  "mods-restart": I18n.t("Авторестарт модов"),
+  backup: I18n.t("Бэкап"), restore: I18n.t("Восстановление"), "verify-backup": I18n.t("Проверка архива"),
+  "apply-config": I18n.t("Применение конфигурации"), "prepare-workshop": I18n.t("Подготовка Workshop"),
 };
 
 /* ───────────────────────── игроки ───────────────────────── */
@@ -999,20 +999,20 @@ function renderPlayers(data) {
   S.players = data;
   const body = $("playersBody");
   if (!data.ok) {
-    setListMessage(body, "error", `<p class="list-error">${esc(data.error || "нет данных")}</p>`);
+    setListMessage(body, "error", `<p class="list-error">${esc(data.error || I18n.t("нет данных"))}</p>`);
     $("playersCount").textContent = "–";
     return;
   }
   $("playersCount").textContent = String(data.count);
   if (!data.names.length) {
     const raw = (data.raw || "").trim();
-    setListMessage(body, "empty", `<p class="list-empty">Нет игроков онлайн.</p>` +
+    setListMessage(body, "empty", I18n.msg`<p class="list-empty">Нет игроков онлайн.</p>` +
       (raw && !/players/i.test(raw) ? `<p class="list-empty mono">${esc(raw)}</p>` : ""));
     return;
   }
   syncRows(body, [...new Set(data.names)], (name) => name, (n) => {
     const template = document.createElement("template");
-    template.innerHTML = `
+    template.innerHTML = I18n.msg`
     <div class="player-row">
       <span class="dot"></span>
       <span class="p-name" title="${esc(n)}">${esc(n)}</span>
@@ -1034,26 +1034,26 @@ function confirmPlayerAction(kind, name) {
   const isKick = kind === "kick";
   const cmdBase = isKick ? "kickuser" : "banuser";
   modal.open({
-    title: `${isKick ? "Кикнуть" : "Забанить"} «${name}»?`,
+    title: `${isKick ? I18n.t("Кикнуть") : I18n.t("Забанить")} «${name}»?`,
     danger: true,
-    okLabel: isKick ? "Кикнуть" : "Забанить",
-    bodyHTML: `
-      <p>Игрок будет ${isKick ? "отключён от сервера" : "заблокирован навсегда"} командой
+    okLabel: isKick ? I18n.t("Кикнуть") : I18n.t("Забанить"),
+    bodyHTML: I18n.msg`
+      <p>Игрок будет ${isKick ? I18n.t("отключён от сервера") : I18n.t("заблокирован навсегда")} командой
       <span class="mono">${cmdBase}</span>.</p>
       <label class="field">Причина (необязательно)
         <input type="text" id="paReason" maxlength="120" style="height:38px;color:var(--ink);background:var(--bg-deep);border:1px solid var(--line-strong);border-radius:8px;padding:0 12px;" />
       </label>
     `,
     onConfirm: async () => {
-      if (/["\r\n\x00-\x1f]/.test(name)) throw new Error("Пульт не может безопасно передать это имя игрока через RCON. Действие не отправлено; имя не подменяется.");
+      if (/["\r\n\x00-\x1f]/.test(name)) throw new Error(I18n.t("Пульт не может безопасно передать это имя игрока через RCON. Действие не отправлено; имя не подменяется."));
       const reason = ($("paReason")?.value || "").replace(/"/g, "'").trim();
       const cmd = `${cmdBase} "${name}"${reason ? ` "${reason}"` : ""}`;
       try {
         const res = await api("/api/rcon", { method: "POST", body: { command: cmd } });
         if (res.error) throw new Error(res.error);
         consoleAppend(`> ${cmd}`, "c-dim");
-        consoleAppend(res.output || "(без ответа)");
-        toast(`${isKick ? "Кикнут" : "Забанен"}: ${name}`, "ok");
+        consoleAppend(res.output || I18n.t("(без ответа)"));
+        toast(`${isKick ? I18n.t("Кикнут") : I18n.t("Забанен")}: ${name}`, "ok");
         refreshPlayers();
       } catch (e) {
         toast(e.message || String(e), "error");
@@ -1103,7 +1103,7 @@ function renderPlayersHistory(points) {
   }
   svg.innerHTML = inner;
   const peak = points.reduce((m, p) => Math.max(m, p.count || 0), 0);
-  $("phPeak").textContent = `пик: ${peak}`;
+  $("phPeak").textContent = I18n.msg`пик: ${peak}`;
   if (typeof renderKpis === "function") renderKpis();
 }
 
@@ -1123,7 +1123,7 @@ function renderPlayersHistory(points) {
     }
     const tip = $("phTip");
     tip.hidden = false;
-    tip.textContent = `${fmtTime(best.ts)} · ${best.count} игр.`;
+    tip.textContent = I18n.msg`${fmtTime(best.ts)} · ${best.count} игр.`;
     tip.style.left = Math.max(60, Math.min(rect.width - 10, ev.clientX - rect.left)) + "px";
   });
   spark.addEventListener("mouseleave", () => { $("phTip").hidden = true; });
@@ -1157,7 +1157,7 @@ function renderStats(st) {
   S.stats = st;
   if (S.overview && S.overview.mode === "remote") {
     $("cpuVal").textContent = "—"; $("ramVal").textContent = "—";
-    $("ramSub").textContent = "метрики — только с хоста сервера";
+    $("ramSub").textContent = I18n.t("метрики — только с хоста сервера");
     $("netIn").textContent = "—"; $("netOut").textContent = "—"; $("pids").textContent = "—";
     $("cpuBar").style.width = "0%"; $("ramBar").style.width = "0%";
     return;
@@ -1170,12 +1170,12 @@ function renderStats(st) {
     return;
   }
   const cpu = Math.max(0, Math.min(100, st.cpuPct || 0));
-  $("cpuVal").textContent = `${cpu.toFixed(1)}%`;
+  $("cpuVal").textContent = `${I18n.number(cpu, {minimumFractionDigits: 1, maximumFractionDigits: 1})}%`;
   setBar("cpuBar", cpu);
   const memPct = Math.max(0, Math.min(100, st.memPct || 0));
   $("ramVal").textContent = `${memPct.toFixed(0)}%`;
   setBar("ramBar", memPct);
-  $("ramSub").textContent = `${fmtBytes(st.memUsed)} из ${fmtBytes(st.memLimit)}`;
+  $("ramSub").textContent = I18n.msg`${fmtBytes(st.memUsed)} из ${fmtBytes(st.memLimit)}`;
   $("netIn").textContent = fmtBytes(st.netIn);
   $("netOut").textContent = fmtBytes(st.netOut);
   $("pids").textContent = String(st.pids ?? "—");
@@ -1202,7 +1202,7 @@ function _renderMods(data) {
   const sel = $("modsFile");
   if (!data.ok) {
     body.dataset.state = "error";
-    setStaticMarkup(body, `<p class="list-error">${esc(data.error || "нет данных")}</p>`);
+    setStaticMarkup(body, `<p class="list-error">${esc(data.error || I18n.t("нет данных"))}</p>`);
     $("modsCount").textContent = "–";
     sel.hidden = true;
     return;
@@ -1228,7 +1228,7 @@ function _renderMods(data) {
   $("modsCount").textContent = String(total);
   if (!mods.length && !ws.length) {
     body.dataset.state = "empty";
-    setStaticMarkup(body, `<p class="list-empty"><strong>Модов нет.</strong> Параметры Mods= и WorkshopItems= в конфиге пустые.</p>`);
+    setStaticMarkup(body, I18n.msg`<p class="list-empty"><strong>Модов нет.</strong> Параметры Mods= и WorkshopItems= в конфиге пустые.</p>`);
     return;
   }
 
@@ -1236,13 +1236,13 @@ function _renderMods(data) {
   const disabledList = (data.disabled || []);
   if (canManage) {
     const note = data.mappingSource === "container"
-      ? "Состав модов из конфига; названия модов читаются внутри контейнера."
-      : "Выключатель убирает мод из конфига; изменения применяются рестартом.";
+      ? I18n.t("Состав модов из конфига; названия модов читаются внутри контейнера.")
+      : I18n.t("Выключатель убирает мод из конфига; изменения применяются рестартом.");
     html += `<p class="mods-note">${esc(note)}</p>`;
   }
   if (data.paired && (data.pairs || []).length) {
     // 1:1 — моды соответствуют Workshop-элементам по порядку
-    html += `<p class="mods-note">Моды соответствуют Workshop-элементам по порядку.</p>`;
+    html += I18n.msg`<p class="mods-note">Моды соответствуют Workshop-элементам по порядку.</p>`;
     html += data.pairs.map((p, i) => `
       <div class="mod-row">
         <span class="m-idx mono">${i + 1}</span>
@@ -1256,12 +1256,12 @@ function _renderMods(data) {
               ${copyValue(p.workshopId, { className: "wid mono", title: `Workshop ID: ${p.workshopId}` })}`
             : `<span class="wid mono">${esc(p.workshopId || "—")}</span>`}
         </span>
-        ${canManage ? _wsSwitch(p.workshopId, true, "Выключить мод в конфиге") : ""}
+        ${canManage ? _wsSwitch(p.workshopId, true, I18n.t("Выключить мод в конфиге")) : ""}
       </div>`).join("");
   } else {
     // Общий случай: один Workshop-элемент может содержать несколько модов
     if (ws.length) {
-      html += `<p class="mods-note">Workshop-элементы — ${ws.length}</p>`;
+      html += I18n.msg`<p class="mods-note">Workshop-элементы — ${ws.length}</p>`;
       if (ws.every((w) => !(w.mods || []).length)) {
         // у элементов нет модов на диске — компактная сетка строк вместо карточек
         html += `<div class="mods-grid">` + ws.map((w) => `
@@ -1270,7 +1270,7 @@ function _renderMods(data) {
               ? `<a class="m-t" href="${esc(w.url)}" target="_blank" rel="noopener" title="${esc(w.title || w.workshopId)}">${esc(w.title || w.workshopId)}</a>`
               : `<span class="m-t">${esc(w.title || w.workshopId)}</span>`}
             ${copyValue(w.workshopId, { className: "wid mono", text: shortWsId(w.workshopId), title: `Workshop ID: ${w.workshopId}` })}
-            ${canManage ? _wsSwitch(w.workshopId, true, "Выключить мод в конфиге") : ""}
+            ${canManage ? _wsSwitch(w.workshopId, true, I18n.t("Выключить мод в конфиге")) : ""}
           </div>`).join("") + `</div>`;
       } else {
         html += ws.map((w) => `
@@ -1283,7 +1283,7 @@ function _renderMods(data) {
                 </a>`
               : `<span class="wid mono">${esc(w.workshopId)}</span>`}
             ${w.title ? copyValue(w.workshopId, { className: "wid mono", title: `Workshop ID: ${w.workshopId}` }) : ""}
-            ${canManage ? _wsSwitch(w.workshopId, true, "Выключить мод в конфиге") : ""}
+            ${canManage ? _wsSwitch(w.workshopId, true, I18n.t("Выключить мод в конфиге")) : ""}
           </div>
           ${(w.mods || []).length
             ? `<div class="ws-mods">${w.mods.map((m) => copyValue(m, { className: "chip mono" })).join("")}</div>`
@@ -1292,26 +1292,26 @@ function _renderMods(data) {
       }
     }
     if (mods.length) {
-      html += `<p class="mods-note">Моды из конфига (Mods=) — ${mods.length}</p>`;
+      html += I18n.msg`<p class="mods-note">Моды из конфига (Mods=) — ${mods.length}</p>`;
       html += `<div class="mods-chips">${mods.map((m) => copyValue(m, { className: "chip mono" })).join("")}</div>`;
     }
     if ((data.unbound || []).length && data.mappingSource === "disk") {
-      html += `<p class="mods-note">Без привязки к Workshop — ${data.unbound.length}</p>`;
+      html += I18n.msg`<p class="mods-note">Без привязки к Workshop — ${data.unbound.length}</p>`;
       html += `<div class="mods-chips">${data.unbound.map((m) => copyValue(m, { className: "chip mono" })).join("")}</div>`;
     }
     if (!ws.length) {
-      html += `<p class="mods-note">Один Workshop-элемент может содержать несколько модов — сопоставление по конфигу невозможно.</p>`;
+      html += I18n.msg`<p class="mods-note">Один Workshop-элемент может содержать несколько модов — сопоставление по конфигу невозможно.</p>`;
     }
   }
   if (disabledList.length) {
-    html += `<p class="mods-note">Выключенные — ${disabledList.length}</p>`;
+    html += I18n.msg`<p class="mods-note">Выключенные — ${disabledList.length}</p>`;
     html += disabledList.map((d) => `
       <div class="mod-row disabled-row">
         ${copyValue((d.modIds || [])[0] || d.workshopId, { className: "m-name mono", text: d.title || d.workshopId, title: (d.modIds || []).join(", ") })}
         <span class="m-ws">
           ${copyValue(d.workshopId, { className: "wid mono", text: shortWsId(d.workshopId), title: `Workshop ID: ${d.workshopId}` })}
         </span>
-        ${canManage ? _wsSwitch(d.workshopId, false, "Включить мод обратно") : ""}
+        ${canManage ? _wsSwitch(d.workshopId, false, I18n.t("Включить мод обратно")) : ""}
       </div>`).join("");
   }
   body.dataset.state = "ok";
@@ -1346,7 +1346,7 @@ function renderModsFiltered() {
   const q = modsQuery.trim().toLowerCase();
   const matchQ = (...vals) => !q || vals.some((v) => String(v || "").toLowerCase().includes(q));
   const cmp = (a, b) => modsSort === "title"
-    ? String(a.title || a.workshopId || "").localeCompare(String(b.title || b.workshopId || ""), "ru")
+    ? String(a.title || a.workshopId || "").localeCompare(String(b.title || b.workshopId || ""), I18n.locale)
     : String(a.workshopId || "").localeCompare(String(b.workshopId || ""));
   const view = { ...data };
   let shown = null;
@@ -1379,7 +1379,7 @@ function renderModsFiltered() {
   if (note) {
     if (modsFilterActive() && shown && shown[0] !== shown[1]) {
       note.hidden = false;
-      note.textContent = `Показано ${shown[0]} из ${shown[1]}`;
+      note.textContent = I18n.msg`Показано ${shown[0]} из ${shown[1]}`;
     } else {
       note.hidden = true;
     }
@@ -1388,7 +1388,7 @@ function renderModsFiltered() {
   if (shown && shown[0] === 0 && !(view.mods || []).length) {
     const body = $("modsBody");
     body.dataset.state = "empty";
-    body.innerHTML = `<p class="list-empty"><strong>Ничего не найдено.</strong> Измените запрос или сбросьте фильтр.</p>`;
+    body.innerHTML = I18n.msg`<p class="list-empty"><strong>Ничего не найдено.</strong> Измените запрос или сбросьте фильтр.</p>`;
   }
 }
 
@@ -1407,9 +1407,9 @@ $("modsBody").addEventListener("change", async (e) => {
   sw.disabled = true;
   try {
     const res = await api("/api/mods-config", { method: "POST", body: { file, workshopId: ws, enable } });
-    if (res.ok === false || res.error) throw new Error(res.error || "не удалось изменить конфиг");
-    toast(enable ? "Мод включён в конфиг — заработает после рестарта"
-                 : "Мод выключен из конфига — заработает после рестарта", "ok");
+    if (res.ok === false || res.error) throw new Error(res.error || I18n.t("не удалось изменить конфиг"));
+    toast(enable ? I18n.t("Мод включён в конфиг — заработает после рестарта")
+                 : I18n.t("Мод выключен из конфига — заработает после рестарта"), "ok");
     refreshMods(file);
   } catch (err) {
     toast(err.message || String(err), "error");
@@ -1452,7 +1452,7 @@ function renderBackups(data) {
   const body = $("backupsBody");
   if (!data.ok) {
     setDomProperty($("backupsPager"), "hidden", true);
-    setListMessage(body, "error", `<p class="list-error">${esc(data.error || "нет данных")}</p>`);
+    setListMessage(body, "error", `<p class="list-error">${esc(data.error || I18n.t("нет данных"))}</p>`);
     return;
   }
   renderBkSchedule(data);
@@ -1470,17 +1470,17 @@ function renderBackupsPage() {
   setDomProperty($("backupsPager"), "hidden", items.length <= backupsPager.size);
   setDomProperty($("backupsPrev"), "disabled", backupsPager.page === 0);
   setDomProperty($("backupsNext"), "disabled", start + pageItems.length >= items.length);
-  setDomProperty($("backupsRange"), "textContent", items.length ? `${start + 1}–${start + pageItems.length} из ${items.length} · Страница ${backupsPager.page + 1}` : "");
+  setDomProperty($("backupsRange"), "textContent", items.length ? I18n.msg`${start + 1}–${start + pageItems.length} из ${items.length} · Страница ${backupsPager.page + 1}` : "");
   if (!items.length) {
-    setListMessage(body, "empty", `<p class="list-empty">Бэкапов ещё нет.</p>`);
+    setListMessage(body, "empty", I18n.msg`<p class="list-empty">Бэкапов ещё нет.</p>`);
     return;
   }
   syncRows(body, pageItems, (item) => item.name, (b) => {
     const template = document.createElement("template");
-    template.innerHTML = `
+    template.innerHTML = I18n.msg`
     <div class="backup-row">
       <span class="b-name mono" title="${esc(b.name)} — создан ${esc(b.mtime)}">${esc(b.name)}</span>
-      <span class="b-size mono" title="размер архива">${esc(b.sizeText || fmtBytes(b.size))}</span>
+      <span class="b-size mono" title="размер архива">${esc(b.size != null ? fmtBytes(b.size) : b.sizeText || "—")}</span>
       <span class="b-age mono" title="создан ${esc(b.mtime)}">${esc(relTime(b.mtime))}</span>
       <button class="icon-btn" data-b="dl" data-name="${esc(b.name)}" title="Скачать" aria-label="Скачать ${esc(b.name)}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
@@ -1498,7 +1498,7 @@ function renderBackupsPage() {
     return template.content.firstElementChild;
   }, (row, b) => {
     const size = row.querySelector(".b-size"), age = row.querySelector(".b-age"), name = row.querySelector(".b-name");
-    const sizeText = b.sizeText || fmtBytes(b.size), ageText = relTime(b.mtime), dateTitle = `создан ${b.mtime}`;
+    const sizeText = b.size != null ? fmtBytes(b.size) : b.sizeText || "—", ageText = relTime(b.mtime), dateTitle = I18n.msg`создан ${b.mtime}`;
     if (size.textContent !== sizeText) size.textContent = sizeText;
     if (age.textContent !== ageText) age.textContent = ageText;
     if (age.title !== dateTitle) age.title = dateTitle;
@@ -1582,21 +1582,21 @@ function renderBkJournalPage(journal, hasMore) {
   setDomProperty($("bkJournalRetry"), "hidden", true);
   updateBkJournalPager(journal.length);
   const start = bkJournal.page * bkJournal.size + 1;
-  setDomProperty($("bkJournalRange"), "textContent", journal.length ? `${start}–${start + journal.length - 1} · Страница ${bkJournal.page + 1}` : "");
+  setDomProperty($("bkJournalRange"), "textContent", journal.length ? I18n.msg`${start}–${start + journal.length - 1} · Страница ${bkJournal.page + 1}` : "");
   if (!journal.length) {
     setDomProperty(body.dataset, "state", "empty");
-    setStaticMarkup(body, `<p class="list-empty">Бэкапов ещё не было.</p>`);
+    setStaticMarkup(body, I18n.msg`<p class="list-empty">Бэкапов ещё не было.</p>`);
     return;
   }
   setDomProperty(body.dataset, "state", "ok");
-  const trig = { manual: "вручную", scheduled: "по расписанию" };
+  const trig = { manual: I18n.t("вручную"), scheduled: I18n.t("по расписанию") };
   setStaticMarkup(body, journal.map((j) => `
     <div class="journal-row${j.status === "error" ? " j-err" : ""}">
       <span class="j-date mono" title="${esc(j.ts)}">${esc((j.ts || "").slice(0, 16).replace("T", " "))}</span>
       <span class="j-trig">${esc(trig[j.trigger] || j.trigger || "")}</span>
       <span class="j-name mono" title="${esc(j.name || j.error || "")}">${esc(j.name || "—")}</span>
       <span class="j-size mono">${j.status === "error" ? "—" : esc(fmtBytes(j.size))}</span>
-      <span class="j-status" title="${esc(j.error || "")}">${j.status === "error" ? "ошибка" : "готово"}</span>
+      <span class="j-status" title="${esc(j.error || "")}">${j.status === "error" ? I18n.t("ошибка") : I18n.t("готово")}</span>
     </div>`).join(""));
 }
 
@@ -1610,7 +1610,7 @@ async function loadBkJournalPage() {
   try {
     const data = await api(`/api/backups/journal?limit=${size}&offset=${page * size}`);
     if (request !== bkJournal.request) return;
-    if (!data.ok) throw new Error(data.error || "Не удалось загрузить журнал");
+    if (!data.ok) throw new Error(data.error || I18n.t("Не удалось загрузить журнал"));
     bkJournal.loading = false;
     const items = data.items || [];
     if (!items.length && page > 0) {
@@ -1628,7 +1628,7 @@ async function loadBkJournalPage() {
     bkJournal.size = bkJournal.shownSize;
     $("bkJournalPageSize").value = String(bkJournal.size);
     updateBkJournalPager($("bkJournalBody").querySelectorAll(".journal-row").length);
-    $("bkJournalError").textContent = `${error.message || error}. Повторите загрузку.`;
+    $("bkJournalError").textContent = I18n.msg`${error.message || error}. Повторите загрузку.`;
     $("bkJournalError").hidden = false;
     $("bkJournalRetry").hidden = false;
   }
@@ -1650,17 +1650,17 @@ $("bkJournalRetry").addEventListener("click", () => {
 
 function confirmRestore(name) {
   modal.open({
-    title: "Восстановление из бэкапа",
+    title: I18n.t("Восстановление из бэкапа"),
     danger: true,
-    okLabel: "Восстановить",
-    bodyHTML: `
+    okLabel: I18n.t("Восстановить"),
+    bodyHTML: I18n.msg`
       <p>Текущий мир и конфиги будут <b>полностью заменены</b> содержимым архива
       <span class="mono">${esc(name)}</span>.</p>
       <p>Сервер будет остановлен через RCON с предупреждением игрокам, затем запущен снова.</p>
       <label class="check"><input type="checkbox" id="restoreAck" /> Я понимаю, что текущее состояние мира будет потеряно</label>
     `,
     onConfirm: async () => {
-      if (!$("restoreAck") || !$("restoreAck").checked) throw new Error("Подтвердите замену мира флажком");
+      if (!$("restoreAck") || !$("restoreAck").checked) throw new Error(I18n.t("Подтвердите замену мира флажком"));
       return action("restore", { name });
     },
   });
@@ -1670,14 +1670,14 @@ function confirmRestore(name) {
 
 function confirmDeleteBackup(name) {
   modal.open({
-    title: "Удалить бэкап?",
+    title: I18n.t("Удалить бэкап?"),
     danger: true,
-    okLabel: "Удалить",
-    bodyHTML: `<p>Архив <span class="mono">${esc(name)}</span> будет удалён без возможности восстановления.</p>`,
+    okLabel: I18n.t("Удалить"),
+    bodyHTML: I18n.msg`<p>Архив <span class="mono">${esc(name)}</span> будет удалён без возможности восстановления.</p>`,
     onConfirm: async () => {
       const res = await api(`/api/backup?name=${encodeURIComponent(name)}`, { method: "DELETE" });
       if (res.error) throw new Error(res.error);
-      toast("Бэкап удалён", "ok");
+      toast(I18n.t("Бэкап удалён"), "ok");
       refreshBackups();
     },
   });
@@ -1685,9 +1685,9 @@ function confirmDeleteBackup(name) {
 
 function openBackupModal() {
   modal.open({
-    title: "Создать бэкап",
-    okLabel: "Создать",
-    bodyHTML: `
+    title: I18n.t("Создать бэкап"),
+    okLabel: I18n.t("Создать"),
+    bodyHTML: I18n.msg`
       <p>Архив собирается из каталога данных сервера (мир, конфиги, whitelist). Логи в бэкап не входят.</p>
       <label class="check"><input type="checkbox" id="bkStop" /> Остановить сервер на время бэкапа (надёжнее для целостности)</label>
       <p>Без остановки пульт сначала отправит команду <span class="mono">save</span> через RCON.</p>
@@ -1703,11 +1703,11 @@ $("btnBackup").addEventListener("click", openBackupModal);
 /* ───────────────────────── события ───────────────────────── */
 
 const EVENT_LABELS = {
-  start: "Запуск", stop: "Остановка", restart: "Рестарт", backup: "Бэкап",
-  restore: "Восстановление", update: "Обновление", "update-check": "Проверка",
-  auto: "Автообновление", console: "Консоль", warn: "Внимание", delete: "Удаление",
-  "rcon-error": "RCON", error: "Ошибка", docker: "Docker", "backup-delete": "Бэкап",
-  mods: "Моды",
+  start: I18n.t("Запуск"), stop: I18n.t("Остановка"), restart: I18n.t("Рестарт"), backup: I18n.t("Бэкап"),
+  restore: I18n.t("Восстановление"), update: I18n.t("Обновление"), "update-check": I18n.t("Проверка"),
+  auto: I18n.t("Автообновление"), console: I18n.t("Консоль"), warn: I18n.t("Внимание"), delete: I18n.t("Удаление"),
+  "rcon-error": "RCON", error: I18n.t("Ошибка"), docker: "Docker", "backup-delete": I18n.t("Бэкап"),
+  mods: I18n.t("Моды"),
 };
 
 /* фильтры страницы событий: категории группируют типы журнала */
@@ -1727,7 +1727,7 @@ function renderEvents(data) {
   if (!data.ok) {
     setDomProperty($("eventsPager"), "hidden", true);
     setDomProperty(body.dataset, "state", "error");
-    setStaticMarkup(body, `<p class="list-error">${esc(data.error || "нет данных")}</p>`);
+    setStaticMarkup(body, `<p class="list-error">${esc(data.error || I18n.t("нет данных"))}</p>`);
     return;
   }
   const items = data.items || [];
@@ -1742,12 +1742,12 @@ function renderEvents(data) {
   setDomProperty($("eventsPrev"), "disabled", eventsPager.page === 0);
   setDomProperty($("eventsNext"), "disabled", offset + eventsPager.size >= visible.length);
   setDomProperty($("eventsRange"), "textContent", visible.length
-    ? `${offset + 1}–${offset + pageItems.length} из ${visible.length} · Страница ${eventsPager.page + 1}` : "");
+    ? I18n.msg`${offset + 1}–${offset + pageItems.length} из ${visible.length} · Страница ${eventsPager.page + 1}` : "");
   if (!visible.length) {
     setDomProperty(body.dataset, "state", "empty");
     setStaticMarkup(body, eventsFilter === "all"
-      ? `<p class="list-empty">Событий ещё нет.</p>`
-      : `<p class="list-empty">Нет событий в этой категории.</p>`);
+      ? I18n.msg`<p class="list-empty">Событий ещё нет.</p>`
+      : I18n.msg`<p class="list-empty">Нет событий в этой категории.</p>`);
     return;
   }
   setDomProperty(body.dataset, "state", "ok");
@@ -1761,7 +1761,7 @@ function renderEvents(data) {
     const key = isNaN(d) ? "" : d.toDateString();
     if (key && key !== lastDay) {
       lastDay = key;
-      const label = sameDay(d, today) ? "Сегодня" : sameDay(d, yest) ? "Вчера" : dayFmt.format(d);
+      const label = sameDay(d, today) ? I18n.t("Сегодня") : sameDay(d, yest) ? I18n.t("Вчера") : dayFmt.format(d);
       html += `<div class="event-day">${esc(label)}</div>`;
     }
     html += `<div class="event-row" data-kind="${esc(ev.type)}">
@@ -1804,7 +1804,7 @@ function renderRecent(items) {
   const slice = (items || []).slice(0, 5);
   if (!slice.length) {
     setDomProperty(body.dataset, "state", "empty");
-    setStaticMarkup(body, `<p class="list-empty">Событий ещё нет.</p>`);
+    setStaticMarkup(body, I18n.msg`<p class="list-empty">Событий ещё нет.</p>`);
     return;
   }
   setDomProperty(body.dataset, "state", "ok");
@@ -1840,10 +1840,10 @@ $("consoleForm").addEventListener("submit", async (e) => {
   consoleAppend(`> ${cmd}`, "c-dim");
   try {
     const res = await api("/api/rcon", { method: "POST", body: { command: cmd } });
-    if (res.error) consoleAppend(`Ошибка: ${res.error}`, "c-err");
-    else consoleAppend(res.output || "(без ответа)");
+    if (res.error) consoleAppend(I18n.msg`Ошибка: ${res.error}`, "c-err");
+    else consoleAppend(res.output || I18n.t("(без ответа)"));
   } catch (err) {
-    consoleAppend(`Ошибка: ${err.message || err}`, "c-err");
+    consoleAppend(I18n.msg`Ошибка: ${err.message || err}`, "c-err");
   }
 });
 
@@ -1871,9 +1871,9 @@ document.querySelectorAll("#quickCmds .chip").forEach((chip) => {
       $("consoleForm").requestSubmit();
     } else if (chip.dataset.act === "broadcast") {
       modal.open({
-        title: "Объявление игрокам",
-        okLabel: "Отправить",
-        bodyHTML: `
+        title: I18n.t("Объявление игрокам"),
+        okLabel: I18n.t("Отправить"),
+        bodyHTML: I18n.msg`
           <p>Текст уйдёт в игровой чат командой <span class="mono">servermsg</span>.</p>
           <label class="field">Текст объявления
             <input type="text" id="bcText" maxlength="200" style="height:38px;color:var(--ink);background:var(--bg-deep);border:1px solid var(--line-strong);border-radius:8px;padding:0 12px;" />
@@ -1881,7 +1881,7 @@ document.querySelectorAll("#quickCmds .chip").forEach((chip) => {
         `,
         onConfirm: async () => {
           const text = ($("bcText")?.value || "").trim();
-          if (!text) throw new Error("Введите текст объявления");
+          if (!text) throw new Error(I18n.t("Введите текст объявления"));
           const safe = text.replace(/"/g, "'");
           $("consoleInput").value = `servermsg "${safe}"`;
           $("consoleForm").requestSubmit();
@@ -1919,13 +1919,13 @@ function parseLogs(text) {
 function renderLogs(data) {
   if (S.overview && S.overview.mode === "remote") {
     S.logsText = null;
-    $("logsOut").textContent = "Логи контейнера доступны только при запуске пульта на хосте сервера.";
+    $("logsOut").textContent = I18n.t("Логи контейнера доступны только при запуске пульта на хосте сервера.");
     return;
   }
   if (!data.ok) {
-    $("logsError").textContent = (data.error || "Логи недоступны") + (S.logsUpdatedAt ? ` · последние данные: ${fmtTime(S.logsUpdatedAt)}` : "");
+    $("logsError").textContent = (data.error || I18n.t("Логи недоступны")) + (S.logsUpdatedAt ? I18n.msg` · последние данные: ${fmtTime(S.logsUpdatedAt)}` : "");
     $("logsError").hidden = false;
-    if (!S.logsUpdatedAt) $("logsOut").textContent = "Нет данных логов";
+    if (!S.logsUpdatedAt) $("logsOut").textContent = I18n.t("Нет данных логов");
     return;
   }
   $("logsError").hidden = true;
@@ -1950,7 +1950,7 @@ function renderLogsFiltered() {
     (!S.logsSince || Date.parse(l.raw.slice(0, l.raw.indexOf(" "))) >= S.logsSince) &&
     (!S.logsUntil || Date.parse(l.raw.slice(0, l.raw.indexOf(" "))) <= S.logsUntil));
   $("logsScope").hidden = !S.logsSince;
-  $("logsPeriod").textContent = S.logsSince ? `Логи операции${S.logsProfile ? ` · ${S.logsProfile}` : ""} · ${fmtTime(S.logsSince)}${S.logsUntil ? ` — ${fmtTime(S.logsUntil)}` : " · продолжается"}` : "";
+  $("logsPeriod").textContent = S.logsSince ? I18n.msg`Логи операции${S.logsProfile ? ` · ${S.logsProfile}` : ""} · ${fmtTime(S.logsSince)}${S.logsUntil ? ` — ${fmtTime(S.logsUntil)}` : I18n.t(" · продолжается")}` : "";
   // подряд идущий спам (WARN с разными счётчиками/секундами) сжимается в одну строку с бейджем ×N:
   // ключ игнорирует ведущее время и числовые ряды ≥3 цифр
   const merged = [];
@@ -1987,7 +1987,7 @@ $("logLevels").addEventListener("click", (e) => {
 
 /* ───────────────────────── действия и подтверждения ───────────────────────── */
 
-const WARN_OPTIONS = `
+const WARN_OPTIONS = I18n.msg`
   <label class="field">Предупредить игроков
     <select id="warnSel">
       <option value="300" selected>за 5 минут</option>
@@ -2008,7 +2008,7 @@ $("btnCancelMods").addEventListener("click", async () => {
       S.op.active.cancelRequested = true;
       S.op.active.cancellable = false;
     }
-    toast("Запрошена отмена автообновления модов", "ok");
+    toast(I18n.t("Запрошена отмена автообновления модов"), "ok");
   } catch (e) {
     toast(e.message || String(e), "error");
   } finally {
@@ -2017,18 +2017,18 @@ $("btnCancelMods").addEventListener("click", async () => {
 });
 $("btnStop").addEventListener("click", () => {
   modal.open({
-    title: "Остановить сервер?",
+    title: I18n.t("Остановить сервер?"),
     danger: true,
-    okLabel: "Остановить",
-    bodyHTML: `<p>Мир будет сохранён (RCON <span class="mono">quit</span>), затем контейнер остановится.</p>${WARN_OPTIONS}`,
+    okLabel: I18n.t("Остановить"),
+    bodyHTML: I18n.msg`<p>Мир будет сохранён (RCON <span class="mono">quit</span>), затем контейнер остановится.</p>${WARN_OPTIONS}`,
     onConfirm: async () => action("stop", { warnSeconds: Number($("warnSel").value) }),
   });
 });
 $("btnRestart").addEventListener("click", () => {
   modal.open({
-    title: "Перезапустить сервер?",
-    okLabel: "Перезапустить",
-    bodyHTML: `<p>Мир будет сохранён, контейнер остановится и запустится снова.</p>${WARN_OPTIONS}`,
+    title: I18n.t("Перезапустить сервер?"),
+    okLabel: I18n.t("Перезапустить"),
+    bodyHTML: I18n.msg`<p>Мир будет сохранён, контейнер остановится и запустится снова.</p>${WARN_OPTIONS}`,
     onConfirm: async () => action("restart", { warnSeconds: Number($("warnSel").value) }),
   });
 });
@@ -2039,16 +2039,16 @@ $("btnSaveWorld").addEventListener("click", async () => {
 $("btnCheckUpd").addEventListener("click", async () => {
   if (S.actionPending || S.op?.active) return;
   S.actionPending = true; updateButtons();
-  showLocalResult("pending", "Проверка обновлений — выполняется", "Сверяем образ. Дождитесь ответа; отмена этой проверки не поддерживается.");
+  showLocalResult("pending", I18n.t("Проверка обновлений — выполняется"), I18n.t("Сверяем образ. Дождитесь ответа; отмена этой проверки не поддерживается."));
   try {
     const res = await api("/api/action", { method: "POST", body: { op: "check-update" }, timeout: 25000 });
-    if (res.error || res.ok === false) throw new Error(res.error || "Проверка не принята");
+    if (res.error || res.ok === false) throw new Error(res.error || I18n.t("Проверка не принята"));
     const c = res.check || {};
     if (c.error) throw new Error(c.error);
-    showLocalResult("ok", "Проверка обновлений — готово", c.available ? "Доступно обновление образа. Откройте обслуживание, чтобы проверить версию и применить обновление." : "Обновлений нет — образ актуален.");
-    if (c.available) toast("Доступно обновление образа", "ok");
+    showLocalResult("ok", I18n.t("Проверка обновлений — готово"), c.available ? I18n.t("Доступно обновление образа. Откройте обслуживание, чтобы проверить версию и применить обновление.") : I18n.t("Обновлений нет — образ актуален."));
+    if (c.available) toast(I18n.t("Доступно обновление образа"), "ok");
     else if (c.error) toast(c.error, "error");
-    else toast("Обновлений нет — образ актуален", "ok");
+    else toast(I18n.t("Обновлений нет — образ актуален"), "ok");
     refreshOverview();
   } catch (e) {
     showActionError("check-update", e);
@@ -2059,9 +2059,9 @@ $("btnCheckUpd").addEventListener("click", async () => {
 });
 $("btnApplyUpd").addEventListener("click", () => {
   modal.open({
-    title: "Обновить сервер?",
-    okLabel: "Обновить",
-    bodyHTML: `
+    title: I18n.t("Обновить сервер?"),
+    okLabel: I18n.t("Обновить"),
+    bodyHTML: I18n.msg`
       <p>Новый образ скачается заранее, затем при несовпадении digest сервер
       сохранит мир, предупредит игроков и перезапустится на новой версии.</p>
       ${WARN_OPTIONS}
@@ -2075,12 +2075,12 @@ $("btnApplyUpd").addEventListener("click", () => {
 $("btnCheckMods").addEventListener("click", async () => {
   if (S.actionPending || S.op?.active) return;
   S.actionPending = true; updateButtons();
-  showLocalResult("pending", "Проверка модов — выполняется", "Ожидаем ответ RCON; отмена этой проверки не поддерживается.");
+  showLocalResult("pending", I18n.t("Проверка модов — выполняется"), I18n.t("Ожидаем ответ RCON; отмена этой проверки не поддерживается."));
   try {
     const res = await api("/api/action", { method: "POST", body: { op: "check-mods-update" } });
-    if (res.error || res.ok === false) throw new Error(res.error || "Проверка не принята");
-    showLocalResult("ok", "Проверка модов — запрос принят", "Результат сервера появится в разделе «Моды». Принимаемый запрос ещё не подтверждает актуальность пакетов.");
-    toast("Проверка модов запущена — результат появится в карточке", "ok");
+    if (res.error || res.ok === false) throw new Error(res.error || I18n.t("Проверка не принята"));
+    showLocalResult("ok", I18n.t("Проверка модов — запрос принят"), I18n.t("Результат сервера появится в разделе «Моды». Принимаемый запрос ещё не подтверждает актуальность пакетов."));
+    toast(I18n.t("Проверка модов запущена — результат появится в карточке"), "ok");
   } catch (e) {
     showActionError("check-mods-update", e);
     toast(e.message || String(e), "error");
@@ -2090,9 +2090,9 @@ $("btnCheckMods").addEventListener("click", async () => {
 });
 $("btnApplyMods").addEventListener("click", () => {
   modal.open({
-    title: "Перезапустить для обновления модов?",
-    okLabel: "Перезапустить",
-    bodyHTML: `
+    title: I18n.t("Перезапустить для обновления модов?"),
+    okLabel: I18n.t("Перезапустить"),
+    bodyHTML: I18n.msg`
       <p>Сервер предупредит игроков, сохранит мир и перезапустится — при старте
       Steam докачает свежие версии модов из Workshop.</p>
       ${WARN_OPTIONS}
@@ -2104,9 +2104,9 @@ $("btnApplyMods").addEventListener("click", () => {
 /* рестарт после правок состава модов */
 $("btnModsRestart").addEventListener("click", () => {
   modal.open({
-    title: "Перезапустить сервер?",
-    okLabel: "Перезапустить",
-    bodyHTML: `
+    title: I18n.t("Перезапустить сервер?"),
+    okLabel: I18n.t("Перезапустить"),
+    bodyHTML: I18n.msg`
       <p>Состав модов, включённый в конфиге, заработает после рестарта: игрокам
       придёт предупреждение, мир сохранится (RCON <span class="mono">quit</span>).</p>
       ${WARN_OPTIONS}
@@ -2118,11 +2118,11 @@ $("btnModsRestart").addEventListener("click", () => {
 /* ───────────────────────── настройки автообновления ───────────────────────── */
 
 const SETTING_GROUPS = {
-  autoUpdate: { ids: ["autoSwitch", "autoInterval", "autoWarn", "buBackup"], card: "sec-updates", title: "Автообновление образа" },
+  autoUpdate: { ids: ["autoSwitch", "autoInterval", "autoWarn", "buBackup"], card: "sec-updates", title: I18n.t("Автообновление образа") },
   watchdog: { ids: ["wdSwitch", "wdThreshold", "wdGracePeriod", "wdRestart"], card: "sec-watchdog", title: "Watchdog RCON" },
-  modsUpdate: { ids: ["modsAutoSwitch", "modsAutoInterval", "modsAutoAction", "modsAutoWarn"], card: "sec-modscheck", title: "Автообновление модов" },
+  modsUpdate: { ids: ["modsAutoSwitch", "modsAutoInterval", "modsAutoAction", "modsAutoWarn"], card: "sec-modscheck", title: I18n.t("Автообновление модов") },
   telegram: { ids: ["tgSwitch", "tgToken", "tgChat", "tgOps", "tgBackup", "tgUpdate", "tgProblems"], card: "sec-telegram", title: "Telegram" },
-  autoBackup: { ids: ["bkAutoSwitch", "bkAutoTime", "bkAutoKeep", "bkAutoStop"], card: "sec-bkauto", title: "Расписание бэкапов" },
+  autoBackup: { ids: ["bkAutoSwitch", "bkAutoTime", "bkAutoKeep", "bkAutoStop"], card: "sec-bkauto", title: I18n.t("Расписание бэкапов") },
 };
 const settingStates = new Map();
 document.addEventListener("pz:before-update", (event) => {
@@ -2168,7 +2168,7 @@ function settingsFeedback(group, state, message) {
   if (!feedback) {
     feedback = document.createElement("div");
     feedback.className = "settings-feedback";
-    feedback.innerHTML = '<p role="status"></p><button type="button" class="btn small" hidden>Повторить сохранение</button>';
+    feedback.innerHTML = I18n.html('<p role="status"></p><button type="button" class="btn small" hidden>Повторить сохранение</button>');
     feedback.querySelector("button").addEventListener("click", () => group === "autoBackup" ? pushBkSettings() : pushSettings(group));
     card.appendChild(feedback);
   }
@@ -2182,24 +2182,24 @@ function saveSettingsGroup(group, body) {
   const generation = ++state.generation;
   state.pending++;
   state.dirty = true;
-  settingsFeedback(group, "pending", `${SETTING_GROUPS[group].title}: сохраняется…`);
+  settingsFeedback(group, "pending", I18n.msg`${SETTING_GROUPS[group].title}: сохраняется…`);
   const run = async () => {
     try {
       const res = await api("/api/settings", { method: "POST", body });
-      if (res.error || res.ok === false) throw new Error(res.error || "Сохранение не принято");
+      if (res.error || res.ok === false) throw new Error(res.error || I18n.t("Сохранение не принято"));
       // Only the latest local edit can release the fields or clear the secret.
       if (generation === state.generation) {
         if (group === "telegram" && $("tgToken").value.trim() === body.telegram.botToken) $("tgToken").value = "";
         state.dirty = false;
         if (res.settings) acceptSettings(res.settings);
         settingsFeedback(group, "ok", group === "telegram" && body.telegram.botToken
-          ? "Токен сохранён. Введите новый, чтобы заменить."
-          : `${SETTING_GROUPS[group].title}: сохранено`);
+          ? I18n.t("Токен сохранён. Введите новый, чтобы заменить.")
+          : I18n.msg`${SETTING_GROUPS[group].title}: сохранено`);
       }
       return true;
     } catch (e) {
       if (generation === state.generation) {
-        settingsFeedback(group, "error", `${SETTING_GROUPS[group].title}: ${e.name === "AbortError" ? "время ожидания истекло" : e.message || e}. Ввод сохранён — повторите сохранение.`);
+        settingsFeedback(group, "error", I18n.msg`${SETTING_GROUPS[group].title}: ${e.name === "AbortError" ? I18n.t("время ожидания истекло") : e.message || e}. Ввод сохранён — повторите сохранение.`);
       }
       return false;
     } finally {
@@ -2309,10 +2309,10 @@ $("btnTgChats").addEventListener("click", async () => {
     const chats = res.chats || [];
     body.hidden = false;
     if (!chats.length) {
-      body.innerHTML = `<p class="hint">Пока не нашёл ни одного чата: напишите что-нибудь в нужный чат (в группе — любое сообщение боту) и нажмите кнопку ещё раз. Обновления Telegram хранит сутки.</p>`;
+      body.innerHTML = I18n.msg`<p class="hint">Пока не нашёл ни одного чата: напишите что-нибудь в нужный чат (в группе — любое сообщение боту) и нажмите кнопку ещё раз. Обновления Telegram хранит сутки.</p>`;
       return;
     }
-    body.innerHTML = chats.map((c) => `
+    body.innerHTML = chats.map((c) => I18n.msg`
       <button type="button" class="chat-chip" data-id="${esc(c.id)}" title="Подставить в Chat ID">
         <span>${esc(c.title)}</span><span class="chat-id mono">${esc(c.id)}</span>
       </button>`).join("");
@@ -2338,7 +2338,7 @@ $("btnTgTest").addEventListener("click", async () => {
     if (!await pushSettings()) return;
     const res = await api("/api/notify-test", { method: "POST", body: {} });
     if (res.error) throw new Error(res.error);
-    toast("Отправлено — проверьте чат Telegram", "ok");
+    toast(I18n.t("Отправлено — проверьте чат Telegram"), "ok");
   } catch (e) {
     toast(e.message || String(e), "error");
   } finally {
@@ -2360,7 +2360,7 @@ function applyOverview(o) {
   connFailStreak = 0;
   $("connBanner").hidden = true;
   if (consoleBootLine) {
-    consoleBootLine.textContent = "Консоль готова — команды уходят на сервер по RCON.";
+    consoleBootLine.textContent = I18n.t("Консоль готова — команды уходят на сервер по RCON.");
     consoleBootLine = null;
   }
   S.lastDataOk = Date.now();
@@ -2401,7 +2401,7 @@ async function refreshLogs() {
     const data = await api("/api/logs" + (params.size ? `?${params}` : ""));
     if (since === S.logsSince && until === S.logsUntil) applyLogs(data);
   } catch (e) {
-    if (since === S.logsSince && until === S.logsUntil) applyLogs({ ok: false, error: "Не удалось получить логи. Повторное подключение идёт автоматически." });
+    if (since === S.logsSince && until === S.logsUntil) applyLogs({ ok: false, error: I18n.t("Не удалось получить логи. Повторное подключение идёт автоматически.") });
   }
 }
 
@@ -2488,14 +2488,14 @@ mobileLayout.addEventListener("change", adaptConfigFlow);
 /* ───────────────────── роутер страниц ───────────────────── */
 
 const VIEWS = {
-  overview: "Обзор",
-  players: "Игроки",
-  mods: "Моды",
-  settings: "Настройки сервера",
-  maintenance: "Обслуживание",
-  backups: "Бэкапы",
-  events: "События",
-  console: "Консоль",
+  overview: I18n.t("Обзор"),
+  players: I18n.t("Игроки"),
+  mods: I18n.t("Моды"),
+  settings: I18n.t("Настройки сервера"),
+  maintenance: I18n.t("Обслуживание"),
+  backups: I18n.t("Бэкапы"),
+  events: I18n.t("События"),
+  console: I18n.t("Консоль"),
 };
 $("sec-status").after($("editorAttention"));
 for (const route of ["settings", "mods"]) {
@@ -2507,7 +2507,7 @@ for (const route of ["settings", "mods"]) {
 for (const [route, label] of Object.entries(VIEWS)) {
   const view = $("view-" + route), heading = document.createElement("header");
   heading.className = "page-heading";
-  heading.innerHTML = `<h1 id="page-${route}">${esc(label)}</h1>` + (route === "overview" ? '<div class="page-actions"><a class="btn" href="#/settings">Редактировать настройки</a><a class="btn" href="#/mods">Изменить состав модов</a></div>' : "");
+  heading.innerHTML = `<h1 id="page-${route}">${esc(label)}</h1>` + (route === "overview" ? I18n.html('<div class="page-actions"><a class="btn" href="#/settings">Редактировать настройки</a><a class="btn" href="#/mods">Изменить состав модов</a></div>') : "");
   view.prepend(heading);
   view.setAttribute("aria-labelledby", "page-" + route);
 }
@@ -2536,7 +2536,7 @@ function applyRoute() {
   });
   if (!["overview", "settings", "mods"].includes(r)) $("navMore").setAttribute("aria-current", "page");
   else $("navMore").removeAttribute("aria-current");
-  document.title = `${VIEWS[r]} · PZ Пульт`;
+  document.title = I18n.msg`${VIEWS[r]} · PZ Пульт`;
   adaptConfigFlow();
   window.scrollTo(0, 0);
   const view = $("view-" + r);
@@ -2562,29 +2562,29 @@ const commands = (() => {
   const confirmedAction = id => async () => {
     await navigate("overview");
     const button = $(id);
-    if (button.disabled) { toast("Действие сейчас недоступно. Проверьте состояние сервера.", "error"); button.closest("section").focus(); return; }
+    if (button.disabled) { toast(I18n.t("Действие сейчас недоступно. Проверьте состояние сервера."), "error"); button.closest("section").focus(); return; }
     button.focus(); button.click();
   };
   const entries = () => [
-    ...Object.entries(VIEWS).map(([route, label]) => ({ label: "Открыть: " + label, hint: "Раздел пульта", run: () => navigate(route) })),
-    { label: "Найти настройку сервера", hint: "По названию или техническому ключу", reason: !window.ConfigEditor?.file ? "Выберите доступный профиль" : "", run: settings("server") },
-    { label: "Найти настройку мира", hint: "Параметры Sandbox", reason: !window.ConfigEditor?.file ? "Выберите доступный профиль" : "", run: settings("world") },
-    { label: "Найти мод в порядке загрузки", hint: "ModID или название; без изменения порядка", reason: !window.ConfigEditor?.file ? "Выберите доступный профиль" : "", run: async () => { await navigate("mods"); window.ConfigEditor.focusModOrder(); } },
-    { label: "Найти строку в логах", hint: "Перейти к фильтру логов", reason: $("logsFilter").disabled ? "Логи контейнера недоступны в demo и remote" : "", run: async () => { await navigate("console"); $("logsFilter").focus(); } },
-    { label: "Посмотреть текущую операцию", hint: "Фаза, время и переход к логам", reason: !S.op?.active ? "Сейчас нет активной операции" : "", run: () => { $("opbar").tabIndex = -1; $("opbar").focus(); } },
-    { label: "Скопировать имя профиля", hint: "Имя файла конфигурации", reason: !window.ConfigEditor?.file ? "Выберите доступный профиль" : "", run: () => copyText(window.ConfigEditor.file) },
-    { label: "Скопировать digest образа", hint: "Полный идентификатор Docker", reason: !$("updLocalCopy").dataset.copy ? "Идентификатор ещё не получен" : "", run: () => copyText($("updLocalCopy").dataset.copy, $("updLocalCopy")) },
-    { label: "Остановить сервер…", hint: "Открыть подтверждение с предупреждением игроков", reason: $("btnStop").disabled ? "Недоступно при операции, в demo/remote или без работающего сервера" : "", run: confirmedAction("btnStop") },
-    { label: "Перезапустить сервер…", hint: "Открыть подтверждение с предупреждением игроков", reason: $("btnRestart").disabled ? "Недоступно при операции, в demo/remote или без работающего сервера" : "", run: confirmedAction("btnRestart") },
-    { label: "Восстановить мир из бэкапа…", hint: "Открыть список архивов и выбрать версию для подтверждения", run: () => navigate("backups") },
+    ...Object.entries(VIEWS).map(([route, label]) => ({ label: I18n.t("Открыть: ") + label, hint: I18n.t("Раздел пульта"), run: () => navigate(route) })),
+    { label: I18n.t("Найти настройку сервера"), hint: I18n.t("По названию или техническому ключу"), reason: !window.ConfigEditor?.file ? I18n.t("Выберите доступный профиль") : "", run: settings("server") },
+    { label: I18n.t("Найти настройку мира"), hint: I18n.t("Параметры Sandbox"), reason: !window.ConfigEditor?.file ? I18n.t("Выберите доступный профиль") : "", run: settings("world") },
+    { label: I18n.t("Найти мод в порядке загрузки"), hint: I18n.t("ModID или название; без изменения порядка"), reason: !window.ConfigEditor?.file ? I18n.t("Выберите доступный профиль") : "", run: async () => { await navigate("mods"); window.ConfigEditor.focusModOrder(); } },
+    { label: I18n.t("Найти строку в логах"), hint: I18n.t("Перейти к фильтру логов"), reason: $("logsFilter").disabled ? I18n.t("Логи контейнера недоступны в demo и remote") : "", run: async () => { await navigate("console"); $("logsFilter").focus(); } },
+    { label: I18n.t("Посмотреть текущую операцию"), hint: I18n.t("Фаза, время и переход к логам"), reason: !S.op?.active ? I18n.t("Сейчас нет активной операции") : "", run: () => { $("opbar").tabIndex = -1; $("opbar").focus(); } },
+    { label: I18n.t("Скопировать имя профиля"), hint: I18n.t("Имя файла конфигурации"), reason: !window.ConfigEditor?.file ? I18n.t("Выберите доступный профиль") : "", run: () => copyText(window.ConfigEditor.file) },
+    { label: I18n.t("Скопировать digest образа"), hint: I18n.t("Полный идентификатор Docker"), reason: !$("updLocalCopy").dataset.copy ? I18n.t("Идентификатор ещё не получен") : "", run: () => copyText($("updLocalCopy").dataset.copy, $("updLocalCopy")) },
+    { label: I18n.t("Остановить сервер…"), hint: I18n.t("Открыть подтверждение с предупреждением игроков"), reason: $("btnStop").disabled ? I18n.t("Недоступно при операции, в demo/remote или без работающего сервера") : "", run: confirmedAction("btnStop") },
+    { label: I18n.t("Перезапустить сервер…"), hint: I18n.t("Открыть подтверждение с предупреждением игроков"), reason: $("btnRestart").disabled ? I18n.t("Недоступно при операции, в demo/remote или без работающего сервера") : "", run: confirmedAction("btnRestart") },
+    { label: I18n.t("Восстановить мир из бэкапа…"), hint: I18n.t("Открыть список архивов и выбрать версию для подтверждения"), run: () => navigate("backups") },
   ];
   function render() {
-    const query = search.value.trim().toLocaleLowerCase("ru");
-    matches = entries().filter(item => (item.label + " " + item.hint).toLocaleLowerCase("ru").includes(query));
-    results.innerHTML = matches.map((item, index) => `<button type="button" class="command-item" data-command="${index}" ${item.reason ? "disabled" : ""}><strong>${esc(item.label)}</strong><span>${esc(item.reason || item.hint)}</span></button>`).join("") || '<div class="command-empty"><p class="hint">Команда не найдена. Попробуйте название раздела, «настройку», «мод» или «логи».</p><button type="button" class="btn" data-command-clear>Сбросить поиск</button></div>';
+    const query = search.value.trim().toLocaleLowerCase(I18n.locale);
+    matches = entries().filter(item => (item.label + " " + item.hint).toLocaleLowerCase(I18n.locale).includes(query));
+    results.innerHTML = matches.map((item, index) => `<button type="button" class="command-item" data-command="${index}" ${item.reason ? "disabled" : ""}><strong>${esc(item.label)}</strong><span>${esc(item.reason || item.hint)}</span></button>`).join("") || I18n.html('<div class="command-empty"><p class="hint">Команда не найдена. Попробуйте название раздела, «настройку», «мод» или «логи».</p><button type="button" class="btn" data-command-clear>Сбросить поиск</button></div>');
     results.scrollTop = 0;
     const available = matches.filter(item => !item.reason).length;
-    $("commandCount").textContent = matches.length ? `Найдено: ${matches.length} · Доступно: ${available}` : "Команда не найдена";
+    $("commandCount").textContent = matches.length ? I18n.msg`Найдено: ${matches.length} · Доступно: ${available}` : I18n.t("Команда не найдена");
   }
   function close(restore = true) {
     dialog.close();
@@ -2696,7 +2696,7 @@ async function boot() {
     updateConnectionWarning();
     updateOperationElapsed();
   }, 5000);
-  consoleBootLine = consoleAppend("Пульт подключается к серверу…", "c-dim");
+  consoleBootLine = consoleAppend(I18n.t("Пульт подключается к серверу…"), "c-dim");
   applyRoute();
   if (location.protocol === "file:" || new URLSearchParams(location.search).get("demo") === "1") {
     enterDemo();
@@ -2708,7 +2708,7 @@ async function boot() {
   } catch (e) {
     connFailStreak = Math.max(connFailStreak, 2);
     updateConnectionWarning();
-    $("connBanner").textContent = "Нет связи с пультом. Последние данные сохраняются; повторное подключение идёт автоматически.";
+    $("connBanner").textContent = I18n.t("Нет связи с пультом. Последние данные сохраняются; повторное подключение идёт автоматически.");
     startPolling();
     return;
   }
@@ -2720,10 +2720,10 @@ function enterDemo() {
   $("demoBadge").hidden = false;
   $("demoBanner").hidden = false;
   if (consoleBootLine) {
-    consoleBootLine.textContent = "Консоль недоступна — это демо-предпросмотр.";
+    consoleBootLine.textContent = I18n.t("Консоль недоступна — это демо-предпросмотр.");
     consoleBootLine = null;
   }
-  consoleAppend("Демо-режим: данные вымышленные, операции отключены.", "c-dim");
+  consoleAppend(I18n.t("Демо-режим: данные вымышленные, операции отключены."), "c-dim");
   startPolling();
 }
 

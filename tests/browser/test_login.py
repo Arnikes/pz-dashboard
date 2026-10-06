@@ -91,7 +91,7 @@ def test_remember_me_browser_cookie_and_restart(page, login_url, auth_server, re
         LOGIN, PASSWORD, auth_server.test_key, sessions_file=auth_server.auth._sessions_file
     )
     # A fresh browser context represents reopening the browser with its retained cookies.
-    reopened = page.context.browser.new_context(service_workers="block")
+    reopened = page.context.browser.new_context(locale="ru-RU", service_workers="block")
     try:
         if remember:
             reopened.add_cookies([cookie])

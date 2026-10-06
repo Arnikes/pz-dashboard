@@ -15,6 +15,7 @@ from pathlib import Path
 
 import config
 import dockerlib
+import i18n
 from configformats import FormatError, SECRET_KEY, decode_string, normalize_mod
 
 _CACHE = OrderedDict()
@@ -72,6 +73,7 @@ def vanilla_translations(version, allow_container=False):
         config.CFG["data_dir"],
         config.CFG["pz_container"],
         os.getenv("SERVER_FILES_DIR", "/server-files"),
+        i18n.language(),
     )
     with _LOCK:
         cached = _TRANSLATIONS.get(key)
@@ -80,8 +82,8 @@ def vanilla_translations(version, allow_container=False):
     bodies = []
     for base in (key[3], config.CFG["data_dir"]):
         for relative in (
-            "media/lua/shared/Translate/RU/Sandbox_RU.txt",
-            "media/lua/shared/Translate/RU/Sandbox.json",
+            f"media/lua/shared/Translate/{i18n.language().upper()}/Sandbox_{i18n.language().upper()}.txt",
+            f"media/lua/shared/Translate/{i18n.language().upper()}/Sandbox.json",
         ):
             path = Path(base) / relative
             if path.is_file() and not path.is_symlink() and path.stat().st_size < 512_000:
@@ -95,6 +97,8 @@ def vanilla_translations(version, allow_container=False):
             "! -path '*/workshop/*' ! -path '*/mods/*' -size -512k "
             '-exec sh -c \'for f do printf "\\036%s\\037" "$f"; cat "$f"; done\' sh {} + 2>/dev/null'
         )
+        if i18n.language() == "en":
+            command = command.replace("/RU/", "/EN/").replace("Sandbox_RU", "Sandbox_EN")
         code, output, _ = dockerlib.container_exec(config.CFG["pz_container"], command, timeout=15)
         if code == 0 and len(output) < 2_000_000:
             for record in output.split("\x1e"):
@@ -334,7 +338,7 @@ def build_index(files, items, version):
                 if path.startswith(prefix):
                     effective[path[len(prefix) :]] = body
         translations = {}
-        for language in ("EN", "RU"):
+        for language in ("EN", "RU") if i18n.language() == "ru" else ("EN",):
             for path, body in effective.items():
                 if path.endswith(f"Sandbox_{language}.txt") or path.endswith(
                     f"Translate/{language}/Sandbox.json"
@@ -429,7 +433,13 @@ def download_manifest(items):
 
 def scan(items, version, refresh=False):
     items = list(dict.fromkeys(str(i) for i in items if str(i).isdigit()))
-    key = (tuple(items), version, config.CFG["data_dir"], config.CFG["pz_container"])
+    key = (
+        tuple(items),
+        version,
+        config.CFG["data_dir"],
+        config.CFG["pz_container"],
+        i18n.language(),
+    )
     with _LOCK:
         cached = _CACHE.get(key)
     if cached and not refresh and time.time() - cached[0] < 120:

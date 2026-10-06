@@ -14,7 +14,7 @@
     if (retry.disabled) return;
     retry.disabled = true;
     const status = document.getElementById("pwaRetryStatus");
-    status.textContent = "Проверяем соединение…";
+    status.textContent = I18n.t("Проверяем соединение…");
     try {
       const response = await fetch("/api/health", { cache: "no-store", signal: AbortSignal.timeout(5000) });
       const data = await response.json();
@@ -22,7 +22,7 @@
       if (location.pathname === "/static/offline.html") location.replace("/" + location.hash);
       else location.reload();
     } catch {
-      status.textContent = "Пульт пока недоступен. Проверьте подключение и повторите попытку.";
+      status.textContent = I18n.t("Пульт пока недоступен. Проверьте подключение и повторите попытку.");
       retry.disabled = false;
     }
   }
@@ -36,9 +36,9 @@
 
   const bar = document.createElement("aside");
   bar.className = "pwa-bar";
-  bar.setAttribute("aria-label", "Приложение PZ Пульт");
+  bar.setAttribute("aria-label", I18n.t("Приложение PZ Пульт"));
   bar.hidden = true;
-  bar.innerHTML = '<p class="pwa-message" role="status" aria-live="polite"></p><button class="pwa-button" id="pwaInstall" type="button" hidden>Установить приложение</button><button class="pwa-button" id="pwaUpdate" type="button" hidden>Обновить приложение</button><p class="pwa-help" hidden></p>';
+  bar.innerHTML = I18n.html('<p class="pwa-message" role="status" aria-live="polite"></p><button class="pwa-button" id="pwaInstall" type="button" hidden>Установить приложение</button><button class="pwa-button" id="pwaUpdate" type="button" hidden>Обновить приложение</button><p class="pwa-help" hidden></p>');
   if (!retry) {
     const topbar = document.querySelector(".topbar");
     if (topbar) topbar.after(bar);
@@ -53,6 +53,9 @@
   const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
   function render() {
+    bar.setAttribute("aria-label", I18n.t("Приложение PZ Пульт"));
+    install.textContent = I18n.t("Установить приложение");
+    update.textContent = I18n.t("Обновить приложение");
     const canInstall = !standalone() && (!!installPrompt || (ios && window.isSecureContext));
     const hasUpdate = !!registration?.waiting || controllerChanged;
     install.hidden = !canInstall;
@@ -60,13 +63,20 @@
     update.disabled = !navigator.onLine || updateRequested;
     bar.hidden = retry || (navigator.onLine && !canInstall && !hasUpdate && !notice);
     message.textContent = !navigator.onLine
-      ? "Нет сети. Последние данные могут устареть; команды недоступны. Ввод остаётся в открытом окне."
-      : notice || (hasUpdate ? "Доступна новая версия пульта. Сохраните изменения перед обновлением." : "Пульт можно открыть отдельным приложением.");
+      ? I18n.t("Нет сети. Последние данные могут устареть; команды недоступны. Ввод остаётся в открытом окне.")
+      : notice || (hasUpdate ? I18n.t("Доступна новая версия пульта. Сохраните изменения перед обновлением.") : I18n.t("Пульт можно открыть отдельным приложением."));
   }
 
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
     installPrompt = event;
+    render();
+  });
+  document.addEventListener("pz:language-changed", () => {
+    notice = "";
+    help.hidden = true;
+    const status = document.getElementById("pwaRetryStatus");
+    if (status) status.textContent = "";
     render();
   });
   window.addEventListener("appinstalled", () => { installPrompt = null; help.hidden = true; notice = ""; render(); });
@@ -76,7 +86,7 @@
 
   install.addEventListener("click", async () => {
     if (!installPrompt) {
-      help.textContent = "На iPhone и iPad откройте пульт в Safari: «Поделиться» → «На экран Домой» → «Добавить». Если пункта нет, раскройте список действий.";
+      help.textContent = I18n.t("На iPhone и iPad откройте пульт в Safari: «Поделиться» → «На экран Домой» → «Добавить». Если пункта нет, раскройте список действий.");
       help.hidden = !help.hidden;
       install.setAttribute("aria-expanded", String(!help.hidden));
       return;
@@ -88,7 +98,7 @@
       await prompt.prompt();
       await prompt.userChoice;
     } catch {
-      notice = "Откройте меню браузера и выберите установку приложения.";
+      notice = I18n.t("Откройте меню браузера и выберите установку приложения.");
     } finally {
       install.disabled = false;
       render();
@@ -100,7 +110,7 @@
     document.dispatchEvent(event);
     const password = document.getElementById("password");
     if (event.defaultPrevented || (password && password.value) || document.getElementById("loginSubmit")?.disabled) {
-      notice = "Сохраните введённые изменения и дождитесь завершения операции, затем повторите обновление.";
+      notice = I18n.t("Сохраните введённые изменения и дождитесь завершения операции, затем повторите обновление.");
       render();
       return false;
     }

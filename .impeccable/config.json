@@ -21,6 +21,12 @@
         ],
         "createdAt": "2026-10-05T15:52:30.941Z",
         "reason": "Agent: accessible mobile body and touch controls retain 16px, following impeccable harden guidance and the existing login input scale"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "text",
+        "createdAt": "2026-10-06T10:49:57.438Z",
+        "reason": "Codex review: HTML input type=text is a control type, not a font; this change keeps Golos Text and JetBrains Mono."
       }
     ]
   }

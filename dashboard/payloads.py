@@ -1,6 +1,7 @@
 """Response data shared by the JSON API and SSE, independent of HTTP I/O."""
 
 import json
+import i18n
 import threading
 import time
 
@@ -83,17 +84,21 @@ STREAM_PLAN = (
 
 
 class StreamCache:
-    """One bounded, serialized snapshot per channel and HTTP server.
+    """One bounded, serialized snapshot per channel, locale and HTTP server.
 
     Per-channel locks coalesce simultaneous subscribers without letting a slow
     Docker/Steam request block unrelated channels. HTTP polling stays uncached.
     """
 
     def __init__(self):
-        self._channels = {name: [threading.Lock(), None, 0.0] for name, _ in STREAM_PLAN}
+        self._channels = {
+            (name, language): [threading.Lock(), None, 0.0]
+            for name, _ in STREAM_PLAN
+            for language in ("en", "ru")
+        }
 
     def frame(self, name, interval):
-        channel = self._channels[name]
+        channel = self._channels[name, i18n.language()]
         with channel[0]:
             if channel[1] is None or time.monotonic() >= channel[2]:
                 try:

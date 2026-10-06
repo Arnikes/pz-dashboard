@@ -7,9 +7,12 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="fonts/fonts.css" />
   <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="pwa.css" />
 </head>
 <body>
   <main class="help-page">
+    <select class="language-switch" data-language-switch aria-label="Язык интерфейса"><option value="en" lang="en">EN</option><option value="ru" lang="ru">RU</option></select>
+    <p id="languageStatus" role="alert" hidden></p>
     <a href="../#/settings">Открыть настройки пульта</a>
     <h1>Настройки, моды и восстановление</h1>
     <p>Пульт работает с профилями Project Zomboid B42. Профиль состоит из INI и SandboxVars.lua; черновик, записанные файлы и работающий сервер — разные стадии изменений.</p>
@@ -50,5 +53,8 @@
     </section>
     <p><a href="../#/settings">Настройки</a> · <a href="../#/mods">Моды</a> · <a href="../#/console">Логи</a></p>
   </main>
+  <script src="/static/catalogs.js"></script>
+  <script src="/static/i18n.js"></script>
+  <script src="/static/localize.js"></script>
 </body>
 </html>

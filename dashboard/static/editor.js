@@ -19,10 +19,10 @@ window.ConfigEditor = (() => {
     return String(text || "").replace(/<br\s*\/?\s*>|<LINE>/gi, "\n")
       .replace(/\/[0-9A-F]{6}|<(?:RGB:[^>]*|SIZE:[^>]*|CENTRE|LEFT|RIGHT|H[12])>/g, "");
   }
-  const statuses = { draft: "Есть черновик", saved: "Сохранено, требуется запуск", applying: "Применение", applied: "Применено", error: "Ошибка", unconfirmed: "Применение не подтверждено", "select-mods": "Пакеты загружены; выберите ModID" };
+  const statuses = { draft: I18n.t("Есть черновик"), saved: I18n.t("Сохранено, требуется запуск"), applying: I18n.t("Применение"), applied: I18n.t("Применено"), error: I18n.t("Ошибка"), unconfirmed: I18n.t("Применение не подтверждено"), "select-mods": I18n.t("Пакеты загружены; выберите ModID") };
   const call = async (path, body) => {
     const result = await api(path, body === undefined ? { timeout: 180000 } : { method: "POST", body, timeout: 180000 });
-    if (!result.ok) { const failure = new Error(result.error || "Нет ответа редактора"); failure.remote = true; throw failure; }
+    if (!result.ok) { const failure = new Error(result.error || I18n.t("Нет ответа редактора")); failure.remote = true; throw failure; }
     return result;
   };
   function error(message) {
@@ -47,9 +47,9 @@ window.ConfigEditor = (() => {
     const verified = recorded && !draft.conflict && draft.status === "applied" && !!draft.state?.verifiedAt;
     const stage = edited ? "draft" : verified ? "launch" : recorded ? "launch" : "draft";
     setDomProperty($("configFlow").querySelector('[data-flow="launch"]'), "disabled", !edited && !recorded && !draft.conflict && draft.status !== "error");
-    setDomProperty($("flowDraft"), "textContent", edited ? "Есть правки" : "Без новых правок");
-    setDomProperty($("flowFiles"), "textContent", draft.conflict ? "Конфликт с диском" : edited ? "Ожидают записи" : recorded ? "Записаны" : "Проверить различия");
-    setDomProperty($("flowLaunch"), "textContent", busy ? "Идёт операция" : verified ? "Подтверждён" : draft.status === "error" ? "Проверьте ошибку" : recorded ? "Нужна проверка" : "После записи файлов");
+    setDomProperty($("flowDraft"), "textContent", edited ? I18n.t("Есть правки") : I18n.t("Без новых правок"));
+    setDomProperty($("flowFiles"), "textContent", draft.conflict ? I18n.t("Конфликт с диском") : edited ? I18n.t("Ожидают записи") : recorded ? I18n.t("Записаны") : I18n.t("Проверить различия"));
+    setDomProperty($("flowLaunch"), "textContent", busy ? I18n.t("Идёт операция") : verified ? I18n.t("Подтверждён") : draft.status === "error" ? I18n.t("Проверьте ошибку") : recorded ? I18n.t("Нужна проверка") : I18n.t("После записи файлов"));
     $("configFlow").querySelectorAll("[data-flow]").forEach(el => {
       setDomAttribute(el, "aria-current", el.dataset.flow === stage ? "step" : "false");
       setDomProperty(el.dataset, "state", el.dataset.flow === "launch" && verified ? "ok" : el.dataset.flow === "files" && draft.conflict || el.dataset.flow === "launch" && draft.status === "error" ? "bad" : "normal");
@@ -57,30 +57,30 @@ window.ConfigEditor = (() => {
     const needsAction = draft.changed || sourceDirty || fieldDirty || pendingFields.size || unsaved.length || draft.conflict || !$("configError").hidden || ["saved", "applying", "error", "select-mods"].includes(draft.status);
     setDomProperty($("draftBar"), "hidden", !editorView || !needsAction);
     setDomProperty($("draftRetry"), "hidden", !unsaved.length && !(fieldSaveFailed && pendingFields.size));
-    setDomProperty($("draftLabel"), "textContent", (pendingFields.size ? "Есть несохранённые поля" : statuses[draft.status] || "Конфигурация") + (draft.changed ? ` · строк: ${draft.changedLines || 1}` : ""));
-    setDomProperty($("configStatus"), "textContent", statuses[draft.status] || "Конфигурация");
+    setDomProperty($("draftLabel"), "textContent", (pendingFields.size ? I18n.t("Есть несохранённые поля") : statuses[draft.status] || I18n.t("Конфигурация")) + (draft.changed ? I18n.msg` · строк: ${draft.changedLines || 1}` : ""));
+    setDomProperty($("configStatus"), "textContent", statuses[draft.status] || I18n.t("Конфигурация"));
     setDomProperty($("configStatus").dataset, "state", draft.conflict || draft.status === "error" ? "bad" : draft.changed || draft.status !== "applied" ? "warn" : "ok");
     setDomProperty($("configApply"), "disabled", busy || !draft.canApply || !draft.canWrite || S.demo || loading || !needsAction);
     setDomProperty($("configSave"), "disabled", busy || !draft.canWrite || running !== false || S.demo || loading);
     setDomProperty($("configDiscard"), "disabled", busy || S.demo || loading);
     setDomProperty($("configRebase"), "hidden", !draft.conflict);
     setDomProperty($("configRebase"), "disabled", busy || S.demo || loading || fieldDirty);
-    setDomProperty($("configApply"), "title", draft.canApply ? "" : "Выбран неактивный или неподтверждённый профиль");
-    setDomProperty($("configSave"), "title", running === true ? "Сначала остановите сервер" : running === false ? "" : "Состояние сервера ещё не получено");
-    const reason = S.demo ? "Демо: запись файлов и применение отключены."
-      : busy ? "Изменения заблокированы на время операции. Дождитесь результата, показанного над разделом."
-      : loading ? "Профиль загружается. Дождитесь получения черновика."
-      : !draft.canWrite ? (draft.dataDiagnostic || "Запись недоступна. Проверьте общий каталог конфигурации и права записи по руководству.")
-      : draft.conflict ? "Файлы изменились извне. Откройте различия и объедините черновик с диском перед записью."
-      : !draft.canApply ? (draft.activeFile ? `Выбран другой профиль. Для рестарта выберите активный профиль ${draft.activeFile}.` : "Профиль запуска не подтверждён. Проверьте -servername или PZ_CONFIG_FILE по руководству; черновик сохраняется.")
-      : running === undefined ? "Состояние сервера ещё не получено. Проверьте подключение перед записью файлов."
+    setDomProperty($("configApply"), "title", draft.canApply ? "" : I18n.t("Выбран неактивный или неподтверждённый профиль"));
+    setDomProperty($("configSave"), "title", running === true ? I18n.t("Сначала остановите сервер") : running === false ? "" : I18n.t("Состояние сервера ещё не получено"));
+    const reason = S.demo ? I18n.t("Демо: запись файлов и применение отключены.")
+      : busy ? I18n.t("Изменения заблокированы на время операции. Дождитесь результата, показанного над разделом.")
+      : loading ? I18n.t("Профиль загружается. Дождитесь получения черновика.")
+      : !draft.canWrite ? (draft.dataDiagnostic || I18n.t("Запись недоступна. Проверьте общий каталог конфигурации и права записи по руководству."))
+      : draft.conflict ? I18n.t("Файлы изменились извне. Откройте различия и объедините черновик с диском перед записью.")
+      : !draft.canApply ? (draft.activeFile ? I18n.msg`Выбран другой профиль. Для рестарта выберите активный профиль ${draft.activeFile}.` : I18n.t("Профиль запуска не подтверждён. Проверьте -servername или PZ_CONFIG_FILE по руководству; черновик сохраняется."))
+      : running === undefined ? I18n.t("Состояние сервера ещё не получено. Проверьте подключение перед записью файлов.")
       : "";
     setAvailability("configActionHelp", reason);
     for (const id of ["configApply", "configSave", "configDiscard"]) setDomAttribute($(id), "aria-describedby", "configActionHelp configSaveHint");
     setDomProperty($("configVerifyHelp"), "hidden", !draft.canApply || !draft.state?.savedRevision || !S.overview?.containerInfo?.running);
     setDomProperty($("configVerify"), "disabled", busy || S.demo || loading);
-    if (busy) setDomProperty($("draftSaved"), "textContent", `${S.op.active.phase || "Операция"} · ${S.op.active.message || ""}`);
-    else if (previousBarBusy) setDomProperty($("draftSaved"), "textContent", unsaved.length || fieldSaveFailed ? "Сохранение требует повтора" : draft.status === "applying" ? "Ожидаем результата применения" : draft.changed ? "Черновик сохранён" : "");
+    if (busy) setDomProperty($("draftSaved"), "textContent", `${S.op.active.phase || I18n.t("Операция")} · ${S.op.active.message || ""}`);
+    else if (previousBarBusy) setDomProperty($("draftSaved"), "textContent", unsaved.length || fieldSaveFailed ? I18n.t("Сохранение требует повтора") : draft.status === "applying" ? I18n.t("Ожидаем результата применения") : draft.changed ? I18n.t("Черновик сохранён") : "");
     previousBarBusy = busy;
     $("configFields").querySelectorAll("[data-key]").forEach(el => { setDomProperty(el, "disabled", busy || loading || S.demo || !!el.dataset.owner); });
     const incompatible = new Set((mods?.workshop || []).flatMap(w => w.available || []).filter(r => r.compatible === false).map(r => r.modId));
@@ -93,23 +93,23 @@ window.ConfigEditor = (() => {
     $("modOrderList").querySelectorAll("button").forEach(el => { setDomProperty(el, "disabled", busy || S.demo || loading || el.dataset.edge === "true"); });
     const profileState = $("configActive");
     const profile = $("configProfile");
-    const profileLabel = draft.canApply ? "Активен на сервере" : draft.activeFile ? "Другой профиль" : "Не подтверждён";
+    const profileLabel = draft.canApply ? I18n.t("Активен на сервере") : draft.activeFile ? I18n.t("Другой профиль") : I18n.t("Не подтверждён");
     setDomProperty(profileState, "textContent", profileLabel);
     setDomProperty(profile.dataset, "state", draft.canApply ? "active" : draft.activeFile ? "other" : "unknown");
-    setDomProperty(profile, "title", profileLabel + ". " + (draft.activeFile ? `Сервер использует ${draft.activeFile}` : "Не удалось определить профиль запуска сервера"));
-    const versionLabel = draft.version ? `PZ ${draft.version}` : "B42 · версия неизвестна";
+    setDomProperty(profile, "title", profileLabel + ". " + (draft.activeFile ? I18n.msg`Сервер использует ${draft.activeFile}` : I18n.t("Не удалось определить профиль запуска сервера")));
+    const versionLabel = draft.version ? `PZ ${draft.version}` : I18n.t("B42 · версия неизвестна");
     setDomProperty($("configVersion"), "textContent", versionLabel);
     setDomProperty($("configVersion"), "title", versionLabel);
     if (draft.conflict && ($("configError").hidden || $("configError").dataset.source === "conflict")) {
-      $("configError").textContent = "Рабочие файлы изменились. Нажмите «Посмотреть изменения», затем «Обновить основу черновика». Пересекающиеся правки нужно разрешить вручную.";
+      $("configError").textContent = I18n.t("Рабочие файлы изменились. Нажмите «Посмотреть изменения», затем «Обновить основу черновика». Пересекающиеся правки нужно разрешить вручную.");
       $("configError").dataset.source = "conflict";
       $("configError").hidden = false;
     }
     setDomProperty($("configSaveHint"), "textContent", running === undefined
-      ? "Правки сохраняются в черновике. Ожидаем состояние сервера перед записью файлов."
+      ? I18n.t("Правки сохраняются в черновике. Ожидаем состояние сервера перед записью файлов.")
       : running
-      ? "Сервер работает. Правки полей сохраняются в черновике. Для записи файлов используйте «Применить с рестартом…» или сначала остановите сервер."
-      : "Правки полей сохраняются в черновике. «Записать файлы» сохраняет их при остановленном сервере; запуск выполняется отдельно.");
+      ? I18n.t("Сервер работает. Правки полей сохраняются в черновике. Для записи файлов используйте «Применить с рестартом…» или сначала остановите сервер.")
+      : I18n.t("Правки полей сохраняются в черновике. «Записать файлы» сохраняет их при остановленном сервере; запуск выполняется отдельно."));
     if (draft.dataDiagnostic) {
       $("configError").textContent = draft.dataDiagnostic;
       $("configError").hidden = false;
@@ -126,7 +126,7 @@ window.ConfigEditor = (() => {
     if (!result.hidden) {
       const status = busy ? "applying" : draft.status === "unconfirmed" ? "unconfirmed" : state.status;
       result.dataset.state = status === "error" ? "bad" : status === "applied" ? "ok" : "warn";
-      const markup = `<strong>${esc(state.verifiedAt && ["applied", "select-mods"].includes(status) ? "Проверено после запуска" : statuses[status] || "Результат операции")}</strong><p class="hint">Профиль ${esc(file)} · ${esc(fmtTime(state.verifiedAt || state.operationCompletedAt || state.operationStartedAt))}</p>${state.error ? `<p class="editor-error">${esc(state.error)}</p>` : ""}${(state.verificationProblems || []).filter(p => p.severity !== "error").map(p => `<p class="hint">${esc(p.message)}</p>`).join("")}${state.lastFailure ? `<details><summary>Предыдущая ошибка операции</summary><p class="hint">${esc(state.lastFailure.error)}</p></details>` : ""}${state.worldBackup ? `<p class="hint">Бэкап мира: ${esc(state.worldBackup)}</p>` : state.backupBeforeApply === false ? '<p class="hint">Бэкап мира отключён для этой операции. Исходные конфиги сохраняются в истории.</p>' : ""}<div class="editor-toolbar"><button type="button" class="btn small" data-operation-logs>Логи операции</button>${status === "error" && state.historyId ? '<button type="button" class="btn small" data-operation-restore>Восстановить прежнюю конфигурацию…</button>' : ""}${status !== "applying" && draft.canApply && state.savedRevision ? '<button type="button" class="btn small" data-verify-running>Проверить запущенный сервер</button>' : ""}</div>`;
+      const markup = I18n.msg`<strong>${esc(state.verifiedAt && ["applied", "select-mods"].includes(status) ? I18n.t("Проверено после запуска") : statuses[status] || I18n.t("Результат операции"))}</strong><p class="hint">Профиль ${esc(file)} · ${esc(fmtTime(state.verifiedAt || state.operationCompletedAt || state.operationStartedAt))}</p>${state.error ? `<p class="editor-error">${esc(state.error)}</p>` : ""}${(state.verificationProblems || []).filter(p => p.severity !== "error").map(p => `<p class="hint">${esc(p.message)}</p>`).join("")}${state.lastFailure ? I18n.msg`<details><summary>Предыдущая ошибка операции</summary><p class="hint">${esc(state.lastFailure.error)}</p></details>` : ""}${state.worldBackup ? I18n.msg`<p class="hint">Бэкап мира: ${esc(state.worldBackup)}</p>` : state.backupBeforeApply === false ? I18n.html('<p class="hint">Бэкап мира отключён для этой операции. Исходные конфиги сохраняются в истории.</p>') : ""}<div class="editor-toolbar"><button type="button" class="btn small" data-operation-logs>Логи операции</button>${status === "error" && state.historyId ? I18n.html('<button type="button" class="btn small" data-operation-restore>Восстановить прежнюю конфигурацию…</button>') : ""}${status !== "applying" && draft.canApply && state.savedRevision ? I18n.html('<button type="button" class="btn small" data-verify-running>Проверить запущенный сервер</button>') : ""}</div>`;
       if (markup !== operationMarkup) { result.innerHTML = markup; operationMarkup = markup; }
       result.querySelectorAll("[data-operation-restore], [data-verify-running]").forEach(el => { setDomProperty(el, "disabled", locked); });
     }
@@ -135,23 +135,23 @@ window.ConfigEditor = (() => {
   function attention() {
     const messages = [];
     const add = (key, text, route, label) => messages.push({ key, text, route, label });
-    if (draft?.changed) add("draft", "Есть неприменённый черновик конфигурации", "settings", "Открыть черновик");
-    if (draft?.status === "saved") add("saved", "Настройки записаны и ожидают запуска сервера", "overview", "Перейти к запуску");
-    if (draft?.state?.installation) add("installation", "Установка Workshop не завершена: загрузите пакеты и выберите ModID", "mods", "Открыть состав модов");
-    if (draft?.state?.error) add("operation-error", draft.state.error, "console", "Посмотреть логи");
-    if (draft?.conflict) add("conflict", "Файлы изменились извне. Проверьте различия перед применением", "settings", "Разрешить конфликт");
-    if (draft?.dataDiagnostic) add("diagnostic", draft.dataDiagnostic, "settings", "Проверить профиль");
+    if (draft?.changed) add("draft", I18n.t("Есть неприменённый черновик конфигурации"), "settings", I18n.t("Открыть черновик"));
+    if (draft?.status === "saved") add("saved", I18n.t("Настройки записаны и ожидают запуска сервера"), "overview", I18n.t("Перейти к запуску"));
+    if (draft?.state?.installation) add("installation", I18n.t("Установка Workshop не завершена: загрузите пакеты и выберите ModID"), "mods", I18n.t("Открыть состав модов"));
+    if (draft?.state?.error) add("operation-error", draft.state.error, "console", I18n.t("Посмотреть логи"));
+    if (draft?.conflict) add("conflict", I18n.t("Файлы изменились извне. Проверьте различия перед применением"), "settings", I18n.t("Разрешить конфликт"));
+    if (draft?.dataDiagnostic) add("diagnostic", draft.dataDiagnostic, "settings", I18n.t("Проверить профиль"));
     const backups = S.backupsItems || [];
-    if (!backups.length && S.overview?.backupsCount === 0 && S.overview?.mode !== "remote") add("backup-missing", "Нет резервной копии мира", "backups", "Создать бэкап");
+    if (!backups.length && S.overview?.backupsCount === 0 && S.overview?.mode !== "remote") add("backup-missing", I18n.t("Нет резервной копии мира"), "backups", I18n.t("Создать бэкап"));
     const dates = backups.map(b => Date.parse(b.mtime)).filter(Number.isFinite);
-    if (backups.length && !dates.length) add("backup-date", "Дата последнего бэкапа неизвестна", "backups", "Проверить архивы");
-    else if (dates.length && Math.max(...dates) < Date.now() - 48 * 3600000) add("backup-old", "Последнему бэкапу больше двух суток", "backups", "Проверить архивы");
-    if (S.overview?.update?.error) add("image", S.overview.update.error, "maintenance", "Проверить обновление образа");
-    if (S.overview?.modsCheck?.error) add("mods-check", S.overview.modsCheck.error, "mods", "Проверить моды");
+    if (backups.length && !dates.length) add("backup-date", I18n.t("Дата последнего бэкапа неизвестна"), "backups", I18n.t("Проверить архивы"));
+    else if (dates.length && Math.max(...dates) < Date.now() - 48 * 3600000) add("backup-old", I18n.t("Последнему бэкапу больше двух суток"), "backups", I18n.t("Проверить архивы"));
+    if (S.overview?.update?.error) add("image", S.overview.update.error, "maintenance", I18n.t("Проверить обновление образа"));
+    if (S.overview?.modsCheck?.error) add("mods-check", S.overview.modsCheck.error, "mods", I18n.t("Проверить моды"));
     const box = $("editorAttention"), focus = document.activeElement;
     const focusedKey = box.contains(focus) ? focus.dataset.attentionKey : null;
     setDomProperty(box, "hidden", activeView !== "overview" || !messages.length);
-    setStaticMarkup(box, `<strong>Требуют внимания</strong><ul>${messages.map(m => `<li><span>${esc(m.text)}</span><a href="#/${m.route}" data-attention-key="${m.key}">${esc(m.label)}</a></li>`).join("")}</ul>`);
+    setStaticMarkup(box, I18n.msg`<strong>Требуют внимания</strong><ul>${messages.map(m => `<li><span>${esc(m.text)}</span><a href="#/${m.route}" data-attention-key="${m.key}">${esc(m.label)}</a></li>`).join("")}</ul>`);
     if (focusedKey && !box.contains(document.activeElement)) {
       const replacement = [...box.querySelectorAll("[data-attention-key]")].find(el => el.dataset.attentionKey === focusedKey);
       if (replacement && !box.hidden) replacement.focus({ preventScroll: true });
@@ -201,14 +201,14 @@ window.ConfigEditor = (() => {
     try {
       const data = await call("/api/server-configs");
       const profiles = data.profiles || [];
-      $("configProfile").innerHTML = `<option value="">Выберите профиль…</option>` + profiles.map(p => `<option value="${esc(p.file)}">${esc(p.file)}</option>`).join("");
+      $("configProfile").innerHTML = I18n.msg`<option value="">Выберите профиль…</option>` + profiles.map(p => `<option value="${esc(p.file)}">${esc(p.file)}</option>`).join("");
       let preferred = "";
       try { preferred = localStorage.getItem("pz-config-profile") || ""; } catch (_) { /* optional preference */ }
       const next = profiles.some(p => p.file === preferred) ? preferred : data.activeFile || (profiles.length === 1 ? profiles[0].file : "");
       if (next && profiles.some(p => p.file === next)) await loadProfile(next);
-      if (!profiles.length) $("configFields").innerHTML = '<p class="hint">В каталоге Server нет доступных .ini. Проверьте монтирование данных сервера.</p>';
+      if (!profiles.length) $("configFields").innerHTML = I18n.html('<p class="hint">В каталоге Server нет доступных .ini. Проверьте монтирование данных сервера.</p>');
     } catch (e) {
-      $("configProfile").innerHTML = '<option value="">Профили недоступны</option>';
+      $("configProfile").innerHTML = I18n.html('<option value="">Профили недоступны</option>');
       $("configFields").textContent = e.message;
     } finally { updateBar(); }
   }
@@ -217,11 +217,11 @@ window.ConfigEditor = (() => {
     const target = file;
     pendingPatches++;
     fieldDirty = true;
-    $("draftSaved").textContent = "Сохраняется черновик…";
+    $("draftSaved").textContent = I18n.t("Сохраняется черновик…");
     updateBar();
     const task = chain.then(async () => {
-      if (!draft || target !== file) throw new Error("Профиль изменился во время редактирования");
-      if (S.op?.active || loading || S.demo) throw new Error("Дождитесь завершения операции; редактор временно недоступен");
+      if (!draft || target !== file) throw new Error(I18n.t("Профиль изменился во время редактирования"));
+      if (S.op?.active || loading || S.demo) throw new Error(I18n.t("Дождитесь завершения операции; редактор временно недоступен"));
       const update = typeof body === "function" ? body() : body;
       const updates = [...unsaved, update];
       unsaved = [];
@@ -238,7 +238,7 @@ window.ConfigEditor = (() => {
       } catch (failure) { if (!failure.remote) unsaved = updates; fieldSaveFailed = !!pendingFields.size; throw failure; }
       if (!pendingFields.size) fieldSaveFailed = false;
       clearError();
-      $("draftSaved").textContent = "Черновик сохранён";
+      $("draftSaved").textContent = I18n.t("Черновик сохранён");
       if (redraw) { renderFields(); renderSources(); await loadMods(); }
       else if (deferredFields && !pendingFields.size) renderFields();
       return draft;
@@ -252,7 +252,7 @@ window.ConfigEditor = (() => {
     const profile = file, revision = draft?.draftRevision;
     const result = await call(`/api/mods?file=${encodeURIComponent(profile)}&draft=1${refresh ? "&refresh=1" : ""}`);
     if (file !== profile || draft?.draftRevision !== revision) return;
-    if (result.file !== profile || result.draftRevision !== revision) { error("Черновик изменён другой вкладкой. Обновите страницу для загрузки актуального состава модов."); return; }
+    if (result.file !== profile || result.draftRevision !== revision) { error(I18n.t("Черновик изменён другой вкладкой. Обновите страницу для загрузки актуального состава модов.")); return; }
     mods = result;
     renderMods();
     if (["world", "custom"].includes(configTab)) renderFields();
@@ -268,7 +268,7 @@ window.ConfigEditor = (() => {
     const known = new Map(customFields().map(o => [o.key, o]));
     const allModOptions = new Set((mods?.workshop || []).flatMap(w => w.available || []).flatMap(r => r.options || []).map(o => o.key));
     const present = new Map((draft.sandboxFields || []).map(o => [o.key, o]));
-    const combined = [...present.values()].map(o => known.has(o.key) ? { ...o, ...known.get(o.key), value: o.value } : allModOptions.has(o.key) || o.group === "Неизвестные / сохранённые параметры" ? { ...o, group: "Выключенные / отсутствующие моды", preserved: true } : o);
+    const combined = [...present.values()].map(o => known.has(o.key) ? { ...o, ...known.get(o.key), value: o.value } : allModOptions.has(o.key) || o.group === I18n.t("Неизвестные / сохранённые параметры") ? { ...o, group: I18n.t("Выключенные / отсутствующие моды"), preserved: true } : o);
     for (const o of known.values()) {
       if (!present.has(o.key)) combined.push({ ...o, value: o.default ?? "", absent: true });
     }
@@ -281,13 +281,13 @@ window.ConfigEditor = (() => {
       const value = rec.lineSeparator ? String(rec.value).split(rec.lineSeparator).join("\n") : rec.value;
       return `<textarea ${attrs} rows="4" ${rec.lineSeparator ? `data-line-separator="${esc(rec.lineSeparator)}"` : ""}>${esc(value)}</textarea>`;
     }
-    if (rec.type === "list") return `<textarea ${attrs} rows="3" data-list-delimiter="${esc(rec.delimiter || ";")}" aria-description="По одной записи в строке">${esc(String(rec.value).split(rec.delimiter || ";").join("\n"))}</textarea>`;
+    if (rec.type === "list") return I18n.msg`<textarea ${attrs} rows="3" data-list-delimiter="${esc(rec.delimiter || ";")}" aria-description="По одной записи в строке">${esc(String(rec.value).split(rec.delimiter || ";").join("\n"))}</textarea>`;
     if (rec.type === "enum" && rec.choices?.length) {
       const unknown = rec.choices.every(c => Number(c.value) !== Number(rec.value));
-      return `<select ${attrs}>${unknown ? `<option value="${esc(rec.value)}">${esc(rec.value)} · вне схемы</option>` : ""}${rec.choices.map(c => `<option value="${esc(c.value)}" ${Number(c.value) === Number(rec.value) ? "selected" : ""}>${esc(c.label)}</option>`).join("")}</select>`;
+      return `<select ${attrs}>${unknown ? I18n.msg`<option value="${esc(rec.value)}">${esc(rec.value)} · вне схемы</option>` : ""}${rec.choices.map(c => `<option value="${esc(c.value)}" ${Number(c.value) === Number(rec.value) ? "selected" : ""}>${esc(c.label)}</option>`).join("")}</select>`;
     }
     const numeric = ["integer", "double"].includes(rec.type);
-    return `<input ${attrs} type="${rec.secret ? "password" : numeric ? "number" : "text"}" value="${rec.secret ? "" : esc(rec.value)}" ${rec.secret ? 'placeholder="Сохранённый пароль скрыт" autocomplete="new-password"' : ""} ${numeric ? `step="${rec.type === "integer" ? "1" : "any"}"` : ""} ${rec.min !== undefined ? `min="${esc(rec.min)}"` : ""} ${rec.max !== undefined ? `max="${esc(rec.max)}"` : ""} />`;
+    return `<input ${attrs} type="${rec.secret ? "password" : numeric ? "number" : "text"}" value="${rec.secret ? "" : esc(rec.value)}" ${rec.secret ? I18n.t('placeholder="Сохранённый пароль скрыт" autocomplete="new-password"') : ""} ${numeric ? `step="${rec.type === "integer" ? "1" : "any"}"` : ""} ${rec.min !== undefined ? `min="${esc(rec.min)}"` : ""} ${rec.max !== undefined ? `max="${esc(rec.max)}"` : ""} />`;
   }
   function formValue(field) {
     if (field.dataset.type === "map-list") return field.value.split(";").map(v => v.trim()).filter(Boolean);
@@ -298,7 +298,7 @@ window.ConfigEditor = (() => {
     if (!pendingFields.size) return;
     const update = {};
     for (const field of pendingFields.values()) {
-      if (!field.checkValidity()) { field.reportValidity(); throw new Error("Проверьте значение и допустимый диапазон поля: " + field.dataset.key); }
+      if (!field.checkValidity()) { field.reportValidity(); throw new Error(I18n.t("Проверьте значение и допустимый диапазон поля: ") + field.dataset.key); }
       (update[field.dataset.kind] ||= {})[field.dataset.key] = formValue(field);
     }
     await patch(update, !!update.mods);
@@ -315,7 +315,7 @@ window.ConfigEditor = (() => {
     $("configWorldNotice").hidden = !["world", "custom"].includes(configTab);
     if (!draft || ["sources", "history"].includes(configTab)) return;
     if (configTab !== "server" && draft.sandboxDiagnostic) {
-      $("configFields").innerHTML = `<p class="editor-error">${esc(draft.sandboxDiagnostic)}. Форма отключена. В исходнике все литералы скрыты маркерами __PZ_RAW_LITERAL_; оставьте маркеры для сохранения исходных значений. Lua проверяется без выполнения.</p>`;
+      $("configFields").innerHTML = I18n.msg`<p class="editor-error">${esc(draft.sandboxDiagnostic)}. Форма отключена. В исходнике все литералы скрыты маркерами __PZ_RAW_LITERAL_; оставьте маркеры для сохранения исходных значений. Lua проверяется без выполнения.</p>`;
       return;
     }
     const query = $("configSearch").value.toLowerCase();
@@ -323,17 +323,17 @@ window.ConfigEditor = (() => {
     const groups = new Map();
     fields().filter(o => `${o.key} ${o.label}`.toLowerCase().includes(query)).forEach((rec, i) => {
       if (!groups.has(rec.group)) groups.set(rec.group, []);
-      const description = [rec.key, gameDescription(rec.hint), rec.applicationScope?.hint, rec.absent ? "Значение по умолчанию ещё не записано в файл." : ""].filter(Boolean).join("\n\n");
-      groups.get(rec.group).push(`<div class="config-field"><div class="config-label"><label for="config-field-${i}"><strong>${esc(rec.label)}</strong></label>${helpTip(description, `О настройке «${rec.label}»`, `config-hint-${i}`)}</div><div class="config-control">${fieldControl(rec, i)}</div>${rec.applicationScope ? `<p id="config-scope-${i}" class="config-scope" data-scope="${esc(rec.applicationScope.kind)}"><strong>${esc(rec.applicationScope.label)}</strong></p>` : ""}${rec.owner ? `<p class="hint">Источник: ${esc(rec.owner)}. Измените в окружении контейнера.</p>` : rec.type === "list" ? '<p class="hint">По одной записи в строке.</p>' : ""}<p class="field-error" data-error-key="${esc(rec.key)}" role="alert" hidden></p>${configTab !== "server" && rec.preserved ? `<button type="button" class="btn small" data-remove-option="${esc(rec.key)}">Удалить параметр…</button>` : ""}</div>`);
+      const description = [rec.key, gameDescription(rec.hint), rec.applicationScope?.hint, rec.absent ? I18n.t("Значение по умолчанию ещё не записано в файл.") : ""].filter(Boolean).join("\n\n");
+      groups.get(rec.group).push(`<div class="config-field"><div class="config-label"><label for="config-field-${i}"><strong>${esc(rec.label)}</strong></label>${helpTip(description, I18n.msg`О настройке «${rec.label}»`, `config-hint-${i}`)}</div><div class="config-control">${fieldControl(rec, i)}</div>${rec.applicationScope ? `<p id="config-scope-${i}" class="config-scope" data-scope="${esc(rec.applicationScope.kind)}"><strong>${esc(rec.applicationScope.label)}</strong></p>` : ""}${rec.owner ? I18n.msg`<p class="hint">Источник: ${esc(rec.owner)}. Измените в окружении контейнера.</p>` : rec.type === "list" ? I18n.html('<p class="hint">По одной записи в строке.</p>') : ""}<p class="field-error" data-error-key="${esc(rec.key)}" role="alert" hidden></p>${configTab !== "server" && rec.preserved ? I18n.msg`<button type="button" class="btn small" data-remove-option="${esc(rec.key)}">Удалить параметр…</button>` : ""}</div>`);
     });
-    const order = ["Доступ и игроки", "PvP", "Чат", "Сохранение мира", "Безопасные дома", "Сеть", "Дополнительные параметры"];
+    const order = [I18n.t("Доступ и игроки"), "PvP", I18n.t("Чат"), I18n.t("Сохранение мира"), I18n.t("Безопасные дома"), I18n.t("Сеть"), I18n.t("Дополнительные параметры")];
     const ordered = [...groups].sort(([a], [b]) => configTab === "server" ? order.indexOf(a) - order.indexOf(b) : 0);
     const html = ordered.map(([name, entries]) => {
       const key = `${configTab}:${name}`;
-      const open = query || (groupStates.get(key) ?? name !== "Дополнительные параметры");
+      const open = query || (groupStates.get(key) ?? name !== I18n.t("Дополнительные параметры"));
       return `<details class="config-group" data-group-key="${esc(key)}" ${open ? "open" : ""}><summary>${esc(name)} <span class="group-count">${entries.length}</span></summary><div class="config-grid">${entries.join("")}</div></details>`;
     }).join("");
-    $("configFields").innerHTML = html || '<p class="hint">Нет настроек, соответствующих поиску.</p>';
+    $("configFields").innerHTML = html || I18n.html('<p class="hint">Нет настроек, соответствующих поиску.</p>');
   }
   function highlight(kind) {
     const input = $(kind + "Source"), output = $(kind + "Highlight");
@@ -368,25 +368,25 @@ window.ConfigEditor = (() => {
   }
   function renderMods() {
     if (!mods) {
-      $("modSummary").textContent = "Состав выбранного профиля ещё не загружен";
+      $("modSummary").textContent = I18n.t("Состав выбранного профиля ещё не загружен");
       for (const id of ["modPackages", "modOrderList", "modMapEditor", "modProblems", "legacyMods"]) $(id).replaceChildren();
       $("installNotice").hidden = true;
       return;
     }
-    $("modSummary").textContent = `${mods.workshop.length} пакетов · ${mods.mods.length} выбранных ModID`;
+    $("modSummary").textContent = I18n.msg`${mods.workshop.length} пакетов · ${mods.mods.length} выбранных ModID`;
     const openIds = new Set([...$("modPackages").querySelectorAll("details[open]")].map(d => d.dataset.item));
     let packets = mods.workshop.filter(packetVisible);
-    if ($("modSortNew").value === "title") packets = [...packets].sort((a, b) => a.title.localeCompare(b.title, "ru"));
-    $("modPackages").innerHTML = packets.map(w => `<details class="workshop-package" data-item="${esc(w.workshopId)}" ${openIds.has(w.workshopId) ? "open" : ""}><summary><strong>${esc(w.title)}</strong><code>${esc(w.workshopId)}</code><span class="pill" data-state="${w.status === "pending" ? "warn" : "ok"}">${w.status === "pending" ? "Ожидает загрузки" : `${w.selected.length} / ${w.mods.length} ModID`}</span></summary><div class="package-content"><div class="editor-toolbar"><a href="${esc(w.url)}" target="_blank" rel="noopener">Steam Workshop ↗</a><button type="button" class="btn small" data-remove-item="${esc(w.workshopId)}">Удалить пакет из конфигурации…</button></div>${(w.available || []).map(r => r.modId ? `<div class="mod-option"><label><input type="checkbox" data-modid="${esc(r.modId)}" ${mods.mods.includes(r.modId) ? "checked" : ""} ${S.demo || r.compatible === false && !mods.mods.includes(r.modId) ? "disabled" : ""} /><strong>${esc(r.name)}</strong><code>${esc(r.modId)}</code></label><p class="hint">Версия ${esc(r.branch)} · папка ${esc(r.folder)}${r.compatible === false ? " · Нет подходящего каталога B42" : ""}${r.versionMin ? ` · От версии ${esc(r.versionMin)}` : ""}${r.versionMax ? ` · До версии ${esc(r.versionMax)}` : ""}${r.require?.length ? ` · Требует: ${esc(r.require.join(", "))}` : ""}</p>${r.options?.length ? '<a href="#/settings" data-open-custom>Настройки мода →</a>' : ""}</div>` : `<p class="editor-error">${esc(r.error)}</p>`).join("") || '<p class="hint">Сначала загрузите пакет через сервер, затем выберите ModID. Название Steam не определяет идентификаторы.</p>'}</div></details>`).join("") || '<p class="hint">Пакеты не найдены. Добавьте Steam-ссылку или измените фильтр.</p>';
+    if ($("modSortNew").value === "title") packets = [...packets].sort((a, b) => a.title.localeCompare(b.title, I18n.locale));
+    $("modPackages").innerHTML = packets.map(w => I18n.msg`<details class="workshop-package" data-item="${esc(w.workshopId)}" ${openIds.has(w.workshopId) ? "open" : ""}><summary><strong>${esc(w.title)}</strong><code>${esc(w.workshopId)}</code><span class="pill" data-state="${w.status === "pending" ? "warn" : "ok"}">${w.status === "pending" ? I18n.t("Ожидает загрузки") : `${w.selected.length} / ${w.mods.length} ModID`}</span></summary><div class="package-content"><div class="editor-toolbar"><a href="${esc(w.url)}" target="_blank" rel="noopener">Steam Workshop ↗</a><button type="button" class="btn small" data-remove-item="${esc(w.workshopId)}">Удалить пакет из конфигурации…</button></div>${(w.available || []).map(r => r.modId ? I18n.msg`<div class="mod-option"><label><input type="checkbox" data-modid="${esc(r.modId)}" ${mods.mods.includes(r.modId) ? "checked" : ""} ${S.demo || r.compatible === false && !mods.mods.includes(r.modId) ? "disabled" : ""} /><strong>${esc(r.name)}</strong><code>${esc(r.modId)}</code></label><p class="hint">Версия ${esc(r.branch)} · папка ${esc(r.folder)}${r.compatible === false ? I18n.t(" · Нет подходящего каталога B42") : ""}${r.versionMin ? I18n.msg` · От версии ${esc(r.versionMin)}` : ""}${r.versionMax ? I18n.msg` · До версии ${esc(r.versionMax)}` : ""}${r.require?.length ? I18n.msg` · Требует: ${esc(r.require.join(", "))}` : ""}</p>${r.options?.length ? I18n.html('<a href="#/settings" data-open-custom>Настройки мода →</a>') : ""}</div>` : `<p class="editor-error">${esc(r.error)}</p>`).join("") || I18n.html('<p class="hint">Сначала загрузите пакет через сервер, затем выберите ModID. Название Steam не определяет идентификаторы.</p>')}</div></details>`).join("") || I18n.html('<p class="hint">Пакеты не найдены. Добавьте Steam-ссылку или измените фильтр.</p>');
     renderOrder();
     if (!pendingFields.has("mods:maps")) {
-      $("modMapEditor").innerHTML = `<h3>Карты · Map=</h3><p class="hint">Порядок карт сохраняется. Добавление карты не изменяет уже исследованные области мира.</p><ol>${mods.maps.map(m => `<li><code>${esc(m)}</code></li>`).join("")}</ol><form id="mapEdit" class="editor-toolbar"><input id="mapList" data-key="maps" data-kind="mods" data-type="map-list" value="${esc(mods.maps.join(";"))}" aria-label="Порядок карт через точку с запятой" /><button class="btn" type="submit">В черновик</button></form><p class="hint">Найденные карты: ${esc([...new Set(mods.workshop.flatMap(w => w.available || []).flatMap(r => r.maps || []))].join(", ") || "нет")}</p>`;
+      $("modMapEditor").innerHTML = I18n.msg`<h3>Карты · Map=</h3><p class="hint">Порядок карт сохраняется. Добавление карты не изменяет уже исследованные области мира.</p><ol>${mods.maps.map(m => `<li><code>${esc(m)}</code></li>`).join("")}</ol><form id="mapEdit" class="editor-toolbar"><input id="mapList" data-key="maps" data-kind="mods" data-type="map-list" value="${esc(mods.maps.join(";"))}" aria-label="Порядок карт через точку с запятой" /><button class="btn" type="submit">В черновик</button></form><p class="hint">Найденные карты: ${esc([...new Set(mods.workshop.flatMap(w => w.available || []).flatMap(r => r.maps || []))].join(", ") || I18n.t("нет"))}</p>`;
       $("mapEdit").addEventListener("submit", e => { e.preventDefault(); patch({ mods: { maps: formValue($("mapList")) } }).catch(() => {}); });
     }
-    $("modProblems").innerHTML = (mods.problems || []).map(p => `<div class="problem-row"><strong>${p.severity === "error" ? "Ошибка" : "Непроверено"}</strong><p>${esc(p.message)}</p>${p.code === "dependency" ? `<button type="button" class="btn small" data-add-dependency="${esc(p.dependency)}">Добавить зависимость ${esc(p.dependency)}</button>` : ""}</div>`).join("") || `<div class="section-label"><p class="hint">В метаданных проблем не найдено.</p>${helpTip("Проверены доступные метаданные модов. Конфликты Lua-кода этой проверкой не выявляются.", "Что проверено в модах")}</div>`;
+    $("modProblems").innerHTML = (mods.problems || []).map(p => `<div class="problem-row"><strong>${p.severity === "error" ? I18n.t("Ошибка") : I18n.t("Непроверено")}</strong><p>${esc(p.message)}</p>${p.code === "dependency" ? I18n.msg`<button type="button" class="btn small" data-add-dependency="${esc(p.dependency)}">Добавить зависимость ${esc(p.dependency)}</button>` : ""}</div>`).join("") || I18n.msg`<div class="section-label"><p class="hint">В метаданных проблем не найдено.</p>${helpTip(I18n.t("Проверены доступные метаданные модов. Конфликты Lua-кода этой проверкой не выявляются."), I18n.t("Что проверено в модах"))}</div>`;
     installNotice();
     $("legacyMods").hidden = !(draft?.legacyDisabled || []).length;
-    $("legacyMods").innerHTML = '<strong>Старый реестр выключенных модов</strong><p>Принадлежность профилю не определена. Перенос выполняется только вашим явным выбором; старые записи сохраняются.</p>' + (draft?.legacyDisabled || []).map(r => `<button type="button" class="btn small" data-legacy-id="${esc(r.workshopId)}">Восстановить ${esc(r.title || r.workshopId)} в ${esc(file)}</button>`).join("");
+    $("legacyMods").innerHTML = I18n.html('<strong>Старый реестр выключенных модов</strong><p>Принадлежность профилю не определена. Перенос выполняется только вашим явным выбором; старые записи сохраняются.</p>') + (draft?.legacyDisabled || []).map(r => I18n.msg`<button type="button" class="btn small" data-legacy-id="${esc(r.workshopId)}">Восстановить ${esc(r.title || r.workshopId)} в ${esc(file)}</button>`).join("");
     updateModTab();
     updateBar();
   }
@@ -395,12 +395,12 @@ window.ConfigEditor = (() => {
     const installation = draft?.state?.installation;
     $("installNotice").hidden = !pending && !installation;
     const stage = installation?.stage;
-    const title = stage === "select-mods" ? "Пакеты загружены. Выберите ModID" : stage === "error" ? "Загрузка требует проверки" : stage === "downloading" ? "Загрузка пакетов" : "Добавление модов проходит в две стадии";
-    const explanation = stage === "select-mods" ? "Первый этап завершён. Выберите нужные ModID и примените черновик с рестартом. Выключенные моды не включаются автоматически." : stage === "error" ? "Прошлая операция не была подтверждена. Если вы уже перезапустили сервер, проверьте его без нового рестарта. Если пакеты не загрузились, повторите загрузку." : "1. Рестарт скачает новые Workshop items и сохранит прежние Mods. 2. После выбора ModID следующий рестарт активирует их вместе с остальными правками.";
-    $("installNotice").innerHTML = `<strong>${title}</strong><p>${explanation}</p>${pending ? '<button type="button" class="btn" id="prepareWorkshop">Загрузить пакеты через сервер…</button>' : ""}${installation ? '<button type="button" class="btn small" id="cancelInstallation">Отменить добавление…</button><button type="button" class="btn small" id="retryInstallation">Повторить загрузку с рестартом…</button><button type="button" class="btn small" data-verify-running>Проверить запущенный сервер</button>' : ""}`;
+    const title = stage === "select-mods" ? I18n.t("Пакеты загружены. Выберите ModID") : stage === "error" ? I18n.t("Загрузка требует проверки") : stage === "downloading" ? I18n.t("Загрузка пакетов") : I18n.t("Добавление модов проходит в две стадии");
+    const explanation = stage === "select-mods" ? I18n.t("Первый этап завершён. Выберите нужные ModID и примените черновик с рестартом. Выключенные моды не включаются автоматически.") : stage === "error" ? I18n.t("Прошлая операция не была подтверждена. Если вы уже перезапустили сервер, проверьте его без нового рестарта. Если пакеты не загрузились, повторите загрузку.") : I18n.t("1. Рестарт скачает новые Workshop items и сохранит прежние Mods. 2. После выбора ModID следующий рестарт активирует их вместе с остальными правками.");
+    $("installNotice").innerHTML = `<strong>${title}</strong><p>${explanation}</p>${pending ? I18n.html('<button type="button" class="btn" id="prepareWorkshop">Загрузить пакеты через сервер…</button>') : ""}${installation ? I18n.html('<button type="button" class="btn small" id="cancelInstallation">Отменить добавление…</button><button type="button" class="btn small" id="retryInstallation">Повторить загрузку с рестартом…</button><button type="button" class="btn small" data-verify-running>Проверить запущенный сервер</button>') : ""}`;
     $("prepareWorkshop")?.addEventListener("click", () => confirmApply(true));
     $("retryInstallation")?.addEventListener("click", () => confirmApply(true));
-    $("cancelInstallation")?.addEventListener("click", () => modal.open({ title: "Отменить добавление пакетов?", bodyHTML: "Новые пакеты будут удалены из черновика. После этого примените изменения с рестартом. Скачанный кеш сохранится.", onConfirm: async () => {
+    $("cancelInstallation")?.addEventListener("click", () => modal.open({ title: I18n.t("Отменить добавление пакетов?"), bodyHTML: I18n.t("Новые пакеты будут удалены из черновика. После этого примените изменения с рестартом. Скачанный кеш сохранится."), onConfirm: async () => {
       const added = new Set(installation.addedItems);
       const mids = new Set(mods.workshop.filter(w => added.has(w.workshopId)).flatMap(w => w.mods));
       await patch({ mods: { items: mods.workshop.filter(w => !added.has(w.workshopId)).map(w => w.workshopId), selected: mods.mods.filter(mid => !mids.has(mid)) } });
@@ -416,7 +416,7 @@ window.ConfigEditor = (() => {
   async function validate(prepare = false) {
     await chain;
     await flushFields();
-    if (unsaved.length) throw new Error("Сначала повторите сохранение черновика после восстановления связи");
+    if (unsaved.length) throw new Error(I18n.t("Сначала повторите сохранение черновика после восстановления связи"));
     await flushSources();
     const result = await call("/api/config-validate", { file, prepare, draftRevision: draft.draftRevision });
     document.querySelectorAll("[data-error-key]").forEach(el => { el.hidden = true; });
@@ -426,20 +426,20 @@ window.ConfigEditor = (() => {
     return result;
   }
   function diffHtml(result) {
-    return `${(result.errors || []).map(e => `<p class="editor-error">${esc(e.message)}</p>`).join("")}${(result.warnings || []).some(e => e.existing) ? '<p class="hint">Состав модов не меняется. Его существующие проблемы не блокируют сохранение других настроек.</p>' : ""}${(result.warnings || []).map(e => `<p class="hint">${esc(e.message)}</p>`).join("")}${Object.entries(result.conflictDiff || {}).map(([kind, diff]) => `<h4>Изменения на диске · ${esc(kind)}</h4><pre class="config-diff">${esc(diff || "Нет изменений")}</pre>`).join("")}${Object.entries(result.diff || {}).map(([kind, diff]) => `<h4>Ваш черновик · ${esc(kind)}</h4><pre class="config-diff">${esc(diff || "Нет изменений")}</pre>`).join("")}`;
+    return `${(result.errors || []).map(e => `<p class="editor-error">${esc(e.message)}</p>`).join("")}${(result.warnings || []).some(e => e.existing) ? I18n.html('<p class="hint">Состав модов не меняется. Его существующие проблемы не блокируют сохранение других настроек.</p>') : ""}${(result.warnings || []).map(e => `<p class="hint">${esc(e.message)}</p>`).join("")}${Object.entries(result.conflictDiff || {}).map(([kind, diff]) => I18n.msg`<h4>Изменения на диске · ${esc(kind)}</h4><pre class="config-diff">${esc(diff || I18n.t("Нет изменений"))}</pre>`).join("")}${Object.entries(result.diff || {}).map(([kind, diff]) => I18n.msg`<h4>Ваш черновик · ${esc(kind)}</h4><pre class="config-diff">${esc(diff || I18n.t("Нет изменений"))}</pre>`).join("")}`;
   }
   function showConflict(result, compact = false) {
     const canRebase = result.rebaseAvailable;
     const reviewed = result.draftRevision;
     const explanation = canRebase
-      ? '<p>«Обновить основу черновика» устранит конфликт с диском и сохранит ваши непересекающиеся правки. Это действие обновляет только черновик. Файлы сервера и его состояние останутся без изменений. Затем отдельно сохраните или примените настройки.</p>'
-      : `<p class="editor-error">${esc(result.rebaseError || "Загрузите профиль заново для проверки конфликта.")}</p>`;
-    const preview = canRebase ? Object.entries(result.rebaseDiff || {}).map(([kind, diff]) => `<h4>Правки после объединения · ${esc(kind)}</h4><pre class="config-diff">${esc(diff || "Нет пользовательских правок")}</pre>`).join("") : "";
-    modal.open({ title: "Обновление основы черновика", okLabel: canRebase ? "Обновить основу черновика" : "Закрыть", bodyHTML: `${explanation}${compact ? "" : diffHtml(result)}${preview}`, onConfirm: canRebase ? async () => {
-      if (draft.draftRevision !== reviewed || sourceDirty || fieldDirty || pendingFields.size || unsaved.length) throw new Error("Черновик изменился после просмотра. Проверьте объединение заново.");
+      ? I18n.html('<p>«Обновить основу черновика» устранит конфликт с диском и сохранит ваши непересекающиеся правки. Это действие обновляет только черновик. Файлы сервера и его состояние останутся без изменений. Затем отдельно сохраните или примените настройки.</p>')
+      : `<p class="editor-error">${esc(result.rebaseError || I18n.t("Загрузите профиль заново для проверки конфликта."))}</p>`;
+    const preview = canRebase ? Object.entries(result.rebaseDiff || {}).map(([kind, diff]) => I18n.msg`<h4>Правки после объединения · ${esc(kind)}</h4><pre class="config-diff">${esc(diff || I18n.t("Нет пользовательских правок"))}</pre>`).join("") : "";
+    modal.open({ title: I18n.t("Обновление основы черновика"), okLabel: canRebase ? I18n.t("Обновить основу черновика") : I18n.t("Закрыть"), bodyHTML: `${explanation}${compact ? "" : diffHtml(result)}${preview}`, onConfirm: canRebase ? async () => {
+      if (draft.draftRevision !== reviewed || sourceDirty || fieldDirty || pendingFields.size || unsaved.length) throw new Error(I18n.t("Черновик изменился после просмотра. Проверьте объединение заново."));
       draft = await call("/api/config-draft", { file, draftRevision: reviewed, currentRevision: result.currentRevision, rebase: true });
       clearError(); renderFields(); renderSources(); await loadMods(); updateBar();
-      toast("Основа черновика обновлена. Теперь можно проверить и сохранить настройки.", "ok");
+      toast(I18n.t("Основа черновика обновлена. Теперь можно проверить и сохранить настройки."), "ok");
     } : undefined });
   }
   async function confirmApply(prepare = false, restart = true) {
@@ -452,11 +452,11 @@ window.ConfigEditor = (() => {
       }
       const revisionAtReview = result.draftRevision;
       const backupDefault = result.modChanges || prepare;
-      const options = `<div class="apply-options">${restart ? '<label class="field">Предупредить игроков<select id="editorWarn"><option value="300">За 5 минут</option><option value="600">За 10 минут</option><option value="60">За 1 минуту</option><option value="0">Без предупреждения</option></select></label>' : ""}<label class="check"><input type="checkbox" id="editorBackup" ${backupDefault ? "checked" : ""} aria-describedby="editorBackupHint" />Создать бэкап мира перед записью</label><p class="hint" id="editorBackupHint">История конфигурации сохраняется независимо от бэкапа мира.</p></div>`;
-      modal.open({ title: prepare ? "Загрузить Workshop items?" : restart ? "Применить конфигурацию?" : "Сохранить файлы?", bodyHTML: `<p>${prepare ? "Первый рестарт загрузит пакеты. Прежние ModID и остальные настройки останутся без изменений." : restart ? "Сервер сохранит мир, остановится, применит конфигурацию и запустится." : "Файлы будут записаны при остановленном сервере."}</p>${options}${diffHtml(result)}`, onConfirm: async () => {
-        if (draft.draftRevision !== revisionAtReview || sourceDirty || fieldDirty || pendingFields.size) throw new Error("Черновик изменился после просмотра. Проверьте изменения заново");
+      const options = I18n.msg`<div class="apply-options">${restart ? I18n.html('<label class="field">Предупредить игроков<select id="editorWarn"><option value="300">За 5 минут</option><option value="600">За 10 минут</option><option value="60">За 1 минуту</option><option value="0">Без предупреждения</option></select></label>') : ""}<label class="check"><input type="checkbox" id="editorBackup" ${backupDefault ? "checked" : ""} aria-describedby="editorBackupHint" />Создать бэкап мира перед записью</label><p class="hint" id="editorBackupHint">История конфигурации сохраняется независимо от бэкапа мира.</p></div>`;
+      modal.open({ title: prepare ? I18n.t("Загрузить Workshop items?") : restart ? I18n.t("Применить конфигурацию?") : I18n.t("Сохранить файлы?"), bodyHTML: `<p>${prepare ? I18n.t("Первый рестарт загрузит пакеты. Прежние ModID и остальные настройки останутся без изменений.") : restart ? I18n.t("Сервер сохранит мир, остановится, применит конфигурацию и запустится.") : I18n.t("Файлы будут записаны при остановленном сервере.")}</p>${options}${diffHtml(result)}`, onConfirm: async () => {
+        if (draft.draftRevision !== revisionAtReview || sourceDirty || fieldDirty || pendingFields.size) throw new Error(I18n.t("Черновик изменился после просмотра. Проверьте изменения заново"));
         await call("/api/action", { op: prepare ? "prepare-workshop" : "apply-config", file, draftRevision: revisionAtReview, restart, backupBeforeApply: $("editorBackup").checked, warnSeconds: restart ? Number($("editorWarn").value) : 0 });
-        toast("Операция запущена. Прогресс отображается в панели сервера.", "ok");
+        toast(I18n.t("Операция запущена. Прогресс отображается в панели сервера."), "ok");
         draft.status = "applying";
         updateBar();
       } });
@@ -465,15 +465,15 @@ window.ConfigEditor = (() => {
   async function history() {
     if (!file) return;
     const profile = file, request = ++historyRequest;
-    $("configHistory").innerHTML = '<p class="hint">Загружается история выбранного профиля…</p>';
+    $("configHistory").innerHTML = I18n.html('<p class="hint">Загружается история выбранного профиля…</p>');
     try {
       const data = await call(`/api/config-history?file=${encodeURIComponent(profile)}`);
       if (request !== historyRequest || file !== profile || configTab !== "history") return;
       if ($("configError").dataset.source === "history") clearError();
-      $("configHistory").innerHTML = (data.items || []).map(r => `<div class="history-row"><strong>${esc(fmtTime(r.at))}</strong><span>${esc(r.reason)}</span><button type="button" class="btn small" data-profile="${esc(profile)}" data-restore-config="${esc(r.id)}">Посмотреть / восстановить…</button></div>`).join("") || '<p class="hint">История появится после первого сохранения конфигурации.</p>';
+      $("configHistory").innerHTML = (data.items || []).map(r => I18n.msg`<div class="history-row"><strong>${esc(fmtTime(r.at))}</strong><span>${esc(r.reason)}</span><button type="button" class="btn small" data-profile="${esc(profile)}" data-restore-config="${esc(r.id)}">Посмотреть / восстановить…</button></div>`).join("") || I18n.html('<p class="hint">История появится после первого сохранения конфигурации.</p>');
     } catch (failure) {
       if (request !== historyRequest || file !== profile || configTab !== "history") return;
-      $("configHistory").textContent = "Не удалось загрузить историю: " + failure.message;
+      $("configHistory").textContent = I18n.t("Не удалось загрузить историю: ") + failure.message;
       error(failure.message);
       $("configError").dataset.source = "history";
     }
@@ -485,7 +485,7 @@ window.ConfigEditor = (() => {
     try {
       await chain;
       await flushFields();
-      if (unsaved.length) throw new Error("Нет связи: сначала повторите сохранение черновика или отмените изменения");
+      if (unsaved.length) throw new Error(I18n.t("Нет связи: сначала повторите сохранение черновика или отмените изменения"));
       await flushSources();
       await loadProfile(next);
       try { localStorage.setItem("pz-config-profile", next); } catch (_) { /* optional preference */ }
@@ -495,7 +495,7 @@ window.ConfigEditor = (() => {
     const button = e.target.closest("[data-tab]");
     if (!button) return;
     try {
-      await chain; await flushFields(); if (unsaved.length) throw new Error("Нет связи: сначала повторите сохранение черновика или отмените изменения"); await flushSources(); configTab = button.dataset.tab;
+      await chain; await flushFields(); if (unsaved.length) throw new Error(I18n.t("Нет связи: сначала повторите сохранение черновика или отмените изменения")); await flushSources(); configTab = button.dataset.tab;
       $("configTabs").querySelectorAll("[role=tab]").forEach(b => b.setAttribute("aria-selected", String(b === button)));
       renderFields(); renderSources(); if (configTab === "history") await history();
     } catch (err) { error(err.message); }
@@ -510,7 +510,7 @@ window.ConfigEditor = (() => {
   function trackField(e) {
     const field = e.target.closest("[data-key]"); if (!field) return;
     pendingFields.set(`${field.dataset.kind}:${field.dataset.key}`, field);
-    $("draftSaved").textContent = "Поле ещё не сохранено в черновик";
+    $("draftSaved").textContent = I18n.t("Поле ещё не сохранено в черновик");
     updateBar();
   }
   $("configFields").addEventListener("input", trackField);
@@ -524,20 +524,20 @@ window.ConfigEditor = (() => {
   });
   $("configFields").addEventListener("click", e => {
     const remove = e.target.closest("[data-remove-option]"); if (!remove) return;
-    modal.open({ title: "Удалить сохранённый параметр?", bodyHTML: esc(remove.dataset.removeOption), onConfirm: () => patch({ removeSandbox: [remove.dataset.removeOption] }) });
+    modal.open({ title: I18n.t("Удалить сохранённый параметр?"), bodyHTML: esc(remove.dataset.removeOption), onConfirm: () => patch({ removeSandbox: [remove.dataset.removeOption] }) });
   });
   for (const kind of ["ini", "sandbox"]) {
-    $(kind + "Source").addEventListener("input", () => { sourceDirty = true; $("draftSaved").textContent = "Исходник ещё не сохранён в черновик"; highlight(kind); });
+    $(kind + "Source").addEventListener("input", () => { sourceDirty = true; $("draftSaved").textContent = I18n.t("Исходник ещё не сохранён в черновик"); highlight(kind); });
     $(kind + "Source").addEventListener("scroll", () => highlight(kind));
   }
   $("sourceSave").addEventListener("click", () => flushFields().then(flushSources).catch(e => error(e.message)));
   function selectWorkshopCandidates(result, profile) {
     const current = new Set(mods.workshop.map(w => w.workshopId));
     const candidates = [...new Map(result.items.map(w => [w.workshopId, w])).values()];
-    modal.open({ title: result.source?.title || "Пакеты Steam-коллекции", okLabel: "Добавить выбранные", bodyHTML: `<p>Выберите пакеты для черновика <strong>${esc(profile)}</strong>. ModID выберете после загрузки.</p><div class="collection-tools"><label for="collectionQuery">Поиск пакета</label><input type="search" id="collectionQuery" placeholder="Название или Workshop ID…" /><div class="editor-toolbar"><button type="button" class="btn small" id="collectionSelect">Выбрать найденные</button><button type="button" class="btn small" id="collectionClear">Снять найденные</button></div><p id="collectionCount" class="hint" role="status"></p></div><div id="collectionCandidates">${candidates.map(w => `<label class="collection-candidate" data-candidate-query="${esc(`${w.title} ${w.workshopId}`.toLowerCase())}"><input type="checkbox" value="${esc(w.workshopId)}" ${current.has(w.workshopId) ? "disabled" : ""} /><span><strong>${esc(w.title || w.workshopId)}</strong><code>${esc(w.workshopId)}</code>${current.has(w.workshopId) ? '<span class="hint">Уже в конфигурации</span>' : ""}</span></label>`).join("") || '<p class="hint">В коллекции нет пакетов для добавления.</p>'}</div><p id="collectionEmpty" class="hint" hidden>Нет пакетов, соответствующих поиску.</p>`, onConfirm: async () => {
-      if (file !== profile) throw new Error("Профиль изменился. Проверьте коллекцию заново.");
+    modal.open({ title: result.source?.title || I18n.t("Пакеты Steam-коллекции"), okLabel: I18n.t("Добавить выбранные"), bodyHTML: I18n.msg`<p>Выберите пакеты для черновика <strong>${esc(profile)}</strong>. ModID выберете после загрузки.</p><div class="collection-tools"><label for="collectionQuery">Поиск пакета</label><input type="search" id="collectionQuery" placeholder="Название или Workshop ID…" /><div class="editor-toolbar"><button type="button" class="btn small" id="collectionSelect">Выбрать найденные</button><button type="button" class="btn small" id="collectionClear">Снять найденные</button></div><p id="collectionCount" class="hint" role="status"></p></div><div id="collectionCandidates">${candidates.map(w => `<label class="collection-candidate" data-candidate-query="${esc(`${w.title} ${w.workshopId}`.toLowerCase())}"><input type="checkbox" value="${esc(w.workshopId)}" ${current.has(w.workshopId) ? "disabled" : ""} /><span><strong>${esc(w.title || w.workshopId)}</strong><code>${esc(w.workshopId)}</code>${current.has(w.workshopId) ? I18n.html('<span class="hint">Уже в конфигурации</span>') : ""}</span></label>`).join("") || I18n.html('<p class="hint">В коллекции нет пакетов для добавления.</p>')}</div><p id="collectionEmpty" class="hint" hidden>Нет пакетов, соответствующих поиску.</p>`, onConfirm: async () => {
+      if (file !== profile) throw new Error(I18n.t("Профиль изменился. Проверьте коллекцию заново."));
       const selected = [...$("collectionCandidates").querySelectorAll("input:checked:not(:disabled)")].map(input => input.value);
-      if (!selected.length) throw new Error("Выберите хотя бы один пакет");
+      if (!selected.length) throw new Error(I18n.t("Выберите хотя бы один пакет"));
       await patch(() => ({ mods: { items: [...new Set([...mods.workshop.map(w => w.workshopId), ...selected])] } }));
       $("workshopInput").value = "";
     } });
@@ -547,7 +547,7 @@ window.ConfigEditor = (() => {
       rows.forEach(row => { row.hidden = !row.dataset.candidateQuery.includes(query); });
       const selected = rows.filter(row => row.querySelector("input").checked).length;
       const found = rows.filter(row => !row.hidden).length;
-      $("collectionCount").textContent = `Выбрано пакетов: ${selected} · найдено ${found} из ${candidates.length}${current.size && candidates.some(w => current.has(w.workshopId)) ? ` · уже в конфигурации ${candidates.filter(w => current.has(w.workshopId)).length}` : ""}`;
+      $("collectionCount").textContent = I18n.msg`Выбрано пакетов: ${selected} · найдено ${found} из ${candidates.length}${current.size && candidates.some(w => current.has(w.workshopId)) ? I18n.msg` · уже в конфигурации ${candidates.filter(w => current.has(w.workshopId)).length}` : ""}`;
       $("collectionEmpty").hidden = found > 0;
       $("modalOk").disabled = !selected;
     }
@@ -564,8 +564,8 @@ window.ConfigEditor = (() => {
     resolvingWorkshop = true; updateBar();
     try {
       const result = await call("/api/workshop-resolve", { input: $("workshopInput").value });
-      if (file !== profile) throw new Error("Профиль изменился во время проверки Steam. Добавьте пакет в нужном профиле заново.");
-      if (S.op?.active || loading) throw new Error("Дождитесь завершения операции и проверьте Steam-пакет заново");
+      if (file !== profile) throw new Error(I18n.t("Профиль изменился во время проверки Steam. Добавьте пакет в нужном профиле заново."));
+      if (S.op?.active || loading) throw new Error(I18n.t("Дождитесь завершения операции и проверьте Steam-пакет заново"));
       if (result.source?.kind === "collection" || result.items.length > 1) { selectWorkshopCandidates(result, profile); return; }
       await patch(() => ({ mods: { items: [...new Set([...mods.workshop.map(w => w.workshopId), ...result.items.map(w => w.workshopId)])] } }));
       $("workshopInput").value = "";
@@ -579,20 +579,20 @@ window.ConfigEditor = (() => {
   $("legacyMods").addEventListener("click", e => {
     const button = e.target.closest("[data-legacy-id]"); if (!button) return;
     const rec = draft.legacyDisabled.find(r => r.workshopId === button.dataset.legacyId);
-    modal.open({ title: "Перенести запись в выбранный профиль?", bodyHTML: `Профиль ${esc(file)}. Состав будет проверен по скачанным Steam-пакетам перед применением.`, onConfirm: () => patch({ mods: { items: [...new Set([...mods.workshop.map(w => w.workshopId), rec.workshopId])], selected: [...new Set([...mods.mods, ...rec.modIds.map(mid => mid.replace(/^\\+/, ""))])] } }) });
+    modal.open({ title: I18n.t("Перенести запись в выбранный профиль?"), bodyHTML: I18n.msg`Профиль ${esc(file)}. Состав будет проверен по скачанным Steam-пакетам перед применением.`, onConfirm: () => patch({ mods: { items: [...new Set([...mods.workshop.map(w => w.workshopId), rec.workshopId])], selected: [...new Set([...mods.mods, ...rec.modIds.map(mid => mid.replace(/^\\+/, ""))])] } }) });
   });
   $("modPackages").addEventListener("click", e => {
     const remove = e.target.closest("[data-remove-item]");
     if (e.target.closest("[data-open-custom]")) { configTab = "custom"; $("configTabs").querySelectorAll("[role=tab]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === "custom"))); renderFields(); }
     if (!remove) return;
     const packet = mods.workshop.find(w => w.workshopId === remove.dataset.removeItem);
-    modal.open({ title: "Удалить пакет из конфигурации?", bodyHTML: `Будут убраны Workshop item ${esc(packet.workshopId)} и его выбранные ModID. Скачанные файлы сохранятся.`, onConfirm: () => patch({ mods: { items: mods.workshop.filter(w => w !== packet).map(w => w.workshopId), selected: mods.mods.filter(mid => !packet.mods.includes(mid)) } }) });
+    modal.open({ title: I18n.t("Удалить пакет из конфигурации?"), bodyHTML: I18n.msg`Будут убраны Workshop item ${esc(packet.workshopId)} и его выбранные ModID. Скачанные файлы сохранятся.`, onConfirm: () => patch({ mods: { items: mods.workshop.filter(w => w !== packet).map(w => w.workshopId), selected: mods.mods.filter(mid => !packet.mods.includes(mid)) } }) });
   });
   $("modProblems").addEventListener("click", e => {
     const button = e.target.closest("[data-add-dependency]"); if (!button) return;
     const mid = button.dataset.addDependency;
     const providers = mods.workshop.flatMap(w => w.available || []).filter(r => r.modId === mid);
-    if (providers.length !== 1) { error("Пакет зависимости не определён. Добавьте его Steam-ссылку; Workshop ID нельзя получить из ModID."); return; }
+    if (providers.length !== 1) { error(I18n.t("Пакет зависимости не определён. Добавьте его Steam-ссылку; Workshop ID нельзя получить из ModID.")); return; }
     patch({ mods: { selected: [mid, ...mods.mods.filter(m => m !== mid)] } }).catch(() => {});
   });
   function renderOrder() {
@@ -601,13 +601,13 @@ window.ConfigEditor = (() => {
     const query = $("orderQuery").value.trim().toLowerCase();
     const entries = mods.mods.map((mid, index) => ({ mid, index, name: names.get(mid) || "" }))
       .filter(r => `${r.mid} ${r.name}`.toLowerCase().includes(query));
-    $("orderCount").textContent = query ? `Найдено ${entries.length} из ${mods.mods.length} · номера позиций сохранены` : `Всего ${mods.mods.length} · позиция 1 загружается первой`;
-    $("modOrderList").innerHTML = entries.map(({ mid, index, name }) => `<div class="order-row" data-order-id="${esc(mid)}">
+    $("orderCount").textContent = query ? I18n.msg`Найдено ${entries.length} из ${mods.mods.length} · номера позиций сохранены` : I18n.msg`Всего ${mods.mods.length} · позиция 1 загружается первой`;
+    $("modOrderList").innerHTML = entries.map(({ mid, index, name }) => I18n.msg`<div class="order-row" data-order-id="${esc(mid)}">
       <button type="button" class="btn order-grip" draggable="true" aria-label="Перетащить ${esc(mid)}" title="Потяните для изменения порядка; с клавиатуры используйте «Переместить…»"><svg width="18" height="24" viewBox="0 0 18 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="5" r="2"/><circle cx="13" cy="5" r="2"/><circle cx="5" cy="12" r="2"/><circle cx="13" cy="12" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="13" cy="19" r="2"/></svg></button>
       <span class="order-position" aria-label="Позиция ${index + 1}">${index + 1}</span>
       <div class="order-identity"><code>${esc(mid)}</code>${name && name !== mid ? `<span class="hint">${esc(name)}</span>` : ""}</div>
       <div class="order-actions"><button type="button" class="btn small order-step" data-move-id="${esc(mid)}" data-direction="-1" data-edge="${index === 0}" aria-label="Поднять ${esc(mid)}" title="На одну позицию выше">↑</button><button type="button" class="btn small order-step" data-move-id="${esc(mid)}" data-direction="1" data-edge="${index === mods.mods.length - 1}" aria-label="Опустить ${esc(mid)}" title="На одну позицию ниже">↓</button><button type="button" class="btn small" data-position-id="${esc(mid)}" aria-label="Переместить ${esc(mid)}">Переместить…</button></div>
-    </div>`).join("") || '<p class="hint">Нет модов, соответствующих поиску.</p>';
+    </div>`).join("") || I18n.html('<p class="hint">Нет модов, соответствующих поиску.</p>');
     updateBar();
   }
   function focusOrder(mid, direction) {
@@ -617,32 +617,32 @@ window.ConfigEditor = (() => {
     if (button) { button.focus({ preventScroll: true }); row.scrollIntoView({ block: "nearest" }); }
   }
   async function move(mid, target, direction) {
-    if (S.demo || S.op?.active || loading) throw new Error("Редактор сейчас недоступен");
+    if (S.demo || S.op?.active || loading) throw new Error(I18n.t("Редактор сейчас недоступен"));
     let previous = 0, position = 0;
     await patch(() => {
       const index = mods.mods.indexOf(mid);
-      if (index < 0) throw new Error("Мод больше не выбран в этом профиле");
+      if (index < 0) throw new Error(I18n.t("Мод больше не выбран в этом профиле"));
       const list = mods.mods.filter(m => m !== mid);
       const destination = typeof target === "function" ? target(index, mods.mods) : target;
-      if (!Number.isInteger(destination) || destination < 0 || destination > list.length) throw new Error(`Укажите целую позицию от 1 до ${mods.mods.length}`);
+      if (!Number.isInteger(destination) || destination < 0 || destination > list.length) throw new Error(I18n.msg`Укажите целую позицию от 1 до ${mods.mods.length}`);
       previous = index + 1; position = destination + 1;
       list.splice(destination, 0, mid);
       return { mods: { selected: list } };
     });
-    $("orderAnnouncement").textContent = `${mid}: позиция ${previous} → ${position}. Черновик сохранён.`;
+    $("orderAnnouncement").textContent = I18n.msg`${mid}: позиция ${previous} → ${position}. Черновик сохранён.`;
     focusOrder(mid, direction);
   }
   function showPosition(mid) {
     const profile = file, total = mods.mods.length, index = mods.mods.indexOf(mid);
     if (index < 0) return;
-    modal.open({ title: "Переместить мод", okLabel: "Переместить", bodyHTML: `<div class="order-move-dialog"><code>${esc(mid)}</code><p class="hint">Сейчас на позиции ${index + 1} из ${total}. Укажите итоговую позицию в полном списке. Изменится только черновик порядка модов.</p><div class="order-quick"><button type="button" class="btn" data-position-shortcut="1" ${index === 0 ? "disabled" : ""}>В начало</button><button type="button" class="btn" data-position-shortcut="${total}" ${index === total - 1 ? "disabled" : ""}>В конец</button></div><label for="orderDestination">Новая позиция</label><input id="orderDestination" type="number" inputmode="numeric" min="1" max="${total}" step="1" value="${index + 1}" required aria-describedby="orderPositionHint orderPositionError" /><p id="orderPositionHint" class="hint">От 1 до ${total}. Остальные моды сохранят взаимный порядок.</p><p id="orderPositionError" class="field-error" hidden></p></div>`, onConfirm: async () => {
+    modal.open({ title: I18n.t("Переместить мод"), okLabel: I18n.t("Переместить"), bodyHTML: I18n.msg`<div class="order-move-dialog"><code>${esc(mid)}</code><p class="hint">Сейчас на позиции ${index + 1} из ${total}. Укажите итоговую позицию в полном списке. Изменится только черновик порядка модов.</p><div class="order-quick"><button type="button" class="btn" data-position-shortcut="1" ${index === 0 ? "disabled" : ""}>В начало</button><button type="button" class="btn" data-position-shortcut="${total}" ${index === total - 1 ? "disabled" : ""}>В конец</button></div><label for="orderDestination">Новая позиция</label><input id="orderDestination" type="number" inputmode="numeric" min="1" max="${total}" step="1" value="${index + 1}" required aria-describedby="orderPositionHint orderPositionError" /><p id="orderPositionHint" class="hint">От 1 до ${total}. Остальные моды сохранят взаимный порядок.</p><p id="orderPositionError" class="field-error" hidden></p></div>`, onConfirm: async () => {
       const input = $("orderDestination"), position = Number(input.value);
       if (!input.value.trim() || !Number.isInteger(position) || position < 1 || position > total) {
-        $("orderPositionError").textContent = `Укажите целую позицию от 1 до ${total}`;
+        $("orderPositionError").textContent = I18n.msg`Укажите целую позицию от 1 до ${total}`;
         $("orderPositionError").hidden = false; input.setAttribute("aria-invalid", "true"); input.focus();
         throw new Error($("orderPositionError").textContent);
       }
-      if (file !== profile) throw new Error("Профиль изменился во время редактирования");
+      if (file !== profile) throw new Error(I18n.t("Профиль изменился во время редактирования"));
       await move(mid, position - 1);
     } });
     const input = $("orderDestination");
@@ -684,7 +684,7 @@ window.ConfigEditor = (() => {
     const row = e.target.closest("[data-order-id]"), mid = dragId, after = row?.dataset.drop === "after";
     if (mid && row && row.dataset.drop) {
       e.preventDefault(); const targetId = row.dataset.orderId;
-      move(mid, (index, list) => { const targetIndex = list.indexOf(targetId); if (targetIndex < 0) throw new Error("Позиция назначения больше недоступна"); const slot = targetIndex + (after ? 1 : 0); return slot - (index < slot ? 1 : 0); }).catch(() => {});
+      move(mid, (index, list) => { const targetIndex = list.indexOf(targetId); if (targetIndex < 0) throw new Error(I18n.t("Позиция назначения больше недоступна")); const slot = targetIndex + (after ? 1 : 0); return slot - (index < slot ? 1 : 0); }).catch(() => {});
     }
     endDrag();
   });
@@ -703,11 +703,11 @@ window.ConfigEditor = (() => {
   $("modImport").addEventListener("change", async e => {
     try {
       const uploaded = e.target.files[0]; if (!uploaded) return;
-      if (uploaded.size > 1_000_000) throw new Error("Набор больше 1 МБ");
+      if (uploaded.size > 1_000_000) throw new Error(I18n.t("Набор больше 1 МБ"));
       const pack = JSON.parse(await uploaded.text());
       await chain;
       await flushFields();
-      if (unsaved.length) throw new Error("Нет связи: сначала повторите сохранение черновика или отмените изменения");
+      if (unsaved.length) throw new Error(I18n.t("Нет связи: сначала повторите сохранение черновика или отмените изменения"));
       await flushSources();
       draft = await call("/api/modpack", { file, draftRevision: draft.draftRevision, pack });
       renderFields(); renderSources(); await loadMods(); updateBar();
@@ -717,31 +717,31 @@ window.ConfigEditor = (() => {
     try {
       const result = await validate();
       if (Object.keys(result.conflictDiff || {}).length) { showConflict(result); return; }
-      modal.open({ title: "Изменения конфигурации", okLabel: "Закрыть", bodyHTML: diffHtml(result) });
+      modal.open({ title: I18n.t("Изменения конфигурации"), okLabel: I18n.t("Закрыть"), bodyHTML: diffHtml(result) });
     } catch (e) { error(e.message); }
   });
   $("configRebase").addEventListener("click", async () => {
     try {
       const result = await validate();
-      if (!result.rebaseAvailable) throw new Error(result.rebaseError || "Нет конфликта для объединения. Загрузите профиль заново.");
+      if (!result.rebaseAvailable) throw new Error(result.rebaseError || I18n.t("Нет конфликта для объединения. Загрузите профиль заново."));
       showConflict(result, true);
     } catch (e) { error(e.message); }
   });
   $("draftRetry").addEventListener("click", () => flushFields().then(() => patch({})).catch(e => error(e.message)));
-  $("configDiscard").addEventListener("click", () => modal.open({ title: "Отменить черновик?", bodyHTML: "Будет загружена текущая конфигурация с диска. Уже записанные настройки и скачанные пакеты сохранятся.", onConfirm: async () => { unsaved = []; await patch({ discard: true }); pendingFields.clear(); sourceDirty = false; renderFields(); renderSources(); renderMods(); } }));
+  $("configDiscard").addEventListener("click", () => modal.open({ title: I18n.t("Отменить черновик?"), bodyHTML: I18n.t("Будет загружена текущая конфигурация с диска. Уже записанные настройки и скачанные пакеты сохранятся."), onConfirm: async () => { unsaved = []; await patch({ discard: true }); pendingFields.clear(); sourceDirty = false; renderFields(); renderSources(); renderMods(); } }));
   $("configSave").addEventListener("click", () => confirmApply(false, false));
   $("configApply").addEventListener("click", () => confirmApply(false, true));
   async function verifyRunning() {
     if (S.demo || S.op?.active || loading) return;
     try {
       await chain; await flushFields(); await flushSources();
-      if (unsaved.length) throw new Error("Сначала сохраните черновик после восстановления связи");
+      if (unsaved.length) throw new Error(I18n.t("Сначала сохраните черновик после восстановления связи"));
       loading = true; updateBar();
       const current = await call(`/api/config-draft?file=${encodeURIComponent(file)}`);
-      if (current.draftRevision !== draft.draftRevision) throw new Error("Черновик изменён другой вкладкой. Загрузите профиль заново");
+      if (current.draftRevision !== draft.draftRevision) throw new Error(I18n.t("Черновик изменён другой вкладкой. Загрузите профиль заново"));
       draft = await call("/api/config-verify", { file, draftRevision: draft.draftRevision, currentRevision: current.currentRevision });
       clearError(); renderFields(); renderSources(); await loadMods(); updateBar();
-      toast(draft.state?.installation ? "Пакеты загружены. Выберите ModID для второго этапа." : "Записанная конфигурация и готовность сервера подтверждены.", "ok");
+      toast(draft.state?.installation ? I18n.t("Пакеты загружены. Выберите ModID для второго этапа.") : I18n.t("Записанная конфигурация и готовность сервера подтверждены."), "ok");
     } catch (failure) { error(failure.message); }
     finally { loading = false; updateBar(); }
   }
@@ -764,15 +764,15 @@ window.ConfigEditor = (() => {
   document.addEventListener("keydown", e => { if (e.key === "Escape" && $("draftExtra").dataset.open === "true") { $("draftExtra").dataset.open = "false"; $("draftMore").setAttribute("aria-expanded", "false"); $("draftMore").focus(); } });
   function restoreHistory(id) {
     const profile = file;
-    modal.open({ title: "Восстановить версию в черновик?", bodyHTML: `Профиль <strong>${esc(profile)}</strong>. Текущий черновик будет заменён. После загрузки просмотрите различия и отдельно примените изменения.`, onConfirm: async () => {
+    modal.open({ title: I18n.t("Восстановить версию в черновик?"), bodyHTML: I18n.msg`Профиль <strong>${esc(profile)}</strong>. Текущий черновик будет заменён. После загрузки просмотрите различия и отдельно примените изменения.`, onConfirm: async () => {
       await chain;
-      if (file !== profile || loading || S.op?.active) throw new Error("Профиль или состояние сервера изменились. Откройте восстановление заново.");
+      if (file !== profile || loading || S.op?.active) throw new Error(I18n.t("Профиль или состояние сервера изменились. Откройте восстановление заново."));
       draft = await call("/api/config-history", { file: profile, historyId: id, draftRevision: draft.draftRevision });
       pendingFields.clear();
       unsaved = []; sourceDirty = fieldDirty = false;
       renderFields(); renderSources(); await loadMods(); updateBar();
       const result = await validate();
-      setTimeout(() => modal.open({ title: "Изменения при восстановлении", bodyHTML: diffHtml(result), onConfirm: async () => {} }), 0);
+      setTimeout(() => modal.open({ title: I18n.t("Изменения при восстановлении"), bodyHTML: diffHtml(result), onConfirm: async () => {} }), 0);
     } });
   }
   $("configOperationResult").addEventListener("click", e => {
@@ -817,10 +817,18 @@ window.ConfigEditor = (() => {
   init();
   return {
     get file() { return file; },
+    async prepareLanguageChange() {
+      if (!draft) return;
+      await chain;
+      await flushFields();
+      await flushSources();
+      await chain;
+      if (unsaved.length || pendingFields.size || sourceDirty || fieldDirty) throw new Error(I18n.t("Сначала сохраните черновик после восстановления связи"));
+    },
     async focusSettings(tab = "server") {
-      if (!file || !draft) throw new Error("Сначала выберите доступный профиль конфигурации");
+      if (!file || !draft) throw new Error(I18n.t("Сначала выберите доступный профиль конфигурации"));
       await chain; await flushFields();
-      if (unsaved.length) throw new Error("Сначала повторите сохранение черновика после восстановления связи");
+      if (unsaved.length) throw new Error(I18n.t("Сначала повторите сохранение черновика после восстановления связи"));
       await flushSources();
       configTab = tab;
       $("configTabs").querySelectorAll("[role=tab]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
@@ -847,7 +855,7 @@ window.ConfigEditor = (() => {
           renderFields(); renderSources();
           await loadMods();
         }
-        else if (draft && data.draftRevision !== draft.draftRevision) { draft.conflict = true; $("draftSaved").textContent = "Черновик изменён другой вкладкой. Перевыберите профиль для загрузки."; }
+        else if (draft && data.draftRevision !== draft.draftRevision) { draft.conflict = true; $("draftSaved").textContent = I18n.t("Черновик изменён другой вкладкой. Перевыберите профиль для загрузки."); }
         else if (draft) { draft.conflict = data.conflict; draft.status = data.status; draft.state = data.state; }
         updateBar();
       }).catch(() => { /* retain last visible data on disconnect */ });

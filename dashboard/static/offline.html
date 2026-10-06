@@ -15,6 +15,8 @@
   <main class="pwa-offline">
     <img class="pwa-brand" src="/static/favicon.svg" width="48" height="48" alt="" />
     <p class="pwa-name">PZ·ПУЛЬТ</p>
+    <select class="language-switch" data-language-switch aria-label="Язык интерфейса"><option value="en" lang="en">EN</option><option value="ru" lang="ru">RU</option></select>
+    <p id="languageStatus" role="alert" hidden></p>
     <h1>Нет связи с пультом</h1>
     <p>Проверьте интернет, VPN и доступность сервера. Управление и свежие данные появятся после подключения.</p>
     <p>Сохранённые на сервере черновики останутся доступны после входа. Команды без связи не отправляются.</p>
@@ -22,6 +24,9 @@
     <p id="pwaRetryStatus" role="status" aria-live="polite"></p>
     <noscript><p><a href="/">Открыть пульт</a></p></noscript>
   </main>
+  <script src="/static/catalogs.js"></script>
+  <script src="/static/i18n.js"></script>
+  <script src="/static/localize.js"></script>
   <script src="/static/pwa.js" defer></script>
 </body>
 </html>

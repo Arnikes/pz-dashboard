@@ -18,6 +18,9 @@ def service_worker(static_dir):
         "/static/offline.html",
         "/static/pwa.css",
         "/static/pwa.js",
+        "/static/i18n.js",
+        "/static/catalogs.js",
+        "/static/localize.js",
         "/static/favicon.svg",
         "/static/fonts/fonts.css",
     ]

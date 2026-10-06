@@ -18,6 +18,7 @@ import actions
 import auth
 import config
 import configeditor
+import i18n
 from configformats import FormatError
 import dockerlib
 import notify
@@ -64,11 +65,12 @@ class Handler(BaseHTTPRequestHandler):
 
     # ── helpers ──
     def _send_json(self, obj, code=200, *, cookie=None):
-        body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+        body = json.dumps(i18n.present(obj), ensure_ascii=False).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Language", i18n.language())
         if self.close_connection:
             self.send_header("Connection", "close")
         if cookie:
@@ -156,6 +158,8 @@ class Handler(BaseHTTPRequestHandler):
         )
         with open(full, "rb") as f:
             body = f.read()
+        if safe == "manifest.webmanifest":
+            body = i18n.manifest(body)
         self.send_response(200)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
@@ -163,6 +167,9 @@ class Handler(BaseHTTPRequestHandler):
             "Cache-Control", "no-store" if safe in ("index.html", "login.html") else "no-cache"
         )
         self.send_header("X-Content-Type-Options", "nosniff")
+        if safe == "manifest.webmanifest":
+            self.send_header("Content-Language", i18n.language())
+            self.send_header("Vary", "Cookie, Accept-Language, X-PZ-Language")
         self.end_headers()
         self.wfile.write(body)
 
@@ -223,11 +230,20 @@ class Handler(BaseHTTPRequestHandler):
     def handle_one_request(self):
         # браузер может резко сбросить keep-alive при закрытии вкладки —
         # это не ошибка сервера, тихо закрываем вместо трейсбека в лог
+        locale_token = i18n.LANGUAGE.set("ru")
         try:
             self.body_read = False
             super().handle_one_request()
         except (ConnectionResetError, ConnectionAbortedError):
             self.close_connection = True
+        finally:
+            i18n.LANGUAGE.reset(locale_token)
+
+    def parse_request(self):
+        accepted = super().parse_request()
+        if accepted:
+            i18n.LANGUAGE.set(i18n.resolve(self.headers, self.path))
+        return accepted
 
     # ── SSE-поток: живые данные одним соединением вместо серии опросов ──
 
@@ -243,6 +259,7 @@ class Handler(BaseHTTPRequestHandler):
         cache = self.server.stream_cache
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Content-Language", i18n.language())
         self.send_header("Cache-Control", "no-store")
         # кадры кодируем чанками вручную (длина заранее неизвестна) —
         # без этого заголовка браузеры декодируют поток «по привычке»,
@@ -266,7 +283,7 @@ class Handler(BaseHTTPRequestHandler):
                     if not self.server.auth.is_active(self.auth_session):
                         self._sse_write(b"event: auth-expired\ndata: {}\n\n")
                         return
-                    self._sse_write(frame)
+                    self._sse_write(i18n.stream_frame(frame))
                     last[name] = time.monotonic()
                 if now - last_beat >= 15.0:
                     self._sse_write(b": heartbeat\n\n")

@@ -6,6 +6,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+import i18n
 from playwright.sync_api import expect
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -19,6 +20,7 @@ def editing(page, dashboard, env):  # noqa: F811 (imported pytest fixture)
         query = parse_qs(url.query)
         file = query.get("file", ["world.ini"])[0]
         body = route.request.post_data_json if route.request.method == "POST" else {}
+        locale_token = i18n.LANGUAGE.set(i18n.resolve(route.request.headers))
         try:
             if url.path == "/api/server-configs":
                 result = editor.profiles()
@@ -41,9 +43,13 @@ def editing(page, dashboard, env):  # noqa: F811 (imported pytest fixture)
             else:
                 route.fallback()
                 return
-            route.fulfill(json=result)
+            route.fulfill(json=i18n.present(result))
         except editor.EditorError as error:
-            route.fulfill(status=error.status, json={"ok": False, "error": str(error)})
+            route.fulfill(
+                status=error.status, json=i18n.present({"ok": False, "error": str(error)})
+            )
+        finally:
+            i18n.LANGUAGE.reset(locale_token)
 
     page.route("**/api/**", api)
     return env

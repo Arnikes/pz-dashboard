@@ -60,6 +60,7 @@
       </div>
       <button class="btn" id="btnCommands" type="button" title="Быстрые команды (Ctrl K)" aria-label="Быстрые команды" aria-keyshortcuts="Control+k Meta+k" aria-haspopup="dialog" aria-controls="commandDialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><span class="command-label">Быстрые команды</span></button>
       <button class="btn ghost" id="btnLogout" type="button">Выйти</button>
+      <select id="languageSwitch" class="language-switch" data-language-switch aria-label="Язык интерфейса"><option value="en" lang="en">EN</option><option value="ru" lang="ru">RU</option></select>
     </div>
   </header>
 
@@ -106,6 +107,7 @@
   <div class="banner banner-demo" id="demoBanner" hidden>
     Демо: вымышленные данные, операции отключены.
   </div>
+  <p id="languageStatus" class="banner banner-conn" role="alert" hidden></p>
 
   <main class="main" data-od-id="main">
     <section class="opbar" id="opbar" hidden aria-label="Текущая операция" role="status">
@@ -692,6 +694,9 @@
     </div>
   </dialog>
 
+  <script src="/static/catalogs.js"></script>
+  <script src="/static/i18n.js"></script>
+  <script src="/static/localize.js"></script>
   <script src="static/app.js"></script>
   <script src="static/editor.js"></script>
   <script src="/static/pwa.js"></script>
