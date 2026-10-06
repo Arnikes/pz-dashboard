@@ -17,24 +17,26 @@
 <body class="login-page">
   <main class="login-card">
     <a class="login-github" href="https://github.com/Arnikes/pz-dashboard" target="_blank" rel="noopener noreferrer" aria-label="Проект на GitHub (откроется в новой вкладке)" title="Проект на GitHub (откроется в новой вкладке)">
-      <svg class="login-github-art" viewBox="0 0 72 72" aria-hidden="true" focusable="false">
+      <svg class="login-github-art" viewBox="0 0 56 56" aria-hidden="true" focusable="false">
         <defs>
-          <linearGradient id="github-fold" x1="20" y1="55" x2="46" y2="23" gradientUnits="userSpaceOnUse">
-            <stop stop-color="var(--surface-2)" />
-            <stop offset=".35" stop-color="var(--line-strong)" />
-            <stop offset=".74" stop-color="var(--muted)" />
+          <linearGradient id="github-fold" x1="14" y1="42" x2="34" y2="22" gradientUnits="userSpaceOnUse">
+            <stop stop-color="var(--line-strong)" />
+            <stop offset=".38" stop-color="var(--muted)" />
+            <stop offset=".82" stop-color="var(--ink)" />
             <stop offset="1" stop-color="var(--ink)" />
           </linearGradient>
         </defs>
-        <path class="login-github-reveal" d="M0 0H60Q72 0 72 12V72Z" />
+        <path class="login-github-reveal" d="M12 0H44Q56 0 56 12V44Z" />
         <g class="login-github-logo">
-          <svg x="42" y="9" width="22" height="22" viewBox="0 0 16 16" fill="currentColor">
+          <svg x="33" y="6" width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
             <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.65 7.65 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
           </svg>
         </g>
         <g class="login-github-fold">
-          <path class="login-github-curl" d="M0 0C24 5 43 15 50 28C58 42 65 60 72 72C53 66 32 60 14 58C20 37 12 16 0 0Z" fill="url(#github-fold)" />
-          <path class="login-github-rim" d="M0 0C24 5 43 15 50 28C58 42 65 60 72 72" fill="none" stroke="var(--ink)" stroke-opacity=".45" stroke-width=".65" />
+          <!-- Reflect the 44px corner across the crease (12,0)–(56,44).
+               Its rounded tip curls inward by 2px; both hinge ends stay fixed. -->
+          <path class="login-github-curl" d="M12 0L56 44C44 43 34 42 24 42Q14 42 14 32C14 21 13 10 12 0Z" fill="url(#github-fold)" />
+          <path class="login-github-rim" d="M12 0L56 44" fill="none" stroke="var(--ink)" stroke-opacity=".35" stroke-width=".65" />
         </g>
       </svg>
     </a>
