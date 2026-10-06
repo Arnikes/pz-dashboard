@@ -2,19 +2,26 @@
 
 .command-dialog {
   width: min(640px, calc(100vw - 24px)); max-height: min(680px, calc(100dvh - 32px));
-  padding: 20px; color: var(--ink); background: var(--surface); border: 1px solid var(--line-strong);
-  border-radius: 14px; overflow: auto; box-shadow: 0 18px 48px rgb(0 0 0 / .4); font: inherit;
+  margin: min(72px, 4dvh) auto auto; padding: 20px; color: var(--ink); background: var(--surface);
+  border: 0; border-radius: 14px; overflow: hidden; box-shadow: var(--elevation-dialog); font: inherit;
 }
+.command-dialog[open] { display: flex; flex-direction: column; }
 .command-dialog::backdrop { background: rgb(0 0 0 / .65); }
-.command-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.command-header { flex: none; display: grid; gap: 16px; padding-bottom: 16px; }
+.command-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .command-head h2 { margin: 0; }
-#commandSearch { width: 100%; min-height: 44px; }
-.command-results { display: grid; gap: 4px; }
-.command-item { display: grid; gap: 4px; padding: 12px; min-height: 56px; text-align: left; color: inherit; background: transparent; border: 1px solid transparent; border-radius: 8px; font: inherit; cursor: pointer; }
+#commandSearch { width: 100%; min-width: 0; min-height: 44px; }
+#commandHint { margin: 0; line-height: 1.6; }
+.command-results { min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: grid; grid-auto-rows: max-content; align-content: start; gap: 4px; padding: 4px; scrollbar-gutter: stable; }
+.command-item { display: grid; gap: 4px; width: 100%; min-width: 0; padding: 12px; min-height: 56px; text-align: left; color: inherit; background: transparent; border: 1px solid transparent; border-radius: 8px; font: inherit; cursor: pointer; overflow-wrap: anywhere; }
 .command-item span { font-size: 14px; color: var(--muted); }
 .command-item:hover:not(:disabled), .command-item:focus-visible { background: var(--surface-2); border-color: var(--line-strong); }
 .command-item:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-.command-head .btn { min-height: 44px; }
+.command-head #commandClose { flex: none; min-height: 44px; }
+.command-footer { flex: none; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+.command-footer .hint { margin: 0; }
+.command-empty { padding: 20px 12px; }
+.command-empty .hint { font-size: 14px; }
 .context-help { margin: 12px 0; }
 .context-help summary { cursor: pointer; min-height: 44px; padding: 10px 0; text-decoration: underline; text-underline-offset: 3px; }
 .context-help p { max-width: 72ch; }
@@ -38,7 +45,11 @@
 .attention li a { min-height: 44px; display: inline-flex; align-items: center; }
 .command-item:disabled { opacity: .7; cursor: default; }
 #btnCommands svg { width: 18px; height: 18px; flex:none; }
-@media (max-width: 600px) { .command-dialog { padding: 16px; } }
+@media (max-width: 600px) {
+  .command-dialog { padding: 16px; }
+  #commandSearch { font-size: 16px; }
+}
+@media (forced-colors: active) { .command-dialog { outline: 1px solid CanvasText; } }
 
 :root {
   color-scheme: dark;

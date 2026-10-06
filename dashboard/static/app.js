@@ -2548,8 +2548,10 @@ const commands = (() => {
   function render() {
     const query = search.value.trim().toLocaleLowerCase("ru");
     matches = entries().filter(item => (item.label + " " + item.hint).toLocaleLowerCase("ru").includes(query));
-    results.innerHTML = matches.map((item, index) => `<button type="button" class="command-item" data-command="${index}" ${item.reason ? "disabled" : ""}><strong>${esc(item.label)}</strong><span>${esc(item.reason || item.hint)}</span></button>`).join("") || '<p class="hint">Команда не найдена. Попробуйте название раздела, «настройку», «мод» или «логи».</p>';
-    $("commandCount").textContent = matches.length ? `Команд: ${matches.length}` : "Команда не найдена";
+    results.innerHTML = matches.map((item, index) => `<button type="button" class="command-item" data-command="${index}" ${item.reason ? "disabled" : ""}><strong>${esc(item.label)}</strong><span>${esc(item.reason || item.hint)}</span></button>`).join("") || '<div class="command-empty"><p class="hint">Команда не найдена. Попробуйте название раздела, «настройку», «мод» или «логи».</p><button type="button" class="btn" data-command-clear>Сбросить поиск</button></div>';
+    results.scrollTop = 0;
+    const available = matches.filter(item => !item.reason).length;
+    $("commandCount").textContent = matches.length ? `Найдено: ${matches.length} · Доступно: ${available}` : "Команда не найдена";
   }
   function close(restore = true) {
     dialog.close();
@@ -2566,21 +2568,26 @@ const commands = (() => {
   function open() {
     if (!$("modalRoot").hidden || dialog.open) return;
     opener = document.activeElement;
-    search.value = ""; render(); dialog.showModal(); search.focus();
+    search.value = ""; render(); dialog.showModal(); search.focus(); results.scrollTop = 0;
   }
   $("btnCommands").addEventListener("click", open);
   $("commandClose").addEventListener("click", () => close());
   dialog.addEventListener("cancel", event => { event.preventDefault(); close(); });
   dialog.addEventListener("click", event => { if (event.target === dialog && !event.target.closest(".command-head, input, .command-results, #commandHint")) { const r = dialog.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) close(); } });
   search.addEventListener("input", render);
-  results.addEventListener("click", event => { const button = event.target.closest("[data-command]"); if (button) execute(Number(button.dataset.command)); });
+  results.addEventListener("click", event => {
+    if (event.target.closest("[data-command-clear]")) { search.value = ""; render(); search.focus(); return; }
+    const button = event.target.closest("[data-command]");
+    if (button) execute(Number(button.dataset.command));
+  });
   dialog.addEventListener("keydown", event => {
-    if (event.isComposing) return;
-    const buttons = [...results.querySelectorAll("button:not(:disabled)")];
+    if (event.isComposing || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+    const buttons = [...results.querySelectorAll("[data-command]:not(:disabled)")];
     if (event.key === "Enter" && event.target === search) { event.preventDefault(); if (buttons.length) execute(Number(buttons[0].dataset.command)); }
     if (!["ArrowDown", "ArrowUp"].includes(event.key) || !buttons.length || event.target === $("commandClose")) return;
     event.preventDefault();
     const index = buttons.indexOf(document.activeElement);
+    if (event.target === search) { buttons[event.key === "ArrowDown" ? 0 : buttons.length - 1].focus(); return; }
     if (event.key === "ArrowUp" && index <= 0) search.focus();
     else buttons[(index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length].focus();
   });

@@ -661,12 +661,17 @@
   </div>
 
   <dialog id="commandDialog" class="command-dialog" aria-labelledby="commandTitle" aria-describedby="commandHint">
-    <div class="command-head"><h2 id="commandTitle">Быстрые команды</h2><button type="button" class="btn small" id="commandClose">Закрыть</button></div>
-    <label class="sr-only" for="commandSearch">Найти команду или раздел</label>
-    <input type="search" id="commandSearch" placeholder="Настройки, моды, логи…" autocomplete="off" />
-    <p id="commandHint" class="hint">Стрелки — выбор, Enter — открыть, Escape — закрыть. Операции требуют подтверждения.</p>
+    <div class="command-header">
+      <div class="command-head"><h2 id="commandTitle">Быстрые команды</h2><button type="button" class="btn small" id="commandClose">Закрыть</button></div>
+      <label class="sr-only" for="commandSearch">Найти команду или раздел</label>
+      <input type="search" id="commandSearch" placeholder="Настройки, моды, логи…" autocomplete="off" aria-controls="commandResults" />
+      <p id="commandHint" class="hint">Стрелки — выбор, Enter — открыть, Escape — закрыть.</p>
+    </div>
     <div id="commandResults" class="command-results" role="group" aria-label="Найденные команды"></div>
-    <p id="commandCount" class="sr-only" role="status" aria-live="polite"></p>
+    <div class="command-footer">
+      <p id="commandCount" class="hint" role="status" aria-live="polite" aria-atomic="true"></p>
+      <p class="hint">Операции требуют подтверждения.</p>
+    </div>
   </dialog>
 
   <script src="static/app.js"></script>
