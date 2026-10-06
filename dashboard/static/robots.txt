@@ -1,0 +1,4 @@
+# Crawlers must be able to read the noindex directive in every HTTP response.
+# Private content remains protected by administrator authentication.
+User-agent: *
+Disallow:

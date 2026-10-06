@@ -147,6 +147,12 @@ as administrator access; use a trusted network or an HTTPS reverse proxy and set
 `PZ_AUTH_COOKIE_SECURE=true` for HTTPS. Keep RCON on the Compose network unless you
 explicitly need remote access.
 
+Panel responses and HTML pages prohibit search indexing, including the login page.
+Preserve `X-Robots-Tag` through your proxy; see
+[search visibility and private access](docs/installation.md#search-visibility).
+An internet-accessible login page remains discoverable by network scanners; use a
+VPN or network access restrictions when the entire panel must be private.
+
 Authentication supports a single administrator from environment variables. Normal sessions
 last up to 12 hours; “Remember me” retains a revocable session for 30 days. Persistent data,
 including drafts, history, settings, and saved sessions, belongs in `dashboard-data`.

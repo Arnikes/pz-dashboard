@@ -55,6 +55,35 @@ Serve the panel at the root of its own origin; path prefixes are not supported.
 Pass `/sw.js`, `/manifest.webmanifest`, and `/static/` through without redirects and
 preserve their headers. Do not proxy-cache `/api/`, `/`, `/index.html`, or `/login`.
 
+## Search visibility
+
+Every panel response includes `X-Robots-Tag: noindex, nofollow, nosnippet`, including
+the login page, redirects, errors, API responses, static assets, and downloads.
+All shipped HTML pages also include the same robots meta directive as a fallback.
+Keep the header when passing responses through an HTTPS proxy or CDN.
+
+`/robots.txt` deliberately allows crawling so search engines can read `noindex`.
+Do not replace it with `Disallow: /`: a blocked crawler cannot read the directive,
+and the address may still appear in search results if another site links to it.
+See [Google's noindex documentation](https://developers.google.com/search/docs/crawling-indexing/block-indexing),
+[Bing's removal guidance](https://www.bing.com/webmasters/help/?topicid=37c07477), and
+[Yandex's indexing controls](https://yandex.com/support/webmaster/en/adding-site/indexing-prohibition).
+Private panel data still requires administrator authentication.
+
+Rebuild or pull the updated panel image and recreate the panel to apply this policy.
+Check the public `/login` response for the header and robots meta tag, and check
+`/robots.txt` through the same proxy. Previously indexed addresses disappear after
+the search engine recrawls them; for urgent removal, use the owner's Google Search
+Console, Bing Webmaster Tools, or Yandex Webmaster removal controls.
+
+This policy preserves access at the existing internet address. It is an instruction
+to cooperative search engines, not a network access restriction: anyone who knows
+or discovers the address can still reach the login page. To hide the panel from
+public scanning as well, restrict access using a VPN or a proxy/firewall allowlist
+and close the directly published dashboard port. The Compose examples publish
+port `8081` on all host interfaces; when the reverse proxy runs on the same host,
+bind it to `127.0.0.1:8081:8080` to prevent bypassing the proxy.
+
 ## Environment reference
 
 These are application defaults; the Compose examples explicitly set some values.

@@ -64,6 +64,12 @@ class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
     # ── helpers ──
+    def end_headers(self):
+        # This administrator panel has no indexable responses, including redirects,
+        # errors, downloads, and the public login/PWA assets.
+        self.send_header("X-Robots-Tag", "noindex, nofollow, nosnippet")
+        super().end_headers()
+
     def _send_json(self, obj, code=200, *, cookie=None):
         body = json.dumps(i18n.present(obj), ensure_ascii=False).encode("utf-8")
         self.send_response(code)
@@ -306,6 +312,7 @@ class Handler(BaseHTTPRequestHandler):
 
         public = path in (
             "/login",
+            "/robots.txt",
             "/api/health",
             "/favicon.ico",
             "/manifest.webmanifest",
@@ -327,6 +334,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._static_file("login.html")
         elif path == "/api/auth/session":
             self._send_json({"ok": True, "login": self.server.auth.login})
+        elif path == "/robots.txt":
+            self._static_file("robots.txt")
         elif path == "/manifest.webmanifest":
             self._static_file("manifest.webmanifest")
         elif path == "/sw.js":
