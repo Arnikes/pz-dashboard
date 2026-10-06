@@ -1,55 +1,47 @@
-# ─────────────────────────────────────────────────────────────────
-# ТОЛЬКО ПУЛЬТ — для добавления в СУЩЕСТВУЮЩИЙ compose проекта.
+# Add PZ Console to an existing Compose project.
+# Copy dashboard/ and this file beside the existing docker-compose.yml.
+# Merge .env.example into the existing .env, then run:
+# docker compose -f docker-compose.yml -f docker-compose.dashboard.yml up -d --build
 #
-# Использование (из каталога, где лежит ваш docker-compose.yml):
-#   cp pz-dashboard/docker-compose.dashboard.yml .
-#   cp pz-dashboard/.env.example .env   # заполнить
-#   docker compose -f docker-compose.yml -f docker-compose.dashboard.yml up -d
-#
-# ВАЖНО: пропишите тот же volume, где PZ хранит данные.
-#   • если у вас named volume  → external: true и имя вашего volume
-#   • если bind-каталог        → замените pz-data:/data на путь хоста:
-#                                ./ZomboidConfig:/data
-# ─────────────────────────────────────────────────────────────────
-
+# Change RCON_HOST, PZ_CONTAINER, PZ_SERVICE, PZ_IMAGE, and COMPOSE_PROJECT_NAME.
+# /data must be the same world/configuration directory used by the game server.
+# For a bind mount, replace pz-data:/data with ./your-server-data:/data
+# and remove the external pz-data declaration.
 services:
   pz-dashboard:
-    build: ./dashboard            # каталог с Dockerfile и кодом пульта
-    # Вместо локальной сборки можно брать образ из реестра Gitea (его собирает CD):
-    # image: git.example.com/owner/pz-pult:latest
+    build: ./dashboard
     container_name: pz-dashboard
     restart: unless-stopped
     ports:
-      - "8081:8080"               # веб-интерфейс: http://IP:8081
+      - "8081:8080"
     environment:
-      - PZ_ADMIN_LOGIN=${PZ_ADMIN_LOGIN:?Задайте PZ_ADMIN_LOGIN в .env}
-      - PZ_ADMIN_PASSWORD=${PZ_ADMIN_PASSWORD:?Задайте PZ_ADMIN_PASSWORD в .env}
-      - PZ_AUTH_KEY=${PZ_AUTH_KEY:?Задайте PZ_AUTH_KEY в .env}
-      - PZ_AUTH_COOKIE_SECURE=${PZ_AUTH_COOKIE_SECURE:-false}
-      - RCON_PASSWORD=${RCON_PASSWORD:?Пропишите RCON_PASSWORD в .env}
-      - RCON_HOST=pzserver
-      - RCON_PORT=27015
-      - PZ_CONTAINER=pzserver
-      - PZ_SERVICE=pzserver
-      - PZ_IMAGE=indifferentbrokkoli/pzserver:latest
-      - PZ_SERVER_NAME=${PZ_SERVER_NAME:-Project Zomboid}
-      - PZ_CONFIG_FILE=${PZ_CONFIG_FILE:-}
-      - PZ_VERSION=${PZ_VERSION:-}
-      # имя проекта compose = имени каталога; задайте явно, чтобы пульт
-      # управлял именно вашим проектом
-      - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-pz}
-      # склейка двух файлов, чтобы compose видел весь проект целиком
-      - COMPOSE_FILE=/compose/docker-compose.yml:/compose/docker-compose.dashboard.yml
-      - TZ=${TZ:-Europe/Moscow}
+      PZ_ADMIN_LOGIN: ${PZ_ADMIN_LOGIN:?Set PZ_ADMIN_LOGIN in .env}
+      PZ_ADMIN_PASSWORD: ${PZ_ADMIN_PASSWORD:?Set PZ_ADMIN_PASSWORD in .env}
+      PZ_AUTH_KEY: ${PZ_AUTH_KEY:?Set PZ_AUTH_KEY in .env}
+      PZ_AUTH_COOKIE_SECURE: ${PZ_AUTH_COOKIE_SECURE:-false}
+      RCON_PASSWORD: ${RCON_PASSWORD:?Set RCON_PASSWORD in .env}
+      RCON_HOST: pzserver
+      RCON_PORT: "27015"
+      PZ_CONTAINER: pzserver
+      PZ_SERVICE: pzserver
+      PZ_IMAGE: indifferentbroccoli/projectzomboid-server-docker:latest
+      PZ_SERVER_NAME: ${PZ_SERVER_NAME:-Project Zomboid}
+      PZ_CONFIG_FILE: ${PZ_CONFIG_FILE:-}
+      PZ_VERSION: ${PZ_VERSION:-}
+      COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:-pz}
+      COMPOSE_FILE: /compose/docker-compose.yml:/compose/docker-compose.dashboard.yml
+      TZ: ${TZ:-UTC}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - .:/compose:ro
       - pz-data:/data
       - ./backups:/backups
       - dashboard-data:/dashboard-data
+      # Optional: mount the existing server-files volume/directory read-only.
+      # - ./server-files:/server-files:ro
 
 volumes:
   pz-data:
     external: true
-    name: pz-data                 # ← замените на имя вашего volume
+    name: pz-data # Replace with the existing game data volume name.
   dashboard-data:

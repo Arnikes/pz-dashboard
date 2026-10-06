@@ -1,4 +1,4 @@
-# PZ Пульт
+# PZ Console
 
 <!-- impeccable:product-schema 1 -->
 
@@ -8,60 +8,53 @@ web
 
 ## Users
 
-Пользователь подтвердил главный приоритет: эффективность опытного администратора
-Project Zomboid. Самый быстрый повседневный сценарий — редактирование настроек
-и состава модов. Интерфейс также обслуживает диагностику и операции сервера.
+Experienced Project Zomboid administrators managing a dedicated server.
+The main daily workflow is editing server settings and Workshop selections,
+with diagnostics, backups, and lifecycle operations close at hand.
 
 ## Product Purpose
 
-Управлять игровым сервером: определить состояние, подготовить изменения,
-проверить их, безопасно применить и проверить результат. Настройки и состав
-модов проходят через сохраняемый черновик и проверку ревизий.
+Inspect server state, prepare changes, review them, apply them safely, and verify
+the result. Configuration and mod selections pass through persistent drafts and
+revision checks before reaching game files.
 
 ## Operating Context
 
-Существующая реализация поддерживает десктоп и мобильный браузер, русский
-интерфейс, локальную установку на хосте сервера и remote-режим через RCON.
-Demo показывает иллюстративные данные и не выполняет операции.
-Частота использования и физические условия работы не подтверждены.
+Self-hosted on the game server's Docker host, with desktop and mobile browsers.
+English and Russian are supported. RCON-only connections provide reduced capabilities.
+Explicit demo mode uses illustrative data and does not execute operations.
 
 ## Capabilities and Constraints
 
-Восемь прямых маршрутов: обзор, игроки, моды, настройки, обслуживание,
-бэкапы, события, консоль. Существующий стек: HTML/CSS/JavaScript и Python.
-Большой UI-фреймворк и новые runtime-зависимости не нужны.
-
-Сохранять черновики, ревизии, diff, историю, маскирование секретов, подтверждение
-замены мира, предупреждения игрокам и проверку запущенной конфигурации.
-Workshop item — пакет Steam; ModID — отдельный мод; карта и профиль являются
-отдельными сущностями. Remote не предоставляет управление контейнером и архивами.
-Общий SSE lifecycle остаётся одним на всю панель.
+Eight routes: overview, settings, mods, players, maintenance, backups, events, console.
+The stack is Python plus HTML/CSS/JavaScript. Keep runtime dependencies small.
+Drafts, diffs, history, secret masking, revision checks, world-replacement confirmation,
+player warnings, and startup verification are part of the product contract.
+Workshop packages, ModIDs, maps, and profiles are distinct entities.
+The SSE lifecycle is shared across routes.
 
 ## Brand Commitments
 
-Название «PZ Пульт», русский язык и точные названия сущностей — действующие
-продуктовые факты. Пользователь запросил заметное обновление внешнего вида;
-05.10.2026 пользователь попросил вернуть прежнюю цветовую схему: тёплые
-почти чёрные поверхности, бежевый текст, оливковые статусы и кирпично-красные
-опасные действия. Структурные и функциональные улучшения сохраняются.
+The English interface name is PZ Console; the Russian interface uses PZ Пульт.
+Use warm near-black surfaces, beige text, olive success states, amber warnings,
+and brick-red destructive actions. Follow [DESIGN.md](DESIGN.md) and the current CSS.
 
 ## Evidence on Hand
 
-README.md, docs/config-editor.md, исходники dashboard/static, изолированные
-browser/API fixtures. Исходный аудит и снимки: docs/ui-ux-audit.md и
-docs/ui-ux-audit-evidence. Продуктовые преимущества и показатели эффективности
-не подтверждены пользовательским исследованием и не должны выдумываться.
+Isolated backend/browser fixtures and reproducible screenshots in `docs/screenshots`.
+Real-server acceptance has a [separate record](docs/acceptance-b42.md).
+Do not claim measured administrator productivity or full accessibility certification.
 
 ## Product Principles
 
-- Редактирование настроек и модов доступно непосредственно.
-- Ошибка сохраняет ввод и объясняет следующий шаг.
-- Опасная операция требует явного подтверждения.
-- Свежесть, операция, черновик и результат различаются.
-- Эффективность клавиатуры сочетается с доступными действиями на телефоне.
+- Keep settings and mods directly accessible.
+- Preserve user input after an error and show the next action.
+- Confirm destructive operations explicitly.
+- Distinguish freshness, pending operations, drafts, and verified results.
+- Support keyboard efficiency and usable mobile controls.
 
 ## Accessibility & Inclusion
 
-План включает клавиатурное управление, устойчивый фокус, контраст, доступные
-имена, связанные вкладки и панели, reduced-motion и мобильные цели касания.
-Полное соответствие WCAG и проверка NVDA пока не подтверждены.
+Maintain keyboard operation, focus visibility, text alongside status colors,
+named controls, linked tabs/panels, reduced-motion support, and touch targets.
+Browser checks do not replace assistive-technology testing or full WCAG certification.

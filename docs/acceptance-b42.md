@@ -1,425 +1,90 @@
-# Приёмка B42 на отдельном стенде
+# Isolated B42 acceptance testing
 
-Приёмка включает настоящий PZ и Steam, в том числе две стадии установки.
-Тесты с изолированными файлами эту проверку не заменяют.
-**01.10.2026 пользователь исключил приёмку игровым клиентом из текущего объёма:
-устройство слишком слабое.** Влияние Sandbox на старые и новые области мира
-в игре не проверено. Сценарий ниже оставлен для будущей проверки на подходящем
-устройстве. Продакшен `192.168.1.193` не является стендом.
+Use the separate acceptance stack to exercise real PZ, RCON, Steam, and configuration
+files. Isolated backend/browser fixtures do not replace this integration check.
+The acceptance stack creates its own project, containers, credentials, and four volumes.
 
-## Изоляция
+## Recorded validation scope
 
-`docker-compose.acceptance.yml` создаёт проект `pz-console-acceptance`, контейнеры
-`pz-console-acceptance-server` и `pz-console-acceptance-panel` и четыре отдельных
-именованных тома. Данные и пароли рабочего сервера не используются. Панель доступна
-только на `http://127.0.0.1:18081`; игровые порты также привязаны к loopback. RCON
-доступен только внутри сети стенда. Политика рестартов выключена.
+Previous local acceptance used **B42 42.21.0** and covered server/RCON readiness,
+active profile and version detection, configuration application and revision verification,
+Workshop preparation/activation, collection metadata resolution, and configuration recovery.
+Startup-generated `ResetID` comments and SandboxVars serialization were also examined.
+The server returned to its Steam-enabled configuration with a clean draft and
+confirmed applied state.
 
-Пути данных и `SERVER_BRANCH=unstable` соответствуют
-[документации образа](https://github.com/indifferentbroccoli/projectzomboid-server-docker).
-Версия PZ определяется по фактическому запуску; переменная `PZ_VERSION` специально
-не подставляется. Перед приёмкой обязательно убедиться, что установлена именно B42.
-Сохранить digest образа и точную версию: тег `latest` и ветка Steam могут измениться.
-`UPDATE_ON_START=false` позволяет сохранить установленную версию между стадиями,
-но не мешает первоначальной установке, когда файлов игры ещё нет.
+**Gameplay effects of Sandbox settings in existing/new world regions were not verified.**
+A connected game-client acceptance pass remains outstanding; readiness and file verification
+do not prove in-game effects. This is a record of earlier acceptance, not a claim that the
+current `latest` image or Steam branch always reproduces that exact version.
+Capture the actual image digest and PZ version for each run.
 
-Перед запуском проверить текущий Docker context. Этот файл предназначен для
-локального движка. Не переключать его на Docker рабочего сервера ради приёмки.
-Запуску нужны ресурсы для отдельной игры и скачивания файлов из Steam.
-Тестовый Java heap ограничен 2 ГБ для маленького мира и лёгкого пакета модов;
-это не рекомендация для рабочего сервера. Для тяжёлого состава выделить стенду
-больше памяти и увеличить `MEMORY_XMX_GB`.
+## Isolation
 
-## Запуск в PowerShell
+`docker-compose.acceptance.yml` uses project `pz-console-acceptance`,
+containers `pz-console-acceptance-server` and `pz-console-acceptance-panel`,
+and separate named volumes. The panel is at **http://127.0.0.1:18081**.
+Game ports bind to loopback; RCON stays inside the Compose network.
+Restart policies are disabled. No production data or passwords belong in this stack.
 
-Команды выполняются из корня репозитория. Пароли генерируются отдельно и остаются
-в игнорируемом каталоге. Не использовать рабочий `.env`.
+The game image and volume paths follow the
+[upstream server image](https://github.com/indifferentbroccoli/projectzomboid-server-docker).
+`SERVER_BRANCH=unstable` requests B42; verify the actual version after startup.
+`UPDATE_ON_START=false` preserves installed files between stages but still permits
+the initial installation. The 2 GiB test heap is for a small test world, not a
+production sizing recommendation. Increase resources for heavier fixtures.
+
+## Launch
+
+Check `docker context show` before running: use your local test engine.
+Generate separate credentials in the ignored temporary directory.
+
+PowerShell, from the repository root after development setup:
 
 ```powershell
 New-Item -ItemType Directory -Path .tmp-b42-acceptance -Force | Out-Null
 if (-not (Test-Path -LiteralPath .tmp-b42-acceptance/secrets.env)) {
-    $acceptanceAdmin = [guid]::NewGuid().ToString('N')
-    $acceptanceRcon = [guid]::NewGuid().ToString('N')
-    $acceptancePanel = [guid]::NewGuid().ToString('N')
-    $acceptanceAuthKey = .\.venv\Scripts\python.exe -c "import base64,secrets; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"
+    $acceptanceKey = .\.venv\Scripts\python.exe -c "import base64,secrets; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"
     Set-Content -LiteralPath .tmp-b42-acceptance/secrets.env -Encoding ascii -Value @(
-        "ACCEPTANCE_ADMIN_PASSWORD=$acceptanceAdmin"
-        "ACCEPTANCE_RCON_PASSWORD=$acceptanceRcon"
-        "ACCEPTANCE_PANEL_PASSWORD=$acceptancePanel"
-        "ACCEPTANCE_AUTH_KEY=$acceptanceAuthKey"
+        "ACCEPTANCE_ADMIN_PASSWORD=$([guid]::NewGuid().ToString('N'))"
+        "ACCEPTANCE_RCON_PASSWORD=$([guid]::NewGuid().ToString('N'))"
+        "ACCEPTANCE_PANEL_PASSWORD=$([guid]::NewGuid().ToString('N'))"
+        "ACCEPTANCE_AUTH_KEY=$acceptanceKey"
     )
 }
-docker context show
-docker compose --env-file .tmp-b42-acceptance/secrets.env -f docker-compose.acceptance.yml config --quiet
 docker compose --env-file .tmp-b42-acceptance/secrets.env -f docker-compose.acceptance.yml up -d --build
 ```
 
-Дождаться первоначального скачивания, создания профиля `pz-acceptance.ini` и ответа
-RCON. Войти в панель как `acceptance-panel-admin` с `ACCEPTANCE_PANEL_PASSWORD`;
-если файл секретов создан раньше, добавьте в него отдельные переменные панели.
-До любой операции в панели проверить в `/api/overview`, что `container`
-равен `pz-console-acceptance-server`, а в `/api/server-configs` — что активный
-профиль `pz-acceptance.ini`, `versionKnown=true`, версия `42.x`, `mountsKnown=true`
-и доступны права записи. Если эти условия не выполнены, сначала устранить причину;
-не подставлять активное имя или версию для обхода диагностики.
+The first run downloads game files from Steam. Inspect logs, wait for RCON readiness,
+then sign in using the generated panel credentials. Preserve the secret file between runs.
 
-Остановить стенд без удаления его данных:
+## Acceptance scenarios
 
-```powershell
-docker compose --env-file .tmp-b42-acceptance/secrets.env -f docker-compose.acceptance.yml stop
-```
+1. Confirm the actual B42 version, profile, image digest, and writable shared mounts.
+2. Change an ordinary INI setting and a Sandbox value. Review the masked diff,
+   apply with restart, and confirm readiness and resulting file revisions.
+3. Make an external edit to the INI. Confirm that application is blocked, then review
+   a non-overlapping rebase. Check that overlapping edits are rejected.
+4. Add a compatible Workshop package with several ModIDs. Prepare it through the
+   first restart, inspect fresh metadata, select IDs/dependencies, then apply the
+   second restart. Other pending settings must remain in the draft during preparation.
+5. Exercise missing/incompatible IDs, broken dependencies, and a metadata change
+   after validation. Confirm that failure does not falsely report successful application.
+6. Verify player-warning behavior, world-backup choices, watchdog grace, and operation errors.
+7. Restore configuration history into a draft, review it, then apply separately.
+8. Create and verify a world archive. Rehearse restore only on this isolated instance.
+9. With a capable game client, compare Sandbox effects in existing and newly generated
+   regions and on newly created characters. Record this separately from file validation.
 
-## Приёмочные сценарии и доказательства
+Acceptance helpers in `scripts/` include `verify_running_config.py`,
+`verify_workshop_failures.py`, and `verify_linux_transactions.py`.
+Read each script's required environment before running it. They are not screenshot tools.
 
-В отчёте записать commit панели, digest образа PZ, точную версию игры, Workshop ID,
-обнаруженные `id=` и результаты каждого сценария. Отчёт не должен содержать пароли,
-полные исходники конфигураций с секретами или токены Steam.
-
-| Сценарий | Действие на стенде | Доказательство результата |
-|---|---|---|
-| Реальные пути и источники настроек | Открыть настройки; сопоставить тома и профиль запуска | Профиль и версия подтверждены; поля окружения помечены; конфликтующая правка блокируется |
-| Первый рестарт | Добавить ранее не скачанный пакет B42 с несколькими ModID и постороннюю правку имени сервера; выполнить «Загрузить пакеты через сервер» | Создан бэкап; изменился только `WorkshopItems`; `Mods` и имя на диске прежние; черновик имени сохранился; готовы PZ/RCON; установка на стадии выбора ModID |
-| Идентификаторы и версии | Сверить содержимое Steam: `mod.info`, `common`, B41 и несколько каталогов B42 | Выбран эффективный каталог для установленной версии; значения `id=` не заменены именами папок или названиями |
-| Второй рестарт | Выбрать подмножество ModID и необходимые зависимости; применить черновик | `Mods` содержит выбранные ID с префиксом B42 и нужным порядком; появился новый бэкап; применилось имя; записана подтверждённая ревизия |
-| Выключение и порядок | Выключить и снова включить один ModID, затем последний в пакете | Подмножество и порядок восстановлены; Workshop item сохранён; сортировка отображения не меняет конфиг |
-| Sandbox модов | Изменить объявленную настройку мода, выключить мод, снова включить | Типы и границы подтверждены свежими метаданными; выключенный параметр сохранён; версия `VERSION` прежняя |
-| Существующий мир | Войти в созданный мир; изменить Sandbox-настройку с известным эффектом; проверить старую и новую область после запуска | Наблюдение в игре записано отдельно от успешной записи Lua; ограничения эффекта описаны без обещания изменения всего мира |
-| Другой профиль и черновик | Создать второй профиль в томе стенда; переключить профиль, дождаться фонового обновления, кратко отключить панель | Фокус и черновик не потеряны; второй профиль можно сохранить после остановки; рестарт текущего сервера как применение второго профиля недоступен |
-| Внешнее изменение | Изменить INI вручную или во второй вкладке после открытия черновика | Получен конфликт и различия; рабочий файл не перезаписан; секреты скрыты |
-| Steam или повреждённый пакет | На отдельном одноразовом пакете стенда воспроизвести недоступность/повреждение | Нет активации неизвестного ID; ошибка и стадия установки переживают перезапуск панели; доступны повтор и отмена |
-| Ошибка бэкапа | Сделать каталог бэкапов недоступным только на стенде и попытаться изменить моды | Запись конфигурации не началась; оба файла остались прежними; ошибка видна; после восстановления доступа повтор возможен |
-| Частичная запись | Проверить автоматический сценарий отказа второго файла; затем проверить права файлов на Linux-томе | Исходная пара и права восстановлены; незавершённый журнал запрещает автоматический запуск |
-| Неудачный запуск | Применить на стенде известную конфигурацию, которая не достигает готовности PZ | Ошибка готовности, диагностика и история сохранены; нет цикла рестартов; прежнюю конфигурацию можно восстановить через черновик |
-| Коллекции и наборы | Импортировать коллекцию и ранее экспортированный набор | Items проверены в Steam заново; ModID выбираются по скачанному содержимому; секреты не экспортированы |
-| Завершение | Восстановить рабочий тестовый состав и выполнить проверку готовности | PZ/RCON готовы; ревизия подтверждена; нет незавершённой установки; бэкап мира доступен |
-
-Не повреждать единственный экземпляр тестового мира ради отрицательных сценариев:
-использовать отдельный одноразовый пакет или копию стенда. Отказ второго файла
-проверяется управляемой инъекцией в автоматическом тесте, а не непредсказуемым
-исчерпанием диска на общей машине.
-
-## Уже подтверждённые автоматические проверки
-
-Общая проверка `scripts/check.py` для commit `164e7da`: **318 тестов**, проверки
-зависимостей, форматирования, Python и JavaScript прошли. Она работает с
-изолированными файлами и API-ответами; настоящий Docker, Steam и игра не участвуют.
-
-| Требование исходного плана | Реализация | Проверка |
-|---|---|---|
-| Пара профиля, источники запуска, тома и версия B42 | `configeditor.context`, `shared_data_path`, `profiles`; `dockerlib.container_startup_version` | `tests/test_configcontext.py`; `test_profiles_never_choose_first_when_ambiguous`, `test_known_mount_mismatch_blocks_operations_before_writing` |
-| Черновики, ревизии, фоновое обновление и потеря связи | `configeditor.draft`, `patch`; `static/editor.js` | `test_draft_is_persistent_and_does_not_write_server`, `test_external_and_other_tab_changes_are_conflicts`; браузерные сценарии сохранения профиля и повтора после ошибки связи |
-| INI без потери структуры, комментарии, секреты | `configformats.edit_ini`, маскирование и восстановление секретов | `tests/test_configeditor.py`: сохранение CRLF, неизвестных ключей, продолжений строк и скрытых значений |
-| Lua без исполнения, вложенные таблицы, VERSION, исходники | `configformats.LuaTable`, `configeditor.syntax_check` | `test_lua_never_executes_expressions`, `test_literal_lua_preserves_comments_tables_and_version`, `test_lua_syntax_check_uses_parse_only_and_removes_temporary_file` |
-| Штатные схемы B42, перечисления, переводы, настройки модов | `configschema`, `schemas/b42-api.json`, `workshop.options`, переводы | `tests/test_schema.py`; проверки новых модовых настроек, границ после обновления и служебной версии |
-| Безопасная запись, бэкап мира, история, восстановление | `configeditor.commit`, `recover`, `run`, `restore_history` | Частичная запись, сбой процесса, ошибка синхронизации, отказ отката, ошибка бэкапа и история: `tests/test_configeditor.py` |
-| Steam item → несколько ModID, эффективная версия и common | `workshop.build_index`, `scan`; `configeditor.mod_state` | `test_one_item_multiple_ids_no_position_mapping`, `test_b42_index_uses_id_and_effective_version_only`, `test_exact_patch_version_is_used` |
-| Зависимости, неоднозначность, несовместимость, ограничения порядка и карты | `workshop.problems`; модовый редактор | `test_dependency_cycle_ambiguity_and_incompatibility`, проверки неизвестных ID и дубликатов; браузерные проверки порядка и карт |
-| Две стадии установки и сохранение между перезапусками | `configeditor.preparation_texts`, `run(prepare=True)`, журнал установки | `test_first_restart_downloads_only_items_preserving_unrelated_edits`, `test_prepare_preview_only_validates_and_shows_stage_one_changes`, проверки свежих метаданных после запуска |
-| Коллекции Steam, импорт/экспорт и повторная проверка пакетов | `workshop.resolve`, `validate_items`; `configeditor.modpack` | `test_steam_collection_items_are_verified`, `test_modpack_import_checks_packages_in_one_batch`, `test_export_never_contains_secret_options` |
-| API, boolean enable, 409 при работающем сервере, старые записи | `dashboard/app.py`, `configeditor.legacy_toggle` | `tests/test_api.py`, `test_legacy_toggle_requires_actual_boolean_and_stop`, `test_legacy_disabled_subset_keeps_item_and_original_order` |
-| Готовность PZ/RCON, внешние запуски и ошибки без бесконечных рестартов | `configeditor.wait_ready`, `response`, `run` | `test_readiness_requires_a_pz_players_response_not_just_open_rcon`, `test_readiness_timeout_is_reported_without_restarting_container`, проверки версии и перезаписи после запуска |
-| Навигация, отступы, кнопки, телефон, клавиатура и длинные формы | `static/style.css`, `app.js`, `editor.js`, `index.html` | `tests/browser/test_dashboard.py`, `test_editors.py`: 390–2048 px, высота полей, меню Escape, фокус, панели без перекрытия, ясный статус профиля |
-| Карты добавляются только явно, их порядок не меняет выбор ModID | `workshop.build_index`, форма `mapEdit` | `test_discovered_map_requires_explicit_edit_and_preserves_existing_order` на десктопе и телефоне |
-| Поиск, ERROR/WARN, пауза прокрутки, сохранение логов при сбое и период операции | `renderLogsFiltered`, `refreshLogs`, `payloads.logs_payload`, API `since`/`until` | Браузерные сценарии фильтров, удержания строк и прокрутки, возврата из периода; `tests/test_api.py`: диапазон и отклонение неверного времени до вызова Docker |
-
-Этот список фиксирует покрытие, а не успешное прохождение живой приёмки. Строка
-сценария может отмечаться выполненной только после записи фактического результата
-на настоящем B42-стенде.
-
-## Живая проверка 2026-10-01
-
-После восстановления Docker Desktop проверка выполнена на отдельном локальном
-проекте, описанном выше. Продакшен не останавливался; его конфигурация и моды
-не изменялись. Изменения панели подготовлены в ветке `codex/ui-design-review`,
-без запуска доставки ветки `main` на рабочий сервер.
-
-- Установленная игра: **42.21.0**, версия определена по реальному запуску.
-- Образ: `indifferentbroccoli/projectzomboid-server-docker@sha256:8e13816b92fdd3e1fac3044b8b9228b255e6deb4d28b268f93a911fbd58ca6e8`.
-- Активный профиль: `pz-acceptance.ini`; общие тома и доступ к записи подтверждены.
-- Steam-пакет: `2983905789`, принадлежность PZ проверена через Steam API.
-- Реальные идентификаторы: `WanderingZombies` и `WanderingZombiesWIP`.
-  Папки `wandering-zombies` / `wandering-zombies-wip`, эффективный каталог `42.18`.
-  Пакет содержит `common`, `42.0`, `42.15`, `42.18` и прежний корневой `media`;
-  доступные версии не объединялись в один список ModID.
-  Метаданные объявляют несовместимость этих вариантов; выбран только первый.
-
-| Проверка | Фактический результат |
-|---|---|
-| Начальная готовность | Получен настоящий ответ RCON `Players connected (0)`; сохранение при работающем сервере отклонено с `409` |
-| Загрузка Steam | PZ скачал ранее отсутствовавший пакет; Workshop-манифест подтвердил установку; после повторной проверки стадия `select-mods` |
-| Разделение стадий | Первая стадия сохранила пустой `Mods` и прежний `PublicName` на диске; правка имени осталась в черновике |
-| Бэкапы мира | До загрузки создан `pz-backup-20261001-133719.tar.gz`; до активации ModID — `pz-backup-20261001-134221.tar.gz` |
-| Активация | В INI записано `Mods=\WanderingZombies`; в логах PZ подтверждена загрузка этого ModID; имя сервера изменилось только на окончательной стадии |
-| Sandbox | `DayLength=4`, `WanderingZombies.TryStopVirtual=false` сохранились после запуска; удалённый объявленный `MergeCooldown` восстановлен игрой со значением по умолчанию `3000` |
-| Готовность после применения | PZ/RCON готовы; статус `applied`; фактическая и применённая ревизии совпали; нет конфликта и незавершённой установки |
-| Права | INI сохранил владельца `1000:1000` и режим `644` на Linux-томе |
-| Отдельные ModID | Выключение / включение в черновике сохранило Workshop item, выбранное подмножество и Sandbox-параметры |
-| Набор модов | Импорт заново проверил пакет в настоящем Steam API; после исправления имён штатных параметров экспорт содержит 98 настроек мода, без VERSION, настроек мира и секретов |
-| Ошибка бэкапа | Том бэкапов стенда временно подключён только для чтения; операция завершилась ошибкой до записи; SHA-256 обоих файлов не изменились; сервер остался остановленным |
-| Частичная запись на Linux | В отдельном контейнере UID 1000 запись второго файла отклонена ядром после смены прав каталога; восстановлены оба файла, BOM, CRLF, владелец и разные режимы `640` / `600` |
-| Отказ отката и авария процесса | При продолжающемся отказе прав журнал сохранён; после возврата доступа пара восстановлена. Завершение процесса с кодом 73 после первой замены также оставило пригодный журнал и исходные снимки |
-| Недоступный Steam | В отдельном контейнере без сети настоящий resolver завершился `URLError` и не вернул кандидатов |
-| Повреждённые метаданные | Изменён только словарь с копией скачанного `mod.info`: без `id=` получены `metadata` / `unknown`, имя папки не стало ModID; исходные файлы не менялись, после возврата данных поставщик восстановился |
-| Новый неизвестный ModID | Живой API отклонил применение с `400` до остановки; SHA-256 пары и время старта PZ не изменились; тестовый черновик отменён |
-| Восстановление после отказа | Том возвращён в режим записи; отменён тестовый черновик выключения; прежняя конфигурация успешно сохранена |
-| Финальное состояние | Повторное применение после восстановления доступа: `applied`, PZ/RCON готовы, нет черновика и конфликта; стенд оставлен запущенным |
-| Живой интерфейс | Проверены ширины 390 и 1440 px: шапка, активный профиль, меню, формы, реальные подсказки и панель действий; горизонтального переполнения и обрезанных контролов не обнаружено |
-
-Во время первых запусков выявлены и исправлены два ложных конфликта: случайный
-`Default` в комментарии `ResetID` и сериализация Sandbox самой игрой с добавлением
-97 объявленных значений мода. Ошибочные попытки не отмечались успешными;
-после исправлений повторные операции подтвердили готовность и фактическую ревизию.
-Изменённые значения, VERSION, секреты, неизвестные добавления и потерянные таблицы
-не входят в разрешённую сериализацию. Отложенные правки первой стадии сохраняются.
-
-Общая проверка после исправлений: **353 теста**, зависимости, Ruff и синтаксис
-JavaScript прошли. Затем отдельно прошли **3 проверки** состояний RCON в шапке
-(остановленный, работающий и удалённый сервер); проверки кода повторены.
-
-Остаётся отдельная проверка игровым клиентом: эффект Sandbox в старой и новой
-области существующего мира. Восстановление мира сервером и успешная запись Lua
-не доказывают этот эффект. Автоматические проверки недоступного Steam, повреждённых
-метаданных, частичной записи и таймаута готовности выполнены. Проверка поведения
-игры в клиенте пока не выполнена.
-
-### Воспроизводимая проверка Linux-транзакций
-
-`scripts/verify_linux_transactions.py` запускается на коде собранного образа панели
-в одноразовом контейнере без сети и Docker-сокета, с UID 1000 и без capabilities.
-Он использует только собственные временные файлы. Граница Docker/RCON заменена
-явной фикстурой остановленного сервера; операции файловой системы, `fsync`, отказ
-прав, аварийное завершение процесса и восстановление настоящие.
-
-Три сценария выполнены как на tmpfs, так и на отдельном новом томе Docker с
-драйвером `local`. Том проверки после завершения удалён; тома игры и панели не
-подключались к контейнеру проверки. Использован образ панели
-`sha256:8ec574175af3003be6dfe351f9820627f493cac7606caabcdc995de2f79f32a2`.
-Это проверка аварии процесса; она не имитирует потерю питания Docker-хоста.
-
-Повтор на tmpfs в локальном Docker Desktop из PowerShell:
+## Stop
 
 ```powershell
-$acceptancePanel = docker --context desktop-linux inspect pz-console-acceptance-panel | ConvertFrom-Json
-if ($acceptancePanel.Config.Labels.'pz-console.acceptance' -ne 'true') {
-    throw 'Ожидался контейнер отдельного стенда'
-}
-$acceptanceVerifier = (Resolve-Path -LiteralPath scripts/verify_linux_transactions.py).Path
-docker --context desktop-linux run --rm `
-    --name pz-console-acceptance-verifier --label pz-console.acceptance=true `
-    --user 1000:1000 --network none --read-only --cap-drop ALL `
-    --security-opt no-new-privileges `
-    --tmpfs /verification:rw,noexec,nosuid,mode=1777 `
-    --mount "type=bind,source=$acceptanceVerifier,target=/verify.py,readonly" `
-    --env PYTHONDONTWRITEBYTECODE=1 $acceptancePanel.Image python /verify.py
+docker compose --env-file .tmp-b42-acceptance/secrets.env -f docker-compose.acceptance.yml down
 ```
 
-Успех — завершение с кодом 0 и три результата JSON с восстановленными байтами
-и правами. Сценарий `processCrash` дополнительно подтверждает сохранение журнала
-и снимков после аварийного завершения процесса, записывающего первый файл.
-
-### Недоступный Steam и повреждённые метаданные
-
-`scripts/verify_workshop_failures.py` использует сетевую изоляцию отдельного
-контейнера и читает настоящий скачанный пакет стенда через том только для чтения.
-Повреждение создаётся в копии словаря метаданных в памяти. Кеш Steam и файлы игры
-не изменяются. Восстановление здесь проверяет возвращение поставщика ModID в индекс;
-проверка отказа применения нового неизвестного ModID дополнительно выполнена через
-живой API стенда.
-
-Этот сценарий привязан к записанным выше пакету и версии. Если Steam обновил пакет,
-сначала сверить новую структуру, затем обновить ожидания сценария после анализа.
-Из корня репозитория в локальном Docker Desktop, с `$acceptancePanel` из предыдущего
-примера:
-
-```powershell
-$acceptanceFiles = 'pz-console-acceptance_acceptance-server-files'
-$acceptanceFilesMeta = docker --context desktop-linux volume inspect $acceptanceFiles | ConvertFrom-Json
-if ($acceptanceFilesMeta.Labels.'com.docker.compose.project' -ne 'pz-console-acceptance') {
-    throw 'Ожидался том отдельного стенда'
-}
-$acceptanceWorkshopVerifier = (Resolve-Path -LiteralPath scripts/verify_workshop_failures.py).Path
-docker --context desktop-linux run --rm `
-    --name pz-console-acceptance-workshop-verifier --label pz-console.acceptance=true `
-    --user 1000:1000 --network none --read-only --cap-drop ALL `
-    --security-opt no-new-privileges `
-    --mount "type=volume,source=$acceptanceFiles,target=/server-files,readonly" `
-    --mount "type=bind,source=$acceptanceWorkshopVerifier,target=/verify.py,readonly" `
-    --env PYTHONDONTWRITEBYTECODE=1 $acceptancePanel.Image python /verify.py
-```
-
-### Проверка подтверждения после запуска
-
-Первый повтор выполнен на панели из commit `7138e41`, образ
-`sha256:9810446d388478dfd11a7c7d59253cee0376746839b299acc956e100e6c9d16e`.
-После исправления повторной проверки панель пересобрана из ветки
-`codex/collection-candidate-review`, образ
-`sha256:1aeb738274ac2485a26e054d93d65ed3e2c6e9a2041ee14e7743cb79538b64d4`.
-В обоих случаях игровой контейнер не перезапускался. `scripts/verify_running_config.py` проверяет
-метки изоляции, локальный движок Docker Desktop, активный профиль B42 и декларацию
-настройки установленного `WanderingZombies`, затем использует настоящий HTTP API.
-
-Подтверждены следующие результаты:
-
-- `/api/config-verify` подтверждает сохранённую ревизию при готовом PZ/RCON.
-  Подготовленная правка `PublicName` остаётся в черновике.
-  Повторная проверка также сохраняет правку и подтверждённое состояние.
-- Устаревшая ревизия черновика и устаревшая ревизия рабочих файлов отклоняются
-  с `409`; сохранение рабочих файлов при запущенной игре также возвращает `409`.
-- Число `0` вместо Lua-boolean `WanderingZombies.TryStopVirtual` вызывает ошибку
-  проверки, а не превращается в `false`.
-- SHA-256 обоих файлов и время запуска игрового контейнера не изменились.
-  Временные правки черновика отменены, итоговый статус — `applied`.
-
-Повторить при чистом черновике на том же локальном стенде:
-
-```powershell
-.venv\Scripts\python.exe scripts/verify_running_config.py `
-    --output .tmp-b42-acceptance/running-config-verification.json
-```
-
-Сценарий намеренно привязан к этому стенду, не принимает адрес продакшена и
-отказывается отменять черновик, если его успел изменить другой редактор.
-Регрессионные проверки дополнительно покрывают принятую сериализацию игры:
-после подтверждения обновляются и ревизия, и соответствующий снимок файлов.
-Повторные проверки и новое служебное значение `ResetID` сохраняют черновик;
-разрешение этого значения восстанавливается только из доказанной истории операции.
-
-### Коллекции в настоящем Steam API
-
-Проверка публичных методов
-[ISteamRemoteStorage](https://partner.steamgames.com/doc/webapi/ISteamRemoteStorage)
-обнаружила, что `GetPublishedFileDetails` не возвращает `file_type` даже для
-коллекции. Поэтому определение и повторная проверка используют
-`GetCollectionDetails`, сопоставляют все ответы по ID и не зависят от порядка
-ответов. Большие списки проверяются порциями по 100 элементов.
-
-Чтение коллекции `3402743759` (`[B42] Balance Expansion`) вернуло пакеты
-`3402516345`, `3540903327`, `3650168851`; сама коллекция отклонена как пакет для
-`WorkshopItems`. Обычный пакет стенда `2983905789` успешно прошёл проверку.
-Эти проверки только читали метаданные Steam: пакеты коллекции не скачивались
-и не включались в игру. Интерфейс предлагает выбор кандидатов с поиском;
-добавление выбранных пакетов изменяет только черновик `WorkshopItems`.
-На живой панели стенда окно проверено при ширине 390 и 1440 px; отмена выбора
-сохранила исходную ревизию чистого черновика и не отправила действий серверу.
-
-Общий прогон: **445 тестов**, зависимости, Ruff и синтаксис JavaScript прошли.
-После последних правок подтверждения запуска повторно прошли **356 проверок
-бэкенда** и **6 браузерных проверок коллекций**. Дополнительные сценарии проверяют
-повторное подтверждение на базе старого черновика, сохранённого снимка и истории.
-
-Проверка игровым клиентом влияния Sandbox в старой и новой области существующего
-мира по-прежнему не выполнена. Подтверждение ревизии через RCON её не заменяет.
-
-### Отметки области действия Sandbox
-
-Редактор различает начальную дату мира, появление новых персонажей, заполнение
-новых областей машинами и начальное топливо новых машин. Описание из игры
-сохраняется отдельно от отметки. Для неизвестных параметров, произвольных имён
-модов, расхода топлива и возрождения добычи область действия не угадывается.
-
-В установленной **42.21.0** проверены следующие исходники без запуска их кода:
-
-- `media/lua/shared/Items/SpawnItems.lua`: `StarterKit` читается в обработчике
-  появления игрока, а не только при создании всего мира.
-- `zombie.iso.IsoChunk` из `java/projectzomboid.jar`: заполнение машинами в
-  `doLoadGridsquare` ограничено проверкой `VehiclesDB2.isChunkSeen`; количество
-  берётся из `carSpawnRate` при добавлении машин.
-- `media/lua/server/Vehicles/Vehicles.lua`: `InitialGas` и `ChanceHasGas`
-  читаются при создании бака в `Vehicles.Create.GasTank`.
-
-SHA-256 jar установленной версии:
-`e1a69eb743ede60b213a0fe7f8b83d4fcab773036d256cc4543a336f3b058a33`.
-Чтение jar выполнено в отдельном контейнере без сети с игровыми файлами только
-для чтения; игровая конфигурация и процесс сервера не менялись. Эти исходники
-обосновывают подсказки, но не заменяют ожидающую проверки приёмку игровым клиентом.
-
-Браузерные проверки ширин 320, 390 и 1440 px подтверждают сохранение описаний,
-связь подсказок с полями для вспомогательных технологий, расположение пояснений
-под полем без переполнения и отсутствие правок черновика при просмотре.
-
-### Сохранность формы при обновлении метаданных
-
-На том же локальном B42 42.21.0 обновлена только панель. На ширинах 390 и
-1440 px введённое в `PublicName` значение и фокус сохранились после повторного
-чтения Workshop-метаданных. Первое нажатие «Посмотреть изменения» включило
-введённое значение в общий черновик и показало его в различиях. После проверки
-тестовый черновик восстановлен; SHA-256 обоих рабочих файлов и время запуска
-игрового контейнера совпали с исходными. Это не требовало рестарта PZ.
-
-Браузерные сценарии дополнительно проверяют отказ сохранения с повторной
-попыткой, опоздавший ответ метаданных после смены профиля или выбора ModID,
-блокировку изменения модов во время операций и ожидание известного состояния
-сервера перед предложением записи файлов. Поиск и просмотр во время операции
-остаются доступны.
-
-Дополнительный браузерный сценарий воспроизвёл сброс введённого `Map=` при поиске
-пакетов. После исправления на ширинах 390 и 1440 px сохраняются текст и фокус
-списка карт, включая выбор ModID и повторное чтение метаданных. Семь проверок
-карт покрывают явное добавление без перестановки исходного списка, сохранение
-в одном черновике с полями INI, отмену и повтор после отказа API. Рабочий файл
-в этих сценариях не меняется.
-
-Проверка через настоящий API того же B42-стенда подтвердила сохранность введённого
-списка карт после поиска, сортировки и обновления метаданных на обеих ширинах.
-Пробное имя карты оставалось только в черновике и не активировалось; черновик
-восстановлен после проверки. Скриншоты выявили перекрытие поля закреплённой
-панелью изменений: добавлена проверка границ поля и исправлена прокрутка с
-сохранением фокуса. Хеши рабочих файлов и время запуска PZ остаются прежними.
-
-### История профилей и подготовка игрового клиента
-
-История перечитывается при смене профиля; запоздавшие ответы и ошибки прежнего
-профиля игнорируются. Подтверждение восстановления содержит имя профиля и
-проверяет его перед заменой черновика. **116 браузерных проверок** прошли, включая
-смену профиля и восстановление на ширинах 390 и 1440 px. После добавления очистки
-ошибки при успешном повторе отдельно прошли **5 сценариев истории**.
-
-На стенде обновлена только панель. `verify_running_config.py` повторно подтвердил
-сохранность черновика, отклонение устаревших ревизий, запрет записи при работающей
-игре, прежние хеши файлов и время запуска PZ.
-
-Клиент из `C:\var\ProjectZomboid` имеет версию **42.21.0**; SHA-256 его jar совпал
-с серверным jar, указанным выше. Запуск использовал отдельный `-cachedir` в
-игнорируемом каталоге стенда. Исходные файлы клиента и пользовательские сохранения
-не менялись. В Windows обнаружены виртуальные видеоадаптеры; обычный запуск
-завершился ошибкой `WGL: The driver does not appear to support OpenGL`.
-
-Отдельная копия Java с переносными библиотеками Mesa llvmpipe 26.2.3 подтвердила
-OpenGL 4.6 и переход в `MainScreenState` по диагностике JVM. После пересоздания
-подключения инструмента и изменения размера окна удалось увидеть главное меню,
-открыть Multiplayer и форму добавления сервера. Ввод текста и отрисовка оказались
-нестабильными. Пробное отключение промежуточного буфера интерфейса выполнялось
-только в настройках тестового каталога клиента.
-
-Повторное управление новым окном вновь вернуло
-`GetCursorPos failed: Access is denied. (0x80070005)`, несмотря на подтверждённую
-пользователем открытую сессию. Это не доказывает блокировку рабочего стола.
-Подключение к серверу и влияние Sandbox в старой и новой области мира ещё не
-проверены. Клиент запускался с `-nosteam`; совместимость режима подключения со
-стендом остаётся отдельной проверкой. Настройки и процесс игрового сервера
-в ходе попыток запуска клиента не менялись.
-
-### Игровая проверка исключена пользователем
-
-После подтверждения открытой сессии управление окном восстановилось. Клиент
-с отдельным кешем показал меню и подготовленный адрес локального стенда;
-ввод текста и реакция на нажатия оставались нестабильными. Свободной памяти
-Windows было около 216 МиБ при 8 ГиБ общей памяти.
-
-Для совместимого подключения был создан бэкап
-`pz-backup-20261001-214319.tar.gz`, стенд штатно остановлен и временно запущен
-с `-nosteam`. Настоящее содержимое уже скачанного Steam-пакета было скопировано
-в отдельный кеш тестового сервера. PZ 42.21.0 и RCON подтвердили готовность;
-игроков не было. Подключение клиентом и наблюдения в игровом мире не выполнены.
-
-По указанию пользователя этот этап прекращён. Тестовый клиент закрыт,
-временная копия мода удалена после сверки с исходным Steam-пакетом, сервер
-возвращён к прежнему запуску Steam. Исходные файлы клиента, личные сохранения
-и продакшен не менялись. Остальные результаты приёмки, описанные выше, сохраняют
-силу; успешный запуск и запись Lua не выдаются за проверку эффектов в игре.
-
-После возврата к Steam подтверждены PZ/RCON, B42 **42.21.0**, статус `applied`,
-чистый черновик и отсутствие конфликта. Значения INI совпали с бэкапом перед
-подготовкой клиента, байты SandboxVars не изменились. Единственное изменение
-INI при запуске — генерируемое PZ значение по умолчанию в комментарии `ResetID`;
-общий механизм проверки запуска распознал его и подтвердил ревизию.
+This preserves the test volumes. Add `--volumes` only when intentionally discarding
+the acceptance world and its panel state. Never run that cleanup against a production project.

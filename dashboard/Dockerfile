@@ -1,8 +1,7 @@
-# Пульт управления PZ-сервером. Внутри — docker CLI + compose + python3.
+# PZ Console: Python, Docker CLI, and Compose for the sibling game container.
 FROM python:3.12-alpine
 
-# docker-cli и docker-cli-compose нужны для управления соседним контейнером,
-# tar — для бэкапов, tzdata — для корректного времени.
+# tar creates world backups; tzdata supplies container time; Lua checks syntax.
 RUN apk add --no-cache docker-cli docker-cli-compose tar tzdata lua5.1
 
 WORKDIR /app

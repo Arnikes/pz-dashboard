@@ -1,65 +1,65 @@
-# ─────────────────────────────────────────────────────────────────
-# ПОЛНЫЙ ПРИМЕР: сервер Project Zomboid + пульт управления.
-# Если сервер уже работает — НЕ заменяйте свой compose. Просто
-# добавьте в свой файл сервис pz-dashboard (см. docker-compose.dashboard.yml).
-#
-# Параметры образа indifferentbrokkoli/pzserver сверьте с официальным
-# README образа: имена переменных и путь к данным могут отличаться
-# в вашей версии.
-# ─────────────────────────────────────────────────────────────────
-
+# New server example: Project Zomboid + PZ Console.
+# For an existing server, use docker-compose.dashboard.yml instead.
+# Upstream image: https://github.com/indifferentbroccoli/projectzomboid-server-docker
 services:
   pzserver:
-    image: indifferentbrokkoli/pzserver:latest
+    image: indifferentbroccoli/projectzomboid-server-docker:latest
     container_name: pzserver
     restart: unless-stopped
-    stop_grace_period: 240s        # даём миру сохраниться
+    stop_grace_period: 240s
     environment:
-      - RCON_PASSWORD=${RCON_PASSWORD:?Задайте RCON_PASSWORD в .env}
-      - TZ=${TZ:-Europe/Moscow}
-      # ← остальные переменные (имя сервера, пароли, админы и т.д.)
-      #   скопируйте из вашего рабочего compose-файла
+      RCON_PASSWORD: ${RCON_PASSWORD:?Set RCON_PASSWORD in .env}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+      SERVER_NAME: ${SERVER_NAME:-pzserver}
+      SERVER_BRANCH: ${SERVER_BRANCH-unstable}
+      MEMORY_XMX_GB: ${MEMORY_XMX_GB:-8}
+      MAX_PLAYERS: ${MAX_PLAYERS:-32}
+      PUID: "1000"
+      PGID: "1000"
+      TZ: ${TZ:-UTC}
     ports:
-      - "16261:16261/udp"          # игровой порт
+      - "16261:16261/udp"
       - "16262:16262/udp"
-      - "27015:27015/tcp"          # RCON — нужен пульту
+    # RCON stays on the Compose network.
     volumes:
-      - pz-data:/home/steam/Zomboid   # путь сверьте с README образа
+      - pz-server-files:/project-zomboid
+      - pz-data:/project-zomboid-config
 
   pz-dashboard:
     build: ./dashboard
-    # Либо образ из реестра Gitea (см. раздел CI/CD в README):
-    # image: git.example.com/owner/pz-pult:latest
     container_name: pz-dashboard
     restart: unless-stopped
     depends_on:
       - pzserver
     ports:
-      - "8081:8080"                # веб-интерфейс: http://IP:8081
+      - "8081:8080"
     environment:
-      - PZ_ADMIN_LOGIN=${PZ_ADMIN_LOGIN:?Задайте PZ_ADMIN_LOGIN в .env}
-      - PZ_ADMIN_PASSWORD=${PZ_ADMIN_PASSWORD:?Задайте PZ_ADMIN_PASSWORD в .env}
-      - PZ_AUTH_KEY=${PZ_AUTH_KEY:?Задайте PZ_AUTH_KEY в .env}
-      - PZ_AUTH_COOKIE_SECURE=${PZ_AUTH_COOKIE_SECURE:-false}
-      - RCON_PASSWORD=${RCON_PASSWORD:?Задайте RCON_PASSWORD в .env}
-      - RCON_HOST=pzserver         # имя сервиса в сети compose
-      - RCON_PORT=27015
-      - PZ_CONTAINER=pzserver
-      - PZ_SERVICE=pzserver
-      - PZ_IMAGE=indifferentbrokkoli/pzserver:latest
-      - PZ_SERVER_NAME=${PZ_SERVER_NAME:-Project Zomboid}
-      - PZ_CONFIG_FILE=${PZ_CONFIG_FILE:-}
-      - PZ_VERSION=${PZ_VERSION:-}
-      - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-pz}
-      - COMPOSE_FILE=/compose/docker-compose.yml
-      - TZ=${TZ:-Europe/Moscow}
+      PZ_ADMIN_LOGIN: ${PZ_ADMIN_LOGIN:?Set PZ_ADMIN_LOGIN in .env}
+      PZ_ADMIN_PASSWORD: ${PZ_ADMIN_PASSWORD:?Set PZ_ADMIN_PASSWORD in .env}
+      PZ_AUTH_KEY: ${PZ_AUTH_KEY:?Set PZ_AUTH_KEY in .env}
+      PZ_AUTH_COOKIE_SECURE: ${PZ_AUTH_COOKIE_SECURE:-false}
+      RCON_PASSWORD: ${RCON_PASSWORD:?Set RCON_PASSWORD in .env}
+      RCON_HOST: pzserver
+      RCON_PORT: "27015"
+      PZ_CONTAINER: pzserver
+      PZ_SERVICE: pzserver
+      PZ_IMAGE: indifferentbroccoli/projectzomboid-server-docker:latest
+      PZ_SERVER_NAME: ${PZ_SERVER_NAME:-Project Zomboid}
+      PZ_CONFIG_FILE: ${PZ_CONFIG_FILE:-}
+      PZ_VERSION: ${PZ_VERSION:-}
+      COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:-pz}
+      COMPOSE_FILE: /compose/docker-compose.yml
+      TZ: ${TZ:-UTC}
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock   # управление docker
-      - .:/compose:ro                               # compose-файл проекта
-      - pz-data:/data                               # данные PZ для бэкапов
-      - ./backups:/backups                          # куда складывать бэкапы
-      - dashboard-data:/dashboard-data              # события и настройки пульта
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/compose:ro
+      - pz-data:/data
+      - pz-server-files:/server-files:ro
+      - ./backups:/backups
+      - dashboard-data:/dashboard-data
 
 volumes:
+  pz-server-files:
   pz-data:
   dashboard-data:

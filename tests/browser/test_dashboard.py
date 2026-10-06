@@ -27,6 +27,8 @@ def test_watchdog_grace_setting_and_status(page, dashboard, width):
     grace = page.get_by_role("spinbutton", name="Пауза после рестарта, мин")
     expect(grace).to_have_value("5")
     expect(page.locator("#wdPill")).to_have_text("пауза: 4 мин")
+    # The test supplies local/remote snapshots explicitly, independently of SSE reconnects.
+    page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
     grace.fill("12")
     grace.press("Tab")
     expect(page.locator("#sec-watchdog .settings-feedback")).to_contain_text("сохранено")

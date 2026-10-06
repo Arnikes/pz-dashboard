@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    name: Проверки кода
+    name: Code checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,17 +21,17 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Зависимости разработки и Chromium
+      - name: Development dependencies and Chromium
         run: |
           python3 -m venv .venv
           ./.venv/bin/python -m pip install -r requirements-dev.txt
           ./.venv/bin/python -m playwright install --with-deps chromium
 
-      - name: Единая проверка качества
+      - name: Run quality checks
         run: ./.venv/bin/python scripts/check.py
 
   image:
-    name: Сборка образа и smoke-запуск
+    name: Image build and smoke test
     runs-on: ubuntu-latest
     needs: test
     steps:
@@ -40,12 +40,12 @@ jobs:
       - name: Docker build
         run: docker build -t pz-pult:ci ./dashboard
 
-      - name: Smoke — контейнер стартует и отвечает /api/health
+      - name: Container startup and /api/health
         run: |
-          # В act_runner job обычно живёт в контейнере с монтированным docker.sock:
-          # опубликованные порты (-p) привязываются к хосту демона и недоступны
-          # с 127.0.0.1 job-контейнера. Поэтому проверяем здоровье через
-          # внутреннюю docker-сеть по имени контейнера (docker DNS).
+          # act_runner jobs normally run in containers sharing docker.sock.
+          # Published ports bind to the daemon host and may not be reachable
+          # on job-local loopback. Check health through the Docker network
+          # using the container name (Docker DNS).
           docker network create pz-smoke
           auth_key=$(docker run --rm pz-pult:ci python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
           docker run -d --name pz-pult-smoke --network pz-smoke \
@@ -54,15 +54,15 @@ jobs:
             -e RCON_PASSWORD=ci-dummy -e PZ_SERVER_NAME=ci pz-pult:ci
           for i in $(seq 1 30); do
             if docker run --rm --network pz-smoke pz-pult:ci python3 -c "import urllib.request; urllib.request.urlopen('http://pz-pult-smoke:8080/api/health', timeout=4)" 2>/dev/null; then
-              echo "health OK (попытка $i)"
+              echo "health OK (attempt $i)"
               exit 0
             fi
             sleep 1
           done
-          echo "health так и не ответил за 30 секунд"
+          echo "health did not respond within 30 seconds"
           exit 1
 
-      - name: Уборка и диагностика
+      - name: Cleanup and diagnostics
         if: always()
         run: |
           docker logs pz-pult-smoke || true

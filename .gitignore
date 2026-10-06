@@ -1,21 +1,57 @@
-# python
+# Python environments and caches
 __pycache__/
-*.pyc
+*.py[cod]
 .venv/
 .venv-linux/
+venv/
+env/
 .pytest_cache/
 .ruff_cache/
-test-results/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.egg-info/
+build/
+dist/
 
-# секреты и локальные данные
+# Browser test artifacts
+test-results/
+playwright-report/
+
+# Secrets and local server data (keep the public example)
 .env
+.env.*
+!.env.example
+secrets.env
+*.pem
+*.key
 dashboard-data/
+/data/
+/pz-data/
+/pz-server-files/
+server-data/
+server-files/
+Zomboid/
+ZomboidConfig/
 backups/
 *.tar.gz
+*.tar
+*.tgz
 
-# временные файлы
+# Temporary files and editor/OS metadata
 .tmp-*/
+*.log
+*.tmp
+*.swp
+*.swo
+*~
 .DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
 
 # Impeccable: local reports, preview state and platform engine cache
 /.impeccable/

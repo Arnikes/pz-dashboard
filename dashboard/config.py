@@ -12,7 +12,7 @@ def _int(name, default):
         return default
 
 
-IMAGE = os.getenv("PZ_IMAGE", "indifferentbrokkoli/pzserver:latest")
+IMAGE = os.getenv("PZ_IMAGE", "indifferentbroccoli/projectzomboid-server-docker:latest")
 _REPO, _TAG = IMAGE.rsplit(":", 1) if ":" in IMAGE.rsplit("/", 1)[-1] else (IMAGE, "latest")
 
 CFG = {

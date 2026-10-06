@@ -1,515 +1,163 @@
-# PZ Пульт — веб-панель управления Project Zomboid сервером
+# PZ Console
 
-Пульт для dedicated-сервера Project Zomboid (образ `indifferentbrokkoli/pzserver`,
-docker compose): статус, игроки, обновления, автообновление с предупреждением
-игроков, рестарт, ручные бэкапы/восстановление, RCON-консоль, логи и метрики.
+**Your Project Zomboid server, in one control panel.**
 
-Интерфейс тёмный, с прямым доступом к настройкам и модам; доступен в локальной сети.
+A self-hosted dashboard for dedicated servers: manage B42 settings and Workshop mods,
+keep an eye on players and resource usage, schedule backups, and handle restarts
+without leaving your browser. Built with Python and plain HTML, CSS, and JavaScript.
 
-Ресурсы интерфейса поставляются вместе с проектом: HTML, CSS, JavaScript,
-SVG-иконки и WOFF2-шрифты находятся в `dashboard/static/` и включаются в Docker-образ.
-Страницы входа, пульта и справки не требуют Google Fonts, CDN или доступа
-браузера к интернету. Шрифты и их лицензии описаны в
-[dashboard/static/fonts/README.md](dashboard/static/fonts/README.md).
-Сетевые операции Steam Workshop, проверки обновлений образа и Telegram-уведомления
-по-прежнему обращаются к соответствующим сервисам. Для первоначальной сборки
-образа требуется загрузка базового образа и закреплённых системных/Python-зависимостей.
+[Quick start](#quick-start) · [Preview](#preview) · [Configuration guide](docs/config-editor.md) · [Documentation](#documentation) · [MIT license](LICENSE)
 
-Редакторы B42: [настройка, черновики, установка модов и восстановление](docs/config-editor.md).
+![PZ Console overview with fictional server metrics, players, and activity](docs/screenshots/overview.png)
 
-Развитие интерфейса: [Impeccable](docs/impeccable.md),
-[исходный UI/UX аудит](docs/ui-ux-audit.md), [план улучшений](docs/ui-ux-improvement-plan.md)
-и [результаты внедрения](docs/ui-ux-implementation.md). Система оформления — [DESIGN.md](DESIGN.md).
+## Highlights
 
-Формы `.ini` и `SandboxVars`, включая настройки модов, сохраняют черновик отдельно
-от файлов сервера. Применение выполняется после остановки с проверкой ревизий;
-бэкап мира выбирается в окне подтверждения. При изменении модов он включён
-по умолчанию и может быть отключён; история конфигов сохраняется всегда.
+- **A clear view of your server.** Live status, CPU and memory charts, player counts,
+  update checks, and recent activity over a shared server-sent event stream.
+- **Settings you can review before applying.** INI and SandboxVars forms, source editors,
+  saved drafts, masked diffs, revision checks, and configuration history.
+- **Workshop management for B42.** Import items or collections, choose individual ModIDs,
+  inspect dependencies, arrange load order and maps, and download packages before activation.
+- **Backups that fit your routine.** Manual and daily backups, retention, archive verification,
+  downloads, and a restore workflow with explicit confirmation.
+- **Server operations with context.** Player warnings before restarts, image and mod update
+  scheduling, an RCON watchdog, optional Telegram notifications, and an event journal.
+- **At home on desktop or phone.** Responsive navigation, quick commands with `Ctrl/Cmd+K`,
+  English and Russian interfaces, and an installable PWA.
+- **Self-contained UI assets.** Fonts, icons, scripts, and styles are served locally.
+  Workshop, registry checks, and Telegram still need their upstream services.
 
-### Страницы пульта
+## Preview
 
-Мультистраничный интерфейс с hash-роутингом; SSE-поток живёт между переключениями,
-версия игры указана мелким шрифтом под названием пульта. На телефоне навигация
-— нижний таб-бар «Обзор / Настройки / Моды / Ещё», на десктопе — боковая навигация.
-Игроки и остальные разделы доступны через «Ещё». Поиск «Быстрые команды»
-(Ctrl/Cmd+K) открывает разделы, настройки и диагностику; опасные операции
-сохраняют отдельное подтверждение.
-Кнопка выхода находится в шапке на всех ширинах. Блок «Подключение и проверки»
-удалён; состояние сервера и проверки доступны в соответствующих разделах.
+These are real Chromium captures of the application using isolated, fictional fixtures.
+No production server, player records, credentials, or Workshop downloads are involved.
+See [how to regenerate the screenshots](docs/screenshots/README.md).
 
-| Страница | Что на ней |
-|---|---|
-| `#/overview` Обзор | KPI (онлайн / CPU / RAM / бэкап), состояние сервера и управление, нагрузка контейнера, сводка обновлений, последние события |
-| `#/players` Игроки | Онлайн-список с киком/баном через RCON, график онлайна за сутки |
-| `#/mods` Моды | Steam-пакеты и выбор отдельных ModID, зависимости, порядок, карты, загрузка в две стадии, импорт/экспорт и обновления |
-| `#/settings` Настройки сервера | Формы `.ini` и SandboxVars, настройки модов, исходники с подсветкой, черновики и история |
-| `#/maintenance` Обслуживание | Обновления образа, автообновление с предупреждением игроков, Watchdog RCON |
-| `#/backups` Бэкапы | Бэкап по расписанию (время, ротация, остановка сервера), архивы: создание, проверка, скачивание, восстановление, удаление; журнал запусков |
-| `#/events` События | Полный журнал с фильтрами по категориям; пишется в `dashboard-data/events.jsonl` |
-| `#/console` Консоль | RCON-консоль и логи контейнера |
+### Server settings
 
----
+Edit a profile in forms or source view, save a draft, and review changes before writing files.
 
-## Состав проекта
+![English server settings editor with a fictional Riverside Co-op profile](docs/screenshots/settings.png)
 
-| Файл | Назначение |
-|---|---|
-| `docker-compose.yml` | Полный пример: pzserver + пульт (для нового проекта) |
-| `docker-compose.dashboard.yml` | Только сервис пульта — добавить к существующему compose |
-| `.env.example` | Образец переменных окружения (скопировать в `.env`) |
-| `dashboard/Dockerfile` | Образ пульта: python + docker CLI + compose + tar |
-| `dashboard/app.py` | HTTP-сервер и API |
-| `dashboard/auth.py` | Единственный администратор из окружения, шифрование и отзыв сессий |
-| `dashboard/requirements.txt` | Закреплённые зависимости приложения |
-| `dashboard/payloads.py` | Общие данные ответов JSON API и SSE, расписание каналов |
-| `dashboard/actions.py` | Проверка и диспетчеризация команд API, параметры фоновых операций |
-| `dashboard/ops.py` | Операции: старт/стоп/бэкапы/обновления, события, планировщик |
-| `dashboard/settingsmodel.py` | Правила настроек: значения по умолчанию, нормализация старых файлов и проверка изменений |
-| `dashboard/configeditor.py` | Черновики профилей, применение настроек и восстанавливаемые файловые транзакции |
-| `dashboard/configprofiles.py` | Ревизии профилей, объединение изменений и проверка изменений конфигов при старте PZ |
-| `dashboard/configschema.py` | Метаданные настроек B42 и проверка значений полей |
-| `dashboard/errors.py` | Общие ошибки операций и редактора, независимые от HTTP |
-| `dashboard/dockerlib.py` | Обёртка над docker CLI |
-| `dashboard/rcon.py` | Клиент Source RCON |
-| `dashboard/config.py` | Чтение переменных окружения |
-| `dashboard/static/index.html` | Интерфейс (разметка) |
-| `dashboard/static/style.css` | Интерфейс (стили, токены в `:root`) |
-| `dashboard/static/app.js` | Интерфейс (логика, опрос API) |
-| `dashboard/healthcheck.py` | Скрипт проверки живости для Docker/podman healthcheck |
-| `tests/test_core.py` | Юнит-тесты ядра: RCON-протокол, парсеры, настройки, история онлайна |
-| `.gitea/workflows/ci.yml` | Gitea Actions: проверки кода + сборка образа + smoke-запуск |
-| `.gitea/workflows/deploy.yml` | Gitea Actions: публикация образа в реестр + опциональный SSH-деплой |
+### Workshop mods
 
----
+Keep Steam packages, individual ModIDs, dependencies, and load order in one workspace.
 
-## Быстрый старт
+![Workshop packages and load order populated with fictional B42 mods](docs/screenshots/mods.png)
 
-### Вариант А — сервер ещё не развёрнут
+### Backups
 
-```bash
-cd pz-dashboard
-cp .env.example .env        # заполните RCON_PASSWORD и PZ_ADMIN_*, PZ_AUTH_KEY
-docker compose up -d --build
-```
+Review scheduled backups, retained world archives, and the run journal.
 
-Веб-интерфейс: `http://IP-сервера:8081`
+![Backup schedule and fictional world archives](docs/screenshots/backups.png)
 
-### Вход администратора
+<details>
+<summary>Players and mobile view</summary>
 
-Пульт требует входа одного администратора. Перед запуском задайте в `.env`:
+![Fictional players and a 24-hour activity chart](docs/screenshots/players.png)
 
-```dotenv
-PZ_ADMIN_LOGIN=admin
-PZ_ADMIN_PASSWORD=ваш-длинный-уникальный-пароль
-PZ_AUTH_KEY=сгенерированный-ключ
-PZ_AUTH_COOKIE_SECURE=false
-```
+<img src="docs/screenshots/mobile.png" alt="PZ Console overview on a 390-pixel mobile viewport" width="390">
 
-Сгенерировать `PZ_AUTH_KEY` (32 случайных байта в base64url):
+</details>
 
-```bash
-python -c "import base64,secrets; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"
-```
+## Quick start
 
-Администратор создаётся в памяти при каждом запуске из этих переменных; базы
-пользователей и управления аккаунтами нет. Пароль должен содержать 12–1024 символа,
-логин — 1–128. Без корректных переменных пульт не запускается. Пароль проверяется
-по PBKDF2-SHA256 хешу с солью и 600 000 итераций. Cookie сессии шифруется Fernet
-([документация](https://cryptography.io/en/stable/fernet/)), имеет `HttpOnly` и
-`SameSite=Strict`; токен не хранится в localStorage.
+Use a Docker host with Docker Compose v2. The panel manages one dedicated server;
+the B42 editors require access to that server's configuration and Workshop metadata.
 
-Без «Запомнить меня» вход действует до закрытия браузера, максимум 12 часов;
-перезапуск пульта также завершает такую сессию. С галочкой вход сохраняется на
-30 дней на этом устройстве, включая перезапуск пульта и браузера. Срок считается
-от момента входа и не продлевается при использовании. Браузер может восстановить
-обычные сессионные cookie при восстановлении вкладок, но предел 12 часов остаётся.
-Сохранённые сессии шифруются в `DASHBOARD_DIR/auth-sessions.bin`
-(по умолчанию `/dashboard-data/auth-sessions.bin`); существующие compose-примеры
-уже подключают постоянный volume `dashboard-data`. При прямом запуске задайте
-`DASHBOARD_DIR` с доступным для записи постоянным каталогом. «Выйти» отзывает
-сессию на диске и в памяти, включая открытый SSE-поток. Смена логина, пароля
-или `PZ_AUTH_KEY` отменяет сохранённые сессии. Чтобы изменить логин, пароль
-или ключ, обновите `.env` и пересоздайте контейнер (`docker compose up -d pz-dashboard`,
-либо с обоими `-f` для варианта Б). При обновлении кода добавьте `--build`.
-Доступ ограничен пятью попытками входа в минуту с одного IP и 30 на весь пульт.
+### New server
 
-Для HTTPS задайте `PZ_AUTH_COOKIE_SECURE=true`. За reverse proxy сохраните
-исходный `Host`, чтобы проверка источника запросов работала. Для обычного HTTP
-в локальной сети оставьте `false`: ключ шифрует cookie, а шифрование сетевого
-трафика обеспечивает HTTPS. Compose читает `.env` и передаёт переменные;
-при прямом запуске Python нужно задать переменные окружения самостоятельно.
+1. Clone this repository and open its directory.
+2. Copy the environment template:
 
-Параметры самого pzserver (имя, пароли, админы, путь к данным) скопируйте
-из рабочего примера из README образа `indifferentbrokkoli/pzserver` —
-в `docker-compose.yml` оставлены только ключевые строки.
+   ```bash
+   cp .env.example .env
+   ```
 
-### Язык интерфейса (EN / RU)
+   On PowerShell: `Copy-Item .env.example .env`.
 
-Выбор языка доступен в шапке панели, на странице входа, в руководстве и на
-офлайн-экране. При первом открытии используется поддерживаемый язык браузера;
-если подходящего языка нет — английский. Выбор сохраняется для этого браузера
-в `pz-language` и cookie `pz_language`, а не в общей конфигурации сервера.
+3. Set `RCON_PASSWORD`, `ADMIN_PASSWORD`, `PZ_ADMIN_PASSWORD`, and `PZ_AUTH_KEY` in `.env`.
+   The game administrator and the panel administrator are separate accounts.
+   The panel password must contain at least 12 characters. Generate its encryption key with:
 
-Перевод охватывает разделы панели, редакторы, подсказки, подтверждения,
-ошибки API, события и PWA. Даты, числа, размеры и множественные формы
-учитывают язык. Имена игроков, названия модов, значения полей, исходники,
-diff, логи и ответы RCON сохраняются как получены. Для метаданных установленной
-игры и модов выбираются EN/RU-файлы переводов; неизвестные внешние строки
-показываются в исходном виде.
+   ```bash
+   python -c "import base64,secrets; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"
+   ```
 
-При смене языка панель сохраняет поля и исходники в черновик, затем обновляет
-текущий маршрут. При ошибке сохранения, активной операции, открытом
-подтверждении или несохранённом вводе смена откладывается с объяснением;
-ввод остаётся в окне. Страница входа меняет язык без перезагрузки и сохраняет
-введённые логин и пароль только в памяти страницы.
+4. Review `docker-compose.yml` and `.env`. The example uses
+   [indifferentbroccoli's server image](https://github.com/indifferentbroccoli/projectzomboid-server-docker),
+   separate volumes for game files and world data, and the `unstable` Steam branch for B42.
+   Choose the branch, memory limit, timezone, and game ports for your host.
+5. Build and start:
 
-API принимает `X-PZ-Language: en` / `ru`, cookie или `Accept-Language`.
-Без языковых предпочтений API сохраняет русский ответ для совместимости.
-`Content-Language` указывает язык JSON/SSE. Для манифеста PWA доступен
-`/manifest.webmanifest?lang=en` или `?lang=ru`; идентичность приложения
-при смене языка сохраняется.
+   ```bash
+   docker compose up -d --build
+   ```
 
-Каталоги находятся в `dashboard/static/locales/en.json` и `ru.json`.
-Русский исходный текст служит ключом сообщения; параметры обозначены
-`{{0}}`, `{{1}}` и подставляются после перевода. Формы `one`, `few`, `many`,
-`other` выбирает `Intl.PluralRules`. Новые тексты интерфейса используйте через
-`I18n.t`, шаблоны через `I18n.msg`, авторскую разметку через `I18n.html`.
-После изменения каталогов выполните `python scripts/build_i18n.py`;
-`scripts/check.py` проверяет синхронность поставленного браузерного каталога,
-полноту статических страниц и серверных сообщений, параметры переводов и
-поведение обоих языков. Дополнительных runtime-зависимостей нет.
+Open **http://your-server:8081** and sign in with `PZ_ADMIN_LOGIN` and `PZ_ADMIN_PASSWORD`.
+The first game server start downloads game files from Steam and can take time.
 
-### Установка как приложение (PWA)
+### Existing Docker Compose server
 
-Пульт можно установить на компьютер или телефон: он открывается отдельным
-окном, с собственной иконкой. В Chrome/Edge используйте кнопку «Установить
-приложение» в пульте или пункт установки в меню браузера. На iPhone/iPad
-откройте пульт в Safari и выберите «Поделиться» → «На экран Домой» → «Добавить».
-В установленном приложении действуют те же правила входа и «Запомнить меня».
+Keep your existing server definition. Add `dashboard/` and
+`docker-compose.dashboard.yml` to its project directory, then merge the panel variables
+from `.env.example` into your existing `.env`.
 
-Для установки и офлайн-запуска нужен **HTTPS** (либо `http://localhost` /
-`http://127.0.0.1` на самом устройстве). Обычный HTTP по IP в локальной сети
-продолжает работать как сайт, но не включает service worker. Для сервера в LAN
-подключите HTTPS через reverse proxy с доверенным на устройстве сертификатом,
-сохраните исходный `Host` и задайте `PZ_AUTH_COOKIE_SECURE=true`. Пульт рассчитан
-на корень отдельного origin, без префикса пути. Прокси должен пропускать
-`/sw.js`, `/manifest.webmanifest` и `/static/` без перенаправления и сохранять
-их заголовки; не кэшируйте `/api/`, `/`, `/index.html` и `/login`.
-
-Без сети при запуске появляется экран восстановления связи. «Повторить
-подключение» проверяет доступность пульта; возвращение сети также запускает
-проверку. В уже открытой панели ввод остаётся в окне, а последнее состояние
-может устареть. Сохранённые на сервере черновики доступны после подключения;
-несохранённый ввод не сохраняется при закрытии окна. API, SSE, команды,
-конфигурации, журналы, архивы и HTML панели/входа не попадают в офлайн-кэш.
-Отложенной отправки команд нет: после восстановления связи действие нужно
-повторить самостоятельно, проверив его состояние.
-
-Новая версия появляется как «Обновить приложение». Автоматической перезагрузки
-открытой панели нет: кнопка учитывает несохранённые изменения редактора,
-сохранение настроек, операции и ввод пароля. Другие открытые окна продолжают
-работать без перезагрузки. Версия service worker вычисляется по содержимому
-поставленных файлов; ручное изменение номера не требуется. Старые кэши оболочки
-удаляются при активации новой версии. Чтобы удалить офлайн-файлы полностью,
-очистите данные сайта в браузере.
-
-Иконки повторяют существующий знак пульта, включая отдельную maskable-иконку
-и Apple touch icon. Их можно воспроизвести в Windows командой
-`powershell -File scripts/generate-pwa-icons.ps1`; runtime-зависимостей PWA нет.
-
-### Вариант Б — сервер уже работает в compose
-
-1. Скопируйте каталог `dashboard/` рядом с вашим `docker-compose.yml`.
-2. Скопируйте `docker-compose.dashboard.yml` туда же.
-3. Пропишите в нём:
-   - `build: ./dashboard` — путь к каталогу пульта;
-   - volume данных PZ: если у вас named volume — в блоке `volumes:` укажите
-     `external: true` и реальное имя (`docker volume ls`); если bind-каталог —
-     замените `pz-data:/data` на ваш путь, например `./ZomboidConfig:/data`;
-   - `COMPOSE_PROJECT_NAME` — имя вашего compose-проекта (обычно имя каталога).
-4. Запустите:
+Adjust the overlay's RCON host, container/service names, image, Compose project name,
+and data volume. The panel's `/data` must contain the **same world/configuration directory**
+the game server uses. Point the external `pz-data` volume at your existing volume;
+for a bind mount, replace `pz-data:/data` with your host directory.
+Optionally mount game files at `/server-files:ro` for Workshop metadata.
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.dashboard.yml up -d --build
 ```
 
-5. Откройте `http://IP-сервера:8081`.
+See the [installation guide](docs/installation.md) for authentication, HTTPS, volume mappings,
+updates, and an RCON-only setup.
 
-**Требования**: у pzserver должен быть включён RCON (порт 27015 TCP и пароль).
-Образ indifferentbrokkoli настраивает его через переменную `RCON_PASSWORD`.
+## Workspaces
 
----
+| Workspace | What you can do |
+| --- | --- |
+| Overview | Check status, load, updates, recent events, and server controls |
+| Settings | Edit INI and SandboxVars, review diffs, manage drafts and history |
+| Mods | Resolve packages, select ModIDs, dependencies, load order, maps, and modpacks |
+| Players | Inspect online players, view activity, kick or ban through RCON |
+| Maintenance | Configure updates, watchdog recovery, and Telegram notifications |
+| Backups | Schedule, create, verify, download, restore, and rotate world archives |
+| Events | Filter the persistent server activity journal |
+| Console | Send RCON commands and inspect/download container logs |
 
-## Как это работает
+## Documentation
 
-| Возможность | Механика |
-|---|---|
-| Статус сервера | `docker inspect` контейнера: состояние, время старта, uptime |
-| Игроки | RCON-команда `players`, опрос каждые 5 с |
-| Обновления | Имя образа берётся из самого контейнера (авто-детект); сравнение digest локального образа и Docker Hub; кнопка «Обновить сейчас» скачивает образ заранее и перезапускает контейнер только если версия реально изменилась |
-| Авто-бэкап перед обновлением | Перед применением обновления автоматически снимается архив мира (если не удалось — обновление отменяется); отключается галочкой «Бэкап перед обновлением» |
-| Watchdog RCON | Раз в 30 с проба RCON; при тишине дольше порога — событие в истории, а на хосте сервера — опциональный авторестарт зависшего сервера (без предупреждения: предупреждать некому) |
-| График онлайна | Точки раз в 4 минуты (окно 24 ч) — пик и динамика онлайна на карточке игроков |
-| Моды | `WorkshopItems=` задаёт пакеты Steam; `Mods=` содержит выбранные `id=` из `mod.info` с префиксом B42. Один пакет содержит несколько модов; версии и `common` учитываются при сканировании. Названия, папки и позиции списков не используются как ModID |
-| Автообновление | Планировщик внутри пульта: проверка по интервалу, при находке — предупреждение игрокам через `servermsg`, сохранение мира (`quit`), `compose up -d` на новом образе |
-| Автообновление модов | Проверка версий по интервалу; при авторестарте игроки предупреждаются за настраиваемое время (по умолчанию 10 мин, селектор в карточке «Обновления модов»). После любого рестарта сервера моды перепроверяются: если они уже актуальны (например, админ перезапустил сервер вручную), таймер автопроверки сбрасывается, а запланированный авторестарт отменяется без второго рестарта |
-| Рестарт/стоп | RCON `quit` (мир сохраняется), ожидание остановки, при зависании — `docker stop` |
-| Бэкап | `RCON save` → `tar -czf` каталога данных (логи исключены). Опционально — с остановкой сервера |
-| Бэкап по расписанию | Планировщик внутри пульта: раз в сутки в заданное время (по умолчанию 03:00 по часам сервера); отставший запуск навёрстывается при старте пульта. Ротация — хранится N свежих копий (по умолчанию 7), старые удаляются. Журнал запусков — `dashboard-data/backups.jsonl` (дата, триггер, имя, размер, путь, статус, длительность); сбой виден в событиях и уходит в Telegram. Проверка архива — контрольная распаковка в песочницу без остановки сервера |
-| Восстановление | Проверка и безопасная распаковка архива во временный каталог → остановка сервера → замена данных подготовленными файлами → запуск. Требует подтверждения флажком |
-| Консоль | Любая RCON-команда; чипы `save` / `players` / `help` и рассылка `servermsg` |
-| Метрики | `docker stats`: CPU и RAM с историей за час (семпл раз в минуту), сеть |
-| Логи | `docker logs --tail 250`, автообновление, подсветка ошибок |
-| История | События пишутся в `dashboard-data/events.jsonl` |
+- [Installation and environment variables](docs/installation.md)
+- [B42 configuration and Workshop workflow](docs/config-editor.md)
+- [Backups, updates, watchdog, and API](docs/operations.md)
+- [Development and quality checks](CONTRIBUTING.md)
+- [Isolated B42 acceptance testing](docs/acceptance-b42.md)
+- [Product scope](PRODUCT.md) and [design system](DESIGN.md)
+- [Local fonts and licenses](dashboard/static/fonts/README.md)
+- [Third party notices](THIRD_PARTY_NOTICES.md)
 
-В карточке Watchdog на странице «Обслуживание» настройка «Пауза после рестарта, мин» задаёт grace period: по умолчанию **5 минут**, диапазон **0–60 минут** (0 отключает паузу), API — `watchdog.gracePeriodMin`. Старые настройки автоматически получают значение 5.
+## Deployment boundaries
 
-Пауза включается перед управляемой остановкой для рестарта и отсчитывается заново при запуске контейнера: ручном/автоматическом рестарте, обновлении образа, применении конфигурации или подготовке Workshop, запуске, восстановлении и бэкапе с остановкой. Во время операций и паузы не отправляются уведомления о недоступности RCON; watchdog не накапливает сбои и не запускает авторестарт. После паузы порог тишины отсчитывается с нуля. Ошибки самих операций по-прежнему попадают в журнал и уведомления.
+The Docker socket gives the panel control of the Docker host. Treat access to the panel
+as administrator access; use a trusted network or an HTTPS reverse proxy and set
+`PZ_AUTH_COOKIE_SECURE=true` for HTTPS. Keep RCON on the Compose network unless you
+explicitly need remote access.
 
-### Нагрузка пульта
+Authentication supports a single administrator from environment variables. Normal sessions
+last up to 12 hours; “Remember me” retains a revocable session for 30 days. Persistent data,
+including drafts, history, settings, and saved sessions, belongs in `dashboard-data`.
+Offline PWA mode shows a reconnect page; server operations require a connection.
 
-SSE использует общий снимок каждого канала: несколько открытых вкладок получают
-один результат сбора данных на интервал, включая ошибки Docker/RCON. Кадр JSON
-кодируется один раз. Обычные запросы API читают данные напрямую; действия
-управления сервером не используют кеш SSE. Обзор повторно использует результат
-проверки контейнера для определения образа и его digest.
+Automated checks use isolated fixtures. A separate B42 server acceptance run has covered
+real startup, RCON, configuration verification, and Workshop workflows; in-game effects of
+Sandbox changes remain outside that validation. See the [acceptance record](docs/acceptance-b42.md).
 
-Скрытая вкладка закрывает SSE и приостанавливает фоновый опрос, а при возвращении
-подключается снова. Фоновые операции и планировщики сервера продолжают работать.
-Резервный опрос не запускает повторный запрос, пока предыдущий запрос того же
-канала не завершён; логи опрашиваются на странице консоли. Неизменившиеся логи
-не разбираются и не перерисовываются повторно.
+## License
 
-Журналы событий и бэкапов читаются с конца блоками по 64 КиБ. Кеши метаданных
-Workshop и переводов удерживают максимум по восемь наборов; просроченные наборы
-удаляются при добавлении новых. Полный лог контейнера при скачивании записывается
-во временный файл и передаётся блоками по 256 КиБ: для него требуется место
-во временном каталоге, файл закрывается и удаляется после запроса.
-
-Воспроизводимое сравнение с прежними алгоритмами: `python scripts/benchmark_resources.py`.
-В локальном синтетическом прогоне получены следующие результаты:
-
-| Сценарий | До | После |
-|---|---|---|
-| Последние 30 записей журнала размером 46,7 МиБ | 140,2 МиБ пиковых выделений Python | 0,15 МиБ |
-| Выгрузка лога размером 32 МиБ | 64,0 МиБ пиковых выделений Python | 0,53 МиБ |
-| Один канал SSE для восьми подписчиков в пределах интервала | 8 вызовов сборщика | 1 вызов |
-
-Это измерения отдельных алгоритмов через `tracemalloc`, а не RSS контейнера
-или нагрузка реального PZ-сервера. Время выполнения зависит от машины и диска;
-общий кеш SSE сохраняет по одному кадру каждого канала в памяти.
-
-### API (для своих скриптов)
-
-Все API, включая SSE, логи, конфиги и скачивание бэкапов, требуют cookie сессии.
-Открыт только `GET /api/health`, который возвращает живость HTTP-сервера.
-Для входа отправьте `POST /api/auth/login` с JSON
-`{"login":"…","password":"…","remember":true}` (`remember` необязателен, по умолчанию `false`),
-сохраните cookie из `Set-Cookie` и передавайте её в следующих запросах.
-Все `POST`/`DELETE`, включая вход/выход, требуют заголовок `X-PZ-Request: 1`;
-браузерные запросы также проверяются по `Origin`. CORS не включён.
-`GET /api/auth/session` возвращает текущий логин;
-`POST /api/auth/logout` отзывает сессию. Без входа защищённое API возвращает 401.
-
-`GET /api/overview` · `GET /api/mods` · `GET /api/players` · `GET /api/players/history` · `GET /api/stats` · `GET /api/stats/history` ·
-`GET /api/logs?tail=250` · `GET /api/logs/full` (файлом) · `GET /api/backups` · `GET /api/events` ·
-`GET /api/ops` · `GET /api/health`
-
-`POST /api/action` — `{"op":"start|stop|restart|check-update|apply-update|backup|restore|verify-backup", "warnSeconds":300, "stopServer":false, "name":"..."}`
-`POST /api/rcon` — `{"command":"save"}` · `POST /api/settings` — блоки `autoUpdate`, `autoBackup` (`{"enabled":true,"time":"03:00","stopServer":false}`), `backup` (`{"maxBackups":7}`)
-`GET /api/backup/download?name=...` · `DELETE /api/backup?name=...`
-`GET /api/telegram-chats` — чаты, где бот недавно видел сообщения (кнопка «Найти чаты бота»)
-`GET /api/backups` возвращает также `autoBackup` (состояние расписания и следующий запуск) и `journal` (последние 30 записей журнала)
-
-Одновременно выполняется только одна «тяжёлая» операция — прогресс виден
-в жёлтой полосе на карточке статуса.
-
-Автообновление модов можно отменить кнопкой «Отменить обновление модов»
-в этой полосе во время предупреждения игроков, до начала остановки сервера.
-Игрокам придёт сообщение об отмене; сервер продолжит работу, а следующая
-автопроверка модов пройдёт по расписанию. После начала остановки отмена недоступна.
-Для скриптов: `POST /api/action` с `{"op":"cancel-mods-update"}` возвращает
-`{"ok":true,"cancelRequested":true}` при принятии запроса или HTTP 409,
-если подходящей операции нет либо остановка уже началась.
-
----
-
-## CI/CD — Gitea Actions
-
-Пайплайны лежат в `.gitea/workflows/` и работают на штатном Gitea Actions (act_runner).
-
-**ci.yml** — на каждый push в main/master, на PR и вручную:
-1. Python 3.12 и зависимости разработки из `requirements-dev.txt`;
-2. единая команда `python scripts/check.py`: целостность зависимостей,
-   Ruff (линтер и форматирование), синтаксис JS, pytest ядра и браузерные тесты Chromium;
-3. браузерные проверки навигации на десктопе и телефоне, подтверждения операции,
-   ошибки API и перехода в демо-режим; тесты ядра включают фейковый RCON-сервер;
-4. сборка docker-образа и smoke-запуск: контейнер поднимается, пайплайн ждёт `/api/health`.
-
-**deploy.yml** — на тег `v*` и вручную:
-1. публикация образа в реестр Gitea (`latest` + версия тега);
-2. опциональный SSH-деплой на сервер: `docker compose pull pz-dashboard && up -d`.
-
-Секреты и переменные репозитория (Настройки → Actions → Секреты/Переменные):
-
-| Имя | Тип | Что положить |
-|---|---|---|
-| `REGISTRY_TOKEN` | secret | Токен доступа со scope **write:package** (Настройки аккаунта → Приложения → Токены). Логин в реестр идёт от имени того, кто запушил (`github.actor`), токен должен принадлежать этому пользователю |
-| `DEPLOY_ENABLED` | variable | `true`, чтобы включить SSH-деплой |
-| `DEPLOY_HOST` | variable | Адрес сервера, например `192.168.1.119` |
-| `DEPLOY_USER` | variable | Пользователь SSH на сервере |
-| `DEPLOY_PATH` | variable | Каталог compose-проекта на сервере |
-| `DEPLOY_SSH_KEY` | secret | Приватный ключ, которому разрешён вход на сервер |
-
-Требования к раннеру: в job должен быть доступен docker CLI и сокет демона
-(типовая настройка act_runner — монтирование `/var/run/docker.sock` в job-контейнер).
-
-Чтобы сервер брал образ из реестра, а не собирал локально, замените в
-`docker-compose.dashboard.yml` строку `build:` на `image: <адрес-gitea>/<owner>/pz-pult:latest`.
-
-### Локальная разработка
-
-Используйте **Python 3.12**, как в Dockerfile (`.python-version`), и **Node.js 24**
-для проверки синтаксиса JS. Шифрование сессий использует `cryptography`;
-зависимости приложения закреплены в `dashboard/requirements.txt`, а
-`requirements-dev.txt` включает их и зависимости разработки.
-
-Windows / PowerShell, из корня проекта:
-
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
-.\.venv\Scripts\python.exe -m playwright install chromium
-.\.venv\Scripts\python.exe scripts/check.py
-```
-
-Linux / WSL (нужна отдельная Linux-venv; Windows-venv здесь не работает):
-
-```bash
-python3.12 -m venv .venv-linux
-.venv-linux/bin/python -m pip install -r requirements-dev.txt
-.venv-linux/bin/python -m playwright install --with-deps chromium
-.venv-linux/bin/python scripts/check.py
-```
-
-После активации окружения единая команда — `python scripts/check.py`.
-Она работает и в CI, прекращает выполнение при первой ошибке и требует Python 3.12.
-Временные данные pytest хранятся в `.tmp-pytest/`, трассы и скриншоты неудачных
-браузерных тестов — в `test-results/`; эти каталоги исключены из Git.
-
-Полезные отдельные команды (из активированной venv):
-
-```bash
-python -m ruff check .
-python -m ruff format .
-python -m pytest -q tests/test_core.py
-python -m pytest -q tests/browser --headed
-python -m playwright show-trace test-results/<test-name>/trace.zip
-```
-
-Браузерные тесты запускают временный HTTP-сервер только на `127.0.0.1`,
-загружают настоящие HTML/CSS/JS проекта и подменяют ответы API, включая SSE.
-Docker, PZ, RCON и Telegram для этих тестов не нужны. Это проверка интерфейса;
-интеграционная проверка управления игровым сервером потребует отдельного стенда позже.
-
-При обновлении инструментов обновляйте версии в `requirements-dev.txt` вместе
-с транзитивными зависимостями, затем повторно установите Chromium и запустите
-`python scripts/check.py`. Для воспроизводимости не устанавливайте в CI незакреплённый pytest.
-
-## Бэкапы по расписанию
-
-Страница «Бэкапы» → карточка «Бэкап по расписанию»:
-
-- **Включение** — переключатель в шапке карточки. После обновления до V20 он выключен — включите один раз.
-- **Время запуска** — суточное расписание по часам сервера, где запущен пульт (в контейнере это `TZ`, по умолчанию Europe/Moscow). По умолчанию 03:00.
-- **Хранить копий** — лимит ротации: при превышении старейшие архивы удаляются автоматически (по умолчанию 7). Лимит общий для ручных и плановых бэкапов.
-- **Останавливать сервер** — надёжнее для целостности (мир сохранён и закрыт на время архива), но сервер не принимает игроков; без остановки пульт сначала делает `save` через RCON.
-- Если пульт был выключен в назначенное время, бэкап навёрстывается при старте (событие отметит навёрстывание). Подтверждение сохранения расписания появляется во всплывающем уведомлении.
-
-**Где лежат копии:** на сервере в каталоге, смонтированном в `/backups` контейнера пульта (в `docker-compose.dashboard.yml` это `./backups`). Имя архива: `pz-backup-ГГГГММДД-ЧЧММСС.tar.gz`.
-
-**Что входит:** данные сервера, включая мир, конфигурацию и whitelist. Из новых архивов исключаются папки `Logs` (без учёта регистра), файлы `*.log` и их ротации (`*.log.*`), `console.txt`, `*-console.txt` и `*DebugLog*.txt`, включая их ротации. Исходные логи остаются на сервере; ранее созданные архивы не меняются. Исключения общие для ручных бэкапов, расписания и бэкапов перед обновлением или записью конфигурации.
-
-Если за одну секунду создаются несколько копий, следующие получают суффикс `-1`, `-2` и далее: предыдущие архивы сохраняются. Незавершённый архив не появляется в списке бэкапов. После ошибки архивирования пульт пытается запустить сервер, если остановил его для бэкапа; ошибка повторного запуска отражается в журнале.
-
-**Журнал запусков** — карточка на той же странице и файл `dashboard-data/backups.jsonl`: дата, триггер (вручную/по расписанию), имя архива, размер, полный путь, статус (готово/ошибка), длительность. Пишется и успешный, и неудачный запуск. Новые записи показаны первыми; журнал загружается постранично, по умолчанию по 25 записей, с выбором 50 или 100.
-
-**Проверка архива** — кнопка щита в строке архива: пульт проверяет целостность gzip/tar и распаковывает архив во временную папку (`dashboard-data/verify-tmp-*`, удаляется после проверки), считает файлы и отмечает наличие `Server/*.ini` и `Maps/`. Данные сервера не затрагиваются. Результат — в журнале событий.
-
-Перед восстановлением архив также полностью проверяется и распаковывается в `dashboard-data/restore-tmp-*`. Для этого нужно свободное место под распакованный мир в каталоге `dashboard-data`. Повреждённый, пустой архив или архив с путями за пределами временной папки отклоняется до остановки сервера и удаления текущего мира.
-
-После подтверждения остановки через Docker файлы сначала копируются во временный
-каталог на том же томе, что и данные PZ. На этом томе также требуется свободное
-место под восстановленный мир. Исходный мир сохраняется до завершения замены;
-при ошибке перемещения пульт возвращает исходные файлы и оставляет сервер
-остановленным. Если откат тоже не удался, каталоги с исходными и новыми данными
-сохраняются, а их пути указаны в ошибке для ручного восстановления.
-
-**Уведомления:** сбой бэкапа пишется событием типа «Ошибка» и уходит в Telegram (группы «Бэкапы»/«Проблемы» в карточке «Уведомления»), если бот настроен.
-
-**Контрольное восстановление** — порядок проверки:
-
-1. Создайте свежий бэкап (или дождитесь планового).
-2. Нажмите «Проверить архив» — убедитесь в OK и вменяемом количестве файлов.
-3. Полная проверка на тестовом экземпляре: распакуйте архив в отдельный каталог и поднимите второй экземпляр pzserver с этим каталогом как `/data` — сервер должен стартовать, мир и конфиги должны читаться.
-4. Реальное восстановление через пульт: страница «Бэкапы» → «Восстановить» → подтвердить флажком (сервер будет остановлен с предупреждением игрокам, данные заменены, затем запущен).
-
-## Настройки (переменные окружения)
-
-| Переменная | По умолчанию | Описание |
-|---|---|---|
-| `RCON_PASSWORD` | — | Пароль RCON (обязателен) |
-| `RCON_HOST` / `RCON_PORT` | `pzserver` / `27015` | Адрес RCON |
-| `PZ_CONTAINER` | `pzserver` | Имя контейнера |
-| `PZ_SERVICE` | `pzserver` | Имя сервиса в compose |
-| `PZ_IMAGE` | `indifferentbrokkoli/pzserver:latest` | Образ для проверки обновлений |
-| `COMPOSE_PROJECT_NAME` | `pz` | Имя compose-проекта пульта |
-| `COMPOSE_FILE` | `/compose/docker-compose.yml` | Путь к compose-файлу (можно `:склейка`) |
-| `DATA_DIR` | `/data` | Смонтированные данные PZ |
-| `BACKUP_DIR` | `/backups` | Куда складывать бэкапы |
-| `DASHBOARD_DIR` | `/dashboard-data` | Постоянный каталог настроек, событий и сохранённых сессий пульта |
-| `KEEP_BACKUPS` | — | (устарела) ротация настраивается на странице «Бэкапы» и хранится в settings.json |
-| `PORT` | `8080` | Порт веб-интерфейса внутри контейнера |
-| `PZ_ADMIN_LOGIN` | — | Логин единственного администратора (обязателен) |
-| `PZ_ADMIN_PASSWORD` | — | Пароль администратора, минимум 12 символов (обязателен) |
-| `PZ_AUTH_KEY` | — | Ключ Fernet для шифрования cookie и сохранённых сессий (обязателен; сохраняйте между рестартами) |
-| `PZ_AUTH_COOKIE_SECURE` | `false` | `true` для HTTPS: cookie передаётся только по защищённому соединению |
-
----
-
-## Что менять под себя
-
-- **Цвета и шрифты** — токены в начале `dashboard/static/style.css` (`:root`).
-- **Тексты интерфейса** — разметка в `dashboard/static/index.html`.
-- **Опрос/логика интерфейса** — `dashboard/static/app.js` (интервалы внизу файла).
-- **Отсчёт предупреждения, интервал автообновления** — прямо в интерфейсе,
-  блок «Обновления».
-- **Текст предупреждений игрокам** — `dashboard/ops.py`, `rcon_warn_broadcast`.
-
----
-
-## Качество и безопасность
-
-- Демо включается явно через `?demo=1`; потеря связи сохраняет последние данные.
-- Реализованы состояния: загрузка (скелетоны), пустые списки, ошибки связи,
-  недоступный Docker/RCON, заблокированные кнопки во время операции.
-- Подтверждения для опасных действий (стоп, рестарт, обновление, восстановление,
-  удаление бэкапа); восстановление требует явного флажка.
-- Кнопки и поля имеют hover/active/disabled/focus-состояния, вёрстка адаптивная
-  (десктоп → планшет → телефон), поддержана клавиатурная навигация.
-- Интерфейс и API защищены входом администратора; сессии шифруются, выход
-  отзывает доступ, попытки входа ограничены. Для доступа через интернет используйте
-  HTTPS и `PZ_AUTH_COOKIE_SECURE=true`.
-- Пульт — единственный владелец docker.sock; при запуске проверяется доступность
-  Docker и плагина compose, ошибки видны в «Истории событий».
-
-## Проверено / не проверено
-
-- Код проверен компиляцией (python) и синтаксическим разбором (js).
-- HEALTHCHECK: в Dockerfile он есть и работает под обычным Docker; podman (buildah) эту
-  инструкцию из образа не читает — при запуске через podman добавляйте флаги:
-  `--health-cmd "python3 /app/healthcheck.py" --health-interval 30s --health-retries 3`.
-- На реальном сервере с RCON не прогонялся — при первом запуске сверьте
-  путь данных и имя volume, шаги в «Вариант Б».
-- Если «Обновить сейчас» пишет про compose — проверьте, что в образе пульта
-  есть плагин (`docker compose version` внутри контейнера).
+[MIT](LICENSE) © 2026 Arnike. Bundled fonts and development tooling retain their
+[upstream licenses](THIRD_PARTY_NOTICES.md). An independent community project for
+Project Zomboid; not affiliated with The Indie Stone.

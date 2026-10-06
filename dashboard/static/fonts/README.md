@@ -1,29 +1,25 @@
-# Локальные шрифты
+# Bundled fonts
 
-Все WOFF2-файлы хранятся в репозитории и копируются в Docker-образ вместе
-с каталогом `static`. Браузер получает их с того же сервера, что и пульт;
-загрузок с Google Fonts или других CDN нет.
+All WOFF2 files are stored in the repository and copied into the Docker image.
+The browser loads them from the panel's own server, without Google Fonts or a CDN.
+Shared `@font-face` rules live in `fonts.css`, loaded before `style.css`.
 
-Единые объявления `@font-face` находятся в `fonts.css`. Все три HTML-страницы
-подключают этот файл перед `style.css`; пути WOFF2 заданы относительно `fonts.css`.
-Не добавляйте внешние `@import`, `src`, `preconnect` или скрипты для ресурсов UI.
+| Family | Weights | Character sets | License |
+| --- | --- | --- | --- |
+| Golos Text | 400, 500, 600 | Latin, Cyrillic | [SIL OFL 1.1](golostext-OFL.txt) |
+| JetBrains Mono | 400, 500, 700 | Latin, Cyrillic | [SIL OFL 1.1](jetbrainsmono-OFL.txt) |
+| Russo One | 400 | Latin, Cyrillic | [SIL OFL 1.1](russoone-OFL.txt) |
 
-| Семейство | Начертания | Наборы символов | Лицензия |
-|---|---|---|---|
-| Golos Text | 400, 500, 600 | Latin, Cyrillic | [SIL OFL](golostext-OFL.txt) |
-| JetBrains Mono | 400, 500, 700 | Latin, Cyrillic | [SIL OFL](jetbrainsmono-OFL.txt) |
-| Russo One | 400 | Latin, Cyrillic | [SIL OFL](russoone-OFL.txt) |
+Golos Text and JetBrains Mono are used by the current UI. Russo One is retained
+for compatibility with the earlier design and is loaded only when used.
+Preserve license copies and font filenames.
 
-Golos Text и JetBrains Mono используются текущим интерфейсом. Russo One сохранён
-в комплекте для прежнего оформления и не загружается, пока не используется.
-Имена отдельных файлов сохраняют совместимость с существующими подключениями.
-
-Копии лицензий получены из официального репозитория Google Fonts:
+Font sources and license provenance:
 [Golos Text](https://github.com/google/fonts/tree/main/ofl/golostext),
 [JetBrains Mono](https://github.com/google/fonts/tree/main/ofl/jetbrainsmono),
 [Russo One](https://github.com/google/fonts/tree/main/ofl/russoone).
-Это ссылки на происхождение ресурсов; приложение не обращается к ним при работе.
+These are reference links; the running application does not request them.
 
-Проверка `tests/browser/test_bundled_assets.py` запрещает внешние запросы,
-открывает вход, все разделы пульта и справку, а также проверяет реальную загрузку
-каждого локального начертания с латиницей и кириллицей.
+`tests/browser/test_bundled_assets.py` blocks external requests, opens all application
+surfaces, and verifies actual local font loading with Latin and Cyrillic samples.
+Do not add external imports, font URLs, CDN scripts, or preconnects for UI assets.

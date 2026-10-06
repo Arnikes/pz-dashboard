@@ -12,6 +12,8 @@ def open_fields(page, dashboard):
     )
     page.goto(dashboard["url"] + "/#/maintenance")
     expect(page.locator("#btnStop")).to_be_enabled()
+    # These cases drive snapshots manually; reconnects must not restore the old fixture.
+    page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
     page.evaluate("""() => {
         renderOverview({...S.overview,
             update:{local:'sha256:'+'a'.repeat(64),remote:'sha256:'+'b'.repeat(64)}});
