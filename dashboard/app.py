@@ -216,13 +216,15 @@ class Handler(BaseHTTPRequestHandler):
         try:
             # RFC 5987 keeps Unicode and quoted filenames out of raw HTTP headers.
             download_name = urllib.parse.quote(os.path.basename(path), safe="")
+            disposition = (
+                f"attachment; filename=\"backup.tar.gz\"; filename*=UTF-8''{download_name}"
+            )
+            # Enforce the same CR/LF boundary as for host-derived MIME headers.
+            disposition = disposition.replace("\r", "").replace("\n", "")
             self.send_response(200)
             self.send_header("Content-Type", "application/gzip")
             self.send_header("Content-Length", str(size))
-            self.send_header(
-                "Content-Disposition",
-                f"attachment; filename=\"backup.tar.gz\"; filename*=UTF-8''{download_name}",
-            )
+            self.send_header("Content-Disposition", disposition)
             self.end_headers()
             with open(path, "rb") as f:
                 while True:
