@@ -352,18 +352,50 @@ window.ConfigEditor = (() => {
     const suggestions = elsewhere.length ? I18n.html('<p class="hint">Совпадения есть в других разделах:</p>') + `<div class="editor-toolbar">${elsewhere.map(({tab, count}) => I18n.msg`<button type="button" class="btn small" data-search-tab="${tab}">Перейти: ${esc(tabLabels[tab])} · ${count}</button>`).join("")}</div>` : query ? I18n.html('<p class="hint">Попробуйте другое название или технический ключ.</p>') : "";
     $("configFields").innerHTML = html || I18n.html('<p class="hint">Нет настроек, соответствующих поиску.</p>') + suggestions;
   }
-  function highlight(kind) {
+  const sourceViews = new Map(["ini", "sandbox"].map(kind => {
     const input = $(kind + "Source"), output = $(kind + "Highlight");
-    output.innerHTML = input.value.split("\n").map((line, i) => `<span class="source-line"><span class="line-number">${i + 1}</span><span class="${/^\s*(#|;|--)/.test(line) ? "syntax-comment" : line.includes("=") ? "syntax-value" : ""}">${esc(line) || " "}</span></span>`).join("\n") + "\n";
-    output.scrollTop = input.scrollTop;
-    output.scrollLeft = input.scrollLeft;
+    const window = document.createElement("span");
+    window.className = "source-window";
+    output.append(window);
+    return [kind, { input, output, window, lines: null, first: -1, end: -1, frame: 0 }];
+  }));
+  function highlight(kind, textChanged = false) {
+    const view = sourceViews.get(kind);
+    if (textChanged) view.lines = null;
+    if (view.frame) return;
+    view.frame = requestAnimationFrame(() => {
+      view.frame = 0;
+      const { input, output, window } = view;
+      // The native textarea owns text, selection and scrolling. Only the visible
+      // highlight rows are rendered; scrolling never reparses the source file.
+      const height = input.clientHeight, width = input.clientWidth;
+      if (!height || !width) return; // ResizeObserver schedules hidden editors on reveal.
+      const lineHeight = parseFloat(getComputedStyle(input).lineHeight);
+      const top = input.scrollTop, left = input.scrollLeft;
+      const changed = view.lines === null;
+      if (changed) view.lines = input.value.split("\n");
+      const first = Math.max(0, Math.floor(top / lineHeight) - 8);
+      const end = Math.min(view.lines.length, Math.ceil((top + height) / lineHeight) + 8);
+      if (changed || first !== view.first || end !== view.end) {
+        window.innerHTML = view.lines.slice(first, end).map((line, i) => `<span class="source-line"><span class="line-number">${first + i + 1}</span><span class="${/^\s*(#|;|--)/.test(line) ? "syntax-comment" : line.includes("=") ? "syntax-value" : ""}">${esc(line) || " "}</span></span>`).join("");
+        view.first = first;
+        view.end = end;
+      }
+      // Clip at the textarea's content viewport, including native scrollbars.
+      setDomProperty(output.style, "width", `${width}px`);
+      setDomProperty(output.style, "height", `${height}px`);
+      setDomProperty(window.style, "transform", `translate(${-left}px, ${first * lineHeight - top}px)`);
+    });
   }
   function renderSources() {
     if (!draft || sourceDirty) return;
-    $("iniSource").value = draft.texts.ini || "";
-    $("sandboxSource").value = draft.texts.sandbox || "";
     $("sandboxSource").disabled = draft.texts.sandbox === null;
-    for (const kind of ["ini", "sandbox"]) highlight(kind);
+    for (const kind of ["ini", "sandbox"]) {
+      const input = sourceViews.get(kind).input, text = draft.texts[kind] || "";
+      const changed = input.value !== text;
+      if (changed) input.value = text;
+      highlight(kind, changed);
+    }
   }
   async function flushSources() {
     if (!sourceDirty || !draft) return;
@@ -566,8 +598,10 @@ window.ConfigEditor = (() => {
     modal.open({ title: I18n.t("Удалить сохранённый параметр?"), bodyHTML: esc(remove.dataset.removeOption), onConfirm: () => patch({ removeSandbox: [remove.dataset.removeOption] }) });
   });
   for (const kind of ["ini", "sandbox"]) {
-    $(kind + "Source").addEventListener("input", () => { sourceDirty = true; $("draftSaved").textContent = I18n.t("Исходник ещё не сохранён в черновик"); highlight(kind); });
-    $(kind + "Source").addEventListener("scroll", () => highlight(kind));
+    const input = sourceViews.get(kind).input;
+    input.addEventListener("input", () => { sourceDirty = true; $("draftSaved").textContent = I18n.t("Исходник ещё не сохранён в черновик"); highlight(kind, true); });
+    input.addEventListener("scroll", () => highlight(kind), { passive: true });
+    new ResizeObserver(() => highlight(kind)).observe(input);
   }
   $("sourceSave").addEventListener("click", () => flushFields().then(flushSources).catch(e => error(e.message)));
   function selectWorkshopCandidates(result, profile) {
