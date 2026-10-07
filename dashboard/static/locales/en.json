@@ -1,4 +1,8 @@
 {
+  "Минимум: {{0}}": "Minimum: {{0}}",
+  "Максимум: {{0}}": "Maximum: {{0}}",
+  "Диапазон и варианты из исходной конфигурации {{0}}": "Range and choices from the original {{0}} configuration",
+  "Оставьте __PZ_SECRET_UNCHANGED__, чтобы сохранить текущий пароль.": "Keep __PZ_SECRET_UNCHANGED__ to preserve the current password.",
   "Свернуть навигацию": "Collapse navigation",
   "Развернуть навигацию": "Expand navigation",
   "Свернуть": "Collapse",

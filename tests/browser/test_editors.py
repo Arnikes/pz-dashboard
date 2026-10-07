@@ -72,8 +72,9 @@ def test_field_help_supports_hover_focus_and_tap_without_changing_draft(
     page.set_viewport_size({"width": width, "height": 844})
     page.goto(dashboard["url"] + "/#/settings")
     expect(page.locator("#configProfile")).to_have_value("world.ini")
-    field = page.locator('.config-field:has([data-key="PublicName"])')
-    trigger = field.get_by_role("button", name="О настройке «Название сервера»")
+    page.locator("#configSearch").fill("Unknown")
+    field = page.locator('.config-field:has([data-key="Unknown"])')
+    trigger = field.get_by_role("button", name="О настройке «Unknown»")
     tip = field.locator("[role=tooltip]")
     expect(tip).to_be_hidden()
     original = field.locator("[data-key]").input_value()
@@ -85,7 +86,7 @@ def test_field_help_supports_hover_focus_and_tap_without_changing_draft(
     expect(tip).to_be_hidden()
     trigger.focus()
     expect(tip).to_be_visible()
-    expect(tip).to_contain_text("PublicName")
+    expect(tip).to_contain_text("ограничения не определены")
     assert (
         tip.get_attribute("id")
         in field.locator("[data-key]").get_attribute("aria-describedby").split()
@@ -124,8 +125,9 @@ def test_field_help_keeps_viewport_coordinates_during_page_animation(
         animation.pause();
         animation.currentTime = 0;
     }""")
-    field = page.locator('.config-field:has([data-key="Password"])')
-    trigger = field.get_by_role("button", name="О настройке «Пароль входа»")
+    page.locator("#configSearch").fill("Unknown")
+    field = page.locator('.config-field:has([data-key="Unknown"])')
+    trigger = field.get_by_role("button", name="О настройке «Unknown»")
     tip = field.locator("[role=tooltip]")
     trigger.focus()
     expect(tip).to_be_visible()
@@ -145,8 +147,9 @@ def test_field_help_survives_scroll_after_hover_and_inside_tooltip(page, dashboa
     page.set_viewport_size({"width": width, "height": 844})
     page.goto(dashboard["url"] + "/#/settings")
     expect(page.locator('[data-key="PublicName"]')).to_be_enabled()
-    field = page.locator('.config-field:has([data-key="PublicName"])')
-    trigger = field.get_by_role("button", name="О настройке «Название сервера»")
+    page.locator("#configSearch").fill("Unknown")
+    field = page.locator('.config-field:has([data-key="Unknown"])')
+    trigger = field.get_by_role("button", name="О настройке «Unknown»")
     tip = field.locator("[role=tooltip]")
     tip.evaluate("el => el.textContent = 'PublicName\\n'.repeat(200)")
     trigger.hover()
@@ -319,6 +322,107 @@ def test_search_restores_collapsed_groups_and_shows_empty_result(page, dashboard
     expect(page.locator("#configFields")).to_contain_text("Нет настроек, соответствующих поиску")
     page.locator("#configSearch").fill("")
     expect(group).not_to_have_attribute("open", "")
+
+
+@pytest.mark.parametrize("language", ["ru", "en"])
+@pytest.mark.parametrize("width", [390, 1440])
+def test_settings_help_keeps_only_decision_relevant_content(
+    page, dashboard, editing, monkeypatch, language, width
+):
+    data, ctx = editing
+    ini_path = data / "Server/world.ini"
+    ini_path.write_bytes(
+        (
+            INI + "MaxPlayers=32\r\n# Min: 0\r\nSaveWorldEveryMinutes=15\r\nChatStreams=s,r,a\r\n"
+        ).encode()
+    )
+    ctx["owners"]["MaxPlayers"] = "MAX_PLAYERS"
+    (data / "Server/world_SandboxVars.lua").write_text(
+        "SandboxVars={VERSION=5, StartYear=1993, FoodLootNew=0.6, DayLength=4, Mod={Count=2}}",
+        encoding="utf-8",
+    )
+    mod_media = data / "steamapps/workshop/content/108600/111/mods/PluginFolder/42/media"
+    mod_media.mkdir(parents=True, exist_ok=True)
+    (mod_media / "sandbox-options.txt").write_text(
+        "option Mod.Count { type=integer, max=100, default=2, page=ModPage, }\n"
+        "option Mod.Absent { type=boolean, default=true, page=ModPage, }",
+        encoding="utf-8",
+    )
+    editor.workshop.invalidate()
+    monkeypatch.setattr(
+        editor.workshop,
+        "vanilla_translations",
+        lambda *args, **kwargs: {
+            "Sandbox_DayLength": "Длительность дня",
+            "Sandbox_DayLength_tooltip": "Уникальное объяснение длительности дня",
+        },
+    )
+    page.add_init_script(f"localStorage.setItem('pz-language', '{language}')")
+    page.set_viewport_size({"width": width, "height": 844})
+    page.goto(dashboard["url"] + "/#/settings")
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    assert page.locator("#view-settings .page-description").count() == 0
+    plain = page.locator('.config-field:has([data-key="PublicName"])')
+    expect(plain.locator(".config-meta")).to_have_text("PublicName")
+    assert plain.locator("[data-help]").count() == 0
+    players = page.locator('.config-field:has([data-key="MaxPlayers"])')
+    expect(players.locator(".config-meta")).to_contain_text("1–100")
+    expect(players.locator(".hint")).to_contain_text("MAX_PLAYERS")
+    expect(players.locator("[data-key]")).to_be_disabled()
+    minimum = "Минимум: 0" if language == "ru" else "Minimum: 0"
+    save = page.locator('.config-field:has([data-key="SaveWorldEveryMinutes"])')
+    expect(save.locator(".config-meta")).to_contain_text(minimum)
+    assert save.locator("[data-help]").count() == 0
+    page.locator("#configSearch").fill("ChatStreams")
+    streams = page.locator('.config-field:has([data-key="ChatStreams"])')
+    expect(streams.locator(".hint")).to_have_text(
+        "По одной записи в строке." if language == "ru" else "One entry per line."
+    )
+    page.locator("#configSearch").fill("")
+    page.locator('#configTabs [data-tab="world"]').click()
+    start = page.locator('.config-field:has([data-key="StartYear"])')
+    expect(start.locator(".config-scope")).to_be_visible()
+    start.locator("[data-help]").click()
+    expect(start.locator("[role=tooltip]")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(start.locator("[role=tooltip]")).to_be_hidden()
+    expect(
+        page.locator('.config-field:has([data-key="FoodLootNew"]) .config-meta')
+    ).to_contain_text(minimum)
+    day = page.locator('.config-field:has([data-key="DayLength"])')
+    expect(day.locator(".config-meta")).to_have_text("DayLength")
+    expect(day.locator("[role=tooltip]")).to_contain_text("Уникальное объяснение")
+    # Every accessible description still resolves after tab/search rerenders,
+    # including fields whose redundant help control was removed.
+    missing = page.locator("#configFields [aria-describedby]").evaluate_all("""els =>
+        els.flatMap(el => el.getAttribute('aria-describedby').split(/\\s+/))
+           .filter(id => !document.getElementById(id))""")
+    assert missing == []
+    page.locator('#configTabs [data-tab="custom"]').click()
+    count = page.locator('.config-field:has([data-key="Mod.Count"])')
+    expect(count.locator(".config-meta")).to_contain_text(
+        "Максимум: 100" if language == "ru" else "Maximum: 100"
+    )
+    assert count.locator("[data-help]").count() == 0
+    absent = page.locator('.config-field:has([data-key="Mod.Absent"])')
+    absent.locator("[data-help]").click()
+    expect(absent.locator("[role=tooltip]")).to_contain_text(
+        "Значение по умолчанию ещё не записано в файл."
+        if language == "ru"
+        else "Default value has not been written to the file yet."
+    )
+    page.keyboard.press("Escape")
+    page.locator('#configTabs [data-tab="sources"]').click()
+    expect(page.locator("#configSources > .hint")).to_have_text(
+        "Оставьте __PZ_SECRET_UNCHANGED__, чтобы сохранить текущий пароль."
+        if language == "ru"
+        else "Keep __PZ_SECRET_UNCHANGED__ to preserve the current password."
+    )
+    assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
+    page.locator('#configTabs [data-tab="server"]').click()
+    page.screenshot(path=str(data.parent / f"settings-hints-{language}-{width}.png"))
+    assert not editor.draft("world.ini")["changed"]
+    assert dashboard["actions"] == []
 
 
 @pytest.mark.parametrize("width", [390, 1440])

@@ -210,7 +210,15 @@ Mobile help controls have 44-pixel touch targets. Desktop labels are bounded
 to 260 pixels and controls to 560 pixels; labeled setting search is bounded to
 600 pixels. Boolean draft fields use one transparent clickable 44-pixel row.
 Setting search names its current section and links to matching neighboring sections.
-Technical keys and brief context or numeric ranges sit below the controls.
+Technical keys, numeric bounds (including one-sided bounds), and input instructions
+sit below the controls. General lifecycle and stock-setting hints are omitted.
+Unique explanations, applicability details and absent defaults open on demand;
+metadata provenance accompanies substantive help. Fields without additional help
+have no help control, including fields with only metadata provenance. Exact
+applicability labels, environment ownership, errors and secret-marker instructions
+remain available beside their relevant controls. Descriptions reference only
+rendered elements. Settings keeps its lifecycle stages and collapsed apply guide
+without a repeating page description.
 Changed-field labels remain visible, and changed text controls use the warning
 border. Help stays above the mobile navigation and draft actions.
 

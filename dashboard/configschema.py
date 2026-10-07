@@ -425,13 +425,13 @@ def field(key, value, sandbox=False, custom=None, schema=None, translations=None
                 label=label,
                 group=group,
                 stock=True,
-                hint="Применение к существующему миру зависит от настройки",
+                hint="",
             )
         rec.update(SANDBOX.get(key, {}))
         if key in SANDBOX:
             rec["stock"] = True
         if rec.get("stock") and rec["hint"] == "Параметр вне каталога: ограничения не определены":
-            rec["hint"] = "Штатная настройка B42"
+            rec["hint"] = ""
         if key not in SANDBOX and key not in WORLD_LABELS:
             prefix = key.split(".")[0]
             rec["group"] = next(
@@ -463,14 +463,14 @@ def field(key, value, sandbox=False, custom=None, schema=None, translations=None
             rec["custom"] = True
     elif key in INI:
         label, group, kind, minimum, maximum = INI[key]
-        rec.update(label=label, group=group, type=kind, hint="Применяется после запуска сервера")
+        rec.update(label=label, group=group, type=kind, hint="")
         if minimum is not None:
             rec["min"] = minimum
         if maximum is not None:
             rec["max"] = maximum
     if not sandbox and key in INI_PRESENTATION:
         label, group, kind = INI_PRESENTATION[key]
-        rec.update(label=label, group=group, type=kind, hint="Применяется после запуска сервера")
+        rec.update(label=label, group=group, type=kind, hint="")
         if kind == "list":
             rec["delimiter"] = ","
         if kind == "multiline":
@@ -480,7 +480,7 @@ def field(key, value, sandbox=False, custom=None, schema=None, translations=None
         if metadata:
             rec.update(metadata)
             rec.update(schemaVersion=schema["version"], metadataSource="profile-comments")
-            rec["hint"] = "Диапазон и варианты из исходной конфигурации " + schema["version"]
+            rec["hint"] = ""
             if sandbox and "." not in key:
                 rec["stock"] = True
                 if rec["group"] == "Неизвестные / сохранённые параметры":

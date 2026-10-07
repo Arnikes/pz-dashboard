@@ -2702,7 +2702,6 @@ modSettingsLink.addEventListener("click", async event => {
 });
 $("view-mods").querySelector(".page-heading").append(modSettingsLink);
 for (const [route, description] of Object.entries({
-  settings: I18n.t("Правки сохраняются в черновике. Сервер меняется после применения."),
   mods: I18n.t("Workshop-пакеты, ModID и порядок загрузки — в одном черновике."),
   backups: I18n.t("Создавайте архивы, проверяйте их и восстанавливайте мир."),
 })) {

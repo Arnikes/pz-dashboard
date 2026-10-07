@@ -396,14 +396,13 @@
         </div>
         <div id="configSharedFields">
         <label class="editor-search" id="configSearchLabel" for="configSearch"><span id="configSearchScope">Поиск в настройках сервера</span><input id="configSearch" type="search" placeholder="Название или технический ключ…" aria-label="Поиск в настройках сервера" /></label>
-        <p id="configWorldNotice" class="hint" hidden>Часть настроек влияет только на новые области или персонажей.</p>
         <div id="configFields"></div>
         </div>
         <div id="configServerPanel"></div>
         <div id="configWorldPanel" hidden></div>
         <div id="configCustomPanel" hidden></div>
         <div id="configSources" hidden>
-          <p class="hint">Скрытые пароли обозначены __PZ_SECRET_UNCHANGED__. Оставьте маркер, чтобы сохранить пароль. Запись выполняется после проверки.</p>
+          <p class="hint">Оставьте __PZ_SECRET_UNCHANGED__, чтобы сохранить текущий пароль.</p>
           <label class="field">INI<div class="source-editor"><pre id="iniHighlight" aria-hidden="true"></pre><textarea id="iniSource" aria-label="Исходник INI" spellcheck="false" wrap="off"></textarea></div></label>
           <label class="field">SandboxVars.lua<div class="source-editor"><pre id="sandboxHighlight" aria-hidden="true"></pre><textarea id="sandboxSource" aria-label="Исходник SandboxVars" spellcheck="false" wrap="off"></textarea></div></label>
           <button type="button" id="sourceSave" class="btn">Сохранить исходники в черновик</button>
