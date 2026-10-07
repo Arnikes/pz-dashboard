@@ -12,6 +12,13 @@
   font: 500 16px/1.4 "Golos Text", "Segoe UI", sans-serif;
 }
 .language-switch:focus-visible { outline: 2px solid #e9e2cd; outline-offset: 3px; }
+/* Shared by the dashboard, login and the independently cached offline shell. */
+.language-control { display:flex; align-items:center; position:relative; color:var(--muted, #b3a78c); }
+.language-control > svg { position:absolute; inset-inline-start:10px; width:18px; height:18px; pointer-events:none; }
+.language-control .language-switch { min-width:0; padding:8px 8px 8px 36px; border-color:transparent; background:transparent; color:var(--muted, #b3a78c); font:500 13.5px/1.3 var(--font-body, "Golos Text", "Segoe UI", sans-serif); }
+.language-control .language-switch:hover:not(:disabled) { background:var(--surface-2, #1a1612); color:var(--ink, #e9e2cd); }
+.language-control .language-switch option { background:var(--surface, #14110e); color:var(--ink, #e9e2cd); }
+.login-language .language-switch { font-size:16px; }
 .login-card > .language-switch { margin-bottom: 16px; }
 .help-page > .language-switch { display: block; margin-bottom: 16px; }
 .pwa-bar {
@@ -68,10 +75,12 @@
   accent-color: #e9e2cd;
 }
 .pwa-offline { width: 100%; max-width: 560px; overflow-wrap: anywhere; }
-.pwa-name { color: #e9e2cd; font-weight: 600; margin: 12px 0 32px; }
+.pwa-header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:16px; margin-bottom:24px; }
+.pwa-identity { display:flex; align-items:center; gap:12px; }
+.pwa-brand { width:36px; height:36px; flex:none; }
+.pwa-header .pwa-name { color:#e9e2cd; font-weight:600; margin:0; }
 .pwa-offline h1 { font-size: 26px; line-height: 1.2; letter-spacing: -.02em; margin: 0 0 16px; }
 .pwa-offline p { color: #b3a78c; margin-block: 16px; }
-.pwa-offline .pwa-name { color: #e9e2cd; }
 .pwa-offline a { color: #e9e2cd; text-underline-offset: 3px; }
 .pwa-offline ::selection { color: #e9e2cd; background: #304025; }
 .pwa-offline .pwa-button { margin-block: 12px 0; }

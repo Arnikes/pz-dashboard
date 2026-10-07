@@ -1,0 +1,62 @@
+{
+  "header": {
+    "font": "\"Golos Text\", \"Segoe UI\", sans-serif",
+    "size": "16px",
+    "weight": "400",
+    "color": "rgb(233, 226, 205)",
+    "background": "rgba(0, 0, 0, 0)",
+    "border": "rgb(233, 226, 205)",
+    "radius": "0px",
+    "outline": "none",
+    "outlineWidth": "3px",
+    "height": 44,
+    "width": 342,
+    "top": 214.828125,
+    "left": 24
+  },
+  "heading": {
+    "font": "\"Golos Text\", \"Segoe UI\", sans-serif",
+    "size": "26px",
+    "weight": "700",
+    "color": "rgb(233, 226, 205)",
+    "background": "rgba(0, 0, 0, 0)",
+    "border": "rgb(233, 226, 205)",
+    "radius": "0px",
+    "outline": "none",
+    "outlineWidth": "3px",
+    "height": 31.1875,
+    "width": 342,
+    "top": 282.828125,
+    "left": 24
+  },
+  "language": {
+    "font": "\"Golos Text\", \"Segoe UI\", sans-serif",
+    "size": "13.5px",
+    "weight": "500",
+    "color": "rgb(179, 167, 140)",
+    "background": "rgba(0, 0, 0, 0)",
+    "border": "rgba(0, 0, 0, 0)",
+    "radius": "8px",
+    "outline": "none",
+    "outlineWidth": "3px",
+    "height": 44,
+    "width": 85,
+    "top": 214.828125,
+    "left": 281
+  },
+  "login_language": {
+    "font": "\"Golos Text\", \"Segoe UI\", system-ui, -apple-system, sans-serif",
+    "size": "16px",
+    "weight": "500",
+    "color": "rgb(179, 167, 140)",
+    "background": "rgba(0, 0, 0, 0)",
+    "border": "rgba(0, 0, 0, 0)",
+    "radius": "8px",
+    "outline": "none",
+    "outlineWidth": "3px",
+    "height": 44,
+    "width": 147,
+    "top": 627.25,
+    "left": 121.5
+  }
+}

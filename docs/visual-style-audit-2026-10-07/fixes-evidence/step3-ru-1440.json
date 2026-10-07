@@ -1,0 +1,62 @@
+{
+  "toolbar": {
+    "font": "\"Golos Text\", \"Segoe UI\", system-ui, -apple-system, sans-serif",
+    "size": "14.5px",
+    "weight": "400",
+    "color": "rgb(233, 226, 205)",
+    "background": "rgb(20, 17, 14)",
+    "border": "rgb(233, 226, 205)",
+    "radius": "0px",
+    "outline": "none",
+    "outlineWidth": "3px",
+    "height": 94,
+    "width": 1130,
+    "top": 455.796875,
+    "left": 257
+  },
+  "console": {
+    "font": "\"JetBrains Mono\", ui-monospace, \"SF Mono\", Menlo, Consolas, monospace",
+    "size": "12.5px",
+    "weight": "400",
+    "color": "rgb(233, 226, 205)",
+    "background": "rgb(9, 8, 6)",
+    "border": "rgba(233, 226, 205, 0.1)",
+    "radius": "8px",
+    "outline": "none",
+    "outlineWidth": "3px",
+    "height": 280,
+    "width": 544,
+    "top": 275.890625,
+    "left": 251
+  },
+  "logs": {
+    "font": "\"JetBrains Mono\", ui-monospace, \"SF Mono\", Menlo, Consolas, monospace",
+    "size": "12px",
+    "weight": "400",
+    "color": "rgb(179, 167, 140)",
+    "background": "rgb(9, 8, 6)",
+    "border": "rgba(233, 226, 205, 0.1)",
+    "radius": "8px",
+    "outline": "none",
+    "outlineWidth": "3px",
+    "height": 280,
+    "width": 544,
+    "top": 275.890625,
+    "left": 849
+  },
+  "footer": {
+    "font": "\"Golos Text\", \"Segoe UI\", system-ui, -apple-system, sans-serif",
+    "size": "14.5px",
+    "weight": "400",
+    "color": "rgb(233, 226, 205)",
+    "background": "rgba(0, 0, 0, 0)",
+    "border": "rgb(233, 226, 205)",
+    "radius": "0px",
+    "outline": "none",
+    "outlineWidth": "3px",
+    "height": 44,
+    "width": 544,
+    "top": 567.890625,
+    "left": 849
+  }
+}

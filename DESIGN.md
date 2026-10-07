@@ -156,6 +156,10 @@ the code role; form keys remain 12px and guide code follows its reading size.
 `--r-control` maps to the 8px control radius. Text inputs, including inputs
 without an explicit type, share the 44px field component; map-list editing uses
 an explicit text input.
+Panel and dialog headings share `--type-title` (18px/600) and
+`--tracking-title` (-.015em). Modal and command-search windows use the shared
+16px `--r-dialog`; nested diff previews use the 8px control radius and deep
+source background.
 
 ## Navigation and responsive behavior
 
@@ -163,6 +167,10 @@ Desktop uses a sidebar (204 pixels) with a page gutter (28 pixels); mobile uses
 Overview, Settings, Mods, and More in the bottom bar. All four items share the
 same-size icon and label treatment. More
 remains a button that exposes its expanded and current-section states.
+The independent offline shell groups its 36px brand icon and name in a header
+beside the same globe-and-language control used by login and the dashboard,
+with 24px separation before the page title. Shared language-control styling
+lives in `pwa.css` so it also works from the offline cache.
 The top bar contains the active profile, language selector, quick commands,
 and sign-out action. The active profile's status remains available through its
 accessible description without a visible active-state label. Other-profile and

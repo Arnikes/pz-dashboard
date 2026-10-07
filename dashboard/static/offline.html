@@ -14,9 +14,16 @@
 </head>
 <body class="pwa-offline-page">
   <main class="pwa-offline">
-    <img class="pwa-brand" src="/static/favicon.svg" width="48" height="48" alt="" />
-    <p class="pwa-name">PZ·ПУЛЬТ</p>
-    <select class="language-switch" data-language-switch aria-label="Язык интерфейса"><option value="en" lang="en">EN</option><option value="ru" lang="ru">RU</option></select>
+    <header class="pwa-header">
+      <div class="pwa-identity">
+        <img class="pwa-brand" src="/static/favicon.svg" width="36" height="36" alt="" />
+        <p class="pwa-name">PZ·ПУЛЬТ</p>
+      </div>
+      <div class="language-control">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c5 5 5 13 0 18M12 3c-5 5-5 13 0 18"/></svg>
+        <select class="language-switch" data-language-switch aria-label="Язык интерфейса"><option value="en" lang="en">EN</option><option value="ru" lang="ru">RU</option></select>
+      </div>
+    </header>
     <p id="languageStatus" role="alert" hidden></p>
     <h1>Нет связи с пультом</h1>
     <p>Проверьте интернет, VPN и доступность сервера. Управление и свежие данные появятся после подключения.</p>
