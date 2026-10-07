@@ -298,6 +298,9 @@
             <select id="modSortNew" aria-label="Порядок отображения"><option value="config">Как в конфиге</option><option value="title">По названию</option></select>
           </div>
 
+          <form id="workshopAdd" class="editor-toolbar"><input id="workshopInput" type="text" placeholder="Steam-ссылка, Workshop ID или коллекция" aria-label="Добавить пакет из Steam" required /><button class="btn" type="submit">Добавить</button></form>
+          <div class="editor-toolbar mod-secondary-actions"><button type="button" id="modExport" class="btn small ghost">Экспорт набора</button><label class="btn small ghost import-button">Импорт набора<input type="file" id="modImport" accept="application/json,.json" class="sr-only" /></label><button type="button" class="btn small ghost" id="modRescan">Перечитать метаданные</button></div>
+
           <div id="installNotice" class="install-notice" hidden></div>
           <div id="modPackages" class="list"><p class="hint">Выберите профиль конфигурации.</p></div>
           <nav id="modCompositionPager" class="journal-pager" aria-label="Страницы состава модов" hidden>
@@ -314,10 +317,6 @@
               <button id="modCompositionNext" class="btn small" type="button" aria-controls="modPackages" disabled>Далее</button>
             </div>
           </nav>
-          <details id="workshopDisclosure" class="workshop-add"><summary>Добавить пакет или коллекцию</summary>
-          <form id="workshopAdd" class="editor-toolbar"><input id="workshopInput" type="text" placeholder="Steam-ссылка, Workshop ID или коллекция" aria-label="Добавить пакет из Steam" required /><button class="btn" type="submit">Добавить</button></form>
-          </details>
-          <div class="editor-toolbar mod-secondary-actions"><button type="button" id="modExport" class="btn small ghost">Экспорт набора</button><label class="btn small ghost import-button">Импорт набора<input type="file" id="modImport" accept="application/json,.json" class="sr-only" /></label><button type="button" class="btn small ghost" id="modRescan">Перечитать метаданные</button></div>
         </div>
         <div id="legacyMods" class="install-notice" hidden></div>
         <div id="modOrder" hidden>

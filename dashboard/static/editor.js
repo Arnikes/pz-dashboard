@@ -164,7 +164,6 @@ window.ConfigEditor = (() => {
       : activeView === "mods" ? $("workshopInput") : configTab === "sources" ? $("iniSource") : $("configSearch");
     if (!target || target.hidden || target.disabled) return;
     if (!target.matches("input,textarea,button")) target.tabIndex = -1;
-    if (target.id === "workshopInput") $("workshopDisclosure").open = true;
     target.focus(); target.scrollIntoView({ block: "nearest" });
   });
   $("editorAttention").addEventListener("click", event => {

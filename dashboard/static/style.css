@@ -1735,7 +1735,8 @@ body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--footer-height)
 #view-settings .config-group .config-grid { padding:0 0 12px; }
 #view-mods .editor-toolbar { gap:8px; margin:12px 0; }
 #view-mods .editor-toolbar select { flex-basis:200px; width:200px; }
-#view-mods .mod-composition > .editor-toolbar { align-items:flex-end; margin:20px 0; }
+#view-mods .mod-composition > .editor-toolbar:first-child { align-items:flex-end; margin:20px 0; }
+#view-mods #workshopAdd { margin:12px 0 4px; }
 .mod-search { flex:1 1 230px; min-width:0; }
 .mod-search > span { display:block; color:var(--muted); font-size:12px; margin-bottom:6px; }
 .mod-search input { width:100%; }
@@ -1863,8 +1864,6 @@ body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--footer-height)
 .config-toggle .toggle-on { display:none; }
 .config-toggle:has(input:checked) .toggle-on { display:inline; }
 .config-toggle:has(input:checked) .toggle-off { display:none; }
-.workshop-add { margin-top:16px; border-top:1px solid var(--line); }
-.workshop-add summary { min-height:44px; padding:12px 0; cursor:pointer; font-weight:500; }
 .backup-row { grid-template-columns:minmax(0,1fr) 9ch 15ch auto; }
 .archive-heading { display:grid; gap:10px; padding:0 0 10px; color:var(--muted); font-size:12.5px; border-bottom:1px solid var(--line); }
 .archive-heading > :nth-child(2), .archive-heading > :nth-child(3) { text-align:right; }
