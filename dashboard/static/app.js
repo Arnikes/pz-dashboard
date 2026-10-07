@@ -861,9 +861,6 @@ function renderOverview(o) {
   if (settingsCanRender("modsAutoInterval")) $("modsAutoInterval").value = String(mu.intervalHours ?? 6);
   if (settingsCanRender("modsAutoAction")) $("modsAutoAction").value = mu.restartOnUpdate === false ? "notify" : "restart";
   if (settingsCanRender("modsAutoWarn")) $("modsAutoWarn").value = String(mu.warnSeconds ?? 600);
-  const nextM = o.settings?.nextModsCheck;
-  $("modsAutoNext").hidden = !(mu.enabled && nextM);
-  if (mu.enabled && nextM) $("modsAutoNext").textContent = I18n.msg`Следующая проверка: ${new Date(nextM * 1000).toLocaleString(I18n.locale, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`;
 
   renderSummaries();
   updateButtons();

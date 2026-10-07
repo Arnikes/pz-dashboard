@@ -1113,8 +1113,6 @@
   "Скорость порчи еды": "Food spoilage speed",
   "Скрытые пароли обозначены __PZ_SECRET_UNCHANGED__. Оставьте маркер, чтобы сохранить пароль. Запись выполняется после проверки.": "Hidden passwords use __PZ_SECRET_UNCHANGED__. Keep the marker to preserve the password. Files are written after validation.",
   "Слабая": "Weak",
-  "Следующая проверка: {{0}}": "Next check: {{0}}",
-  "Следующая проверка: —": "Next check: —",
   "Следы животных": "Animal tracks",
   "Слишком глубокая вложенность SandboxVars": "SandboxVars nesting too deep",
   "Слишком много попыток входа. Повторите через минуту": "Too many sign-in attempts. Try again in a minute",
