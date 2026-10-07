@@ -747,6 +747,7 @@ select { cursor: pointer; }
   margin: 8px 0;
   font-size: 12.5px;
   color: var(--blood-text);
+  overflow-wrap: anywhere;
 }
 
 /* игроки */
@@ -817,7 +818,7 @@ select { cursor: pointer; }
 
 .event-row:last-child { border-bottom: none; }
 .event-row .e-time { color: var(--faint); flex: none; font-size: 11.5px; }
-.event-row .e-text { min-width: 0; }
+.event-row .e-text { min-width: 0; overflow-wrap: anywhere; }
 .event-row[data-kind="error"] .e-text, .event-row[data-kind="rcon-error"] .e-text { color: var(--blood-text); }
 .event-row[data-kind="update"] .e-text, .event-row[data-kind="auto"] .e-text { color: var(--warn); }
 .event-row[data-kind="backup"] .e-text, .event-row[data-kind="restore"] .e-text { color: var(--ok); }
@@ -1243,7 +1244,13 @@ select { cursor: pointer; }
 
 .player-row .p-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .player-row .p-actions { display: inline-flex; gap: 6px; }
+.player-row .player-action { width:auto; padding:6px 10px; gap:6px; }
 .player-row .icon-btn svg { width: 13px; height: 13px; }
+@media (max-width:740px) {
+  .player-row { flex-wrap:wrap; }
+  .player-row .p-name { flex-basis:calc(100% - 24px); }
+  .player-row .p-actions { margin-left:17px; }
+}
 
 .logs-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .logs-tools input[type="search"] {
@@ -1253,6 +1260,8 @@ select { cursor: pointer; }
 .logs-tools .btn { text-decoration: none; display: inline-flex; align-items: center; }
 .logs-scope { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:12px; }
 .logs-scope .hint { margin:0; }
+.logs-result { display:flex; flex:1 1 100%; flex-wrap:wrap; align-items:center; gap:8px 12px; }
+.logs-result .hint { margin:0; }
 .logs-error { color:var(--warn); }
 
 @media (min-width: 1181px) {

@@ -1,0 +1,805 @@
+{
+  "viewport": {
+    "width": 1440,
+    "height": 844
+  },
+  "scrollWidth": 1440,
+  "bodyWidth": 1440,
+  "controls": [
+    {
+      "tag": "SELECT",
+      "id": "configProfile",
+      "cls": "",
+      "name": "Профиль конфигурации",
+      "width": 300,
+      "height": 44,
+      "disabled": false,
+      "x": 705.28125,
+      "y": 16
+    },
+    {
+      "tag": "BUTTON",
+      "id": "btnCommands",
+      "cls": "btn",
+      "name": "Быстрые команды",
+      "width": 178.390625,
+      "height": 44,
+      "disabled": false,
+      "x": 1017.28125,
+      "y": 16
+    },
+    {
+      "tag": "SELECT",
+      "id": "languageSwitch",
+      "cls": "language-switch",
+      "name": "Язык интерфейса",
+      "width": 99,
+      "height": 44,
+      "disabled": false,
+      "x": 1220.671875,
+      "y": 16
+    },
+    {
+      "tag": "BUTTON",
+      "id": "btnLogout",
+      "cls": "btn ghost session-logout",
+      "name": "Выйти",
+      "width": 88.328125,
+      "height": 44,
+      "disabled": false,
+      "x": 1327.671875,
+      "y": 16
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Обзор",
+      "width": 175,
+      "height": 44,
+      "disabled": false,
+      "x": 14,
+      "y": 101
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Настройки",
+      "width": 175,
+      "height": 44,
+      "disabled": false,
+      "x": 14,
+      "y": 153
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Моды",
+      "width": 175,
+      "height": 44,
+      "disabled": false,
+      "x": 14,
+      "y": 205
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Игроки",
+      "width": 175,
+      "height": 44,
+      "disabled": false,
+      "x": 14,
+      "y": 257
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Обслуживание",
+      "width": 175,
+      "height": 44,
+      "disabled": false,
+      "x": 14,
+      "y": 309
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Бэкапы",
+      "width": 175,
+      "height": 44,
+      "disabled": false,
+      "x": 14,
+      "y": 361
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "События",
+      "width": 175,
+      "height": 44,
+      "disabled": false,
+      "x": 14,
+      "y": 413
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Консоль",
+      "width": 175,
+      "height": 44,
+      "disabled": false,
+      "x": 14,
+      "y": 465
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "btn",
+      "name": "Редактировать настройки",
+      "width": 207.4375,
+      "height": 44,
+      "disabled": false,
+      "x": 1005.65625,
+      "y": 105
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "btn",
+      "name": "Изменить состав модов",
+      "width": 190.90625,
+      "height": 44,
+      "disabled": false,
+      "x": 1221.09375,
+      "y": 105
+    },
+    {
+      "tag": "BUTTON",
+      "id": "btnStart",
+      "cls": "btn",
+      "name": "Запустить",
+      "width": 89.5625,
+      "height": 44,
+      "disabled": true,
+      "x": 942.1875,
+      "y": 197.9375
+    },
+    {
+      "tag": "BUTTON",
+      "id": "btnStop",
+      "cls": "btn danger",
+      "name": "Остановить",
+      "width": 98.1875,
+      "height": 44,
+      "disabled": false,
+      "x": 1039.75,
+      "y": 197.9375
+    },
+    {
+      "tag": "BUTTON",
+      "id": "btnRestart",
+      "cls": "btn",
+      "name": "Перезапустить",
+      "width": 119.6875,
+      "height": 44,
+      "disabled": false,
+      "x": 1145.9375,
+      "y": 197.9375
+    },
+    {
+      "tag": "BUTTON",
+      "id": "btnSaveWorld",
+      "cls": "btn ghost",
+      "name": "Сохранить мир",
+      "width": 119.375,
+      "height": 44,
+      "disabled": false,
+      "x": 1273.625,
+      "y": 197.9375
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Создать бэкап",
+      "width": 103.109375,
+      "height": 44,
+      "disabled": false,
+      "x": 1289.890625,
+      "y": 335.640625
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "kpi",
+      "name": "Онлайн\n0\n…",
+      "width": 582,
+      "height": 37.25,
+      "disabled": false,
+      "x": 232,
+      "y": 414.640625
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "kpi",
+      "name": "Бэкап\nНет копий\nархивов ещё нет",
+      "width": 582,
+      "height": 37.25,
+      "disabled": false,
+      "x": 830,
+      "y": 414.640625
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "help-trigger",
+      "name": "О графиках нагрузки",
+      "width": 32,
+      "height": 32,
+      "disabled": false,
+      "x": 446.984375,
+      "y": 486.890625
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "sum-name",
+      "name": "Образ Docker",
+      "width": 371.625,
+      "height": 20.25,
+      "disabled": false,
+      "x": 876.703125,
+      "y": 538.90625
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "sum-name",
+      "name": "Моды Workshop",
+      "width": 371.5,
+      "height": 20.25,
+      "disabled": false,
+      "x": 876.703125,
+      "y": 585.40625
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "head-link",
+      "name": "Вся история",
+      "width": 72.78125,
+      "height": 44,
+      "disabled": false,
+      "x": 1320.21875,
+      "y": 672.28125
+    }
+  ],
+  "smallControls": [
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "kpi",
+      "name": "Онлайн\n0\n…",
+      "width": 582,
+      "height": 37.25,
+      "disabled": false,
+      "x": 232,
+      "y": 414.640625
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "kpi",
+      "name": "Бэкап\nНет копий\nархивов ещё нет",
+      "width": 582,
+      "height": 37.25,
+      "disabled": false,
+      "x": 830,
+      "y": 414.640625
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "help-trigger",
+      "name": "О графиках нагрузки",
+      "width": 32,
+      "height": 32,
+      "disabled": false,
+      "x": 446.984375,
+      "y": 486.890625
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "sum-name",
+      "name": "Образ Docker",
+      "width": 371.625,
+      "height": 20.25,
+      "disabled": false,
+      "x": 876.703125,
+      "y": 538.90625
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "sum-name",
+      "name": "Моды Workshop",
+      "width": 371.5,
+      "height": 20.25,
+      "disabled": false,
+      "x": 876.703125,
+      "y": 585.40625
+    }
+  ],
+  "overflowing": [
+    {
+      "tag": "SPAN",
+      "id": "",
+      "cls": "sr-only",
+      "x": -1,
+      "right": 0,
+      "width": 1
+    }
+  ],
+  "lang": "ru",
+  "title": "Обзор · PZ Пульт",
+  "resources": [
+    {
+      "name": "http://127.0.0.1:63719/static/fonts/fonts.css",
+      "duration": 251.19999992847443,
+      "transferSize": 4578,
+      "encodedBodySize": 4278
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/style.css",
+      "duration": 264.40000009536743,
+      "transferSize": 94938,
+      "encodedBodySize": 94638
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/pwa.css",
+      "duration": 316.1999999284744,
+      "transferSize": 3925,
+      "encodedBodySize": 3625
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/catalogs.js",
+      "duration": 384.3000000715256,
+      "transferSize": 140859,
+      "encodedBodySize": 140559
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/i18n.js",
+      "duration": 521.5,
+      "transferSize": 8065,
+      "encodedBodySize": 7765
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/localize.js",
+      "duration": 666.2999999523163,
+      "transferSize": 340,
+      "encodedBodySize": 40
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/app.js",
+      "duration": 769.3999999761581,
+      "transferSize": 142772,
+      "encodedBodySize": 142472
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/editor.js",
+      "duration": 774.3999999761581,
+      "transferSize": 85540,
+      "encodedBodySize": 85240
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/pwa.js",
+      "duration": 955.6000000238419,
+      "transferSize": 7982,
+      "encodedBodySize": 7682
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/fonts/golos-text-600-cyrillic.woff2",
+      "duration": 715.1999999284744,
+      "transferSize": 22328,
+      "encodedBodySize": 22028
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/fonts/golos-text-400-latin.woff2",
+      "duration": 831.7000000476837,
+      "transferSize": 38384,
+      "encodedBodySize": 38084
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/fonts/golos-text-500-latin.woff2",
+      "duration": 852.7000000476837,
+      "transferSize": 38384,
+      "encodedBodySize": 38084
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/fonts/jetbrains-mono-500-latin.woff2",
+      "duration": 954.3999999761581,
+      "transferSize": 31640,
+      "encodedBodySize": 31340
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/fonts/jetbrains-mono-400-latin.woff2",
+      "duration": 985.7000000476837,
+      "transferSize": 31640,
+      "encodedBodySize": 31340
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/fonts/golos-text-600-latin.woff2",
+      "duration": 1012.5,
+      "transferSize": 38384,
+      "encodedBodySize": 38084
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/fonts/golos-text-500-cyrillic.woff2",
+      "duration": 1046.8999999761581,
+      "transferSize": 22328,
+      "encodedBodySize": 22028
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/fonts/golos-text-400-cyrillic.woff2",
+      "duration": 1076,
+      "transferSize": 22328,
+      "encodedBodySize": 22028
+    },
+    {
+      "name": "http://127.0.0.1:63719/api/health",
+      "duration": 61.199999928474426,
+      "transferSize": 352,
+      "encodedBodySize": 52
+    },
+    {
+      "name": "http://127.0.0.1:63719/api/server-configs",
+      "duration": 75.19999992847443,
+      "transferSize": 612,
+      "encodedBodySize": 312
+    },
+    {
+      "name": "http://127.0.0.1:63719/api/stream?logs=0",
+      "duration": 33.39999997615814,
+      "transferSize": 636,
+      "encodedBodySize": 336
+    },
+    {
+      "name": "http://127.0.0.1:63719/api/config-draft?file=world.ini",
+      "duration": 62.09999990463257,
+      "transferSize": 5562,
+      "encodedBodySize": 5262
+    },
+    {
+      "name": "http://127.0.0.1:63719/api/auth/session",
+      "duration": 63.10000002384186,
+      "transferSize": 352,
+      "encodedBodySize": 52
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/fonts/jetbrains-mono-500-cyrillic.woff2",
+      "duration": 582.5,
+      "transferSize": 9192,
+      "encodedBodySize": 8892
+    },
+    {
+      "name": "http://127.0.0.1:63719/api/mods?file=world.ini&draft=1",
+      "duration": 89.39999997615814,
+      "transferSize": 1631,
+      "encodedBodySize": 1331
+    }
+  ],
+  "navigation": {
+    "name": "http://127.0.0.1:63719/#/overview",
+    "entryType": "navigation",
+    "startTime": 0,
+    "duration": 1597.3999999761581,
+    "navigationId": 2374,
+    "initiatorType": "navigation",
+    "deliveryType": "",
+    "nextHopProtocol": "http/1.0",
+    "renderBlockingStatus": "non-blocking",
+    "contentType": "text/html",
+    "contentEncoding": "",
+    "workerStart": 0,
+    "workerRouterEvaluationStart": 0,
+    "workerCacheLookupStart": 0,
+    "workerMatchedSourceType": "",
+    "workerFinalSourceType": "",
+    "redirectStart": 0,
+    "redirectEnd": 0,
+    "fetchStart": 0.7000000476837158,
+    "domainLookupStart": 28.899999976158142,
+    "domainLookupEnd": 29,
+    "connectStart": 29,
+    "secureConnectionStart": 0,
+    "connectEnd": 29.899999976158142,
+    "requestStart": 30.200000047683716,
+    "responseStart": 88.79999995231628,
+    "firstInterimResponseStart": 0,
+    "finalResponseHeadersStart": 88.79999995231628,
+    "responseEnd": 91.5,
+    "transferSize": 53778,
+    "encodedBodySize": 53478,
+    "decodedBodySize": 53478,
+    "responseStatus": 200,
+    "serverTiming": [],
+    "unloadEventStart": 99.20000004768372,
+    "unloadEventEnd": 99.20000004768372,
+    "domInteractive": 1083.3999999761581,
+    "domContentLoadedEventStart": 1083.5,
+    "domContentLoadedEventEnd": 1083.6000000238419,
+    "domComplete": 1597.2999999523163,
+    "loadEventStart": 1597.2999999523163,
+    "loadEventEnd": 1597.3999999761581,
+    "type": "navigate",
+    "redirectCount": 0,
+    "activationStart": 0,
+    "criticalCHRestart": 0,
+    "notRestoredReasons": null,
+    "confidence": {
+      "randomizedTriggerRate": 0.4994798,
+      "value": "high"
+    }
+  },
+  "axe": {
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "aria-prohibited-attr",
+        "impact": "serious",
+        "tags": [
+          "cat.aria",
+          "wcag2a",
+          "wcag412",
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAAv4",
+          "RGAA-7.1.1"
+        ],
+        "description": "Ensure ARIA attributes are not prohibited for an element's role",
+        "help": "Elements must only use permitted ARIA attributes",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-prohibited-attr?application=axeAPI",
+        "nodes": [
+          {
+            "any": [],
+            "all": [],
+            "none": [
+              {
+                "id": "aria-prohibited-attr",
+                "data": {
+                  "role": null,
+                  "nodeName": "div",
+                  "messageKey": "visibleLabelSingular",
+                  "prohibited": [
+                    "aria-labelledby"
+                  ]
+                },
+                "relatedNodes": [],
+                "impact": "serious",
+                "message": "aria-labelledby attribute is not well supported, but the elements referenced by aria-labelledby are visible in the page. Verify the label is not necessary."
+              }
+            ],
+            "impact": "serious",
+            "html": "<div class=\"view\" id=\"view-overview\" tabindex=\"-1\" aria-labelledby=\"page-overview\">",
+            "target": [
+              "#view-overview"
+            ],
+            "failureSummary": "Fix all of the following:\n  aria-labelledby attribute is not well supported, but the elements referenced by aria-labelledby are visible in the page. Verify the label is not necessary."
+          },
+          {
+            "any": [],
+            "all": [],
+            "none": [
+              {
+                "id": "aria-prohibited-attr",
+                "data": {
+                  "role": null,
+                  "nodeName": "div",
+                  "messageKey": "noRoleSingular",
+                  "prohibited": [
+                    "aria-label"
+                  ]
+                },
+                "relatedNodes": [],
+                "impact": "serious",
+                "message": "aria-label attribute is not well supported on a div with no valid role attribute."
+              }
+            ],
+            "impact": "serious",
+            "html": "<div class=\"uptime\" id=\"uptime\" aria-label=\"Время работы\">в работе 10 мин</div>",
+            "target": [
+              "#uptime"
+            ],
+            "failureSummary": "Fix all of the following:\n  aria-label attribute is not well supported on a div with no valid role attribute."
+          }
+        ]
+      },
+      {
+        "id": "aria-valid-attr-value",
+        "impact": "critical",
+        "tags": [
+          "cat.aria",
+          "wcag2a",
+          "wcag412",
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAAv4",
+          "RGAA-7.1.1"
+        ],
+        "description": "Ensure all ARIA attributes have valid values",
+        "help": "ARIA attributes must conform to valid values",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-valid-attr-value?application=axeAPI",
+        "nodes": [
+          {
+            "any": [],
+            "all": [
+              {
+                "id": "aria-valid-attr-value",
+                "data": {
+                  "messageKey": "controlsWithinPopup",
+                  "needsReview": "aria-controls=\"commandDialog\""
+                },
+                "relatedNodes": [],
+                "impact": "critical",
+                "message": "Unable to determine if aria-controls referenced ID exists on the page while using aria-haspopup: aria-controls=\"commandDialog\""
+              }
+            ],
+            "none": [],
+            "impact": "critical",
+            "html": "<button class=\"btn\" id=\"btnCommands\" type=\"button\" title=\"Быстрые команды (Ctrl K)\" aria-label=\"Быстрые команды\" aria-keyshortcuts=\"Control+k Meta+k\" aria-haspopup=\"dialog\" aria-controls=\"commandDialog\">",
+            "target": [
+              "#btnCommands"
+            ],
+            "failureSummary": "Fix all of the following:\n  Unable to determine if aria-controls referenced ID exists on the page while using aria-haspopup: aria-controls=\"commandDialog\""
+          }
+        ]
+      },
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "tags": [
+          "cat.color",
+          "wcag2aa",
+          "wcag143",
+          "TTv5",
+          "TT13.c",
+          "EN-301-549",
+          "EN-9.1.4.3",
+          "ACT",
+          "RGAAv4",
+          "RGAA-3.2.1"
+        ],
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/color-contrast?application=axeAPI",
+        "nodes": [
+          {
+            "any": [
+              {
+                "id": "color-contrast",
+                "data": {
+                  "fgColor": null,
+                  "bgColor": null,
+                  "contrastRatio": 0,
+                  "fontSize": "10.1pt (13.5px)",
+                  "fontWeight": "normal",
+                  "messageKey": "bgImage",
+                  "expectedContrastRatio": "4.5:1",
+                  "shadowColor": null,
+                  "colorParse": null
+                },
+                "relatedNodes": [
+                  {
+                    "html": "<select id=\"configProfile\" aria-label=\"Профиль конфигурации\" aria-describedby=\"configActive\" data-state=\"active\" title=\"Активен на сервере. Сервер использует world.ini\"><option value=\"\">Выберите профиль…</option><option value=\"world.ini\">world.ini</option></select>",
+                    "target": [
+                      "#configProfile"
+                    ]
+                  }
+                ],
+                "impact": "serious",
+                "message": "Element's background color could not be determined due to a background image"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "serious",
+            "html": "<select id=\"configProfile\" aria-label=\"Профиль конфигурации\" aria-describedby=\"configActive\" data-state=\"active\" title=\"Активен на сервере. Сервер использует world.ini\"><option value=\"\">Выберите профиль…</option><option value=\"world.ini\">world.ini</option></select>",
+            "target": [
+              "#configProfile"
+            ],
+            "failureSummary": "Fix any of the following:\n  Element's background color could not be determined due to a background image"
+          },
+          {
+            "any": [
+              {
+                "id": "color-contrast",
+                "data": {
+                  "fgColor": null,
+                  "bgColor": null,
+                  "contrastRatio": 0,
+                  "fontSize": "10.1pt (13.5px)",
+                  "fontWeight": "normal",
+                  "messageKey": "bgImage",
+                  "expectedContrastRatio": "4.5:1",
+                  "shadowColor": null,
+                  "colorParse": null
+                },
+                "relatedNodes": [
+                  {
+                    "html": "<select id=\"languageSwitch\" class=\"language-switch\" data-language-switch=\"\" aria-label=\"Язык интерфейса\"><option value=\"en\" lang=\"en\">EN</option><option value=\"ru\" lang=\"ru\">RU</option></select>",
+                    "target": [
+                      "#languageSwitch"
+                    ]
+                  }
+                ],
+                "impact": "serious",
+                "message": "Element's background color could not be determined due to a background image"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "serious",
+            "html": "<select id=\"languageSwitch\" class=\"language-switch\" data-language-switch=\"\" aria-label=\"Язык интерфейса\"><option value=\"en\" lang=\"en\">EN</option><option value=\"ru\" lang=\"ru\">RU</option></select>",
+            "target": [
+              "#languageSwitch"
+            ],
+            "failureSummary": "Fix any of the following:\n  Element's background color could not be determined due to a background image"
+          }
+        ]
+      }
+    ],
+    "passes": [
+      "aria-allowed-attr",
+      "aria-allowed-role",
+      "aria-conditional-attr",
+      "aria-deprecated-role",
+      "aria-hidden-body",
+      "aria-hidden-focus",
+      "aria-prohibited-attr",
+      "aria-required-attr",
+      "aria-roles",
+      "aria-valid-attr-value",
+      "aria-valid-attr",
+      "avoid-inline-spacing",
+      "button-name",
+      "bypass",
+      "color-contrast",
+      "definition-list",
+      "dlitem",
+      "document-title",
+      "duplicate-id-aria",
+      "empty-heading",
+      "form-field-multiple-labels",
+      "heading-order",
+      "html-has-lang",
+      "html-lang-valid",
+      "label-title-only",
+      "landmark-banner-is-top-level",
+      "landmark-main-is-top-level",
+      "landmark-no-duplicate-banner",
+      "landmark-no-duplicate-main",
+      "landmark-one-main",
+      "landmark-unique",
+      "link-name",
+      "list",
+      "listitem",
+      "meta-viewport-large",
+      "meta-viewport",
+      "nested-interactive",
+      "page-has-heading-one",
+      "region",
+      "select-name",
+      "tabindex",
+      "valid-lang"
+    ]
+  }
+}

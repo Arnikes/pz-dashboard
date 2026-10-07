@@ -1,0 +1,593 @@
+{
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "scrollWidth": 5518,
+  "bodyWidth": 5518,
+  "controls": [
+    {
+      "tag": "SELECT",
+      "id": "configProfile",
+      "cls": "",
+      "name": "Профиль конфигурации",
+      "width": 314,
+      "height": 44,
+      "disabled": false,
+      "x": 12,
+      "y": 60
+    },
+    {
+      "tag": "BUTTON",
+      "id": "btnCommands",
+      "cls": "btn",
+      "name": "Быстрые команды",
+      "width": 44,
+      "height": 44,
+      "disabled": false,
+      "x": 334,
+      "y": 60
+    },
+    {
+      "tag": "SELECT",
+      "id": "languageSwitch",
+      "cls": "language-switch",
+      "name": "Язык интерфейса",
+      "width": 99,
+      "height": 44,
+      "disabled": false,
+      "x": 231,
+      "y": 8
+    },
+    {
+      "tag": "BUTTON",
+      "id": "btnLogout",
+      "cls": "btn ghost session-logout",
+      "name": "Выйти",
+      "width": 44,
+      "height": 44,
+      "disabled": false,
+      "x": 334,
+      "y": 8
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Обзор",
+      "width": 90.5,
+      "height": 48,
+      "disabled": false,
+      "x": 8,
+      "y": 790
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Настройки",
+      "width": 90.5,
+      "height": 48,
+      "disabled": false,
+      "x": 102.5,
+      "y": 790
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Моды",
+      "width": 90.5,
+      "height": 48,
+      "disabled": false,
+      "x": 197,
+      "y": 790
+    },
+    {
+      "tag": "BUTTON",
+      "id": "navMore",
+      "cls": "nav-more",
+      "name": "Ещё",
+      "width": 90.5,
+      "height": 48,
+      "disabled": false,
+      "x": 291.5,
+      "y": 790
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "chip",
+      "name": "Все",
+      "width": 45.734375,
+      "height": 44,
+      "disabled": false,
+      "x": 33,
+      "y": 230.29534912109375
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "chip",
+      "name": "Управление",
+      "width": 95.59375,
+      "height": 44,
+      "disabled": false,
+      "x": 84.734375,
+      "y": 230.29534912109375
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "chip",
+      "name": "Бэкапы",
+      "width": 68.46875,
+      "height": 44,
+      "disabled": false,
+      "x": 186.328125,
+      "y": 230.29534912109375
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "chip",
+      "name": "Обновления",
+      "width": 97.09375,
+      "height": 44,
+      "disabled": false,
+      "x": 33,
+      "y": 280.29534912109375
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "chip",
+      "name": "Проблемы",
+      "width": 86.171875,
+      "height": 44,
+      "disabled": false,
+      "x": 136.09375,
+      "y": 280.29534912109375
+    }
+  ],
+  "smallControls": [],
+  "overflowing": [
+    {
+      "tag": "SPAN",
+      "id": "",
+      "cls": "sr-only",
+      "x": -1,
+      "right": 0,
+      "width": 1
+    }
+  ],
+  "lang": "ru",
+  "title": "События · PZ Пульт",
+  "resources": [
+    {
+      "name": "http://127.0.0.1:63719/static/fonts/fonts.css",
+      "duration": 155.40000009536743,
+      "transferSize": 4578,
+      "encodedBodySize": 4278
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/style.css",
+      "duration": 281.89999997615814,
+      "transferSize": 94938,
+      "encodedBodySize": 94638
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/pwa.css",
+      "duration": 259.7000000476837,
+      "transferSize": 3925,
+      "encodedBodySize": 3625
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/catalogs.js",
+      "duration": 193.5,
+      "transferSize": 140859,
+      "encodedBodySize": 140559
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/i18n.js",
+      "duration": 579.8000000715256,
+      "transferSize": 8065,
+      "encodedBodySize": 7765
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/localize.js",
+      "duration": 496.39999997615814,
+      "transferSize": 340,
+      "encodedBodySize": 40
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/app.js",
+      "duration": 629,
+      "transferSize": 142772,
+      "encodedBodySize": 142472
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/editor.js",
+      "duration": 697.3999999761581,
+      "transferSize": 85540,
+      "encodedBodySize": 85240
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/pwa.js",
+      "duration": 760.5,
+      "transferSize": 7982,
+      "encodedBodySize": 7682
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/fonts/golos-text-600-cyrillic.woff2",
+      "duration": 563.1000000238419,
+      "transferSize": 22328,
+      "encodedBodySize": 22028
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/fonts/golos-text-400-latin.woff2",
+      "duration": 633.3000000715256,
+      "transferSize": 38384,
+      "encodedBodySize": 38084
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/fonts/golos-text-500-latin.woff2",
+      "duration": 744.6000000238419,
+      "transferSize": 38384,
+      "encodedBodySize": 38084
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/fonts/jetbrains-mono-500-latin.woff2",
+      "duration": 797.2999999523163,
+      "transferSize": 31640,
+      "encodedBodySize": 31340
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/fonts/jetbrains-mono-400-latin.woff2",
+      "duration": 833.8999999761581,
+      "transferSize": 31640,
+      "encodedBodySize": 31340
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/fonts/golos-text-600-latin.woff2",
+      "duration": 874.5,
+      "transferSize": 38384,
+      "encodedBodySize": 38084
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/fonts/golos-text-400-cyrillic.woff2",
+      "duration": 866.4000000953674,
+      "transferSize": 22328,
+      "encodedBodySize": 22028
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/fonts/golos-text-500-cyrillic.woff2",
+      "duration": 942.7000000476837,
+      "transferSize": 22328,
+      "encodedBodySize": 22028
+    },
+    {
+      "name": "http://127.0.0.1:63719/api/health",
+      "duration": 15.700000047683716,
+      "transferSize": 352,
+      "encodedBodySize": 52
+    },
+    {
+      "name": "http://127.0.0.1:63719/api/server-configs",
+      "duration": 35.299999952316284,
+      "transferSize": 612,
+      "encodedBodySize": 312
+    },
+    {
+      "name": "http://127.0.0.1:63719/api/stream?logs=0",
+      "duration": 31.800000071525574,
+      "transferSize": 636,
+      "encodedBodySize": 336
+    },
+    {
+      "name": "http://127.0.0.1:63719/api/auth/session",
+      "duration": 19.299999952316284,
+      "transferSize": 352,
+      "encodedBodySize": 52
+    },
+    {
+      "name": "http://127.0.0.1:63719/api/config-draft?file=world.ini",
+      "duration": 53.200000047683716,
+      "transferSize": 5562,
+      "encodedBodySize": 5262
+    },
+    {
+      "name": "http://127.0.0.1:63719/api/mods?file=world.ini&draft=1",
+      "duration": 79.29999995231628,
+      "transferSize": 1631,
+      "encodedBodySize": 1331
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/fonts/jetbrains-mono-400-cyrillic.woff2",
+      "duration": 95.90000009536743,
+      "transferSize": 9192,
+      "encodedBodySize": 8892
+    },
+    {
+      "name": "http://127.0.0.1:63719/static/fonts/jetbrains-mono-700-latin.woff2",
+      "duration": 79.10000002384186,
+      "transferSize": 31640,
+      "encodedBodySize": 31340
+    }
+  ],
+  "navigation": {
+    "name": "http://127.0.0.1:63719/#/backups",
+    "entryType": "navigation",
+    "startTime": 0,
+    "duration": 1362.2999999523163,
+    "navigationId": 9192,
+    "initiatorType": "navigation",
+    "deliveryType": "",
+    "nextHopProtocol": "http/1.0",
+    "renderBlockingStatus": "non-blocking",
+    "contentType": "text/html",
+    "contentEncoding": "",
+    "workerStart": 0,
+    "workerRouterEvaluationStart": 0,
+    "workerCacheLookupStart": 0,
+    "workerMatchedSourceType": "",
+    "workerFinalSourceType": "",
+    "redirectStart": 0,
+    "redirectEnd": 0,
+    "fetchStart": 1,
+    "domainLookupStart": 25.600000023841858,
+    "domainLookupEnd": 26,
+    "connectStart": 26,
+    "secureConnectionStart": 0,
+    "connectEnd": 27.899999976158142,
+    "requestStart": 28,
+    "responseStart": 45.39999997615814,
+    "firstInterimResponseStart": 0,
+    "finalResponseHeadersStart": 45.39999997615814,
+    "responseEnd": 47.5,
+    "transferSize": 53778,
+    "encodedBodySize": 53478,
+    "decodedBodySize": 53478,
+    "responseStatus": 200,
+    "serverTiming": [],
+    "unloadEventStart": 0,
+    "unloadEventEnd": 0,
+    "domInteractive": 854.3999999761581,
+    "domContentLoadedEventStart": 855.1999999284744,
+    "domContentLoadedEventEnd": 855.1999999284744,
+    "domComplete": 1362.2999999523163,
+    "loadEventStart": 1362.2999999523163,
+    "loadEventEnd": 1362.2999999523163,
+    "type": "navigate",
+    "redirectCount": 0,
+    "activationStart": 0,
+    "criticalCHRestart": 0,
+    "notRestoredReasons": null,
+    "confidence": {
+      "randomizedTriggerRate": 0.4994798,
+      "value": "high"
+    }
+  },
+  "axe": {
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "aria-prohibited-attr",
+        "impact": "serious",
+        "tags": [
+          "cat.aria",
+          "wcag2a",
+          "wcag412",
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAAv4",
+          "RGAA-7.1.1"
+        ],
+        "description": "Ensure ARIA attributes are not prohibited for an element's role",
+        "help": "Elements must only use permitted ARIA attributes",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-prohibited-attr?application=axeAPI",
+        "nodes": [
+          {
+            "any": [],
+            "all": [],
+            "none": [
+              {
+                "id": "aria-prohibited-attr",
+                "data": {
+                  "role": null,
+                  "nodeName": "div",
+                  "messageKey": "visibleLabelSingular",
+                  "prohibited": [
+                    "aria-labelledby"
+                  ]
+                },
+                "relatedNodes": [],
+                "impact": "serious",
+                "message": "aria-labelledby attribute is not well supported, but the elements referenced by aria-labelledby are visible in the page. Verify the label is not necessary."
+              }
+            ],
+            "impact": "serious",
+            "html": "<div class=\"view\" id=\"view-events\" tabindex=\"-1\" aria-labelledby=\"page-events\">",
+            "target": [
+              "#view-events"
+            ],
+            "failureSummary": "Fix all of the following:\n  aria-labelledby attribute is not well supported, but the elements referenced by aria-labelledby are visible in the page. Verify the label is not necessary."
+          }
+        ]
+      },
+      {
+        "id": "aria-valid-attr-value",
+        "impact": "critical",
+        "tags": [
+          "cat.aria",
+          "wcag2a",
+          "wcag412",
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAAv4",
+          "RGAA-7.1.1"
+        ],
+        "description": "Ensure all ARIA attributes have valid values",
+        "help": "ARIA attributes must conform to valid values",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-valid-attr-value?application=axeAPI",
+        "nodes": [
+          {
+            "any": [],
+            "all": [
+              {
+                "id": "aria-valid-attr-value",
+                "data": {
+                  "messageKey": "controlsWithinPopup",
+                  "needsReview": "aria-controls=\"commandDialog\""
+                },
+                "relatedNodes": [],
+                "impact": "critical",
+                "message": "Unable to determine if aria-controls referenced ID exists on the page while using aria-haspopup: aria-controls=\"commandDialog\""
+              }
+            ],
+            "none": [],
+            "impact": "critical",
+            "html": "<button class=\"btn\" id=\"btnCommands\" type=\"button\" title=\"Быстрые команды (Ctrl K)\" aria-label=\"Быстрые команды\" aria-keyshortcuts=\"Control+k Meta+k\" aria-haspopup=\"dialog\" aria-controls=\"commandDialog\">",
+            "target": [
+              "#btnCommands"
+            ],
+            "failureSummary": "Fix all of the following:\n  Unable to determine if aria-controls referenced ID exists on the page while using aria-haspopup: aria-controls=\"commandDialog\""
+          }
+        ]
+      },
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "tags": [
+          "cat.color",
+          "wcag2aa",
+          "wcag143",
+          "TTv5",
+          "TT13.c",
+          "EN-301-549",
+          "EN-9.1.4.3",
+          "ACT",
+          "RGAAv4",
+          "RGAA-3.2.1"
+        ],
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/color-contrast?application=axeAPI",
+        "nodes": [
+          {
+            "any": [
+              {
+                "id": "color-contrast",
+                "data": {
+                  "fgColor": null,
+                  "bgColor": null,
+                  "contrastRatio": 0,
+                  "fontSize": "10.1pt (13.5px)",
+                  "fontWeight": "normal",
+                  "messageKey": "bgImage",
+                  "expectedContrastRatio": "4.5:1",
+                  "shadowColor": null,
+                  "colorParse": null
+                },
+                "relatedNodes": [
+                  {
+                    "html": "<select id=\"configProfile\" aria-label=\"Профиль конфигурации\" aria-describedby=\"configActive\" data-state=\"active\" title=\"Активен на сервере. Сервер использует world.ini\"><option value=\"\">Выберите профиль…</option><option value=\"world.ini\">world.ini</option></select>",
+                    "target": [
+                      "#configProfile"
+                    ]
+                  }
+                ],
+                "impact": "serious",
+                "message": "Element's background color could not be determined due to a background image"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "serious",
+            "html": "<select id=\"configProfile\" aria-label=\"Профиль конфигурации\" aria-describedby=\"configActive\" data-state=\"active\" title=\"Активен на сервере. Сервер использует world.ini\"><option value=\"\">Выберите профиль…</option><option value=\"world.ini\">world.ini</option></select>",
+            "target": [
+              "#configProfile"
+            ],
+            "failureSummary": "Fix any of the following:\n  Element's background color could not be determined due to a background image"
+          },
+          {
+            "any": [
+              {
+                "id": "color-contrast",
+                "data": {
+                  "fgColor": null,
+                  "bgColor": null,
+                  "contrastRatio": 0,
+                  "fontSize": "10.1pt (13.5px)",
+                  "fontWeight": "normal",
+                  "messageKey": "bgImage",
+                  "expectedContrastRatio": "4.5:1",
+                  "shadowColor": null,
+                  "colorParse": null
+                },
+                "relatedNodes": [
+                  {
+                    "html": "<select id=\"languageSwitch\" class=\"language-switch\" data-language-switch=\"\" aria-label=\"Язык интерфейса\"><option value=\"en\" lang=\"en\">EN</option><option value=\"ru\" lang=\"ru\">RU</option></select>",
+                    "target": [
+                      "#languageSwitch"
+                    ]
+                  }
+                ],
+                "impact": "serious",
+                "message": "Element's background color could not be determined due to a background image"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "serious",
+            "html": "<select id=\"languageSwitch\" class=\"language-switch\" data-language-switch=\"\" aria-label=\"Язык интерфейса\"><option value=\"en\" lang=\"en\">EN</option><option value=\"ru\" lang=\"ru\">RU</option></select>",
+            "target": [
+              "#languageSwitch"
+            ],
+            "failureSummary": "Fix any of the following:\n  Element's background color could not be determined due to a background image"
+          }
+        ]
+      }
+    ],
+    "passes": [
+      "aria-allowed-attr",
+      "aria-allowed-role",
+      "aria-conditional-attr",
+      "aria-deprecated-role",
+      "aria-hidden-body",
+      "aria-hidden-focus",
+      "aria-prohibited-attr",
+      "aria-required-attr",
+      "aria-roles",
+      "aria-valid-attr-value",
+      "aria-valid-attr",
+      "avoid-inline-spacing",
+      "button-name",
+      "bypass",
+      "color-contrast",
+      "document-title",
+      "duplicate-id-aria",
+      "empty-heading",
+      "form-field-multiple-labels",
+      "heading-order",
+      "html-has-lang",
+      "html-lang-valid",
+      "label-title-only",
+      "landmark-banner-is-top-level",
+      "landmark-main-is-top-level",
+      "landmark-no-duplicate-banner",
+      "landmark-no-duplicate-main",
+      "landmark-one-main",
+      "landmark-unique",
+      "link-name",
+      "meta-viewport-large",
+      "meta-viewport",
+      "nested-interactive",
+      "page-has-heading-one",
+      "region",
+      "select-name",
+      "tabindex",
+      "valid-lang"
+    ]
+  }
+}

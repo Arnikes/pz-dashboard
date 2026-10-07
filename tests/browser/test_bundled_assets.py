@@ -32,7 +32,7 @@ def assert_fonts_loaded(page):
             return [...document.fonts].map(face => face.status);
         }"""
     )
-    assert len(faces) == 14
+    assert len(faces) == 6
     assert set(faces) == {"loaded"}
 
 
@@ -92,7 +92,11 @@ def test_all_pages_and_fonts_load_without_external_requests(
     expect(page.get_by_role("heading", name="Настройки, моды и восстановление")).to_be_visible()
     assert_fonts_loaded(page)
     assert "/static/fonts/fonts.css" in requested
-    assert {f"/static/fonts/{font.name}" for font in FONTS.glob("*.woff2")} <= requested
+    assert {f"/static/fonts/{font.name}" for font in FONTS.glob("*400-*.woff2")} <= requested
+    assert not any("-500-" in url or "-600-" in url or "-700-" in url for url in requested)
+    # Old URLs remain valid for previously cached CSS and external integrations.
+    for font in FONTS.glob("*.woff2"):
+        assert page.request.get(login_url + f"/static/fonts/{font.name}").status == 200
     assert not external, f"External UI requests: {external}"
     assert not failures, f"Failed asset/API responses: {failures}"
     assert not errors, f"Browser errors: {errors}"

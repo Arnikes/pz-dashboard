@@ -981,6 +981,12 @@ function updateButtons() {
   setAvailability("maintenanceAvailability", hostReason || (o?.compose === false ? I18n.t("Обновление образа недоступно: установите docker compose в контейнере пульта и проверьте подключение.") : ""));
   setAvailability("backupAvailability", hostReason);
   setAvailability("consoleAvailability", commonReason || (!consoleLive ? I18n.t("RCON недоступен. Проверьте запуск сервера, пароль и порт RCON; последние ответы сохранены.") : ""));
+  if (consoleBootLine?.isConnected) {
+    const consoleStatus = commonReason || (!o ? I18n.t("Пульт подключается к серверу…")
+      : !consoleLive ? I18n.t("Ожидаем доступность RCON. Последние ответы сохранены.")
+      : I18n.t("Консоль доступна — команды отправляются на сервер по RCON."));
+    setDomProperty(consoleBootLine, "textContent", consoleStatus);
+  }
   for (const id of ["btnStart", "btnStop", "btnRestart", "btnSaveWorld"]) $(id).setAttribute("aria-describedby", "operationAvailability");
   for (const id of ["btnCheckUpd", "btnApplyUpd"]) $(id).setAttribute("aria-describedby", "maintenanceAvailability");
   $("btnBackup").setAttribute("aria-describedby", "backupAvailability");
@@ -1107,11 +1113,11 @@ function renderPlayers(data) {
       <span class="dot"></span>
       <span class="p-name" title="${esc(n)}">${esc(n)}</span>
       <span class="p-actions">
-        <button class="icon-btn" data-p="kick" data-name="${esc(n)}" title="Кикнуть" aria-label="Кикнуть ${esc(n)}">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v18h-6M10 17l5-5-5-5M15 12H3"/></svg>
+        <button class="icon-btn player-action" data-p="kick" data-name="${esc(n)}" title="Кикнуть" aria-label="Кикнуть ${esc(n)}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v18h-6M10 17l5-5-5-5M15 12H3"/></svg><span>Кикнуть</span>
         </button>
-        <button class="icon-btn danger" data-p="ban" data-name="${esc(n)}" title="Забанить" aria-label="Забанить ${esc(n)}">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M5.5 5.5l13 13"/></svg>
+        <button class="icon-btn player-action danger" data-p="ban" data-name="${esc(n)}" title="Забанить" aria-label="Забанить ${esc(n)}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M5.5 5.5l13 13"/></svg><span>Забанить</span>
         </button>
       </span>
     </div>`;
@@ -2005,7 +2011,7 @@ function classifyLog(line) {
 }
 
 function parseLogs(text) {
-  return (text || "").split("\n").map((raw) => {
+  return (text || "").split("\n").filter(raw => raw.trim()).map((raw) => {
     const m = raw.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(?:\.(\d+))?Z\s/);
     let view = raw;
     if (m) {
@@ -2020,6 +2026,7 @@ function parseLogs(text) {
 function renderLogs(data) {
   if (S.overview && S.overview.mode === "remote") {
     S.logsText = null;
+    $("logsResult").hidden = true;
     $("logsOut").textContent = I18n.t("Логи контейнера доступны только при запуске пульта на хосте сервера.");
     return;
   }
@@ -2046,32 +2053,46 @@ function renderLogsFiltered() {
   const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 30;
   const f = ($("logsFilter")?.value || "").trim().toLowerCase();
   const level = S.logsLevel || "all";
-  const lines = (S.logsLines || []).filter((l) =>
+  const source = S.logsLines || [];
+  const filtered = !!f || level !== "all" || !!S.logsSince || !!S.logsUntil;
+  const lines = source.filter((l) =>
     (level === "all" || l.level === level) && (!f || l.view.toLowerCase().includes(f)) &&
     (!S.logsSince || Date.parse(l.raw.slice(0, l.raw.indexOf(" "))) >= S.logsSince) &&
     (!S.logsUntil || Date.parse(l.raw.slice(0, l.raw.indexOf(" "))) <= S.logsUntil));
   $("logsScope").hidden = !S.logsSince;
   $("logsPeriod").textContent = S.logsSince ? I18n.msg`Логи операции${S.logsProfile ? ` · ${S.logsProfile}` : ""} · ${fmtTime(S.logsSince)}${S.logsUntil ? ` — ${fmtTime(S.logsUntil)}` : I18n.t(" · продолжается")}` : "";
-  // подряд идущий спам (WARN с разными счётчиками/секундами) сжимается в одну строку с бейджем ×N:
-  // ключ игнорирует ведущее время и числовые ряды ≥3 цифр
+  $("logsResult").hidden = false;
+  $("logsCount").textContent = I18n.msg`Строк: ${lines.length} из ${source.length}`;
+  $("logsResetFilters").hidden = !filtered;
+  // Only identical source records can share a row: identifiers and timestamps matter.
   const merged = [];
   for (const l of lines) {
-    const key = l.view.replace(/^\d{2}:\d{2}:\d{2} /, "").replace(/\d{3,}/g, "#");
+    const key = l.raw;
     const last = merged[merged.length - 1];
     if (last && last.key === key) last.n += 1;
     else merged.push({ view: l.view, level: l.level, key, n: 1 });
   }
-  pre.innerHTML = merged.map((l) => {
+  pre.innerHTML = merged.length ? merged.map((l) => {
     const cls = l.level === "error" ? ' class="l-err"' : l.level === "warn" ? ' class="l-warn"' : "";
     const dup = l.n > 1 ? `<span class="l-dup">× ${l.n}</span>` : "";
     return `<span${cls}>${esc(l.view)}${dup}</span>`;
-  }).join("\n");
+  }).join("\n") : esc(source.length ? I18n.t("Нет строк по выбранным фильтрам.") : I18n.t("Нет данных логов"));
   if (atBottom && S.logsAuto) pre.scrollTop = pre.scrollHeight;
   else pre.scrollTop = scrollTop;
 }
 
 $("logsFilter").addEventListener("input", renderLogsFiltered);
 $("logsAuto").addEventListener("change", () => { S.logsAuto = $("logsAuto").checked; });
+$("logsResetFilters").addEventListener("click", () => {
+  $("logsFilter").value = "";
+  S.logsLevel = "all";
+  S.logsSince = S.logsUntil = 0;
+  S.logsProfile = "";
+  document.querySelectorAll("#logLevels .chip").forEach(c => c.setAttribute("aria-pressed", String(c.dataset.level === "all")));
+  renderLogsFiltered();
+  $("logsFilter").focus();
+  refreshLogs();
+});
 $("logsClearPeriod").addEventListener("click", () => {
   S.logsSince = S.logsUntil = 0;
   S.logsProfile = "";
@@ -2460,10 +2481,6 @@ function applyOverview(o) {
   if (o.error && !o.serverName) { markConnFail(); return; }
   connFailStreak = 0;
   $("connBanner").hidden = true;
-  if (consoleBootLine) {
-    consoleBootLine.textContent = I18n.t("Консоль готова — команды уходят на сервер по RCON.");
-    consoleBootLine = null;
-  }
   S.lastDataOk = Date.now();
   renderOverview(o);
 }

@@ -1,0 +1,328 @@
+{
+  "viewport": {
+    "width": 1440,
+    "height": 844
+  },
+  "scrollWidth": 1440,
+  "bodyWidth": 1440,
+  "controls": [
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "login-github",
+      "name": "Проект на GitHub (откроется в новой вкладке)",
+      "width": 56,
+      "height": 56,
+      "disabled": false,
+      "x": 864,
+      "y": 150.25
+    },
+    {
+      "tag": "INPUT",
+      "id": "login",
+      "cls": "",
+      "name": "Логин",
+      "width": 334,
+      "height": 44,
+      "disabled": false,
+      "x": 553,
+      "y": 281
+    },
+    {
+      "tag": "INPUT",
+      "id": "password",
+      "cls": "",
+      "name": "Пароль",
+      "width": 334,
+      "height": 44,
+      "disabled": false,
+      "x": 553,
+      "y": 378.75
+    },
+    {
+      "tag": "INPUT",
+      "id": "remember",
+      "cls": "",
+      "name": "Запомнить меня",
+      "width": 20,
+      "height": 20,
+      "disabled": false,
+      "x": 553,
+      "y": 454.75
+    },
+    {
+      "tag": "BUTTON",
+      "id": "loginSubmit",
+      "cls": "btn",
+      "name": "Войти",
+      "width": 334,
+      "height": 44,
+      "disabled": false,
+      "x": 553,
+      "y": 535.75
+    },
+    {
+      "tag": "SELECT",
+      "id": "",
+      "cls": "language-switch",
+      "name": "Язык интерфейса",
+      "width": 147,
+      "height": 44,
+      "disabled": false,
+      "x": 646.5,
+      "y": 616.75
+    }
+  ],
+  "smallControls": [
+    {
+      "tag": "INPUT",
+      "id": "remember",
+      "cls": "",
+      "name": "Запомнить меня",
+      "width": 20,
+      "height": 20,
+      "disabled": false,
+      "x": 553,
+      "y": 454.75
+    }
+  ],
+  "overflowing": [],
+  "lang": "ru",
+  "title": "Вход · PZ Пульт",
+  "resources": [
+    {
+      "name": "http://127.0.0.1:52032/static/fonts/fonts.css",
+      "duration": 122.5,
+      "transferSize": 4578,
+      "encodedBodySize": 4278
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/style.css",
+      "duration": 103.20000004768372,
+      "transferSize": 94938,
+      "encodedBodySize": 94638
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/pwa.css",
+      "duration": 110.70000004768372,
+      "transferSize": 3925,
+      "encodedBodySize": 3625
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/catalogs.js",
+      "duration": 122.40000009536743,
+      "transferSize": 140859,
+      "encodedBodySize": 140559
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/i18n.js",
+      "duration": 129.09999990463257,
+      "transferSize": 8065,
+      "encodedBodySize": 7765
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/localize.js",
+      "duration": 162.80000007152557,
+      "transferSize": 340,
+      "encodedBodySize": 40
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/login.js",
+      "duration": 189.29999995231628,
+      "transferSize": 1940,
+      "encodedBodySize": 1640
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/pwa.js",
+      "duration": 198.60000002384186,
+      "transferSize": 7982,
+      "encodedBodySize": 7682
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/fonts/golos-text-600-latin.woff2",
+      "duration": 64.79999995231628,
+      "transferSize": 38384,
+      "encodedBodySize": 38084
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/fonts/golos-text-400-cyrillic.woff2",
+      "duration": 98.60000002384186,
+      "transferSize": 22328,
+      "encodedBodySize": 22028
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/fonts/golos-text-500-cyrillic.woff2",
+      "duration": 107.70000004768372,
+      "transferSize": 22328,
+      "encodedBodySize": 22028
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/fonts/golos-text-500-latin.woff2",
+      "duration": 119.29999995231628,
+      "transferSize": 38384,
+      "encodedBodySize": 38084
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/fonts/golos-text-600-cyrillic.woff2",
+      "duration": 126.80000007152557,
+      "transferSize": 22328,
+      "encodedBodySize": 22028
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/fonts/golos-text-400-latin.woff2",
+      "duration": 138,
+      "transferSize": 38384,
+      "encodedBodySize": 38084
+    }
+  ],
+  "navigation": {
+    "name": "http://127.0.0.1:52032/static/login.html",
+    "entryType": "navigation",
+    "startTime": 0,
+    "duration": 340.3000000715256,
+    "navigationId": 8666,
+    "initiatorType": "navigation",
+    "deliveryType": "",
+    "nextHopProtocol": "http/1.0",
+    "renderBlockingStatus": "non-blocking",
+    "contentType": "text/html",
+    "contentEncoding": "",
+    "workerStart": 0,
+    "workerRouterEvaluationStart": 0,
+    "workerCacheLookupStart": 0,
+    "workerMatchedSourceType": "",
+    "workerFinalSourceType": "",
+    "redirectStart": 0,
+    "redirectEnd": 0,
+    "fetchStart": 7.600000023841858,
+    "domainLookupStart": 21.90000009536743,
+    "domainLookupEnd": 22.40000009536743,
+    "connectStart": 22.40000009536743,
+    "secureConnectionStart": 0,
+    "connectEnd": 24.600000023841858,
+    "requestStart": 24.90000009536743,
+    "responseStart": 27.600000023841858,
+    "firstInterimResponseStart": 0,
+    "finalResponseHeadersStart": 27.600000023841858,
+    "responseEnd": 30,
+    "transferSize": 5500,
+    "encodedBodySize": 5200,
+    "decodedBodySize": 5200,
+    "responseStatus": 200,
+    "serverTiming": [],
+    "unloadEventStart": 38.700000047683716,
+    "unloadEventEnd": 38.700000047683716,
+    "domInteractive": 276.3000000715256,
+    "domContentLoadedEventStart": 276.40000009536743,
+    "domContentLoadedEventEnd": 276.5,
+    "domComplete": 340.2000000476837,
+    "loadEventStart": 340.2000000476837,
+    "loadEventEnd": 340.3000000715256,
+    "type": "navigate",
+    "redirectCount": 0,
+    "activationStart": 0,
+    "criticalCHRestart": 0,
+    "notRestoredReasons": null,
+    "confidence": {
+      "randomizedTriggerRate": 0.4994798,
+      "value": "high"
+    }
+  },
+  "axe": {
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "tags": [
+          "cat.color",
+          "wcag2aa",
+          "wcag143",
+          "TTv5",
+          "TT13.c",
+          "EN-301-549",
+          "EN-9.1.4.3",
+          "ACT",
+          "RGAAv4",
+          "RGAA-3.2.1"
+        ],
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/color-contrast?application=axeAPI",
+        "nodes": [
+          {
+            "any": [
+              {
+                "id": "color-contrast",
+                "data": {
+                  "fgColor": null,
+                  "bgColor": null,
+                  "contrastRatio": 0,
+                  "fontSize": "12.0pt (16px)",
+                  "fontWeight": "normal",
+                  "messageKey": "bgImage",
+                  "expectedContrastRatio": "4.5:1",
+                  "shadowColor": null,
+                  "colorParse": null
+                },
+                "relatedNodes": [
+                  {
+                    "html": "<select class=\"language-switch\" data-language-switch=\"\" aria-label=\"Язык интерфейса\"><option value=\"en\" lang=\"en\">English</option><option value=\"ru\" lang=\"ru\">Русский</option></select>",
+                    "target": [
+                      "select"
+                    ]
+                  }
+                ],
+                "impact": "serious",
+                "message": "Element's background color could not be determined due to a background image"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "serious",
+            "html": "<select class=\"language-switch\" data-language-switch=\"\" aria-label=\"Язык интерфейса\"><option value=\"en\" lang=\"en\">English</option><option value=\"ru\" lang=\"ru\">Русский</option></select>",
+            "target": [
+              "select"
+            ],
+            "failureSummary": "Fix any of the following:\n  Element's background color could not be determined due to a background image"
+          }
+        ]
+      }
+    ],
+    "passes": [
+      "aria-allowed-attr",
+      "aria-allowed-role",
+      "aria-conditional-attr",
+      "aria-hidden-body",
+      "aria-hidden-focus",
+      "aria-prohibited-attr",
+      "aria-valid-attr-value",
+      "aria-valid-attr",
+      "autocomplete-valid",
+      "button-name",
+      "bypass",
+      "color-contrast",
+      "document-title",
+      "duplicate-id-aria",
+      "empty-heading",
+      "form-field-multiple-labels",
+      "heading-order",
+      "html-has-lang",
+      "html-lang-valid",
+      "label-title-only",
+      "label",
+      "landmark-main-is-top-level",
+      "landmark-no-duplicate-main",
+      "landmark-one-main",
+      "landmark-unique",
+      "link-name",
+      "meta-viewport-large",
+      "meta-viewport",
+      "nested-interactive",
+      "page-has-heading-one",
+      "region",
+      "select-name",
+      "valid-lang"
+    ]
+  }
+}

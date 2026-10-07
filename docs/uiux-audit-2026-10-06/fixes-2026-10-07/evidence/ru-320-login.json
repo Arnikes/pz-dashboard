@@ -1,0 +1,304 @@
+{
+  "viewport": {
+    "width": 320,
+    "height": 844
+  },
+  "scrollWidth": 320,
+  "bodyWidth": 320,
+  "controls": [
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "login-github",
+      "name": "Проект на GitHub (откроется в новой вкладке)",
+      "width": 56,
+      "height": 56,
+      "disabled": false,
+      "x": 240,
+      "y": 123.75
+    },
+    {
+      "tag": "INPUT",
+      "id": "login",
+      "cls": "",
+      "name": "Логин",
+      "width": 206,
+      "height": 44,
+      "disabled": false,
+      "x": 57,
+      "y": 286.5
+    },
+    {
+      "tag": "INPUT",
+      "id": "password",
+      "cls": "",
+      "name": "Пароль",
+      "width": 206,
+      "height": 44,
+      "disabled": false,
+      "x": 57,
+      "y": 384.25
+    },
+    {
+      "tag": "INPUT",
+      "id": "remember",
+      "cls": "",
+      "name": "Запомнить меня",
+      "width": 20,
+      "height": 20,
+      "disabled": false,
+      "x": 57,
+      "y": 460.25
+    },
+    {
+      "tag": "BUTTON",
+      "id": "loginSubmit",
+      "cls": "btn",
+      "name": "Войти",
+      "width": 206,
+      "height": 44,
+      "disabled": false,
+      "x": 57,
+      "y": 562.25
+    },
+    {
+      "tag": "SELECT",
+      "id": "",
+      "cls": "language-switch",
+      "name": "Язык интерфейса",
+      "width": 147,
+      "height": 44,
+      "disabled": false,
+      "x": 86.5,
+      "y": 643.25
+    }
+  ],
+  "smallControls": [
+    {
+      "tag": "INPUT",
+      "id": "remember",
+      "cls": "",
+      "name": "Запомнить меня",
+      "width": 20,
+      "height": 20,
+      "disabled": false,
+      "x": 57,
+      "y": 460.25
+    }
+  ],
+  "overflowing": [],
+  "lang": "ru",
+  "title": "Вход · PZ Пульт",
+  "resources": [
+    {
+      "name": "http://127.0.0.1:62120/static/fonts/fonts.css",
+      "duration": 79.19999992847443,
+      "transferSize": 2238,
+      "encodedBodySize": 1938
+    },
+    {
+      "name": "http://127.0.0.1:62120/static/style.css",
+      "duration": 101.29999995231628,
+      "transferSize": 95351,
+      "encodedBodySize": 95051
+    },
+    {
+      "name": "http://127.0.0.1:62120/static/pwa.css",
+      "duration": 128.09999990463257,
+      "transferSize": 3925,
+      "encodedBodySize": 3625
+    },
+    {
+      "name": "http://127.0.0.1:62120/static/catalogs.js",
+      "duration": 125.69999992847443,
+      "transferSize": 143155,
+      "encodedBodySize": 142855
+    },
+    {
+      "name": "http://127.0.0.1:62120/static/i18n.js",
+      "duration": 185.79999995231628,
+      "transferSize": 8065,
+      "encodedBodySize": 7765
+    },
+    {
+      "name": "http://127.0.0.1:62120/static/localize.js",
+      "duration": 232,
+      "transferSize": 340,
+      "encodedBodySize": 40
+    },
+    {
+      "name": "http://127.0.0.1:62120/static/login.js",
+      "duration": 266.2000000476837,
+      "transferSize": 2007,
+      "encodedBodySize": 1707
+    },
+    {
+      "name": "http://127.0.0.1:62120/static/pwa.js",
+      "duration": 291.7999999523163,
+      "transferSize": 7982,
+      "encodedBodySize": 7682
+    },
+    {
+      "name": "http://127.0.0.1:62120/static/fonts/golos-text-400-latin.woff2",
+      "duration": 197.79999995231628,
+      "transferSize": 38384,
+      "encodedBodySize": 38084
+    },
+    {
+      "name": "http://127.0.0.1:62120/static/fonts/golos-text-400-cyrillic.woff2",
+      "duration": 228.90000009536743,
+      "transferSize": 22328,
+      "encodedBodySize": 22028
+    }
+  ],
+  "navigation": {
+    "name": "http://127.0.0.1:62120/static/login.html",
+    "entryType": "navigation",
+    "startTime": 0,
+    "duration": 438.40000009536743,
+    "navigationId": 3069,
+    "initiatorType": "navigation",
+    "deliveryType": "",
+    "nextHopProtocol": "http/1.0",
+    "renderBlockingStatus": "non-blocking",
+    "contentType": "text/html",
+    "contentEncoding": "",
+    "workerStart": 0,
+    "workerRouterEvaluationStart": 0,
+    "workerCacheLookupStart": 0,
+    "workerMatchedSourceType": "",
+    "workerFinalSourceType": "",
+    "redirectStart": 0,
+    "redirectEnd": 0,
+    "fetchStart": 7.700000047683716,
+    "domainLookupStart": 22.700000047683716,
+    "domainLookupEnd": 23.100000023841858,
+    "connectStart": 23.100000023841858,
+    "secureConnectionStart": 0,
+    "connectEnd": 24.200000047683716,
+    "requestStart": 24.40000009536743,
+    "responseStart": 27.600000023841858,
+    "firstInterimResponseStart": 0,
+    "finalResponseHeadersStart": 27.600000023841858,
+    "responseEnd": 31.200000047683716,
+    "transferSize": 5500,
+    "encodedBodySize": 5200,
+    "decodedBodySize": 5200,
+    "responseStatus": 200,
+    "serverTiming": [],
+    "unloadEventStart": 39.300000071525574,
+    "unloadEventEnd": 39.300000071525574,
+    "domInteractive": 360,
+    "domContentLoadedEventStart": 360.3000000715256,
+    "domContentLoadedEventEnd": 360.40000009536743,
+    "domComplete": 438.2000000476837,
+    "loadEventStart": 438.3000000715256,
+    "loadEventEnd": 438.40000009536743,
+    "type": "navigate",
+    "redirectCount": 0,
+    "activationStart": 0,
+    "criticalCHRestart": 0,
+    "notRestoredReasons": null,
+    "confidence": {
+      "randomizedTriggerRate": 0.4994798,
+      "value": "low"
+    }
+  },
+  "axe": {
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "tags": [
+          "cat.color",
+          "wcag2aa",
+          "wcag143",
+          "TTv5",
+          "TT13.c",
+          "EN-301-549",
+          "EN-9.1.4.3",
+          "ACT",
+          "RGAAv4",
+          "RGAA-3.2.1"
+        ],
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/color-contrast?application=axeAPI",
+        "nodes": [
+          {
+            "any": [
+              {
+                "id": "color-contrast",
+                "data": {
+                  "fgColor": null,
+                  "bgColor": null,
+                  "contrastRatio": 0,
+                  "fontSize": "12.0pt (16px)",
+                  "fontWeight": "normal",
+                  "messageKey": "bgImage",
+                  "expectedContrastRatio": "4.5:1",
+                  "shadowColor": null,
+                  "colorParse": null
+                },
+                "relatedNodes": [
+                  {
+                    "html": "<select class=\"language-switch\" data-language-switch=\"\" aria-label=\"Язык интерфейса\"><option value=\"en\" lang=\"en\">English</option><option value=\"ru\" lang=\"ru\">Русский</option></select>",
+                    "target": [
+                      "select"
+                    ]
+                  }
+                ],
+                "impact": "serious",
+                "message": "Element's background color could not be determined due to a background image"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "serious",
+            "html": "<select class=\"language-switch\" data-language-switch=\"\" aria-label=\"Язык интерфейса\"><option value=\"en\" lang=\"en\">English</option><option value=\"ru\" lang=\"ru\">Русский</option></select>",
+            "target": [
+              "select"
+            ],
+            "failureSummary": "Fix any of the following:\n  Element's background color could not be determined due to a background image"
+          }
+        ]
+      }
+    ],
+    "passes": [
+      "aria-allowed-attr",
+      "aria-allowed-role",
+      "aria-conditional-attr",
+      "aria-hidden-body",
+      "aria-hidden-focus",
+      "aria-prohibited-attr",
+      "aria-valid-attr-value",
+      "aria-valid-attr",
+      "autocomplete-valid",
+      "button-name",
+      "bypass",
+      "color-contrast",
+      "document-title",
+      "duplicate-id-aria",
+      "empty-heading",
+      "form-field-multiple-labels",
+      "heading-order",
+      "html-has-lang",
+      "html-lang-valid",
+      "label-title-only",
+      "label",
+      "landmark-main-is-top-level",
+      "landmark-no-duplicate-main",
+      "landmark-one-main",
+      "landmark-unique",
+      "link-name",
+      "meta-viewport-large",
+      "meta-viewport",
+      "nested-interactive",
+      "page-has-heading-one",
+      "region",
+      "select-name",
+      "valid-lang"
+    ]
+  }
+}

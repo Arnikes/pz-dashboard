@@ -1,0 +1,443 @@
+{
+  "viewport": {
+    "width": 768,
+    "height": 844
+  },
+  "scrollWidth": 768,
+  "bodyWidth": 768,
+  "controls": [
+    {
+      "tag": "SELECT",
+      "id": "",
+      "cls": "language-switch",
+      "name": "Язык интерфейса",
+      "width": 75,
+      "height": 44,
+      "disabled": false,
+      "x": 70.875,
+      "y": 40
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Открыть настройки пульта",
+      "width": 190.25,
+      "height": 17,
+      "disabled": false,
+      "x": 70.875,
+      "y": 102
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Профиль",
+      "width": 64.171875,
+      "height": 21.75,
+      "disabled": false,
+      "x": 70.875,
+      "y": 295.921875
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Черновик",
+      "width": 69.96875,
+      "height": 21.75,
+      "disabled": false,
+      "x": 155.046875,
+      "y": 295.921875
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Применение",
+      "width": 90.84375,
+      "height": 21.75,
+      "disabled": false,
+      "x": 245.015625,
+      "y": 295.921875
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Моды",
+      "width": 40.390625,
+      "height": 21.75,
+      "disabled": false,
+      "x": 355.859375,
+      "y": 295.921875
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Восстановление",
+      "width": 117.96875,
+      "height": 21.75,
+      "disabled": false,
+      "x": 416.25,
+      "y": 295.921875
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Настройки",
+      "width": 85.921875,
+      "height": 20,
+      "disabled": false,
+      "x": 70.875,
+      "y": 2844.28125
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Моды",
+      "width": 44.5625,
+      "height": 20,
+      "disabled": false,
+      "x": 169.609375,
+      "y": 2844.28125
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Логи",
+      "width": 38.171875,
+      "height": 20,
+      "disabled": false,
+      "x": 226.984375,
+      "y": 2844.28125
+    }
+  ],
+  "smallControls": [
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Открыть настройки пульта",
+      "width": 190.25,
+      "height": 17,
+      "disabled": false,
+      "x": 70.875,
+      "y": 102
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Профиль",
+      "width": 64.171875,
+      "height": 21.75,
+      "disabled": false,
+      "x": 70.875,
+      "y": 295.921875
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Черновик",
+      "width": 69.96875,
+      "height": 21.75,
+      "disabled": false,
+      "x": 155.046875,
+      "y": 295.921875
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Применение",
+      "width": 90.84375,
+      "height": 21.75,
+      "disabled": false,
+      "x": 245.015625,
+      "y": 295.921875
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Моды",
+      "width": 40.390625,
+      "height": 21.75,
+      "disabled": false,
+      "x": 355.859375,
+      "y": 295.921875
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Восстановление",
+      "width": 117.96875,
+      "height": 21.75,
+      "disabled": false,
+      "x": 416.25,
+      "y": 295.921875
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Настройки",
+      "width": 85.921875,
+      "height": 20,
+      "disabled": false,
+      "x": 70.875,
+      "y": 2844.28125
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Моды",
+      "width": 44.5625,
+      "height": 20,
+      "disabled": false,
+      "x": 169.609375,
+      "y": 2844.28125
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Логи",
+      "width": 38.171875,
+      "height": 20,
+      "disabled": false,
+      "x": 226.984375,
+      "y": 2844.28125
+    }
+  ],
+  "overflowing": [],
+  "lang": "ru",
+  "title": "Настройки, моды и восстановление · PZ Пульт",
+  "resources": [
+    {
+      "name": "http://127.0.0.1:52032/static/fonts/fonts.css",
+      "duration": 47.300000071525574,
+      "transferSize": 4578,
+      "encodedBodySize": 4278
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/style.css",
+      "duration": 56.300000071525574,
+      "transferSize": 94938,
+      "encodedBodySize": 94638
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/pwa.css",
+      "duration": 60.700000047683716,
+      "transferSize": 3925,
+      "encodedBodySize": 3625
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/catalogs.js",
+      "duration": 91,
+      "transferSize": 140859,
+      "encodedBodySize": 140559
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/i18n.js",
+      "duration": 110.89999997615814,
+      "transferSize": 8065,
+      "encodedBodySize": 7765
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/localize.js",
+      "duration": 130,
+      "transferSize": 340,
+      "encodedBodySize": 40
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/fonts/golos-text-400-latin.woff2",
+      "duration": 68.79999995231628,
+      "transferSize": 38384,
+      "encodedBodySize": 38084
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/fonts/golos-text-500-latin.woff2",
+      "duration": 85,
+      "transferSize": 38384,
+      "encodedBodySize": 38084
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/fonts/golos-text-600-cyrillic.woff2",
+      "duration": 81,
+      "transferSize": 22328,
+      "encodedBodySize": 22028
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/fonts/jetbrains-mono-400-latin.woff2",
+      "duration": 83.20000004768372,
+      "transferSize": 31640,
+      "encodedBodySize": 31340
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/fonts/golos-text-400-cyrillic.woff2",
+      "duration": 110.19999992847443,
+      "transferSize": 22328,
+      "encodedBodySize": 22028
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/fonts/golos-text-600-latin.woff2",
+      "duration": 113.79999995231628,
+      "transferSize": 38384,
+      "encodedBodySize": 38084
+    }
+  ],
+  "navigation": {
+    "name": "http://127.0.0.1:52032/static/config-help.html",
+    "entryType": "navigation",
+    "startTime": 0,
+    "duration": 273.5,
+    "navigationId": 1584,
+    "initiatorType": "navigation",
+    "deliveryType": "",
+    "nextHopProtocol": "http/1.0",
+    "renderBlockingStatus": "non-blocking",
+    "contentType": "text/html",
+    "contentEncoding": "",
+    "workerStart": 0,
+    "workerRouterEvaluationStart": 0,
+    "workerCacheLookupStart": 0,
+    "workerMatchedSourceType": "",
+    "workerFinalSourceType": "",
+    "redirectStart": 0,
+    "redirectEnd": 0,
+    "fetchStart": 0.8999999761581421,
+    "domainLookupStart": 18.799999952316284,
+    "domainLookupEnd": 18.799999952316284,
+    "connectStart": 18.799999952316284,
+    "secureConnectionStart": 0,
+    "connectEnd": 20.100000023841858,
+    "requestStart": 20.399999976158142,
+    "responseStart": 21.699999928474426,
+    "firstInterimResponseStart": 0,
+    "finalResponseHeadersStart": 21.699999928474426,
+    "responseEnd": 23.799999952316284,
+    "transferSize": 10824,
+    "encodedBodySize": 10524,
+    "decodedBodySize": 10524,
+    "responseStatus": 200,
+    "serverTiming": [],
+    "unloadEventStart": 59.699999928474426,
+    "unloadEventEnd": 59.699999928474426,
+    "domInteractive": 212.60000002384186,
+    "domContentLoadedEventStart": 212.60000002384186,
+    "domContentLoadedEventEnd": 212.60000002384186,
+    "domComplete": 273.39999997615814,
+    "loadEventStart": 273.5,
+    "loadEventEnd": 273.5,
+    "type": "navigate",
+    "redirectCount": 0,
+    "activationStart": 0,
+    "criticalCHRestart": 0,
+    "notRestoredReasons": null,
+    "confidence": {
+      "randomizedTriggerRate": 0.4994798,
+      "value": "low"
+    }
+  },
+  "axe": {
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "tags": [
+          "cat.color",
+          "wcag2aa",
+          "wcag143",
+          "TTv5",
+          "TT13.c",
+          "EN-301-549",
+          "EN-9.1.4.3",
+          "ACT",
+          "RGAAv4",
+          "RGAA-3.2.1"
+        ],
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/color-contrast?application=axeAPI",
+        "nodes": [
+          {
+            "any": [
+              {
+                "id": "color-contrast",
+                "data": {
+                  "fgColor": null,
+                  "bgColor": null,
+                  "contrastRatio": 0,
+                  "fontSize": "12.0pt (16px)",
+                  "fontWeight": "normal",
+                  "messageKey": "bgImage",
+                  "expectedContrastRatio": "4.5:1",
+                  "shadowColor": null,
+                  "colorParse": null
+                },
+                "relatedNodes": [
+                  {
+                    "html": "<select class=\"language-switch\" data-language-switch=\"\" aria-label=\"Язык интерфейса\"><option value=\"en\" lang=\"en\">EN</option><option value=\"ru\" lang=\"ru\">RU</option></select>",
+                    "target": [
+                      "select"
+                    ]
+                  }
+                ],
+                "impact": "serious",
+                "message": "Element's background color could not be determined due to a background image"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "serious",
+            "html": "<select class=\"language-switch\" data-language-switch=\"\" aria-label=\"Язык интерфейса\"><option value=\"en\" lang=\"en\">EN</option><option value=\"ru\" lang=\"ru\">RU</option></select>",
+            "target": [
+              "select"
+            ],
+            "failureSummary": "Fix any of the following:\n  Element's background color could not be determined due to a background image"
+          }
+        ]
+      }
+    ],
+    "passes": [
+      "aria-allowed-attr",
+      "aria-allowed-role",
+      "aria-conditional-attr",
+      "aria-hidden-body",
+      "aria-prohibited-attr",
+      "aria-valid-attr-value",
+      "aria-valid-attr",
+      "bypass",
+      "color-contrast",
+      "document-title",
+      "empty-heading",
+      "form-field-multiple-labels",
+      "heading-order",
+      "html-has-lang",
+      "html-lang-valid",
+      "label-title-only",
+      "landmark-main-is-top-level",
+      "landmark-no-duplicate-main",
+      "landmark-one-main",
+      "landmark-unique",
+      "link-name",
+      "meta-viewport-large",
+      "meta-viewport",
+      "nested-interactive",
+      "page-has-heading-one",
+      "region",
+      "select-name",
+      "valid-lang"
+    ]
+  }
+}

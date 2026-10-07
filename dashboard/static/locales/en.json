@@ -1416,5 +1416,21 @@
   "Размер": "Size",
   "Создан": "Created",
   "Действия": "Actions",
-  "Восстановить…": "Restore…"
+  "Восстановить…": "Restore…",
+  ". Выберите профиль в шапке. Оливковый селектор означает, что пульт сопоставил профиль с запуском PZ. Янтарный — выбран другой профиль или профиль запуска не подтверждён; точное состояние можно открыть кнопкой «Статус профиля на сервере» рядом с селектором. Другой профиль можно редактировать, но нельзя применить рестартом вместо активного.": ". Select a profile in the header. An olive selector means the console matched the profile to the PZ launch. Amber means another profile is selected or the launch profile is unconfirmed; use the Server profile status button beside the selector for the exact status. Other profiles can be edited, but cannot replace the active profile during a restart.",
+  "Статус профиля на сервере": "Server profile status",
+  "Выберите профиль, чтобы узнать его состояние на сервере.": "Select a profile to see its server status.",
+  "Поиск в настройках сервера": "Search server settings",
+  "Поиск в настройках мира": "Search world settings",
+  "Поиск в настройках модов": "Search mod settings",
+  "Совпадения есть в других разделах:": "Matches found in other sections:",
+  "Перейти: {{0}} · {{1}}": "Open: {{0}} · {{1}}",
+  "Попробуйте другое название или технический ключ.": "Try another name or technical key.",
+  "Следить за RCON": "Monitor RCON",
+  "Ожидаем доступность RCON. Последние ответы сохранены.": "Waiting for RCON availability. Previous responses are preserved.",
+  "Консоль доступна — команды отправляются на сервер по RCON.": "Console available — commands are sent to the server via RCON.",
+  "Строк: {{0}} из {{1}}": "Lines: {{0}} of {{1}}",
+  "Нет строк по выбранным фильтрам.": "No lines match the selected filters.",
+  "Сбросить фильтры": "Reset filters",
+  "Загружаем состояние выбранного профиля…": "Loading the selected profile status…"
 }

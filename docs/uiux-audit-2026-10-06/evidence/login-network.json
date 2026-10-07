@@ -1,0 +1,6 @@
+{
+  "login": "audit-user",
+  "passwordAfterNetworkFailure": "",
+  "error": "Нет связи с пультом. Повторите попытку.",
+  "focused": "password"
+}

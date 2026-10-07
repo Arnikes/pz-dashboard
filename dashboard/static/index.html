@@ -56,6 +56,7 @@
         <div class="profile-label">
           <label class="sr-only" for="configProfile">Профиль</label>
           <select id="configProfile" aria-label="Профиль конфигурации" aria-describedby="configActive"><option value="">Загрузка…</option></select>
+          <span class="help-tip"><button type="button" class="help-trigger" data-help="configProfileHelp" aria-label="Статус профиля на сервере" aria-describedby="configProfileHelp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v6M12 7v2"/></svg></button><span id="configProfileHelp" class="help-content" role="tooltip" popover="manual" hidden>Выберите профиль, чтобы узнать его состояние на сервере.</span></span>
           <span id="configActive">Не подтверждён</span>
         </div>
       </div>
@@ -389,7 +390,7 @@
           <button type="button" role="tab" aria-selected="true" aria-controls="configServerPanel" data-tab="server">Сервер</button><button type="button" role="tab" aria-selected="false" aria-controls="configWorldPanel" tabindex="-1" data-tab="world">Мир</button><button type="button" role="tab" aria-selected="false" aria-controls="configCustomPanel" tabindex="-1" data-tab="custom">Настройки модов</button><button type="button" role="tab" aria-selected="false" aria-controls="configSources" tabindex="-1" data-tab="sources">Исходники</button><button type="button" role="tab" aria-selected="false" aria-controls="configHistory" tabindex="-1" data-tab="history">История изменений</button>
         </div>
         <div id="configSharedFields">
-        <label class="editor-search" id="configSearchLabel" for="configSearch"><span>Найти настройку</span><input id="configSearch" type="search" placeholder="Название или технический ключ…" aria-label="Поиск настройки" /></label>
+        <label class="editor-search" id="configSearchLabel" for="configSearch"><span id="configSearchScope">Поиск в настройках сервера</span><input id="configSearch" type="search" placeholder="Название или технический ключ…" aria-label="Поиск в настройках сервера" /></label>
         <p id="configWorldNotice" class="hint" hidden>Часть настроек влияет только на новые области или персонажей.</p>
         <div id="configFields"></div>
         </div>
@@ -467,7 +468,7 @@
           <label class="switch">
               <input type="checkbox" id="wdSwitch" role="switch" aria-label="Watchdog RCON" />
             <span class="switch-track" aria-hidden="true"></span>
-              <span class="switch-label">Включён</span>
+              <span class="switch-label">Следить за RCON</span>
           </label>
           <div class="auto-grid watchdog-fields">
             <label class="field">Порог тишины RCON
@@ -669,6 +670,7 @@
             <input type="search" id="logsFilter" class="mono" placeholder="фильтр строк…" aria-label="Фильтр логов" />
             <label class="check"><input type="checkbox" id="logsAuto" checked /> Автопрокрутка</label>
             <a class="btn small" id="logsDownload" href="/api/logs/full" download title="Полный лог файлом">Скачать лог</a>
+            <div id="logsResult" class="logs-result" hidden><p id="logsCount" class="hint" role="status"></p><button type="button" id="logsResetFilters" class="btn small" hidden>Сбросить фильтры</button></div>
           </div>
         </header>
         <div class="logs-content">

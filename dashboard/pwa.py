@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 
@@ -27,9 +28,21 @@ def service_worker(static_dir):
     assets.extend(
         "/static/" + p.relative_to(root).as_posix() for p in sorted((root / "icons").glob("*.png"))
     )
+    font_css = root / "fonts/fonts.css"
+    referenced_fonts = (
+        set(
+            re.findall(
+                r"url\(\s*['\"]?([^)'\"\s]+\.woff2)['\"]?\s*\)",
+                font_css.read_text(encoding="utf-8"),
+            )
+        )
+        if font_css.exists()
+        else set()
+    )
     assets.extend(
         "/static/" + p.relative_to(root).as_posix()
         for p in sorted((root / "fonts").glob("*.woff2"))
+        if p.name in referenced_fonts
     )
     template = (root / "sw.js").read_text(encoding="utf-8")
     return (

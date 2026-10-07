@@ -154,7 +154,8 @@ Overview, Settings, Mods, and More in the bottom bar. The top bar contains the
 active profile, language selector, quick commands,
 and sign-out action. The active profile's status remains available through its
 accessible description without a visible active-state label. Other-profile and
-unconfirmed-profile warnings remain visible. Settings navigation shows a count
+unconfirmed-profile warnings remain visible. A shared help control beside the
+selector reveals the exact profile status on tap or keyboard focus. Settings navigation shows a count
 of changed draft lines when a draft has changes.
 Mods put search and filtering first and disclose package/collection addition
 separately; search has a visible label, and the page heading links to custom mod
@@ -179,6 +180,7 @@ uses aria-describedby, stays within the viewport, and closes with Escape.
 Mobile help controls have 44-pixel touch targets. Desktop labels are bounded
 to 260 pixels and controls to 560 pixels; labeled setting search is bounded to
 600 pixels. Boolean draft fields use one transparent clickable 44-pixel row.
+Setting search names its current section and links to matching neighboring sections.
 Technical keys and brief context or numeric ranges sit below the controls.
 Changed-field labels remain visible, and changed text controls use the warning
 border. Help stays above the mobile navigation and draft actions.

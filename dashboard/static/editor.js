@@ -105,7 +105,9 @@ window.ConfigEditor = (() => {
     setDomProperty(profileState, "hidden", !!draft.canApply);
     setDomProperty(profileState.dataset, "state", draft.canApply ? "active" : "warning");
     setDomProperty(profile.dataset, "state", draft.canApply ? "active" : draft.activeFile ? "other" : "unknown");
-    setDomProperty(profile, "title", profileLabel + ". " + (draft.activeFile ? I18n.msg`Сервер использует ${draft.activeFile}` : I18n.t("Не удалось определить профиль запуска сервера")));
+    const profileDescription = profileLabel + ". " + (draft.activeFile ? I18n.msg`Сервер использует ${draft.activeFile}` : I18n.t("Не удалось определить профиль запуска сервера"));
+    setDomProperty(profile, "title", profileDescription);
+    setDomProperty($("configProfileHelp"), "textContent", loading ? I18n.t("Загружаем состояние выбранного профиля…") : profileDescription);
     const versionLabel = draft.version ? `PZ ${draft.version}` : I18n.t("B42 · версия неизвестна");
     setDomProperty($("configVersion"), "textContent", versionLabel);
     setDomProperty($("configVersion"), "title", versionLabel);
@@ -272,9 +274,9 @@ window.ConfigEditor = (() => {
     const selected = new Set(mods.mods);
     return mods.workshop.flatMap(w => w.available || []).filter(r => selected.has(r.modId)).flatMap(r => (r.options || []).map(o => ({ ...o, modId: r.modId, custom: true })));
   }
-  function fields() {
+  function fields(tab = configTab) {
     if (!draft) return [];
-    if (configTab === "server") return draft.fields || [];
+    if (tab === "server") return draft.fields || [];
     const known = new Map(customFields().map(o => [o.key, o]));
     const allModOptions = new Set((mods?.workshop || []).flatMap(w => w.available || []).flatMap(r => r.options || []).map(o => o.key));
     const present = new Map((draft.sandboxFields || []).map(o => [o.key, o]));
@@ -282,7 +284,7 @@ window.ConfigEditor = (() => {
     for (const o of known.values()) {
       if (!present.has(o.key)) combined.push({ ...o, value: o.default ?? "", absent: true });
     }
-    return combined.filter(o => configTab === "custom" ? o.custom || o.preserved : !o.custom && !o.preserved);
+    return combined.filter(o => tab === "custom" ? o.custom || o.preserved : !o.custom && !o.preserved);
   }
   function fieldControl(rec, i) {
     const attrs = `id="config-field-${i}" data-key="${esc(rec.key)}" data-owner="${esc(rec.owner || "")}" data-kind="${configTab === "server" ? "ini" : "sandbox"}" data-type="${esc(rec.type)}" aria-describedby="config-hint-${i}${rec.applicationScope ? ` config-scope-${i}` : ""}" ${rec.owner || S.demo ? "disabled" : ""}`;
@@ -322,13 +324,18 @@ window.ConfigEditor = (() => {
     $("configSources").hidden = configTab !== "sources";
     $("configHistory").hidden = configTab !== "history";
     $("configSearchLabel").hidden = ["sources", "history"].includes(configTab);
+    const searchScopes = { server: I18n.t("Поиск в настройках сервера"), world: I18n.t("Поиск в настройках мира"), custom: I18n.t("Поиск в настройках модов") };
+    if (searchScopes[configTab]) {
+      setDomProperty($("configSearchScope"), "textContent", searchScopes[configTab]);
+      setDomAttribute($("configSearch"), "aria-label", searchScopes[configTab]);
+    }
     $("configWorldNotice").hidden = !["world", "custom"].includes(configTab);
     if (!draft || ["sources", "history"].includes(configTab)) return;
     if (configTab !== "server" && draft.sandboxDiagnostic) {
       $("configFields").innerHTML = I18n.msg`<p class="editor-error">${esc(draft.sandboxDiagnostic)}. Форма отключена. В исходнике все литералы скрыты маркерами __PZ_RAW_LITERAL_; оставьте маркеры для сохранения исходных значений. Lua проверяется без выполнения.</p>`;
       return;
     }
-    const query = $("configSearch").value.toLowerCase();
+    const query = $("configSearch").value.trim().toLowerCase();
     fieldQuery = query;
     const groups = new Map();
     fields().filter(o => `${o.key} ${o.label}`.toLowerCase().includes(query)).forEach((rec, i) => {
@@ -346,7 +353,10 @@ window.ConfigEditor = (() => {
       const open = query || (groupStates.get(key) ?? name !== I18n.t("Дополнительные параметры"));
       return `<details class="config-group" data-group-key="${esc(key)}" ${open ? "open" : ""}><summary>${esc(name)} <span class="group-count">${entries.length}</span></summary><div class="config-grid">${entries.join("")}</div></details>`;
     }).join("");
-    $("configFields").innerHTML = html || I18n.html('<p class="hint">Нет настроек, соответствующих поиску.</p>');
+    const tabLabels = { server: I18n.t("Сервер"), world: I18n.t("Мир"), custom: I18n.t("Настройки модов") };
+    const elsewhere = query ? Object.keys(tabLabels).filter(tab => tab !== configTab).map(tab => ({ tab, count: fields(tab).filter(o => `${o.key} ${o.label}`.toLowerCase().includes(query)).length })).filter(result => result.count) : [];
+    const suggestions = elsewhere.length ? I18n.html('<p class="hint">Совпадения есть в других разделах:</p>') + `<div class="editor-toolbar">${elsewhere.map(({tab, count}) => I18n.msg`<button type="button" class="btn small" data-search-tab="${tab}">Перейти: ${esc(tabLabels[tab])} · ${count}</button>`).join("")}</div>` : query ? I18n.html('<p class="hint">Попробуйте другое название или технический ключ.</p>') : "";
+    $("configFields").innerHTML = html || I18n.html('<p class="hint">Нет настроек, соответствующих поиску.</p>') + suggestions;
   }
   function highlight(kind) {
     const input = $(kind + "Source"), output = $(kind + "Highlight");
@@ -537,6 +547,13 @@ window.ConfigEditor = (() => {
     patch({ [field.dataset.kind]: { [field.dataset.key]: value } }, false).catch(() => {});
   });
   $("configFields").addEventListener("click", e => {
+    const searchTab = e.target.closest("[data-search-tab]");
+    if (searchTab) {
+      const tab = $("configTabs").querySelector(`[data-tab="${searchTab.dataset.searchTab}"]`);
+      tab.click();
+      tab.focus();
+      return;
+    }
     const remove = e.target.closest("[data-remove-option]"); if (!remove) return;
     modal.open({ title: I18n.t("Удалить сохранённый параметр?"), bodyHTML: esc(remove.dataset.removeOption), onConfirm: () => patch({ removeSandbox: [remove.dataset.removeOption] }) });
   });

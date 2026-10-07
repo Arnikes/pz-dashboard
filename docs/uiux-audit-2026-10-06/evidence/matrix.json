@@ -1,0 +1,618 @@
+[
+  {
+    "name": "ru-320-overview",
+    "scrollWidth": 320,
+    "width": 320,
+    "small": 2,
+    "violations": []
+  },
+  {
+    "name": "ru-320-settings",
+    "scrollWidth": 320,
+    "width": 320,
+    "small": 2,
+    "violations": []
+  },
+  {
+    "name": "ru-320-mods",
+    "scrollWidth": 320,
+    "width": 320,
+    "small": 5,
+    "violations": []
+  },
+  {
+    "name": "ru-320-players",
+    "scrollWidth": 320,
+    "width": 320,
+    "small": 0,
+    "violations": []
+  },
+  {
+    "name": "ru-320-maintenance",
+    "scrollWidth": 320,
+    "width": 320,
+    "small": 11,
+    "violations": []
+  },
+  {
+    "name": "ru-320-backups",
+    "scrollWidth": 320,
+    "width": 320,
+    "small": 2,
+    "violations": []
+  },
+  {
+    "name": "ru-320-events",
+    "scrollWidth": 320,
+    "width": 320,
+    "small": 0,
+    "violations": []
+  },
+  {
+    "name": "ru-320-console",
+    "scrollWidth": 320,
+    "width": 320,
+    "small": 1,
+    "violations": []
+  },
+  {
+    "name": "ru-320-login",
+    "scrollWidth": 320,
+    "width": 320,
+    "small": 1,
+    "violations": []
+  },
+  {
+    "name": "ru-320-config-help",
+    "scrollWidth": 320,
+    "width": 320,
+    "small": 9,
+    "violations": []
+  },
+  {
+    "name": "ru-320-offline",
+    "scrollWidth": 320,
+    "width": 320,
+    "small": 0,
+    "violations": []
+  },
+  {
+    "name": "ru-390-overview",
+    "scrollWidth": 390,
+    "width": 390,
+    "small": 2,
+    "violations": []
+  },
+  {
+    "name": "ru-390-settings",
+    "scrollWidth": 390,
+    "width": 390,
+    "small": 2,
+    "violations": []
+  },
+  {
+    "name": "ru-390-mods",
+    "scrollWidth": 390,
+    "width": 390,
+    "small": 5,
+    "violations": []
+  },
+  {
+    "name": "ru-390-players",
+    "scrollWidth": 390,
+    "width": 390,
+    "small": 0,
+    "violations": []
+  },
+  {
+    "name": "ru-390-maintenance",
+    "scrollWidth": 390,
+    "width": 390,
+    "small": 11,
+    "violations": []
+  },
+  {
+    "name": "ru-390-backups",
+    "scrollWidth": 390,
+    "width": 390,
+    "small": 2,
+    "violations": []
+  },
+  {
+    "name": "ru-390-events",
+    "scrollWidth": 390,
+    "width": 390,
+    "small": 0,
+    "violations": []
+  },
+  {
+    "name": "ru-390-console",
+    "scrollWidth": 390,
+    "width": 390,
+    "small": 1,
+    "violations": []
+  },
+  {
+    "name": "ru-390-login",
+    "scrollWidth": 390,
+    "width": 390,
+    "small": 1,
+    "violations": []
+  },
+  {
+    "name": "ru-390-config-help",
+    "scrollWidth": 390,
+    "width": 390,
+    "small": 9,
+    "violations": []
+  },
+  {
+    "name": "ru-390-offline",
+    "scrollWidth": 390,
+    "width": 390,
+    "small": 0,
+    "violations": []
+  },
+  {
+    "name": "ru-768-overview",
+    "scrollWidth": 768,
+    "width": 768,
+    "small": 5,
+    "violations": []
+  },
+  {
+    "name": "ru-768-settings",
+    "scrollWidth": 768,
+    "width": 768,
+    "small": 5,
+    "violations": []
+  },
+  {
+    "name": "ru-768-mods",
+    "scrollWidth": 768,
+    "width": 768,
+    "small": 9,
+    "violations": []
+  },
+  {
+    "name": "ru-768-players",
+    "scrollWidth": 768,
+    "width": 768,
+    "small": 8,
+    "violations": []
+  },
+  {
+    "name": "ru-768-maintenance",
+    "scrollWidth": 768,
+    "width": 768,
+    "small": 11,
+    "violations": []
+  },
+  {
+    "name": "ru-768-backups",
+    "scrollWidth": 768,
+    "width": 768,
+    "small": 17,
+    "violations": []
+  },
+  {
+    "name": "ru-768-events",
+    "scrollWidth": 768,
+    "width": 768,
+    "small": 5,
+    "violations": []
+  },
+  {
+    "name": "ru-768-console",
+    "scrollWidth": 768,
+    "width": 768,
+    "small": 9,
+    "violations": []
+  },
+  {
+    "name": "ru-768-login",
+    "scrollWidth": 768,
+    "width": 768,
+    "small": 1,
+    "violations": []
+  },
+  {
+    "name": "ru-768-config-help",
+    "scrollWidth": 768,
+    "width": 768,
+    "small": 9,
+    "violations": []
+  },
+  {
+    "name": "ru-768-offline",
+    "scrollWidth": 768,
+    "width": 768,
+    "small": 0,
+    "violations": []
+  },
+  {
+    "name": "ru-1440-overview",
+    "scrollWidth": 1440,
+    "width": 1440,
+    "small": 5,
+    "violations": []
+  },
+  {
+    "name": "ru-1440-settings",
+    "scrollWidth": 1440,
+    "width": 1440,
+    "small": 5,
+    "violations": []
+  },
+  {
+    "name": "ru-1440-mods",
+    "scrollWidth": 1440,
+    "width": 1440,
+    "small": 9,
+    "violations": []
+  },
+  {
+    "name": "ru-1440-players",
+    "scrollWidth": 1440,
+    "width": 1440,
+    "small": 8,
+    "violations": []
+  },
+  {
+    "name": "ru-1440-maintenance",
+    "scrollWidth": 1440,
+    "width": 1440,
+    "small": 11,
+    "violations": []
+  },
+  {
+    "name": "ru-1440-backups",
+    "scrollWidth": 1440,
+    "width": 1440,
+    "small": 17,
+    "violations": []
+  },
+  {
+    "name": "ru-1440-events",
+    "scrollWidth": 1440,
+    "width": 1440,
+    "small": 5,
+    "violations": []
+  },
+  {
+    "name": "ru-1440-console",
+    "scrollWidth": 1440,
+    "width": 1440,
+    "small": 9,
+    "violations": []
+  },
+  {
+    "name": "ru-1440-login",
+    "scrollWidth": 1440,
+    "width": 1440,
+    "small": 1,
+    "violations": []
+  },
+  {
+    "name": "ru-1440-config-help",
+    "scrollWidth": 1440,
+    "width": 1440,
+    "small": 9,
+    "violations": []
+  },
+  {
+    "name": "ru-1440-offline",
+    "scrollWidth": 1440,
+    "width": 1440,
+    "small": 0,
+    "violations": []
+  },
+  {
+    "name": "en-320-overview",
+    "scrollWidth": 320,
+    "width": 320,
+    "small": 2,
+    "violations": []
+  },
+  {
+    "name": "en-320-settings",
+    "scrollWidth": 320,
+    "width": 320,
+    "small": 3,
+    "violations": []
+  },
+  {
+    "name": "en-320-mods",
+    "scrollWidth": 320,
+    "width": 320,
+    "small": 6,
+    "violations": []
+  },
+  {
+    "name": "en-320-players",
+    "scrollWidth": 320,
+    "width": 320,
+    "small": 0,
+    "violations": []
+  },
+  {
+    "name": "en-320-maintenance",
+    "scrollWidth": 320,
+    "width": 320,
+    "small": 11,
+    "violations": []
+  },
+  {
+    "name": "en-320-backups",
+    "scrollWidth": 320,
+    "width": 320,
+    "small": 2,
+    "violations": []
+  },
+  {
+    "name": "en-320-events",
+    "scrollWidth": 320,
+    "width": 320,
+    "small": 1,
+    "violations": []
+  },
+  {
+    "name": "en-320-console",
+    "scrollWidth": 320,
+    "width": 320,
+    "small": 2,
+    "violations": []
+  },
+  {
+    "name": "en-320-login",
+    "scrollWidth": 320,
+    "width": 320,
+    "small": 1,
+    "violations": []
+  },
+  {
+    "name": "en-320-config-help",
+    "scrollWidth": 320,
+    "width": 320,
+    "small": 9,
+    "violations": []
+  },
+  {
+    "name": "en-320-offline",
+    "scrollWidth": 320,
+    "width": 320,
+    "small": 0,
+    "violations": []
+  },
+  {
+    "name": "en-390-overview",
+    "scrollWidth": 390,
+    "width": 390,
+    "small": 2,
+    "violations": []
+  },
+  {
+    "name": "en-390-settings",
+    "scrollWidth": 390,
+    "width": 390,
+    "small": 3,
+    "violations": []
+  },
+  {
+    "name": "en-390-mods",
+    "scrollWidth": 390,
+    "width": 390,
+    "small": 6,
+    "violations": []
+  },
+  {
+    "name": "en-390-players",
+    "scrollWidth": 390,
+    "width": 390,
+    "small": 0,
+    "violations": []
+  },
+  {
+    "name": "en-390-maintenance",
+    "scrollWidth": 390,
+    "width": 390,
+    "small": 11,
+    "violations": []
+  },
+  {
+    "name": "en-390-backups",
+    "scrollWidth": 390,
+    "width": 390,
+    "small": 2,
+    "violations": []
+  },
+  {
+    "name": "en-390-events",
+    "scrollWidth": 390,
+    "width": 390,
+    "small": 1,
+    "violations": []
+  },
+  {
+    "name": "en-390-console",
+    "scrollWidth": 390,
+    "width": 390,
+    "small": 2,
+    "violations": []
+  },
+  {
+    "name": "en-390-login",
+    "scrollWidth": 390,
+    "width": 390,
+    "small": 1,
+    "violations": []
+  },
+  {
+    "name": "en-390-config-help",
+    "scrollWidth": 390,
+    "width": 390,
+    "small": 9,
+    "violations": []
+  },
+  {
+    "name": "en-390-offline",
+    "scrollWidth": 390,
+    "width": 390,
+    "small": 0,
+    "violations": []
+  },
+  {
+    "name": "en-768-overview",
+    "scrollWidth": 768,
+    "width": 768,
+    "small": 5,
+    "violations": []
+  },
+  {
+    "name": "en-768-settings",
+    "scrollWidth": 768,
+    "width": 768,
+    "small": 6,
+    "violations": []
+  },
+  {
+    "name": "en-768-mods",
+    "scrollWidth": 768,
+    "width": 768,
+    "small": 10,
+    "violations": []
+  },
+  {
+    "name": "en-768-players",
+    "scrollWidth": 768,
+    "width": 768,
+    "small": 8,
+    "violations": []
+  },
+  {
+    "name": "en-768-maintenance",
+    "scrollWidth": 768,
+    "width": 768,
+    "small": 11,
+    "violations": []
+  },
+  {
+    "name": "en-768-backups",
+    "scrollWidth": 768,
+    "width": 768,
+    "small": 17,
+    "violations": []
+  },
+  {
+    "name": "en-768-events",
+    "scrollWidth": 768,
+    "width": 768,
+    "small": 5,
+    "violations": []
+  },
+  {
+    "name": "en-768-console",
+    "scrollWidth": 768,
+    "width": 768,
+    "small": 9,
+    "violations": []
+  },
+  {
+    "name": "en-768-login",
+    "scrollWidth": 768,
+    "width": 768,
+    "small": 1,
+    "violations": []
+  },
+  {
+    "name": "en-768-config-help",
+    "scrollWidth": 768,
+    "width": 768,
+    "small": 9,
+    "violations": []
+  },
+  {
+    "name": "en-768-offline",
+    "scrollWidth": 768,
+    "width": 768,
+    "small": 0,
+    "violations": []
+  },
+  {
+    "name": "en-1440-overview",
+    "scrollWidth": 1440,
+    "width": 1440,
+    "small": 5,
+    "violations": []
+  },
+  {
+    "name": "en-1440-settings",
+    "scrollWidth": 1440,
+    "width": 1440,
+    "small": 6,
+    "violations": []
+  },
+  {
+    "name": "en-1440-mods",
+    "scrollWidth": 1440,
+    "width": 1440,
+    "small": 10,
+    "violations": []
+  },
+  {
+    "name": "en-1440-players",
+    "scrollWidth": 1440,
+    "width": 1440,
+    "small": 8,
+    "violations": []
+  },
+  {
+    "name": "en-1440-maintenance",
+    "scrollWidth": 1440,
+    "width": 1440,
+    "small": 11,
+    "violations": []
+  },
+  {
+    "name": "en-1440-backups",
+    "scrollWidth": 1440,
+    "width": 1440,
+    "small": 17,
+    "violations": []
+  },
+  {
+    "name": "en-1440-events",
+    "scrollWidth": 1440,
+    "width": 1440,
+    "small": 5,
+    "violations": []
+  },
+  {
+    "name": "en-1440-console",
+    "scrollWidth": 1440,
+    "width": 1440,
+    "small": 9,
+    "violations": []
+  },
+  {
+    "name": "en-1440-login",
+    "scrollWidth": 1440,
+    "width": 1440,
+    "small": 1,
+    "violations": []
+  },
+  {
+    "name": "en-1440-config-help",
+    "scrollWidth": 1440,
+    "width": 1440,
+    "small": 9,
+    "violations": []
+  },
+  {
+    "name": "en-1440-offline",
+    "scrollWidth": 1440,
+    "width": 1440,
+    "small": 0,
+    "violations": []
+  }
+]

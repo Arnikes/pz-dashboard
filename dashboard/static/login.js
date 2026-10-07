@@ -26,11 +26,12 @@ form.addEventListener("submit", async (event) => {
     const next = new URLSearchParams(location.search).get("next") || location.hash;
     location.replace("/" + (/^#\/[a-z-]+$/.test(next) ? next : "#/overview"));
   } catch (failure) {
-    error.textContent = failure instanceof TypeError || failure.name === "TimeoutError"
+    const transportFailure = failure instanceof TypeError || failure.name === "TimeoutError";
+    error.textContent = transportFailure
       ? I18n.t("Нет связи с пультом. Повторите попытку.")
       : failure.message;
     error.hidden = false;
-    document.getElementById("password").value = "";
+    if (!transportFailure) document.getElementById("password").value = "";
     document.getElementById("password").focus();
   } finally {
     button.disabled = false;

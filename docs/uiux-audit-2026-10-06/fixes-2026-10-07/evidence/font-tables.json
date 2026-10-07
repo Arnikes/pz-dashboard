@@ -1,0 +1,144 @@
+[
+  {
+    "file": "golos-text-400-cyrillic.woff2",
+    "axes": [
+      [
+        "wght",
+        400.0,
+        900.0
+      ]
+    ],
+    "sha256": "2f175b8fc40ed4e826742879f92ec903256fc2612d8d95c7c287232fd7138e4b"
+  },
+  {
+    "file": "golos-text-400-latin.woff2",
+    "axes": [
+      [
+        "wght",
+        400.0,
+        900.0
+      ]
+    ],
+    "sha256": "f8d71091110f0113ba8bd16bee2ac68b51dd6491c5b9404e9fbb82b20ae632f1"
+  },
+  {
+    "file": "golos-text-500-cyrillic.woff2",
+    "axes": [
+      [
+        "wght",
+        400.0,
+        900.0
+      ]
+    ],
+    "sha256": "2f175b8fc40ed4e826742879f92ec903256fc2612d8d95c7c287232fd7138e4b"
+  },
+  {
+    "file": "golos-text-500-latin.woff2",
+    "axes": [
+      [
+        "wght",
+        400.0,
+        900.0
+      ]
+    ],
+    "sha256": "f8d71091110f0113ba8bd16bee2ac68b51dd6491c5b9404e9fbb82b20ae632f1"
+  },
+  {
+    "file": "golos-text-600-cyrillic.woff2",
+    "axes": [
+      [
+        "wght",
+        400.0,
+        900.0
+      ]
+    ],
+    "sha256": "2f175b8fc40ed4e826742879f92ec903256fc2612d8d95c7c287232fd7138e4b"
+  },
+  {
+    "file": "golos-text-600-latin.woff2",
+    "axes": [
+      [
+        "wght",
+        400.0,
+        900.0
+      ]
+    ],
+    "sha256": "f8d71091110f0113ba8bd16bee2ac68b51dd6491c5b9404e9fbb82b20ae632f1"
+  },
+  {
+    "file": "jetbrains-mono-400-cyrillic.woff2",
+    "axes": [
+      [
+        "wght",
+        400.0,
+        800.0
+      ]
+    ],
+    "sha256": "4995a9a43ac659ec32fcd8b463755cd6a07b31a6e6b3894a6a153b661cf490e2"
+  },
+  {
+    "file": "jetbrains-mono-400-latin.woff2",
+    "axes": [
+      [
+        "wght",
+        400.0,
+        800.0
+      ]
+    ],
+    "sha256": "2c32b9b3ee358c119e210f6f5195f9bd34894d78a785ff2e95d60e718e400af4"
+  },
+  {
+    "file": "jetbrains-mono-500-cyrillic.woff2",
+    "axes": [
+      [
+        "wght",
+        400.0,
+        800.0
+      ]
+    ],
+    "sha256": "4995a9a43ac659ec32fcd8b463755cd6a07b31a6e6b3894a6a153b661cf490e2"
+  },
+  {
+    "file": "jetbrains-mono-500-latin.woff2",
+    "axes": [
+      [
+        "wght",
+        400.0,
+        800.0
+      ]
+    ],
+    "sha256": "2c32b9b3ee358c119e210f6f5195f9bd34894d78a785ff2e95d60e718e400af4"
+  },
+  {
+    "file": "jetbrains-mono-700-cyrillic.woff2",
+    "axes": [
+      [
+        "wght",
+        400.0,
+        800.0
+      ]
+    ],
+    "sha256": "4995a9a43ac659ec32fcd8b463755cd6a07b31a6e6b3894a6a153b661cf490e2"
+  },
+  {
+    "file": "jetbrains-mono-700-latin.woff2",
+    "axes": [
+      [
+        "wght",
+        400.0,
+        800.0
+      ]
+    ],
+    "sha256": "2c32b9b3ee358c119e210f6f5195f9bd34894d78a785ff2e95d60e718e400af4"
+  },
+  {
+    "file": "russo-one-400-cyrillic.woff2",
+    "axes": [],
+    "sha256": "5649dd6a78b6f1989bd8ab96ee2da97a1d7d253f1f2a564d76f84e1cc348faac"
+  },
+  {
+    "file": "russo-one-400-latin.woff2",
+    "axes": [],
+    "sha256": "53c9adb058b01d0143a6f23ada52a6719800bf0253edb1439285010eaaca5284"
+  }
+]

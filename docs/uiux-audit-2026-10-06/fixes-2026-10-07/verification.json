@@ -1,0 +1,85 @@
+{
+  "date": "2026-10-07",
+  "issuesFixed": 10,
+  "baselineCases": 88,
+  "overflow": 0,
+  "registeredAxeViolations": 0,
+  "projectTestsPassed": 938,
+  "projectTestsSkipped": 3,
+  "projectTestSeconds": 1602.18,
+  "widths": [
+    320,
+    390,
+    768,
+    1440
+  ],
+  "languages": [
+    "ru",
+    "en"
+  ],
+  "sourceSha256": {
+    "dashboard/pwa.py": "df6029a4f9612fe63bad46461c544d10333bde3f60037ab5ad8c18cf87e34ed4",
+    "dashboard/static/app.js": "4e5cb0b7309cfb91e3417d60227f463718bab8b535c9a2fa5ac9dfed621144a0",
+    "dashboard/static/editor.js": "8dcc06f542890078df71828982acce4ea7f6b51cef51f69b09211cfafddae28b",
+    "dashboard/static/index.html": "930ad4762924221660131542e5c7786fb83581a57dbe7263df50d35632823501",
+    "dashboard/static/style.css": "4b4c0290a06d637090dfd34b3a9eb689f77e9b7f851bc9c3b351f54d40d4592a",
+    "dashboard/static/login.js": "ac4570c111025133cc215b1196792ec9fa7b435673e7dd69f7165a258ca15506",
+    "dashboard/static/fonts/fonts.css": "5d55d7dd5235a4420bb7b17d0f656748db7782ff4ef25eb4d9e4c7440122b015",
+    "dashboard/static/config-help.html": "8abd9cdf5d252994b616ec0e8f5f9a70a9c02a05ef57578ec8a9296e97b962a3",
+    "dashboard/static/catalogs.js": "8a23bb1d04ace906c8dd664a9ae40152db5c5754cf776a08bf6f919f445d3ce7",
+    "dashboard/static/locales/en.json": "a5f2ef2409651c86549ed4430daeec521dd33808246ff3f88bc808acd745ee25",
+    "dashboard/static/locales/ru.json": "d8c02ca2c2861bb7b86ed2bd6a807ad9de4480f2489eaad0dcc39892b16c4364",
+    "tests/browser/test_uiux_fixes.py": "667beacd28a45395e782ac9abea537e4756e4e8260cbfceb5905b1efcdbf0589",
+    "tests/browser/test_bundled_assets.py": "8b8ea9a887de13599a2dcb2464d549a012f9517e0b55ebf5eea64b185d834c2b",
+    "tests/test_pwa.py": "7a0f4843542ca6f6d8d5a1d05ee6e399b6d5af40378b0f16fde69f4385543c96"
+  },
+  "limits": [
+    "Chromium emulation; no physical phone or screen reader acceptance",
+    "No real game-server operations",
+    "Axe incomplete checks remain; no accessibility certification",
+    "Full-page screenshots can reposition fixed navigation; viewport screenshot used for profile tooltip"
+  ],
+  "initialProjectFailures": [
+    "tests/browser/test_browser_resources.py::test_logs_refresh_only_on_visible_console_without_overlaps[chromium-sse-1440]",
+    "tests/browser/test_editors.py::test_pages_share_edges_and_form_controls_share_size[chromium-1440]",
+    "tests/browser/test_toasts.py::test_stack_layout_long_messages_and_expansion[chromium-reduce-320]",
+    "tests/browser/test_editors.py::test_pages_share_edges_and_form_controls_share_size[chromium-2048]"
+  ],
+  "resolvedFailures": {
+    "infrastructure": 2,
+    "consolePanelAlignment": 2,
+    "followUpTestsPassed": 9,
+    "uniquePreviouslyFailedTestsPassed": 4,
+    "logs": [
+      "evidence/network-retry.log",
+      "evidence/layout-retry.log"
+    ]
+  },
+  "verifiedProjectCasesAfterRetries": {
+    "passed": 942,
+    "skipped": 3
+  },
+  "consoleConfirmation": {
+    "cases": 12,
+    "widths": [
+      320,
+      390,
+      768,
+      1181,
+      1440,
+      2048
+    ],
+    "languages": [
+      "ru",
+      "en"
+    ],
+    "overflow": 0,
+    "registeredAxeViolations": 0,
+    "desktopPanelDeltaBelowPixels": 1
+  },
+  "supplementalProfileStates": {
+    "passed": 1,
+    "scenario": "loading → other profile → unconfirmed profile",
+    "test": "test_profile_help_tracks_loading_other_and_unknown_context"
+  }
+}

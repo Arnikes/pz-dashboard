@@ -1,0 +1,18 @@
+[
+  {
+    "name": "http://127.0.0.1:52542/static/fonts/golos-text-400-cyrillic.woff2",
+    "bytes": 22028
+  },
+  {
+    "name": "http://127.0.0.1:52542/static/fonts/golos-text-400-latin.woff2",
+    "bytes": 38084
+  },
+  {
+    "name": "http://127.0.0.1:52542/static/fonts/jetbrains-mono-400-latin.woff2",
+    "bytes": 31340
+  },
+  {
+    "name": "http://127.0.0.1:52542/static/fonts/jetbrains-mono-400-cyrillic.woff2",
+    "bytes": 8892
+  }
+]

@@ -1,0 +1,64 @@
+{
+  "revision": "da8b123431c5d88c4221e5e8138e0d021f98d5c8",
+  "baselineCases": 88,
+  "baselineOverflow": 0,
+  "baselineAxeViolations": 0,
+  "browserChecksPassed": 130,
+  "browserChecksScope": "124 existing + 5 audit + 1 performance; populated matrix separately revalidated",
+  "additionalEvidenceChecksPassed": 3,
+  "passedExecutions": 133,
+  "populatedBaseline": true,
+  "pngCount": 73,
+  "widths": [
+    320,
+    390,
+    768,
+    1440
+  ],
+  "height": 844,
+  "languages": [
+    "ru",
+    "en"
+  ],
+  "performance": {
+    "scenario": "60 identical snapshots, CPU 4x, 390x844, 200 archives/100 events/5000 logs",
+    "maxRenderMs": 14.7,
+    "longTasks": 0,
+    "mutations": {
+      "playersBody": 0,
+      "backupsBody": 0,
+      "eventsBody": 0,
+      "recentBody": 0,
+      "logsOut": 0,
+      "editorAttention": 0,
+      "configFields": 0,
+      "draftBar": 0
+    }
+  },
+  "contrast": {
+    "foregroundTokens": [
+      "#e9e2cd",
+      "#b3a78c",
+      "#968b73",
+      "#e07b6e",
+      "#86b060",
+      "#d9a441"
+    ],
+    "backgrounds": [
+      "#090806",
+      "#14110e",
+      "#1a1612",
+      "#211c15"
+    ],
+    "minimumRatio": 5.02,
+    "limit": "Opaque token pairs only; no blanket certification of controls/states."
+  },
+  "limits": [
+    "Chromium emulated viewport, not physical touch",
+    "No NVDA/VoiceOver acceptance",
+    "No real game server or Docker/RCON operations",
+    "Axe incomplete checks remain",
+    "Performance scenario measures unchanged data; no LCP/TTI estimate",
+    "Existing preview 8767 has incomplete SSE fixtures; its loading placeholders excluded"
+  ]
+}

@@ -1,0 +1,372 @@
+{
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "scrollWidth": 959,
+  "bodyWidth": 959,
+  "controls": [
+    {
+      "tag": "SELECT",
+      "id": "configProfile",
+      "cls": "",
+      "name": "Профиль конфигурации",
+      "width": 314,
+      "height": 44,
+      "disabled": false,
+      "x": 12,
+      "y": 60
+    },
+    {
+      "tag": "BUTTON",
+      "id": "btnCommands",
+      "cls": "btn",
+      "name": "Быстрые команды",
+      "width": 44,
+      "height": 44,
+      "disabled": false,
+      "x": 334,
+      "y": 60
+    },
+    {
+      "tag": "SELECT",
+      "id": "languageSwitch",
+      "cls": "language-switch",
+      "name": "Язык интерфейса",
+      "width": 99,
+      "height": 44,
+      "disabled": false,
+      "x": 231,
+      "y": 8
+    },
+    {
+      "tag": "BUTTON",
+      "id": "btnLogout",
+      "cls": "btn ghost session-logout",
+      "name": "Выйти",
+      "width": 44,
+      "height": 44,
+      "disabled": false,
+      "x": 334,
+      "y": 8
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Обзор",
+      "width": 90.5,
+      "height": 48,
+      "disabled": false,
+      "x": 8,
+      "y": 790
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Настройки",
+      "width": 90.5,
+      "height": 48,
+      "disabled": false,
+      "x": 102.5,
+      "y": 790
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Моды",
+      "width": 90.5,
+      "height": 48,
+      "disabled": false,
+      "x": 197,
+      "y": 790
+    },
+    {
+      "tag": "BUTTON",
+      "id": "navMore",
+      "cls": "nav-more",
+      "name": "Ещё",
+      "width": 90.5,
+      "height": 48,
+      "disabled": false,
+      "x": 291.5,
+      "y": 790
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "chip",
+      "name": "Все",
+      "width": 45.734375,
+      "height": 44,
+      "disabled": false,
+      "x": 33,
+      "y": 232.87136840820312
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "chip",
+      "name": "Управление",
+      "width": 95.59375,
+      "height": 44,
+      "disabled": false,
+      "x": 84.734375,
+      "y": 232.87136840820312
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "chip",
+      "name": "Бэкапы",
+      "width": 68.46875,
+      "height": 44,
+      "disabled": false,
+      "x": 186.328125,
+      "y": 232.87136840820312
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "chip",
+      "name": "Обновления",
+      "width": 97.09375,
+      "height": 44,
+      "disabled": false,
+      "x": 33,
+      "y": 282.8713684082031
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "chip",
+      "name": "Проблемы",
+      "width": 86.171875,
+      "height": 44,
+      "disabled": false,
+      "x": 136.09375,
+      "y": 282.8713684082031
+    }
+  ],
+  "smallControls": [],
+  "overflowing": [
+    {
+      "tag": "SPAN",
+      "id": "",
+      "cls": "sr-only",
+      "x": -1,
+      "right": 0,
+      "width": 1
+    }
+  ],
+  "lang": "ru",
+  "title": "События · PZ Пульт",
+  "resources": [
+    {
+      "name": "http://127.0.0.1:50647/static/fonts/fonts.css",
+      "duration": 203.10000002384186,
+      "transferSize": 4578,
+      "encodedBodySize": 4278
+    },
+    {
+      "name": "http://127.0.0.1:50647/static/style.css",
+      "duration": 234.09999990463257,
+      "transferSize": 94938,
+      "encodedBodySize": 94638
+    },
+    {
+      "name": "http://127.0.0.1:50647/static/pwa.css",
+      "duration": 268.60000002384186,
+      "transferSize": 3925,
+      "encodedBodySize": 3625
+    },
+    {
+      "name": "http://127.0.0.1:50647/static/catalogs.js",
+      "duration": 296.5,
+      "transferSize": 140859,
+      "encodedBodySize": 140559
+    },
+    {
+      "name": "http://127.0.0.1:50647/static/i18n.js",
+      "duration": 359.10000002384186,
+      "transferSize": 8065,
+      "encodedBodySize": 7765
+    },
+    {
+      "name": "http://127.0.0.1:50647/static/localize.js",
+      "duration": 396.6999999284744,
+      "transferSize": 340,
+      "encodedBodySize": 40
+    },
+    {
+      "name": "http://127.0.0.1:50647/static/app.js",
+      "duration": 458.2000000476837,
+      "transferSize": 142772,
+      "encodedBodySize": 142472
+    },
+    {
+      "name": "http://127.0.0.1:50647/static/editor.js",
+      "duration": 502.89999997615814,
+      "transferSize": 85540,
+      "encodedBodySize": 85240
+    },
+    {
+      "name": "http://127.0.0.1:50647/static/pwa.js",
+      "duration": 594.5,
+      "transferSize": 7982,
+      "encodedBodySize": 7682
+    },
+    {
+      "name": "http://127.0.0.1:50647/static/fonts/golos-text-600-cyrillic.woff2",
+      "duration": 391,
+      "transferSize": 22328,
+      "encodedBodySize": 22028
+    },
+    {
+      "name": "http://127.0.0.1:50647/static/fonts/golos-text-400-latin.woff2",
+      "duration": 472.6999999284744,
+      "transferSize": 38384,
+      "encodedBodySize": 38084
+    },
+    {
+      "name": "http://127.0.0.1:50647/static/fonts/golos-text-500-latin.woff2",
+      "duration": 677.7000000476837,
+      "transferSize": 38384,
+      "encodedBodySize": 38084
+    },
+    {
+      "name": "http://127.0.0.1:50647/static/fonts/jetbrains-mono-500-latin.woff2",
+      "duration": 682.8999999761581,
+      "transferSize": 31640,
+      "encodedBodySize": 31340
+    },
+    {
+      "name": "http://127.0.0.1:50647/static/fonts/jetbrains-mono-400-latin.woff2",
+      "duration": 719.3999999761581,
+      "transferSize": 31640,
+      "encodedBodySize": 31340
+    },
+    {
+      "name": "http://127.0.0.1:50647/static/fonts/golos-text-600-latin.woff2",
+      "duration": 783,
+      "transferSize": 38384,
+      "encodedBodySize": 38084
+    },
+    {
+      "name": "http://127.0.0.1:50647/static/fonts/golos-text-500-cyrillic.woff2",
+      "duration": 821,
+      "transferSize": 22328,
+      "encodedBodySize": 22028
+    },
+    {
+      "name": "http://127.0.0.1:50647/static/fonts/golos-text-400-cyrillic.woff2",
+      "duration": 814.6000000238419,
+      "transferSize": 22328,
+      "encodedBodySize": 22028
+    },
+    {
+      "name": "http://127.0.0.1:50647/api/health",
+      "duration": 43.299999952316284,
+      "transferSize": 352,
+      "encodedBodySize": 52
+    },
+    {
+      "name": "http://127.0.0.1:50647/api/server-configs",
+      "duration": 111.70000004768372,
+      "transferSize": 612,
+      "encodedBodySize": 312
+    },
+    {
+      "name": "http://127.0.0.1:50647/api/stream?logs=0",
+      "duration": 78.5,
+      "transferSize": 636,
+      "encodedBodySize": 336
+    },
+    {
+      "name": "http://127.0.0.1:50647/api/config-draft?file=world.ini",
+      "duration": 82.89999997615814,
+      "transferSize": 5562,
+      "encodedBodySize": 5262
+    },
+    {
+      "name": "http://127.0.0.1:50647/api/auth/session",
+      "duration": 78.39999997615814,
+      "transferSize": 352,
+      "encodedBodySize": 52
+    },
+    {
+      "name": "http://127.0.0.1:50647/static/fonts/jetbrains-mono-500-cyrillic.woff2",
+      "duration": 543.2000000476837,
+      "transferSize": 9192,
+      "encodedBodySize": 8892
+    },
+    {
+      "name": "http://127.0.0.1:50647/api/mods?file=world.ini&draft=1",
+      "duration": 75.60000002384186,
+      "transferSize": 1631,
+      "encodedBodySize": 1331
+    },
+    {
+      "name": "http://127.0.0.1:50647/static/fonts/jetbrains-mono-400-cyrillic.woff2",
+      "duration": 95.19999992847443,
+      "transferSize": 9192,
+      "encodedBodySize": 8892
+    }
+  ],
+  "navigation": {
+    "name": "http://127.0.0.1:50647/",
+    "entryType": "navigation",
+    "startTime": 0,
+    "duration": 1376.2999999523163,
+    "navigationId": 8593,
+    "initiatorType": "navigation",
+    "deliveryType": "",
+    "nextHopProtocol": "http/1.0",
+    "renderBlockingStatus": "non-blocking",
+    "contentType": "text/html",
+    "contentEncoding": "",
+    "workerStart": 0,
+    "workerRouterEvaluationStart": 0,
+    "workerCacheLookupStart": 0,
+    "workerMatchedSourceType": "",
+    "workerFinalSourceType": "",
+    "redirectStart": 0,
+    "redirectEnd": 0,
+    "fetchStart": 1.100000023841858,
+    "domainLookupStart": 21.600000023841858,
+    "domainLookupEnd": 24.100000023841858,
+    "connectStart": 24.100000023841858,
+    "secureConnectionStart": 0,
+    "connectEnd": 27.199999928474426,
+    "requestStart": 27.5,
+    "responseStart": 141.89999997615814,
+    "firstInterimResponseStart": 0,
+    "finalResponseHeadersStart": 141.89999997615814,
+    "responseEnd": 145.10000002384186,
+    "transferSize": 53778,
+    "encodedBodySize": 53478,
+    "decodedBodySize": 53478,
+    "responseStatus": 200,
+    "serverTiming": [],
+    "unloadEventStart": 0,
+    "unloadEventEnd": 0,
+    "domInteractive": 774.1999999284744,
+    "domContentLoadedEventStart": 774.1999999284744,
+    "domContentLoadedEventEnd": 774.2999999523163,
+    "domComplete": 1376.1999999284744,
+    "loadEventStart": 1376.2999999523163,
+    "loadEventEnd": 1376.2999999523163,
+    "type": "navigate",
+    "redirectCount": 0,
+    "activationStart": 0,
+    "criticalCHRestart": 0,
+    "notRestoredReasons": null,
+    "confidence": {
+      "randomizedTriggerRate": 0.4994798,
+      "value": "low"
+    }
+  },
+  "text": "EDITOR_METADATA_PROVIDER_UNAVAILABLE_EDITOR_METADATA_PROVIDER_UNAVAILABLE_EDITOR_METADATA_PROVIDER_UNAVAILABLE_"
+}

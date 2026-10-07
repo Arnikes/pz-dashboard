@@ -1,0 +1,1013 @@
+{
+  "viewport": {
+    "width": 1440,
+    "height": 844
+  },
+  "scrollWidth": 1440,
+  "bodyWidth": 1440,
+  "controls": [
+    {
+      "tag": "SELECT",
+      "id": "configProfile",
+      "cls": "",
+      "name": "Профиль конфигурации",
+      "width": 258,
+      "height": 44,
+      "disabled": false,
+      "x": 705.28125,
+      "y": 16
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "help-trigger",
+      "name": "Статус профиля на сервере",
+      "width": 32,
+      "height": 32,
+      "disabled": false,
+      "x": 973.28125,
+      "y": 22
+    },
+    {
+      "tag": "BUTTON",
+      "id": "btnCommands",
+      "cls": "btn",
+      "name": "Быстрые команды",
+      "width": 178.390625,
+      "height": 44,
+      "disabled": false,
+      "x": 1017.28125,
+      "y": 16
+    },
+    {
+      "tag": "SELECT",
+      "id": "languageSwitch",
+      "cls": "language-switch",
+      "name": "Язык интерфейса",
+      "width": 99,
+      "height": 44,
+      "disabled": false,
+      "x": 1220.671875,
+      "y": 16
+    },
+    {
+      "tag": "BUTTON",
+      "id": "btnLogout",
+      "cls": "btn ghost session-logout",
+      "name": "Выйти",
+      "width": 88.328125,
+      "height": 44,
+      "disabled": false,
+      "x": 1327.671875,
+      "y": 16
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Обзор",
+      "width": 175,
+      "height": 44,
+      "disabled": false,
+      "x": 14,
+      "y": 101
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Настройки",
+      "width": 175,
+      "height": 44,
+      "disabled": false,
+      "x": 14,
+      "y": 153
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Моды",
+      "width": 175,
+      "height": 44,
+      "disabled": false,
+      "x": 14,
+      "y": 205
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Игроки",
+      "width": 175,
+      "height": 44,
+      "disabled": false,
+      "x": 14,
+      "y": 257
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Обслуживание",
+      "width": 175,
+      "height": 44,
+      "disabled": false,
+      "x": 14,
+      "y": 309
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Бэкапы",
+      "width": 175,
+      "height": 44,
+      "disabled": false,
+      "x": 14,
+      "y": 361
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "События",
+      "width": 175,
+      "height": 44,
+      "disabled": false,
+      "x": 14,
+      "y": 413
+    },
+    {
+      "tag": "A",
+      "id": "",
+      "cls": "",
+      "name": "Консоль",
+      "width": 175,
+      "height": 44,
+      "disabled": false,
+      "x": 14,
+      "y": 465
+    },
+    {
+      "tag": "INPUT",
+      "id": "bkAutoSwitch",
+      "cls": "",
+      "name": "",
+      "width": 1,
+      "height": 1,
+      "disabled": false,
+      "x": 1359,
+      "y": 230.796875
+    },
+    {
+      "tag": "INPUT",
+      "id": "bkAutoTime",
+      "cls": "",
+      "name": "Время запуска (часовой пояс сервера)",
+      "width": 563,
+      "height": 44,
+      "disabled": false,
+      "x": 251,
+      "y": 305.796875
+    },
+    {
+      "tag": "INPUT",
+      "id": "bkAutoKeep",
+      "cls": "",
+      "name": "Хранить копий",
+      "width": 563,
+      "height": 44,
+      "disabled": false,
+      "x": 830,
+      "y": 305.796875
+    },
+    {
+      "tag": "INPUT",
+      "id": "bkAutoStop",
+      "cls": "",
+      "name": "Останавливать сервер на время бэкапа",
+      "width": 18,
+      "height": 18,
+      "disabled": false,
+      "x": 255,
+      "y": 412.796875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "btnBackup",
+      "cls": "btn small",
+      "name": "Создать",
+      "width": 76.625,
+      "height": 36,
+      "disabled": false,
+      "x": 1316.375,
+      "y": 489.796875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "icon-btn backup-action",
+      "name": "Скачать riverside-20261006-030000.tar.gz",
+      "width": 91.234375,
+      "height": 36,
+      "disabled": false,
+      "x": 996.734375,
+      "y": 590.546875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "icon-btn backup-action",
+      "name": "Проверить riverside-20261006-030000.tar.gz",
+      "width": 108.203125,
+      "height": 36,
+      "disabled": false,
+      "x": 1095.96875,
+      "y": 590.546875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "icon-btn backup-action",
+      "name": "Восстановить из riverside-20261006-030000.tar.gz",
+      "width": 136.828125,
+      "height": 36,
+      "disabled": false,
+      "x": 1212.171875,
+      "y": 590.546875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "icon-btn danger",
+      "name": "Удалить riverside-20261006-030000.tar.gz",
+      "width": 36,
+      "height": 36,
+      "disabled": false,
+      "x": 1357,
+      "y": 590.546875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "icon-btn backup-action",
+      "name": "Скачать riverside-20261005-030000.tar.gz",
+      "width": 91.234375,
+      "height": 36,
+      "disabled": false,
+      "x": 996.734375,
+      "y": 643.546875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "icon-btn backup-action",
+      "name": "Проверить riverside-20261005-030000.tar.gz",
+      "width": 108.203125,
+      "height": 36,
+      "disabled": false,
+      "x": 1095.96875,
+      "y": 643.546875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "icon-btn backup-action",
+      "name": "Восстановить из riverside-20261005-030000.tar.gz",
+      "width": 136.828125,
+      "height": 36,
+      "disabled": false,
+      "x": 1212.171875,
+      "y": 643.546875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "icon-btn danger",
+      "name": "Удалить riverside-20261005-030000.tar.gz",
+      "width": 36,
+      "height": 36,
+      "disabled": false,
+      "x": 1357,
+      "y": 643.546875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "icon-btn backup-action",
+      "name": "Скачать riverside-20261004-030000.tar.gz",
+      "width": 91.234375,
+      "height": 36,
+      "disabled": false,
+      "x": 996.734375,
+      "y": 696.546875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "icon-btn backup-action",
+      "name": "Проверить riverside-20261004-030000.tar.gz",
+      "width": 108.203125,
+      "height": 36,
+      "disabled": false,
+      "x": 1095.96875,
+      "y": 696.546875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "icon-btn backup-action",
+      "name": "Восстановить из riverside-20261004-030000.tar.gz",
+      "width": 136.828125,
+      "height": 36,
+      "disabled": false,
+      "x": 1212.171875,
+      "y": 696.546875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "icon-btn danger",
+      "name": "Удалить riverside-20261004-030000.tar.gz",
+      "width": 36,
+      "height": 36,
+      "disabled": false,
+      "x": 1357,
+      "y": 696.546875
+    },
+    {
+      "tag": "SELECT",
+      "id": "bkJournalPageSize",
+      "cls": "",
+      "name": "25\n50\n100",
+      "width": 80,
+      "height": 44,
+      "disabled": false,
+      "x": 339.734375,
+      "y": 996.1875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "bkJournalPrev",
+      "cls": "btn small",
+      "name": "Назад",
+      "width": 64.125,
+      "height": 36,
+      "disabled": true,
+      "x": 1256.625,
+      "y": 1000.1875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "bkJournalNext",
+      "cls": "btn small",
+      "name": "Далее",
+      "width": 64.25,
+      "height": 36,
+      "disabled": true,
+      "x": 1328.75,
+      "y": 1000.1875
+    }
+  ],
+  "smallControls": [
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "help-trigger",
+      "name": "Статус профиля на сервере",
+      "width": 32,
+      "height": 32,
+      "disabled": false,
+      "x": 973.28125,
+      "y": 22
+    },
+    {
+      "tag": "INPUT",
+      "id": "bkAutoSwitch",
+      "cls": "",
+      "name": "",
+      "width": 1,
+      "height": 1,
+      "disabled": false,
+      "x": 1359,
+      "y": 230.796875
+    },
+    {
+      "tag": "INPUT",
+      "id": "bkAutoStop",
+      "cls": "",
+      "name": "Останавливать сервер на время бэкапа",
+      "width": 18,
+      "height": 18,
+      "disabled": false,
+      "x": 255,
+      "y": 412.796875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "btnBackup",
+      "cls": "btn small",
+      "name": "Создать",
+      "width": 76.625,
+      "height": 36,
+      "disabled": false,
+      "x": 1316.375,
+      "y": 489.796875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "icon-btn backup-action",
+      "name": "Скачать riverside-20261006-030000.tar.gz",
+      "width": 91.234375,
+      "height": 36,
+      "disabled": false,
+      "x": 996.734375,
+      "y": 590.546875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "icon-btn backup-action",
+      "name": "Проверить riverside-20261006-030000.tar.gz",
+      "width": 108.203125,
+      "height": 36,
+      "disabled": false,
+      "x": 1095.96875,
+      "y": 590.546875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "icon-btn backup-action",
+      "name": "Восстановить из riverside-20261006-030000.tar.gz",
+      "width": 136.828125,
+      "height": 36,
+      "disabled": false,
+      "x": 1212.171875,
+      "y": 590.546875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "icon-btn danger",
+      "name": "Удалить riverside-20261006-030000.tar.gz",
+      "width": 36,
+      "height": 36,
+      "disabled": false,
+      "x": 1357,
+      "y": 590.546875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "icon-btn backup-action",
+      "name": "Скачать riverside-20261005-030000.tar.gz",
+      "width": 91.234375,
+      "height": 36,
+      "disabled": false,
+      "x": 996.734375,
+      "y": 643.546875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "icon-btn backup-action",
+      "name": "Проверить riverside-20261005-030000.tar.gz",
+      "width": 108.203125,
+      "height": 36,
+      "disabled": false,
+      "x": 1095.96875,
+      "y": 643.546875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "icon-btn backup-action",
+      "name": "Восстановить из riverside-20261005-030000.tar.gz",
+      "width": 136.828125,
+      "height": 36,
+      "disabled": false,
+      "x": 1212.171875,
+      "y": 643.546875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "icon-btn danger",
+      "name": "Удалить riverside-20261005-030000.tar.gz",
+      "width": 36,
+      "height": 36,
+      "disabled": false,
+      "x": 1357,
+      "y": 643.546875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "icon-btn backup-action",
+      "name": "Скачать riverside-20261004-030000.tar.gz",
+      "width": 91.234375,
+      "height": 36,
+      "disabled": false,
+      "x": 996.734375,
+      "y": 696.546875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "icon-btn backup-action",
+      "name": "Проверить riverside-20261004-030000.tar.gz",
+      "width": 108.203125,
+      "height": 36,
+      "disabled": false,
+      "x": 1095.96875,
+      "y": 696.546875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "icon-btn backup-action",
+      "name": "Восстановить из riverside-20261004-030000.tar.gz",
+      "width": 136.828125,
+      "height": 36,
+      "disabled": false,
+      "x": 1212.171875,
+      "y": 696.546875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "cls": "icon-btn danger",
+      "name": "Удалить riverside-20261004-030000.tar.gz",
+      "width": 36,
+      "height": 36,
+      "disabled": false,
+      "x": 1357,
+      "y": 696.546875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "bkJournalPrev",
+      "cls": "btn small",
+      "name": "Назад",
+      "width": 64.125,
+      "height": 36,
+      "disabled": true,
+      "x": 1256.625,
+      "y": 1000.1875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "bkJournalNext",
+      "cls": "btn small",
+      "name": "Далее",
+      "width": 64.25,
+      "height": 36,
+      "disabled": true,
+      "x": 1328.75,
+      "y": 1000.1875
+    }
+  ],
+  "overflowing": [
+    {
+      "tag": "SPAN",
+      "id": "",
+      "cls": "sr-only",
+      "x": -1,
+      "right": 0,
+      "width": 1
+    }
+  ],
+  "lang": "ru",
+  "title": "Бэкапы · PZ Пульт",
+  "resources": [
+    {
+      "name": "http://127.0.0.1:62120/static/fonts/fonts.css",
+      "duration": 89,
+      "transferSize": 2238,
+      "encodedBodySize": 1938
+    },
+    {
+      "name": "http://127.0.0.1:62120/static/style.css",
+      "duration": 96.20000004768372,
+      "transferSize": 95351,
+      "encodedBodySize": 95051
+    },
+    {
+      "name": "http://127.0.0.1:62120/static/pwa.css",
+      "duration": 113.5,
+      "transferSize": 3925,
+      "encodedBodySize": 3625
+    },
+    {
+      "name": "http://127.0.0.1:62120/static/catalogs.js",
+      "duration": 118.5,
+      "transferSize": 143155,
+      "encodedBodySize": 142855
+    },
+    {
+      "name": "http://127.0.0.1:62120/static/i18n.js",
+      "duration": 165.29999995231628,
+      "transferSize": 8065,
+      "encodedBodySize": 7765
+    },
+    {
+      "name": "http://127.0.0.1:62120/static/localize.js",
+      "duration": 193.20000004768372,
+      "transferSize": 340,
+      "encodedBodySize": 40
+    },
+    {
+      "name": "http://127.0.0.1:62120/static/app.js",
+      "duration": 218.30000007152557,
+      "transferSize": 143780,
+      "encodedBodySize": 143480
+    },
+    {
+      "name": "http://127.0.0.1:62120/static/editor.js",
+      "duration": 233.5,
+      "transferSize": 87221,
+      "encodedBodySize": 86921
+    },
+    {
+      "name": "http://127.0.0.1:62120/static/pwa.js",
+      "duration": 270.7999999523163,
+      "transferSize": 7982,
+      "encodedBodySize": 7682
+    },
+    {
+      "name": "http://127.0.0.1:62120/static/fonts/golos-text-400-cyrillic.woff2",
+      "duration": 180.29999995231628,
+      "transferSize": 22328,
+      "encodedBodySize": 22028
+    },
+    {
+      "name": "http://127.0.0.1:62120/static/fonts/golos-text-400-latin.woff2",
+      "duration": 212.5,
+      "transferSize": 38384,
+      "encodedBodySize": 38084
+    },
+    {
+      "name": "http://127.0.0.1:62120/static/fonts/jetbrains-mono-400-latin.woff2",
+      "duration": 245.29999995231628,
+      "transferSize": 31640,
+      "encodedBodySize": 31340
+    },
+    {
+      "name": "http://127.0.0.1:62120/api/health",
+      "duration": 31.5,
+      "transferSize": 352,
+      "encodedBodySize": 52
+    },
+    {
+      "name": "http://127.0.0.1:62120/api/server-configs",
+      "duration": 27.199999928474426,
+      "transferSize": 612,
+      "encodedBodySize": 312
+    },
+    {
+      "name": "http://127.0.0.1:62120/api/stream?logs=0",
+      "duration": 33.89999997615814,
+      "transferSize": 5112,
+      "encodedBodySize": 4812
+    },
+    {
+      "name": "http://127.0.0.1:62120/api/config-draft?file=world.ini",
+      "duration": 72.5,
+      "transferSize": 5562,
+      "encodedBodySize": 5262
+    },
+    {
+      "name": "http://127.0.0.1:62120/api/auth/session",
+      "duration": 62.59999990463257,
+      "transferSize": 352,
+      "encodedBodySize": 52
+    },
+    {
+      "name": "http://127.0.0.1:62120/static/fonts/jetbrains-mono-400-cyrillic.woff2",
+      "duration": 61.5,
+      "transferSize": 9192,
+      "encodedBodySize": 8892
+    },
+    {
+      "name": "http://127.0.0.1:62120/api/mods?file=world.ini&draft=1",
+      "duration": 45.799999952316284,
+      "transferSize": 1631,
+      "encodedBodySize": 1331
+    }
+  ],
+  "navigation": {
+    "name": "http://127.0.0.1:62120/#/overview",
+    "entryType": "navigation",
+    "startTime": 0,
+    "duration": 460.2000000476837,
+    "navigationId": 6943,
+    "initiatorType": "navigation",
+    "deliveryType": "",
+    "nextHopProtocol": "http/1.0",
+    "renderBlockingStatus": "non-blocking",
+    "contentType": "text/html",
+    "contentEncoding": "",
+    "workerStart": 0,
+    "workerRouterEvaluationStart": 0,
+    "workerCacheLookupStart": 0,
+    "workerMatchedSourceType": "",
+    "workerFinalSourceType": "",
+    "redirectStart": 0,
+    "redirectEnd": 0,
+    "fetchStart": 1.5,
+    "domainLookupStart": 19.200000047683716,
+    "domainLookupEnd": 19.299999952316284,
+    "connectStart": 19.299999952316284,
+    "secureConnectionStart": 0,
+    "connectEnd": 20.299999952316284,
+    "requestStart": 20.600000023841858,
+    "responseStart": 23.899999976158142,
+    "firstInterimResponseStart": 0,
+    "finalResponseHeadersStart": 23.899999976158142,
+    "responseEnd": 33.89999997615814,
+    "transferSize": 54654,
+    "encodedBodySize": 54354,
+    "decodedBodySize": 54354,
+    "responseStatus": 200,
+    "serverTiming": [],
+    "unloadEventStart": 33.700000047683716,
+    "unloadEventEnd": 33.700000047683716,
+    "domInteractive": 336.39999997615814,
+    "domContentLoadedEventStart": 336.39999997615814,
+    "domContentLoadedEventEnd": 336.5,
+    "domComplete": 459.89999997615814,
+    "loadEventStart": 460.2000000476837,
+    "loadEventEnd": 460.2000000476837,
+    "type": "navigate",
+    "redirectCount": 0,
+    "activationStart": 0,
+    "criticalCHRestart": 0,
+    "notRestoredReasons": null,
+    "confidence": {
+      "randomizedTriggerRate": 0.4994798,
+      "value": "low"
+    }
+  },
+  "axe": {
+    "violations": [],
+    "incomplete": [
+      {
+        "id": "aria-prohibited-attr",
+        "impact": "serious",
+        "tags": [
+          "cat.aria",
+          "wcag2a",
+          "wcag412",
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAAv4",
+          "RGAA-7.1.1"
+        ],
+        "description": "Ensure ARIA attributes are not prohibited for an element's role",
+        "help": "Elements must only use permitted ARIA attributes",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-prohibited-attr?application=axeAPI",
+        "nodes": [
+          {
+            "any": [],
+            "all": [],
+            "none": [
+              {
+                "id": "aria-prohibited-attr",
+                "data": {
+                  "role": null,
+                  "nodeName": "div",
+                  "messageKey": "visibleLabelSingular",
+                  "prohibited": [
+                    "aria-labelledby"
+                  ]
+                },
+                "relatedNodes": [],
+                "impact": "serious",
+                "message": "aria-labelledby attribute is not well supported, but the elements referenced by aria-labelledby are visible in the page. Verify the label is not necessary."
+              }
+            ],
+            "impact": "serious",
+            "html": "<div class=\"view\" id=\"view-backups\" tabindex=\"-1\" aria-labelledby=\"page-backups\">",
+            "target": [
+              "#view-backups"
+            ],
+            "failureSummary": "Fix all of the following:\n  aria-labelledby attribute is not well supported, but the elements referenced by aria-labelledby are visible in the page. Verify the label is not necessary."
+          }
+        ]
+      },
+      {
+        "id": "aria-valid-attr-value",
+        "impact": "critical",
+        "tags": [
+          "cat.aria",
+          "wcag2a",
+          "wcag412",
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAAv4",
+          "RGAA-7.1.1"
+        ],
+        "description": "Ensure all ARIA attributes have valid values",
+        "help": "ARIA attributes must conform to valid values",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/aria-valid-attr-value?application=axeAPI",
+        "nodes": [
+          {
+            "any": [],
+            "all": [
+              {
+                "id": "aria-valid-attr-value",
+                "data": {
+                  "messageKey": "controlsWithinPopup",
+                  "needsReview": "aria-controls=\"commandDialog\""
+                },
+                "relatedNodes": [],
+                "impact": "critical",
+                "message": "Unable to determine if aria-controls referenced ID exists on the page while using aria-haspopup: aria-controls=\"commandDialog\""
+              }
+            ],
+            "none": [],
+            "impact": "critical",
+            "html": "<button class=\"btn\" id=\"btnCommands\" type=\"button\" title=\"Быстрые команды (Ctrl K)\" aria-label=\"Быстрые команды\" aria-keyshortcuts=\"Control+k Meta+k\" aria-haspopup=\"dialog\" aria-controls=\"commandDialog\">",
+            "target": [
+              "#btnCommands"
+            ],
+            "failureSummary": "Fix all of the following:\n  Unable to determine if aria-controls referenced ID exists on the page while using aria-haspopup: aria-controls=\"commandDialog\""
+          }
+        ]
+      },
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "tags": [
+          "cat.color",
+          "wcag2aa",
+          "wcag143",
+          "TTv5",
+          "TT13.c",
+          "EN-301-549",
+          "EN-9.1.4.3",
+          "ACT",
+          "RGAAv4",
+          "RGAA-3.2.1"
+        ],
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/color-contrast?application=axeAPI",
+        "nodes": [
+          {
+            "any": [
+              {
+                "id": "color-contrast",
+                "data": {
+                  "fgColor": null,
+                  "bgColor": null,
+                  "contrastRatio": 0,
+                  "fontSize": "10.1pt (13.5px)",
+                  "fontWeight": "normal",
+                  "messageKey": "bgImage",
+                  "expectedContrastRatio": "4.5:1",
+                  "shadowColor": null,
+                  "colorParse": null
+                },
+                "relatedNodes": [
+                  {
+                    "html": "<select id=\"configProfile\" aria-label=\"Профиль конфигурации\" aria-describedby=\"configActive\" data-state=\"active\" title=\"Активен на сервере. Сервер использует world.ini\"><option value=\"\">Выберите профиль…</option><option value=\"world.ini\">world.ini</option></select>",
+                    "target": [
+                      "#configProfile"
+                    ]
+                  }
+                ],
+                "impact": "serious",
+                "message": "Element's background color could not be determined due to a background image"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "serious",
+            "html": "<select id=\"configProfile\" aria-label=\"Профиль конфигурации\" aria-describedby=\"configActive\" data-state=\"active\" title=\"Активен на сервере. Сервер использует world.ini\"><option value=\"\">Выберите профиль…</option><option value=\"world.ini\">world.ini</option></select>",
+            "target": [
+              "#configProfile"
+            ],
+            "failureSummary": "Fix any of the following:\n  Element's background color could not be determined due to a background image"
+          },
+          {
+            "any": [
+              {
+                "id": "color-contrast",
+                "data": {
+                  "fgColor": null,
+                  "bgColor": null,
+                  "contrastRatio": 0,
+                  "fontSize": "10.1pt (13.5px)",
+                  "fontWeight": "normal",
+                  "messageKey": "bgImage",
+                  "expectedContrastRatio": "4.5:1",
+                  "shadowColor": null,
+                  "colorParse": null
+                },
+                "relatedNodes": [
+                  {
+                    "html": "<select id=\"languageSwitch\" class=\"language-switch\" data-language-switch=\"\" aria-label=\"Язык интерфейса\"><option value=\"en\" lang=\"en\">EN</option><option value=\"ru\" lang=\"ru\">RU</option></select>",
+                    "target": [
+                      "#languageSwitch"
+                    ]
+                  }
+                ],
+                "impact": "serious",
+                "message": "Element's background color could not be determined due to a background image"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "serious",
+            "html": "<select id=\"languageSwitch\" class=\"language-switch\" data-language-switch=\"\" aria-label=\"Язык интерфейса\"><option value=\"en\" lang=\"en\">EN</option><option value=\"ru\" lang=\"ru\">RU</option></select>",
+            "target": [
+              "#languageSwitch"
+            ],
+            "failureSummary": "Fix any of the following:\n  Element's background color could not be determined due to a background image"
+          },
+          {
+            "any": [
+              {
+                "id": "color-contrast",
+                "data": {
+                  "fgColor": null,
+                  "bgColor": null,
+                  "contrastRatio": 0,
+                  "fontSize": "10.1pt (13.5px)",
+                  "fontWeight": "normal",
+                  "messageKey": "bgImage",
+                  "expectedContrastRatio": "4.5:1",
+                  "shadowColor": null,
+                  "colorParse": null
+                },
+                "relatedNodes": [
+                  {
+                    "html": "<select id=\"bkJournalPageSize\" aria-controls=\"bkJournalBody\">\n              <option value=\"25\" selected=\"\">25</option>\n              <option value=\"50\">50</option>\n              <option value=\"100\">100</option>\n            </select>",
+                    "target": [
+                      "#bkJournalPageSize"
+                    ]
+                  }
+                ],
+                "impact": "serious",
+                "message": "Element's background color could not be determined due to a background image"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "serious",
+            "html": "<select id=\"bkJournalPageSize\" aria-controls=\"bkJournalBody\">\n              <option value=\"25\" selected=\"\">25</option>\n              <option value=\"50\">50</option>\n              <option value=\"100\">100</option>\n            </select>",
+            "target": [
+              "#bkJournalPageSize"
+            ],
+            "failureSummary": "Fix any of the following:\n  Element's background color could not be determined due to a background image"
+          }
+        ]
+      }
+    ],
+    "passes": [
+      "aria-allowed-attr",
+      "aria-allowed-role",
+      "aria-conditional-attr",
+      "aria-deprecated-role",
+      "aria-hidden-body",
+      "aria-hidden-focus",
+      "aria-prohibited-attr",
+      "aria-required-attr",
+      "aria-roles",
+      "aria-valid-attr-value",
+      "aria-valid-attr",
+      "avoid-inline-spacing",
+      "button-name",
+      "bypass",
+      "color-contrast",
+      "document-title",
+      "duplicate-id-aria",
+      "empty-heading",
+      "form-field-multiple-labels",
+      "heading-order",
+      "html-has-lang",
+      "html-lang-valid",
+      "label-title-only",
+      "label",
+      "landmark-banner-is-top-level",
+      "landmark-main-is-top-level",
+      "landmark-no-duplicate-banner",
+      "landmark-no-duplicate-main",
+      "landmark-one-main",
+      "landmark-unique",
+      "link-name",
+      "meta-viewport-large",
+      "meta-viewport",
+      "nested-interactive",
+      "page-has-heading-one",
+      "region",
+      "select-name",
+      "tabindex",
+      "valid-lang"
+    ]
+  }
+}

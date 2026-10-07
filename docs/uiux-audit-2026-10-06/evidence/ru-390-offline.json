@@ -1,0 +1,208 @@
+{
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "scrollWidth": 390,
+  "bodyWidth": 390,
+  "controls": [
+    {
+      "tag": "SELECT",
+      "id": "",
+      "cls": "language-switch",
+      "name": "Язык интерфейса",
+      "width": 64,
+      "height": 44,
+      "disabled": false,
+      "x": 24,
+      "y": 283.421875
+    },
+    {
+      "tag": "BUTTON",
+      "id": "pwaRetry",
+      "cls": "pwa-button",
+      "name": "Повторить подключение",
+      "width": 205.09375,
+      "height": 44,
+      "disabled": false,
+      "x": 24,
+      "y": 572.171875
+    }
+  ],
+  "smallControls": [],
+  "overflowing": [],
+  "lang": "ru",
+  "title": "Нет связи · PZ Пульт",
+  "resources": [
+    {
+      "name": "http://127.0.0.1:52032/static/fonts/fonts.css",
+      "duration": 62.09999990463257,
+      "transferSize": 4578,
+      "encodedBodySize": 4278
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/pwa.css",
+      "duration": 73.70000004768372,
+      "transferSize": 3925,
+      "encodedBodySize": 3625
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/favicon.svg",
+      "duration": 64.80000007152557,
+      "transferSize": 820,
+      "encodedBodySize": 520
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/catalogs.js",
+      "duration": 63.699999928474426,
+      "transferSize": 140859,
+      "encodedBodySize": 140559
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/i18n.js",
+      "duration": 67.60000002384186,
+      "transferSize": 8065,
+      "encodedBodySize": 7765
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/localize.js",
+      "duration": 61.60000002384186,
+      "transferSize": 340,
+      "encodedBodySize": 40
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/pwa.js",
+      "duration": 93.39999997615814,
+      "transferSize": 7982,
+      "encodedBodySize": 7682
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/fonts/golos-text-500-latin.woff2",
+      "duration": 39.10000002384186,
+      "transferSize": 38384,
+      "encodedBodySize": 38084
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/fonts/golos-text-600-latin.woff2",
+      "duration": 51,
+      "transferSize": 38384,
+      "encodedBodySize": 38084
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/fonts/golos-text-400-cyrillic.woff2",
+      "duration": 56,
+      "transferSize": 22328,
+      "encodedBodySize": 22028
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/fonts/golos-text-600-cyrillic.woff2",
+      "duration": 54.59999990463257,
+      "transferSize": 22328,
+      "encodedBodySize": 22028
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/fonts/golos-text-400-latin.woff2",
+      "duration": 53.200000047683716,
+      "transferSize": 38384,
+      "encodedBodySize": 38084
+    },
+    {
+      "name": "http://127.0.0.1:52032/static/fonts/golos-text-500-cyrillic.woff2",
+      "duration": 53.200000047683716,
+      "transferSize": 22328,
+      "encodedBodySize": 22028
+    }
+  ],
+  "navigation": {
+    "name": "http://127.0.0.1:52032/static/offline.html",
+    "entryType": "navigation",
+    "startTime": 0,
+    "duration": 260.7000000476837,
+    "navigationId": 7524,
+    "initiatorType": "navigation",
+    "deliveryType": "",
+    "nextHopProtocol": "http/1.0",
+    "renderBlockingStatus": "non-blocking",
+    "contentType": "text/html",
+    "contentEncoding": "",
+    "workerStart": 0,
+    "workerRouterEvaluationStart": 0,
+    "workerCacheLookupStart": 0,
+    "workerMatchedSourceType": "",
+    "workerFinalSourceType": "",
+    "redirectStart": 0,
+    "redirectEnd": 0,
+    "fetchStart": 1.2999999523162842,
+    "domainLookupStart": 18.700000047683716,
+    "domainLookupEnd": 19.299999952316284,
+    "connectStart": 19.299999952316284,
+    "secureConnectionStart": 0,
+    "connectEnd": 20.200000047683716,
+    "requestStart": 20.399999976158142,
+    "responseStart": 22.100000023841858,
+    "firstInterimResponseStart": 0,
+    "finalResponseHeadersStart": 22.100000023841858,
+    "responseEnd": 24.299999952316284,
+    "transferSize": 2272,
+    "encodedBodySize": 1972,
+    "decodedBodySize": 1972,
+    "responseStatus": 200,
+    "serverTiming": [],
+    "unloadEventStart": 34.799999952316284,
+    "unloadEventEnd": 34.799999952316284,
+    "domInteractive": 175.5,
+    "domContentLoadedEventStart": 177.5,
+    "domContentLoadedEventEnd": 178.79999995231628,
+    "domComplete": 260.60000002384186,
+    "loadEventStart": 260.7000000476837,
+    "loadEventEnd": 260.7000000476837,
+    "type": "navigate",
+    "redirectCount": 0,
+    "activationStart": 0,
+    "criticalCHRestart": 0,
+    "notRestoredReasons": null,
+    "confidence": {
+      "randomizedTriggerRate": 0.4994798,
+      "value": "low"
+    }
+  },
+  "axe": {
+    "violations": [],
+    "incomplete": [],
+    "passes": [
+      "aria-allowed-attr",
+      "aria-allowed-role",
+      "aria-conditional-attr",
+      "aria-deprecated-role",
+      "aria-hidden-body",
+      "aria-prohibited-attr",
+      "aria-required-attr",
+      "aria-roles",
+      "aria-valid-attr-value",
+      "aria-valid-attr",
+      "button-name",
+      "color-contrast",
+      "document-title",
+      "empty-heading",
+      "form-field-multiple-labels",
+      "heading-order",
+      "html-has-lang",
+      "html-lang-valid",
+      "image-alt",
+      "image-redundant-alt",
+      "label-title-only",
+      "landmark-main-is-top-level",
+      "landmark-no-duplicate-main",
+      "landmark-one-main",
+      "landmark-unique",
+      "meta-viewport-large",
+      "meta-viewport",
+      "nested-interactive",
+      "page-has-heading-one",
+      "presentation-role-conflict",
+      "region",
+      "select-name",
+      "valid-lang"
+    ]
+  }
+}
