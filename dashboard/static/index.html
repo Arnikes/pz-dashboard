@@ -56,8 +56,7 @@
         <div class="profile-label">
           <label class="sr-only" for="configProfile">Профиль</label>
           <select id="configProfile" aria-label="Профиль конфигурации" aria-describedby="configActive"><option value="">Загрузка…</option></select>
-          <span class="help-tip"><button type="button" class="help-trigger" data-help="configProfileHelp" aria-label="Статус профиля на сервере" aria-describedby="configProfileHelp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v6M12 7v2"/></svg></button><span id="configProfileHelp" class="help-content" role="tooltip" popover="manual" hidden>Выберите профиль, чтобы узнать его состояние на сервере.</span></span>
-          <span id="configActive">Не подтверждён</span>
+          <span id="configActive" hidden>Не подтверждён</span>
         </div>
       </div>
       <button class="btn" id="btnCommands" type="button" title="Быстрые команды (Ctrl K)" aria-label="Быстрые команды" aria-keyshortcuts="Control+k Meta+k" aria-haspopup="dialog" aria-controls="commandDialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><span class="command-label">Быстрые команды</span></button>

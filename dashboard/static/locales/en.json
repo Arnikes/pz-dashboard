@@ -6,7 +6,6 @@
   ", замечания:": ", notes:",
   ", чтобы сохранить текущий пароль.": "to keep the current password.",
   ". ModID выберете после загрузки.": ". Select ModID after downloading.",
-  ". Выберите профиль в шапке. Оливковый селектор означает, что пульт сопоставил профиль с запуском PZ. Янтарный — выбран другой профиль или профиль запуска не подтверждён; точное состояние доступно в подсказке селектора. Другой профиль можно редактировать, но нельзя применить рестартом вместо активного.": ". Select a profile in the header. An olive selector means the console matched the profile to the PZ launch. Amber means another profile is selected or the launch profile is unconfirmed; hover over the selector for the exact status. Other profiles can be edited, but cannot replace the active profile during a restart.",
   ". Дождитесь результата; прогресс показан над разделом.": ". Wait for the result; progress appears above this section.",
   ". Текущий черновик будет заменён. После загрузки просмотрите различия и отдельно примените изменения.": ". The current draft will be replaced. Review the differences after loading, then apply the changes separately.",
   "1. Рестарт скачает новые Workshop items и сохранит прежние Mods. 2. После выбора ModID следующий рестарт активирует их вместе с остальными правками.": "1. Restart downloads new Workshop items and keeps the existing Mods. 2. After selecting ModID, the next restart activates them along with your other changes.",
@@ -1417,9 +1416,6 @@
   "Создан": "Created",
   "Действия": "Actions",
   "Восстановить…": "Restore…",
-  ". Выберите профиль в шапке. Оливковый селектор означает, что пульт сопоставил профиль с запуском PZ. Янтарный — выбран другой профиль или профиль запуска не подтверждён; точное состояние можно открыть кнопкой «Статус профиля на сервере» рядом с селектором. Другой профиль можно редактировать, но нельзя применить рестартом вместо активного.": ". Select a profile in the header. An olive selector means the console matched the profile to the PZ launch. Amber means another profile is selected or the launch profile is unconfirmed; use the Server profile status button beside the selector for the exact status. Other profiles can be edited, but cannot replace the active profile during a restart.",
-  "Статус профиля на сервере": "Server profile status",
-  "Выберите профиль, чтобы узнать его состояние на сервере.": "Select a profile to see its server status.",
   "Поиск в настройках сервера": "Search server settings",
   "Поиск в настройках мира": "Search world settings",
   "Поиск в настройках модов": "Search mod settings",
@@ -1432,7 +1428,6 @@
   "Строк: {{0}} из {{1}}": "Lines: {{0}} of {{1}}",
   "Нет строк по выбранным фильтрам.": "No lines match the selected filters.",
   "Сбросить фильтры": "Reset filters",
-  "Загружаем состояние выбранного профиля…": "Loading the selected profile status…",
   "RCON:": "RCON:",
   "Watchdog:": "Watchdog:",
   "telegram.language должен быть ru или en": "telegram.language must be ru or en",
@@ -1454,5 +1449,6 @@
     "one": "{{0}} in {{1}} second",
     "other": "{{0}} in {{1}} seconds"
   },
-  "{{0}}.language должен быть ru или en": "{{0}}.language must be ru or en"
+  "{{0}}.language должен быть ru или en": "{{0}}.language must be ru or en",
+  ". Выберите профиль в шапке. Оливковый селектор означает, что пульт сопоставил профиль с запуском PZ. Янтарный — выбран другой профиль или профиль запуска не подтверждён. Другой профиль можно редактировать, но нельзя применить рестартом вместо активного.": ". Select a profile in the header. An olive selector means the console matched the profile to the PZ launch. Amber means another profile is selected or the launch profile is unconfirmed. Other profiles can be edited, but cannot replace the active profile during a restart."
 }

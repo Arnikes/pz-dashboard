@@ -172,10 +172,9 @@ beside the same globe-and-language control used by login and the dashboard,
 with 24px separation before the page title. Shared language-control styling
 lives in `pwa.css` so it also works from the offline cache.
 The top bar contains the active profile, language selector, quick commands,
-and sign-out action. The active profile's status remains available through its
-accessible description without a visible active-state label. Other-profile and
-unconfirmed-profile warnings remain visible. A shared help control beside the
-selector reveals the exact profile status on tap or keyboard focus. Settings navigation shows a count
+and sign-out action. The profile's status remains available through its
+accessible description and selector color in every state, without a visible
+status label or adjacent help control. Settings navigation shows a count
 of changed draft lines when a draft has changes.
 Mods put search and filtering first and disclose package/collection addition
 separately; search has a visible label, and the page heading links to custom mod

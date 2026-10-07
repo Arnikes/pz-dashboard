@@ -1820,8 +1820,6 @@ body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--footer-height)
 /* Approved editor refinement: clear state, compact actions and bounded fields. */
 .profile-label { display:flex; align-items:center; gap:10px; }
 .profile-label select { width:auto; flex:1; }
-#configActive { font-size:12px; line-height:1.4; color:var(--warn); }
-#configActive[data-state=active] { color:var(--ok); }
 .draft-copy { min-width:0; display:grid; gap:4px; }
 .draft-status { display:flex; flex-wrap:wrap; gap:0 8px; }
 .draft-status .hint { font-size:12px; margin:0; }
@@ -1871,11 +1869,9 @@ body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--footer-height)
   .backup-row .b-age { grid-row:2; }
   .backup-actions { grid-column:1/-1; }
   .profile-label { flex-wrap:wrap; gap:2px; }
-  #configActive { flex-basis:100%; }
 }
 @media (max-width:740px) {
   .profile-label { flex-wrap:wrap; gap:2px; }
-  #configActive { flex-basis:100%; }
   .draft-bar { grid-template-columns:minmax(0,1fr) minmax(0,1fr) 44px; gap:8px; }
   .draft-copy { grid-column:1/-1; }
   .draft-bar #configDiff { grid-column:1; }

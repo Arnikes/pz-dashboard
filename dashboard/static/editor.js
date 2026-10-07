@@ -101,12 +101,7 @@ window.ConfigEditor = (() => {
     const profile = $("configProfile");
     const profileLabel = draft.canApply ? I18n.t("Активен на сервере") : draft.activeFile ? I18n.t("Другой профиль") : I18n.t("Не подтверждён");
     setDomProperty(profileState, "textContent", profileLabel);
-    setDomProperty(profileState, "hidden", !!draft.canApply);
-    setDomProperty(profileState.dataset, "state", draft.canApply ? "active" : "warning");
     setDomProperty(profile.dataset, "state", draft.canApply ? "active" : draft.activeFile ? "other" : "unknown");
-    const profileDescription = profileLabel + ". " + (draft.activeFile ? I18n.msg`Сервер использует ${draft.activeFile}` : I18n.t("Не удалось определить профиль запуска сервера"));
-    setDomProperty(profile, "title", profileDescription);
-    setDomProperty($("configProfileHelp"), "textContent", loading ? I18n.t("Загружаем состояние выбранного профиля…") : profileDescription);
     const versionLabel = draft.version ? `PZ ${draft.version}` : I18n.t("B42 · версия неизвестна");
     setDomProperty($("configVersion"), "textContent", versionLabel);
     setDomProperty($("configVersion"), "title", versionLabel);

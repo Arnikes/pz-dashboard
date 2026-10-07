@@ -221,27 +221,17 @@ def test_login_transport_retry_preserves_input_without_persisting_secret(
 
 @pytest.mark.parametrize("width", [320, 390, 1440])
 @pytest.mark.parametrize("language", ["ru", "en"])
-def test_profile_status_is_available_on_focus_tap_and_escape(
+def test_profile_selector_has_no_adjacent_status_or_help(
     page, dashboard, editing, width, language
 ):  # noqa: F811
     start(page, dashboard, "settings", language, width)
     expect(page.locator("#configProfile")).to_have_value("world.ini")
-    trigger = page.locator('[data-help="configProfileHelp"]')
-    tip = page.locator("#configProfileHelp")
     expect(page.locator("#configActive")).to_be_hidden()
-    trigger.focus()
-    expect(tip).to_be_visible()
-    expect(tip).to_contain_text("world.ini")
-    expect(tip).to_contain_text("Активен на сервере" if language == "ru" else "Active on server")
-    bounds = tip.bounding_box()
-    assert bounds["x"] >= 0 and bounds["x"] + bounds["width"] <= width
-    page.keyboard.press("Escape")
-    expect(tip).to_be_hidden()
-    expect(trigger).to_be_focused()
-    trigger.click()
-    expect(tip).to_be_visible()
-    screenshot(page, f"profile-help-{language}-{width}", full_page=False)
-    page.keyboard.press("Escape")
+    expect(page.locator('[data-help="configProfileHelp"], #configProfileHelp')).to_have_count(0)
+    expect(page.locator("#configProfile")).not_to_have_attribute("title")
+    expect(page.locator("#configProfile")).to_have_accessible_description(
+        "Активен на сервере" if language == "ru" else "Active on server"
+    )
     assert dashboard["actions"] == []
 
 
@@ -265,7 +255,7 @@ def test_variable_fonts_load_all_weights_without_duplicate_urls(page, dashboard,
     )
 
 
-def test_profile_help_tracks_loading_other_and_unknown_context(page, dashboard, editing):
+def test_profile_selector_stays_compact_in_loading_other_and_unknown_context(page, dashboard, editing):
     data, context = editing
     (data / "Server/other.ini").write_text("PublicName=Other\n", encoding="utf-8")
     held = []
@@ -275,20 +265,18 @@ def test_profile_help_tracks_loading_other_and_unknown_context(page, dashboard, 
     expect(page.locator("#configProfile")).to_be_enabled()
     page.locator("#configProfile").select_option("other.ini")
     expect(page.locator("#configProfile")).to_be_disabled()
-    page.locator('[data-help="configProfileHelp"]').focus()
-    expect(page.locator("#configProfileHelp")).to_have_text(
-        "Загружаем состояние выбранного профиля…"
-    )
+    expect(page.locator("#configActive")).to_be_hidden()
+    expect(page.locator('[data-help="configProfileHelp"], #configProfileHelp')).to_have_count(0)
     assert len(held) == 1
     held[0].fallback()
     expect(page.locator("#configProfile")).to_be_enabled()
-    expect(page.locator("#configProfileHelp")).to_have_text(
-        "Другой профиль. Сервер использует world.ini"
-    )
+    expect(page.locator("#configProfile")).to_have_attribute("data-state", "other")
+    expect(page.locator("#configProfile")).to_have_accessible_description("Другой профиль")
+    expect(page.locator("#configActive")).to_be_hidden()
     context["activeFile"] = None
     page.locator("#configProfile").select_option("world.ini")
     expect(page.locator("#configProfile")).to_be_enabled()
-    expect(page.locator("#configProfileHelp")).to_have_text(
-        "Не подтверждён. Не удалось определить профиль запуска сервера"
-    )
+    expect(page.locator("#configProfile")).to_have_attribute("data-state", "unknown")
+    expect(page.locator("#configProfile")).to_have_accessible_description("Не подтверждён")
+    expect(page.locator("#configActive")).to_be_hidden()
     assert dashboard["actions"] == []

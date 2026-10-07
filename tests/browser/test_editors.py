@@ -760,10 +760,10 @@ def test_header_profile_context_is_clear_and_aligned(page, dashboard, editing, w
     page.locator("#configProfile").select_option(other)
     expect(page.locator("#configActive")).to_have_text("Другой профиль")
     expect(page.locator("#configProfile")).to_have_attribute("data-state", "other")
-    expect(page.locator("#configProfile")).to_have_attribute(
-        "title", "Другой профиль. Сервер использует world.ini"
-    )
+    expect(page.locator("#configProfile")).not_to_have_attribute("title")
     expect(page.locator("#configProfile")).to_have_accessible_description("Другой профиль")
+    expect(page.locator("#configActive")).to_be_hidden()
+    expect(page.locator('[data-help="configProfileHelp"], #configProfileHelp')).to_have_count(0)
     other_color = page.locator("#configProfile").evaluate("el => getComputedStyle(el).color")
     assert active_color != other_color
     expect(page.locator("#configProfile")).to_have_css("border-top-color", other_color)
@@ -819,9 +819,8 @@ def test_header_does_not_claim_unknown_profile_is_active(page, dashboard, editin
     expect(page.locator("#configActive")).to_have_text("Не подтверждён")
     expect(page.locator("#configProfile")).to_have_attribute("data-state", "unknown")
     expect(page.locator("#configProfile")).to_have_accessible_description("Не подтверждён")
-    expect(page.locator("#configProfile")).to_have_attribute(
-        "title", "Не подтверждён. Не удалось определить профиль запуска сервера"
-    )
+    expect(page.locator("#configActive")).to_be_hidden()
+    expect(page.locator("#configProfile")).not_to_have_attribute("title")
     page.evaluate("location.hash='#/settings'")
     expect(page.locator("#configActionHelp")).to_contain_text("Профиль запуска не подтверждён")
     page.locator(".context-help summary").filter(has_text="Как применить настройки").click()
@@ -1294,8 +1293,8 @@ def test_verify_external_restart_clears_install_notice_and_old_error_without_act
     expect(page.locator("#flowLaunch")).to_have_text("Подтверждён")
     navigate(page, "settings", width <= 740)
     expect(page.locator("#configStatus")).to_have_text("Применено")
-    expect(page.locator("#configOperationResult")).to_have_count(0)
     expect(page.locator("#configError")).to_be_hidden()
+    expect(page.locator("#configOperationResult")).to_have_count(0)
     assert (data / "Server/world.ini").read_bytes() == original
     assert dashboard["actions"] == []
     assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
@@ -1342,8 +1341,8 @@ def test_auto_verification_updates_open_settings_and_mods_without_click(
     navigate(page, "settings", width <= 740)
     expect(page.locator("#configStatus")).to_have_text("Применено")
     expect(page.locator("#configError")).to_be_hidden()
-    expect(page.locator("#configOperationResult")).to_have_count(0)
     expect(page.locator("#configRebase")).to_be_hidden()
+    expect(page.locator("#configOperationResult")).to_have_count(0)
     assert editor.read_profile("world.ini") == original
     assert (data / "Server/world.ini").exists()
     assert dashboard["actions"] == []
@@ -1714,8 +1713,8 @@ def test_failed_start_history_restores_configuration_into_shared_draft(
     page.locator("#modalOk").click()
     expect(page.get_by_role("alertdialog")).to_contain_text("Изменения при восстановлении")
     page.locator("#modalOk").click()
-    page.get_by_role("tab", name="Сервер", exact=True).click()
     navigate(page, "settings", width == 390)
+    page.get_by_role("tab", name="Сервер", exact=True).click()
     expect(page.locator('[data-key="PublicName"]')).to_have_value("Сервер")
     assert "PublicName=Failed start" in editor.read_profile("world.ini")["ini"]
     assert editor.draft("world.ini")["changed"]
