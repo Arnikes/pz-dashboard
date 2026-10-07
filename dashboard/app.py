@@ -420,7 +420,11 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/server-configs":
             self._editor_request(configeditor.profiles)
         elif path == "/api/config-draft":
-            self._editor_request(lambda: configeditor.draft(qs.get("file", [None])[0]))
+            self._editor_request(
+                lambda: configeditor.draft(
+                    qs.get("file", [None])[0], refresh=qs.get("refresh", ["0"])[0] == "1"
+                )
+            )
         elif path == "/api/config-history":
             self._editor_request(lambda: configeditor.history(qs.get("file", [None])[0]))
         elif path == "/api/telegram-chats":
@@ -538,6 +542,7 @@ class Handler(BaseHTTPRequestHandler):
                     data.get("file"),
                     prepare=data.get("prepare", False),
                     draft_revision=data.get("draftRevision"),
+                    overwrite=data.get("overwrite", False),
                 )
             )
         elif path == "/api/config-verify":

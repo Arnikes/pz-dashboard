@@ -25,12 +25,17 @@ def editing(page, dashboard, env):  # noqa: F811 (imported pytest fixture)
             if url.path == "/api/server-configs":
                 result = editor.profiles()
             elif url.path == "/api/config-draft":
-                result = editor.patch(body) if body else editor.draft(file)
+                result = (
+                    editor.patch(body)
+                    if body
+                    else editor.draft(file, refresh=query.get("refresh", ["0"])[0] == "1")
+                )
             elif url.path == "/api/config-validate":
                 result = editor.validate(
                     body["file"],
                     prepare=body.get("prepare", False),
                     draft_revision=body.get("draftRevision"),
+                    overwrite=body.get("overwrite", False),
                 )
             elif url.path == "/api/config-verify":
                 result = editor.verify_running(body)
@@ -538,9 +543,7 @@ def test_short_phone_diff_keeps_confirmation_buttons_reachable(page, dashboard, 
 
 
 @pytest.mark.parametrize("width", [390, 1440])
-def test_explicit_rebase_keeps_settings_and_fresh_reset_id_without_server_write(
-    page, dashboard, editing, width
-):
+def test_external_changes_keep_page_draft_without_server_write(page, dashboard, editing, width):
     data, _ = editing
     path = data / "Server/world.ini"
     original = INI + "ResetID=4742151\r\n"
@@ -555,21 +558,20 @@ def test_explicit_rebase_keeps_settings_and_fresh_reset_id_without_server_write(
     external = original.replace("ResetID=4742151", "ResetID=1701740")
     path.write_bytes(external.encode())
     page.reload()
-    expect(page.locator("#configError")).to_contain_text("Рабочие файлы изменились")
-    page.locator("#draftMore").click()
-    page.locator("#configRebase").click()
+    expect(page.locator("#configError")).to_be_hidden()
+    expect(page.locator("#configApply")).to_be_enabled()
+    page.locator("#configDiff").click()
     expect(page.get_by_role("alertdialog")).to_contain_text("Keep my draft")
     page.locator("#modalOk").click()
     expect(page.locator("#configError")).to_be_hidden()
     expect(page.locator('[data-key="PublicName"]')).to_have_value("Keep my draft")
-    assert not editor.draft("world.ini")["conflict"]
-    assert "ResetID=1701740" in editor.draft("world.ini")["texts"]["ini"]
+    assert "ResetID=4742151" in editor.draft("world.ini")["texts"]["ini"]
     assert path.read_bytes() == external.encode() and dashboard["actions"] == []
     assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
     page.screenshot(path=str(data.parent / f"rebase-{width}.png"))
 
 
-def test_rebase_overlap_keeps_draft_and_reports_manual_resolution(page, dashboard, editing):
+def test_overlapping_external_changes_do_not_block_draft_review(page, dashboard, editing):
     data, _ = editing
     path = data / "Server/world.ini"
     current = editor.draft("world.ini")
@@ -583,17 +585,18 @@ def test_rebase_overlap_keeps_draft_and_reports_manual_resolution(page, dashboar
     external = INI.replace("Сервер", "External")
     path.write_bytes(external.encode())
     page.goto(dashboard["url"] + "/#/settings")
-    expect(page.locator("#configError")).to_contain_text("Рабочие файлы изменились")
-    page.locator("#draftMore").click()
-    page.locator("#configRebase").click()
-    expect(page.locator("#configError")).to_contain_text("Обе версии изменяют строки")
+    expect(page.locator("#configError")).to_be_hidden()
+    expect(page.locator("#configApply")).to_be_enabled()
+    page.locator("#configDiff").click()
+    expect(page.get_by_role("alertdialog")).to_contain_text("Draft")
+    expect(page.locator("#modalOk")).to_have_text("Закрыть")
     assert editor.draft("world.ini")["conflict"]
     assert "PublicName=Draft" in editor.draft("world.ini")["texts"]["ini"]
     assert path.read_bytes() == external.encode() and dashboard["actions"] == []
 
 
 @pytest.mark.parametrize("width", [390, 1440])
-def test_conflict_review_action_updates_draft_and_then_allows_apply_review(
+def test_conflict_review_allows_apply_without_merging_external_changes(
     page, dashboard, editing, width
 ):
     data, _ = editing
@@ -615,15 +618,15 @@ def test_conflict_review_action_updates_draft_and_then_allows_apply_review(
     expect(page.locator("#configProfile")).to_have_value("world.ini")
     navigate(page, "settings", width <= 740)
     expect(page.locator("#configSaveHint")).to_have_count(0)
-    expect(page.locator("#configApply")).to_be_disabled()
+    expect(page.locator("#configApply")).to_be_enabled()
     page.locator("#configDiff").click()
     expect(page.get_by_role("alertdialog")).to_contain_text("Сейчас на диске")
-    expect(page.locator("#modalOk")).to_have_text("Обновить основу черновика")
+    expect(page.locator("#modalOk")).to_have_text("Закрыть")
     page.locator("#modalOk").click()
     expect(page.locator("#modalRoot")).to_be_hidden()
     expect(page.locator("#configError")).to_be_hidden()
-    assert editor.validate("world.ini")["valid"]
-    assert "ResetID=1701740" in editor.draft("world.ini")["texts"]["ini"]
+    assert editor.validate("world.ini", overwrite=True)["valid"]
+    assert "ResetID=4742151" in editor.draft("world.ini")["texts"]["ini"]
     expect(page.locator('[data-key="PublicName"]')).to_have_value("Keep draft")
     page.locator("#configApply").click()
     expect(page.get_by_role("alertdialog")).to_contain_text("Применить конфигурацию?")
@@ -983,15 +986,16 @@ def test_background_refresh_preserves_profile_focus_and_draft(page, dashboard, e
     expect(page.locator("#configApply")).to_be_disabled()
 
 
-def test_conflict_and_invalid_field_are_visible(page, dashboard, editing):
+def test_external_files_do_not_block_saving_the_page_draft(page, dashboard, editing):
     data, _ = editing
     page.goto(dashboard["url"])
     expect(page.locator("#configProfile")).to_have_value("world.ini")
     navigate(page, "settings")
     (data / "Server/world.ini").write_bytes(INI.replace("Сервер", "External").encode())
-    page.locator('[data-key="PublicName"]').fill("Should not overwrite")
+    page.locator('[data-key="PublicName"]').fill("Will overwrite when applied")
     page.locator('[data-key="PublicName"]').press("Tab")
-    expect(page.locator("#configError")).to_contain_text("изменились")
+    expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
+    expect(page.locator("#configError")).to_be_hidden()
     assert "External" in (data / "Server/world.ini").read_text(encoding="utf-8")
     page.locator("#configDiff").click()
     expect(page.get_by_role("alertdialog")).to_contain_text("Сейчас на диске")
@@ -1214,11 +1218,10 @@ def test_select_chevron_inset_and_text_space(page, dashboard, editing, width):
     assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
 
 
-def test_late_background_response_cannot_mark_own_change_as_conflict(page, dashboard, editing):
+def test_live_snapshots_do_not_request_or_mutate_settings(page, dashboard, editing):
     page.goto(dashboard["url"])
     expect(page.locator("#configProfile")).to_have_value("world.ini")
     navigate(page, "settings")
-    old = editor.draft("world.ini")
     pending = []
 
     def hold(route):
@@ -1227,17 +1230,22 @@ def test_late_background_response_cannot_mark_own_change_as_conflict(page, dashb
         else:
             route.fallback()
 
-    page.route("**/api/config-draft?file=world.ini", hold)
-    with page.expect_request("**/api/config-draft?file=world.ini"):
-        page.evaluate("ConfigEditor.background()")
-    page.wait_for_timeout(100)  # Request events precede delivery to the route handler.
-    assert pending
+    expect(page.locator('[data-key="PublicName"]')).to_be_enabled()
+    page.route("**/api/config-draft?*", hold)
+    page.evaluate("""() => {
+        window.settingsMutations = [];
+        window.settingsObserver = new MutationObserver(r => settingsMutations.push(...r));
+        settingsObserver.observe(document.getElementById('configFields'), {subtree:true, childList:true, attributes:true});
+        for (let i = 0; i < 60; i++) renderMods({ok:true,file:'world.ini',mods:[],workshop:[]});
+    }""")
+    page.evaluate("() => new Promise(resolve => requestAnimationFrame(resolve))")
+    assert not pending
+    assert page.evaluate("settingsMutations.length") == 0
+    page.evaluate("settingsObserver.disconnect()")
     page.locator('[data-key="PublicName"]').fill("Own fresh revision")
     page.locator('[data-key="PublicName"]').press("Tab")
     expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
-    for route in pending:
-        route.fulfill(json=old)
-    page.wait_for_timeout(100)  # Let the stale response's promise callback run.
+    assert not pending
     expect(page.locator("#configError")).to_be_hidden()
     expect(page.locator("#configRebase")).to_be_hidden()
     expect(page.locator('[data-key="PublicName"]')).to_have_value("Own fresh revision")
@@ -1424,7 +1432,7 @@ def test_startup_status_does_not_claim_previous_verification_after_another_resta
 
 
 @pytest.mark.parametrize("width", [390, 1440])
-def test_auto_verification_updates_open_settings_and_mods_without_click(
+def test_auto_verification_updates_editors_only_when_reopened(
     page, dashboard, editing, monkeypatch, width
 ):
     data, _ = saved_verification(editing, monkeypatch, installed=True)
@@ -1435,10 +1443,10 @@ def test_auto_verification_updates_open_settings_and_mods_without_click(
     navigate(page, "mods")
     expect(page.locator("#installNotice")).to_contain_text("Загрузка требует проверки")
     editor.auto_verify_running()
-    # Move the refresh throttle forward without waiting for the real timer.
-    page.evaluate(
-        "const now = Date.now; Date.now = () => now() + 16000; ConfigEditor.background();"
-    )
+    page.evaluate("renderMods({ok:true,file:'world.ini',mods:[],workshop:[]})")
+    expect(page.locator("#installNotice")).to_contain_text("Загрузка требует проверки")
+    navigate(page, "overview")
+    navigate(page, "mods")
     expect(page.locator("#installNotice")).to_be_hidden()
     expect(page.locator("#flowLaunch")).to_have_text("Подтверждён")
     expect(page.locator("#configOperationResult")).to_have_count(0)
@@ -1473,10 +1481,9 @@ def test_auto_verification_refresh_keeps_saved_draft_mod_selection(
     navigate(page, "mods")
     expect(page.locator("#modOrderList [data-order-id]")).to_have_count(1)
     editor.auto_verify_running()
-    with page.expect_response("**/api/config-draft?file=world.ini"):
-        page.evaluate(
-            "const now = Date.now; Date.now = () => now() + 16000; ConfigEditor.background();"
-        )
+    navigate(page, "overview")
+    with page.expect_response("**/api/config-draft?file=world.ini&refresh=1"):
+        navigate(page, "mods")
     expect(page.locator("#configOperationResult")).to_have_count(0)
     expect(page.locator("#modOrderList [data-order-id]")).to_have_count(1)
     page.locator("#modPackages summary").click()
@@ -1497,14 +1504,14 @@ def test_auto_verification_background_does_not_overwrite_unsaved_source(
     pending = source.input_value().replace("PublicName=Сервер", "PublicName=Local unsaved edit")
     source.fill(pending)
     editor.auto_verify_running()
-    page.evaluate(
-        "const now = Date.now; Date.now = () => now() + 16000; ConfigEditor.background();"
-    )
+    page.evaluate("renderMods({ok:true,file:'world.ini',mods:[],workshop:[]})")
+    navigate(page, "overview")
+    navigate(page, "settings")
     expect(source).to_have_value(pending)
     assert "Local unsaved edit" not in editor.read_profile("world.ini")["ini"]
 
 
-def test_auto_verification_marker_cannot_accept_later_edit_from_another_tab(
+def test_stale_page_overwrites_later_draft_from_another_tab_on_save(
     page, dashboard, editing, monkeypatch
 ):
     saved_verification(editing, monkeypatch)
@@ -1517,14 +1524,18 @@ def test_auto_verification_marker_cannot_accept_later_edit_from_another_tab(
         {
             "file": "world.ini",
             "draftRevision": verified["draftRevision"],
-            "ini": {"PublicName": "Another tab"},
+            "ini": {"PublicName": "Another tab", "Unknown": "Other tab change"},
         }
     )
-    page.evaluate(
-        "const now = Date.now; Date.now = () => now() + 16000; ConfigEditor.background();"
-    )
-    expect(page.locator("#draftSaved")).to_contain_text("Черновик изменён другой вкладкой")
+    page.evaluate("renderMods({ok:true,file:'world.ini',mods:[],workshop:[]})")
     expect(page.locator('[data-key="PublicName"]')).to_have_value("Сервер")
+    page.locator('[data-key="PublicName"]').fill("This page wins")
+    page.locator('[data-key="PublicName"]').press("Tab")
+    expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
+    current = editor.draft("world.ini")
+    assert "PublicName=This page wins" in current["texts"]["ini"]
+    assert "Unknown=preserve" in current["texts"]["ini"]
+    expect(page.locator("#configError")).to_be_hidden()
 
 
 @pytest.mark.parametrize("width", [1440, 390])
@@ -1601,9 +1612,13 @@ def test_operation_logs_preserve_filters_and_allow_return_to_all_logs(
     expect(page.locator("#logsPeriod")).to_contain_text("world.ini")
     if not completed:
         expect(page.locator("#logsPeriod")).to_contain_text("продолжается")
+        page.evaluate(
+            "renderOp({active:{op:'apply-config',phase:'Apply',message:'Running'},history:[]})"
+        )
         state.update(status="error", operationCompletedAt="2026-10-01T12:01:00Z")
         editor.save_json(state_path, state)
         running[0] = False
+        page.evaluate("renderOp({active:null,history:[]})")
         expect(page.locator("#logsPeriod")).not_to_contain_text("продолжается", timeout=20000)
     expect(page.locator("#logsOut")).to_contain_text("database operation")
     expect(page.locator("#logsOut")).not_to_contain_text("database before")

@@ -16,7 +16,8 @@ with diagnostics, backups, and lifecycle operations close at hand.
 
 Inspect server state, prepare changes, review them, apply them safely, and verify
 the result. Configuration and mod selections pass through persistent drafts and
-revision checks before reaching game files.
+review before reaching game files. The browser edits a snapshot loaded on entry;
+explicit saves overwrite external changes because parallel editing is unsupported.
 
 ## Operating Context
 
@@ -28,7 +29,7 @@ Explicit demo mode uses illustrative data and does not execute operations.
 
 Eight routes: overview, settings, mods, players, maintenance, backups, events, console.
 The stack is Python plus HTML/CSS/JavaScript. Keep runtime dependencies small.
-Drafts, diffs, history, secret masking, revision checks, world-replacement confirmation,
+Drafts, diffs, history, secret masking, reviewed draft revisions, world-replacement confirmation,
 player warnings, and startup verification are part of the product contract.
 Workshop packages, ModIDs, maps, and profiles are distinct entities.
 The SSE lifecycle is shared across routes.

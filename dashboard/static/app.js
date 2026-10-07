@@ -1317,7 +1317,7 @@ const _wsSwitch = (wsId, checked, title) => `
   </label>`;
 
 function _renderMods(data) {
-  if (window.ConfigEditor) { window.ConfigEditor.background(data); return; }
+  if (window.ConfigEditor) return; // Editors load their snapshot on entry and explicit actions.
   const body = $("modsBody");
   const sel = $("modsFile");
   if (!data.ok) {
@@ -2862,7 +2862,7 @@ const commands = (() => {
     ...Object.entries(VIEWS).map(([route, label]) => ({ label: I18n.t("Открыть: ") + label, hint: I18n.t("Раздел пульта"), run: () => navigate(route) })),
     { label: I18n.t("Найти настройку сервера"), hint: I18n.t("По названию или техническому ключу"), reason: !window.ConfigEditor?.file ? I18n.t("Выберите доступный профиль") : "", run: settings("server") },
     { label: I18n.t("Найти настройку мира"), hint: I18n.t("Параметры Sandbox"), reason: !window.ConfigEditor?.file ? I18n.t("Выберите доступный профиль") : "", run: settings("world") },
-    { label: I18n.t("Найти мод в порядке загрузки"), hint: I18n.t("ModID или название; без изменения порядка"), reason: !window.ConfigEditor?.file ? I18n.t("Выберите доступный профиль") : "", run: async () => { await navigate("mods"); window.ConfigEditor.focusModOrder(); } },
+    { label: I18n.t("Найти мод в порядке загрузки"), hint: I18n.t("ModID или название; без изменения порядка"), reason: !window.ConfigEditor?.file ? I18n.t("Выберите доступный профиль") : "", run: async () => { await navigate("mods"); await window.ConfigEditor.focusModOrder(); } },
     { label: I18n.t("Найти строку в логах"), hint: I18n.t("Перейти к фильтру логов"), reason: $("logsFilter").disabled ? I18n.t("Логи контейнера недоступны в demo и remote") : "", run: async () => { await navigate("console"); $("logsFilter").focus(); } },
     { label: I18n.t("Посмотреть текущую операцию"), hint: I18n.t("Фаза, время и переход к логам"), reason: !S.op?.active ? I18n.t("Сейчас нет активной операции") : "", run: () => { $("opbar").tabIndex = -1; $("opbar").focus(); } },
     { label: I18n.t("Скопировать имя профиля"), hint: I18n.t("Имя файла конфигурации"), reason: !window.ConfigEditor?.file ? I18n.t("Выберите доступный профиль") : "", run: () => copyText(window.ConfigEditor.file) },

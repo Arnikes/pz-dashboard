@@ -219,6 +219,96 @@ def test_external_and_other_tab_changes_are_conflicts(env):
     assert not fresh["conflict"] and not fresh["changed"]
 
 
+def test_page_refresh_loads_external_files_only_for_a_clean_draft(env):
+    data, _ = env
+    original = editor.draft("world.ini")
+    path = data / "Server/world.ini"
+    path.write_bytes(INI.replace("Сервер", "External").encode())
+    assert editor.draft("world.ini")["texts"] == original["texts"]
+    refreshed = editor.draft("world.ini", refresh=True)
+    assert "PublicName=External" in refreshed["texts"]["ini"]
+    pending = change(ini={"PublicName": "Pending"})
+    path.write_bytes(INI.replace("Сервер", "Later external").encode())
+    assert editor.draft("world.ini", refresh=True)["texts"] == pending["texts"]
+
+
+def test_overwrite_replaces_stale_draft_with_page_snapshot_and_preserves_secrets(env):
+    original = editor.draft("world.ini")
+    change(ini={"Unknown": "Other tab"}, sandbox={"Zombies": 2})
+    result = editor.patch(
+        {
+            "file": "world.ini",
+            "draftRevision": original["draftRevision"],
+            "overwrite": True,
+            "texts": original["texts"],
+            "ini": {"PublicName": "My page"},
+        }
+    )
+    assert "Unknown=preserve" in result["texts"]["ini"]
+    assert "PublicName=My page" in result["texts"]["ini"]
+    saved = editor.load_json(editor.state_dir("world.ini") / "draft.json")
+    assert "Password=topsecret" in saved["texts"]["ini"]
+    assert 'Password = "hidden-token"' in saved["texts"]["sandbox"]
+    assert "Zombies = 4" in saved["texts"]["sandbox"]
+
+
+def test_overwrite_snapshot_without_sandbox_keeps_missing_file(env):
+    data, _ = env
+    (data / "Server/world_SandboxVars.lua").unlink()
+    current = editor.draft("world.ini")
+    result = editor.patch(
+        {
+            "file": "world.ini",
+            "draftRevision": current["draftRevision"],
+            "overwrite": True,
+            "texts": current["texts"],
+            "ini": {"PublicName": "INI only"},
+        }
+    )
+    assert result["texts"]["sandbox"] == ""
+    assert "PublicName=INI only" in result["texts"]["ini"]
+    assert not (data / "Server/world_SandboxVars.lua").exists()
+
+
+@pytest.mark.parametrize("during_backup", [False, True])
+def test_overwrite_writes_snapshot_over_external_files_and_records_them_in_history(
+    env, monkeypatch, during_backup
+):
+    data, _ = env
+    current = change(ini={"PublicName": "My page"})
+    path = data / "Server/world.ini"
+    external = INI.replace("Сервер", "External")
+    if during_backup:
+        monkeypatch.setattr(
+            ops, "run_backup_job", lambda *args: path.write_bytes(external.encode())
+        )
+    else:
+        path.write_bytes(external.encode())
+    assert editor.validate("world.ini", overwrite=True)["valid"]
+    editor.run(
+        {
+            "file": "world.ini",
+            "draftRevision": current["draftRevision"],
+            "overwrite": True,
+            "backupBeforeApply": True,
+        }
+    )
+    assert path.read_bytes() == INI.replace("Сервер", "My page").encode()
+    history = editor.history("world.ini")["items"]
+    assert len(history) == 1
+    assert (
+        editor.state_dir("world.ini") / "history" / history[0]["id"] / "ini"
+    ).read_bytes() == external.encode()
+
+
+@pytest.mark.parametrize("value", ["true", 1, None])
+def test_overwrite_requires_a_boolean(env, value):
+    with pytest.raises(editor.EditorError, match="overwrite"):
+        editor.patch({"file": "world.ini", "overwrite": value})
+    with pytest.raises(editor.EditorError, match="overwrite"):
+        editor.validate("world.ini", overwrite=value)
+
+
 def test_explicit_rebase_keeps_new_reset_id_secrets_and_pending_settings(env):
     data, _ = env
     path = data / "Server/world.ini"
@@ -1591,6 +1681,19 @@ def test_external_verification_clears_old_failure_and_finished_installation_with
     editor.dockerlib.container_start.assert_not_called()
     ops.graceful_stop.assert_not_called()
     ops.run_backup_job.assert_not_called()
+
+
+def test_refresh_clean_page_preserves_old_written_snapshot_for_startup_verification(
+    env, monkeypatch
+):
+    _, request = saved_verification(env, monkeypatch, installed=True)
+    old = editor.load_json(editor.state_dir("world.ini") / "draft.json")["base"]
+    current = editor.draft("world.ini", refresh=True)
+    state = editor.load_json(editor.state_dir("world.ini") / "state.json")
+    assert state["snapshots"]["saved"] == old
+    assert current["texts"] != old
+    request["draftRevision"] = current["draftRevision"]
+    assert editor.verify_running(request)["status"] == "applied"
 
 
 @pytest.mark.parametrize("installed", [False, True])

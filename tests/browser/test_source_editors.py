@@ -3,7 +3,7 @@
 import pytest
 from playwright.sync_api import expect
 
-from test_editors import editing, env  # noqa: F401
+from test_editors import editing, env, editor  # noqa: F401
 
 
 @pytest.mark.parametrize("width", [390, 1440])
@@ -36,7 +36,7 @@ def test_source_highlight_is_windowed_and_tracks_native_scroll(
     expect(output.locator(".line-number").first).to_have_text("1")
     expect(output.locator(".syntax-comment")).to_have_text(lines[1])
     assert output.locator("img").count() == 0
-    assert 1 < output.locator(".source-line").count() < 40
+    assert 1 < output.locator(".source-line").count() < 160
     page.evaluate("document.fonts.ready")
     # A tab begins at the source text origin, independently of the number gutter.
     tab_width = output.evaluate("""el => {
@@ -65,6 +65,15 @@ def test_source_highlight_is_windowed_and_tracks_native_scroll(
     )
     assert output.evaluate("el => el.querySelector('.source-line') === sourceRow")
     assert page.evaluate("sourceMutations.length") == 0
+    # Small vertical scrolls stay within the buffered rows too.
+    source.evaluate("el => { el.scrollTop = 220; el.dispatchEvent(new Event('scroll')); }")
+    page.wait_for_function(
+        """kind => document.querySelector(`#${kind}Highlight .source-window`)
+            .style.transform === 'translate(-200px, -220px)'""",
+        arg=kind,
+    )
+    assert output.evaluate("el => el.querySelector('.source-line') === sourceRow")
+    assert page.evaluate("sourceMutations.length") == 0
     page.evaluate("sourceObserver.disconnect()")
 
     for top in [22012.5, 66000, 10**9, 0]:
@@ -83,7 +92,7 @@ def test_source_highlight_is_windowed_and_tracks_native_scroll(
             }""",
             arg=kind,
         )
-        assert output.locator(".source-line").count() < 40
+        assert output.locator(".source-line").count() < 160
         assert source.input_value() == text
     expect(output.locator(".line-number").first).to_have_text("1")
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
@@ -128,6 +137,8 @@ def test_source_save_preserves_selection_and_updates_after_hidden_field_edit(
     ini_text = ini.input_value().replace("PublicName=Сервер", "PublicName=Source edit")
     sandbox_text = sandbox.input_value() + "\n-- Source comment\n"
     ini.fill(ini_text)
+    expect(page.locator("#draftBar")).to_be_visible()
+    expect(page.locator("#draftSaved")).to_have_text("Исходник ещё не сохранён в черновик")
     sandbox.fill(sandbox_text)
     sandbox.evaluate("el => { el.setSelectionRange(3, 10); }")
     page.locator("#sourceSave").click()
@@ -143,3 +154,49 @@ def test_source_save_preserves_selection_and_updates_after_hidden_field_edit(
     expect(page.locator("#iniHighlight")).to_contain_text("PublicName=Field edit")
     assert "topsecret" not in ini.input_value()
     assert dashboard["actions"] == []
+
+
+def test_explicit_file_save_overwrites_external_changes_and_reloads_once(
+    page, dashboard, editing  # noqa: F811 (imported fixture)
+):
+    data, _ = editing
+    reads = []
+    page.on(
+        "request",
+        lambda request: (
+            reads.append(request.url)
+            if "/api/config-draft?" in request.url and request.method == "GET"
+            else None
+        ),
+    )
+
+    def save(route):
+        body = route.request.post_data_json
+        assert body["overwrite"] is True
+        editor.run(body)
+        route.fulfill(json={"ok": True})
+
+    page.route("**/api/action", save)
+    page.goto(dashboard["url"] + "/#/settings")
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
+    field = page.locator('[data-key="PublicName"]')
+    field.fill("Page wins")
+    field.press("Tab")
+    expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
+    path = data / "Server/world.ini"
+    path.write_bytes(path.read_bytes().replace(b"Unknown=preserve", b"Unknown=external"))
+    page.evaluate("renderOverview({...S.overview,containerInfo:{running:false,status:'exited'}})")
+    page.locator("#draftMore").click()
+    page.locator("#configSave").click()
+    expect(page.get_by_role("alertdialog")).to_contain_text("Unknown=external")
+    before = len(reads)
+    page.locator("#modalOk").click()
+    expect(page.locator("#configStatus")).to_have_text("Сохранено, требуется запуск")
+    expect(page.locator("#configProfile")).to_be_enabled()
+    assert "Page wins" in path.read_text(encoding="utf-8")
+    assert "Unknown=preserve" in path.read_text(encoding="utf-8")
+    assert len(reads) == before + 1
+    page.evaluate("() => { for (let i=0; i<30; i++) ConfigEditor.operationChanged(); }")
+    page.evaluate("() => new Promise(resolve => requestAnimationFrame(resolve))")
+    assert len(reads) == before + 1

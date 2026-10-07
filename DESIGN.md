@@ -225,7 +225,9 @@ or focuses an action; it does not execute an operation.
 ## Forms, source, and feedback
 
 Preserve draft input after failed requests. Separate loading, stale data,
-conflicts, pending operations, saved drafts, and verified startup results.
+pending operations, saved drafts, and verified startup results. Editors load snapshots
+on entry and explicit actions; live updates do not refresh their contents. External
+changes appear in diff review and are overwritten when the browser writes files.
 Use inline errors with a retry action and concise success notifications.
 All editing routes share operation availability messages and lock mutations from
 request submission through completion. This includes drafts, mod order, player

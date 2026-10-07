@@ -259,7 +259,7 @@ def test_profile_selector_stays_compact_in_loading_other_and_unknown_context(
     data, context = editing
     (data / "Server/other.ini").write_text("PublicName=Other\n", encoding="utf-8")
     held = []
-    page.route("**/api/config-draft?file=other.ini", lambda route: held.append(route))
+    page.route("**/api/config-draft?file=other.ini&refresh=1", lambda route: held.append(route))
     start(page, dashboard, "settings")
     expect(page.locator("#configProfile")).to_have_value("world.ini")
     expect(page.locator("#configProfile")).to_be_enabled()

@@ -34,6 +34,11 @@ Source edits have a separate save action; switching profiles or editor tabs also
 attempts to save. Unsaved input survives a failed request in the current tab.
 Retry after reconnecting; secrets are not persisted in browser storage.
 
+Settings and Mods load a configuration snapshot when opened or when the selected
+profile changes. Live server updates do not reload sources, forms, or draft metadata.
+Unsaved input survives navigation; saving, restoring history, and completing an
+explicit configuration operation update the editor once.
+
 The stage bar distinguishes draft preparation, file writes, and startup verification.
 Selecting a stage opens a review or focuses an action; it does not itself restart the server.
 Use `Ctrl/Cmd+K` to find sections, settings, and load-order entries.
@@ -50,10 +55,15 @@ Transactions retain recovery records for both files.
 
 ## External edits and conflicts
 
-Byte revisions detect changes outside the panel. “Merge with disk” previews a new
-draft based on the current files. After confirmation, non-overlapping edits are rebased;
-live files are not written. Overlapping changes reject the merge as a whole.
-Resolve them in source view or explicitly discard the draft.
+The browser editor uses its loaded snapshot until reopened. Parallel editing is
+not supported: saving a draft replaces a newer draft with the page's snapshot,
+and writing/applying files overwrites external file changes. The diff review still
+shows external changes, and configuration history retains the actual files present
+immediately before writing. Secret placeholders continue to preserve saved secrets.
+
+Reopening a clean draft reads the latest files. A draft with pending changes remains
+available until applied or explicitly discarded. API clients retain revision checks
+by default; they can request the same overwrite behavior explicitly.
 
 A changed draft revision invalidates earlier validation and confirmation.
 Configuration history is scoped to the selected profile; restoring history changes
@@ -131,7 +141,7 @@ If rollback cannot finish, the journal remains and automatic server startup is b
 
 After a failed startup, the written files remain the current base revision. Restore
 the previous configuration into a draft, review it, then apply it separately.
-External edits still require conflict resolution.
+The browser editor can overwrite external edits when applying its restored draft.
 
 “Verify running server” checks an already running profile without changing game files
 or restarting it. It requires PZ/RCON readiness, matching revisions and Sandbox values,
@@ -148,7 +158,7 @@ See [API authentication](operations.md#api).
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /api/server-configs` | Profiles, active profile, version, and setting sources |
-| `GET /api/config-draft?file=…` | Masked source, forms, revisions, and draft state |
+| `GET /api/config-draft?file=…` | Masked source, forms, revisions, and draft state; `refresh=1` reloads a clean draft from current files |
 | `POST /api/config-draft` | Patch `ini`, `sandbox`, `texts`, or `mods`; discard or rebase |
 | `POST /api/config-validate` | Review errors/diffs for a draft revision; optional `prepare:true` |
 | `POST /api/config-verify` | Verify files against a confirmed external startup |
@@ -162,4 +172,10 @@ See [API authentication](operations.md#api).
 Draft mutations include `file` and `draftRevision`. Rebase also requires the reviewed
 `currentRevision`; conflicting/stale state returns HTTP 409. Application accepts
 `restart`, `warnSeconds`, and optional boolean `backupBeforeApply`.
+The browser passes `overwrite:true` to draft mutation, validation, and application.
+Draft mutations also include the complete masked `texts` snapshot so newer edits to
+other fields do not leak into the page's save. Overwrite permits stale draft mutations
+and external file replacement; validation and application still require the reviewed
+draft revision, and operation locks, format validation, transaction recovery, and
+startup verification remain enforced.
 See [the isolated acceptance procedure](acceptance-b42.md) for real-server checks.

@@ -181,6 +181,38 @@ def test_config_http_running_and_boolean_errors(api, editor_env, monkeypatch):  
     )
 
 
+def test_config_http_snapshot_refresh_and_overwrite(api, editor_env, monkeypatch):  # noqa: F811
+    data, _ = editor_env
+    _, original = api("GET", "/api/config-draft?file=world.ini")
+    path = data / "Server/world.ini"
+    path.write_bytes(path.read_bytes().replace(b"Unknown=preserve", b"Unknown=external"))
+    status, current = api("GET", "/api/config-draft?file=world.ini&refresh=1")
+    assert status == 200 and "Unknown=external" in current["texts"]["ini"]
+    status, saved = api(
+        "POST",
+        "/api/config-draft",
+        {
+            "file": "world.ini",
+            "draftRevision": original["draftRevision"],
+            "overwrite": True,
+            "texts": original["texts"],
+            "ini": {"PublicName": "Page snapshot"},
+        },
+    )
+    assert status == 200 and "Unknown=preserve" in saved["texts"]["ini"]
+    path.write_bytes(path.read_bytes().replace(b"Unknown=external", b"Unknown=later-external"))
+    request = {"file": "world.ini", "draftRevision": saved["draftRevision"], "overwrite": True}
+    status, preview = api("POST", "/api/config-validate", request)
+    assert status == 200 and preview["valid"] and preview["conflictDiff"]
+    jobs = []
+    monkeypatch.setattr(ops, "start_op", lambda name, job: jobs.append(job))
+    status, _ = api("POST", "/api/action", {"op": "apply-config", "restart": False, **request})
+    assert status == 200 and len(jobs) == 1
+    jobs[0]()
+    assert "Unknown=preserve" in path.read_text(encoding="utf-8")
+    assert "Page snapshot" in path.read_text(encoding="utf-8")
+
+
 @pytest.mark.parametrize("operation,prepare", [("apply-config", False), ("prepare-workshop", True)])
 @pytest.mark.parametrize("backup", [None, False, True])
 def test_config_http_action_binds_profile_and_operation(

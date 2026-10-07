@@ -423,7 +423,7 @@ def recover(file, active=False):
     durable_unlink(journal)
 
 
-def draft(file=None):
+def draft(file=None, *, refresh=False):
     file = choose(file)
     with LOCK:
         recover(file)
@@ -437,7 +437,16 @@ def draft(file=None):
             save_json(root / "state.json", state)
         current = read_profile(file)
         saved = load_json(root / "draft.json")
-        if not saved:
+        if not saved or refresh and saved["texts"] == saved["base"] and current != saved["base"]:
+            # Old operations recorded only a revision. Keep their written pair
+            # available for startup verification before refreshing a clean draft.
+            if (
+                saved
+                and state.get("savedRevision") == revision(saved["base"])
+                and not state.get("snapshots", {}).get("saved")
+            ):
+                state.setdefault("snapshots", {})["saved"] = saved["base"].copy()
+                save_json(root / "state.json", state)
             saved = {
                 "file": file,
                 "baseRevision": revision(current),
@@ -616,6 +625,9 @@ def response(saved, current):
 
 
 def patch(data):
+    overwrite = data.get("overwrite", False)
+    if type(overwrite) is not bool:
+        raise EditorError("overwrite должен быть boolean")
     if ops.op_busy():
         raise EditorError("Дождитесь завершения операции перед изменением черновика", 409)
     file = choose(data.get("file"))
@@ -625,7 +637,7 @@ def patch(data):
         draft(file)
         root = state_dir(file)
         saved = load_json(root / "draft.json")
-        if data.get("draftRevision") != saved["draftRevision"]:
+        if data.get("draftRevision") != saved["draftRevision"] and not overwrite:
             raise EditorError("Черновик изменён другой вкладкой. Загрузите его заново", 409)
         current = read_profile(file)
         if "rebase" in data and type(data["rebase"]) is not bool:
@@ -656,6 +668,8 @@ def patch(data):
                 if kind == "ini":
                     texts[kind] = restore_ini_secrets(text, texts[kind])
                 else:
+                    if not text and not texts[kind]:
+                        continue  # A missing Sandbox file stays absent in a full snapshot.
                     if not literal_table(texts[kind]) and texts[kind]:
                         raw = restore_raw_literals(text, texts[kind])
                         if raw != texts[kind] and not literal_table(raw):
@@ -751,7 +765,9 @@ def preparation_texts(saved):
     return {**base, "ini": edit_ini(base["ini"], {"WorkshopItems": ";".join(items)})}
 
 
-def validate(file, include_mods=True, prepare=False, draft_revision=None):
+def validate(file, include_mods=True, prepare=False, draft_revision=None, *, overwrite=False):
+    if type(overwrite) is not bool:
+        raise EditorError("overwrite должен быть boolean")
     file = choose(file)
     saved = load_json(state_dir(file) / "draft.json")
     if not saved:
@@ -829,7 +845,7 @@ def validate(file, include_mods=True, prepare=False, draft_revision=None):
                 warnings.append(
                     {"message": "Sandbox содержит неподдерживаемый Lua и сохранится без изменений"}
                 )
-    if revision(read_profile(file)) != saved["baseRevision"]:
+    if not overwrite and revision(read_profile(file)) != saved["baseRevision"]:
         errors.append({"message": "Рабочие файлы изменились: конфликт ревизии"})
     mod_changes = any(new.get(k, {}).get("value") != old.get(k, {}).get("value") for k in MOD_KEYS)
     if include_mods and not prepare:
@@ -1103,7 +1119,10 @@ def run(data, prepare=False):
     saved = load_json(state_dir(file) / "draft.json")
     if not saved or saved["draftRevision"] != data.get("draftRevision"):
         raise EditorError("Черновик изменился", 409)
-    result = validate(file, prepare=prepare, draft_revision=data["draftRevision"])
+    overwrite = data.get("overwrite", False)
+    result = validate(
+        file, prepare=prepare, draft_revision=data["draftRevision"], overwrite=overwrite
+    )
     if not result["valid"]:
         raise EditorError("; ".join(e["message"] for e in result["errors"]))
     backup_before_apply = data.get("backupBeforeApply", bool(result["modChanges"] or prepare))
@@ -1170,7 +1189,7 @@ def run(data, prepare=False):
             if ops.graceful_stop() != "stopped":
                 raise EditorError("Сервер сам перезапустился; запись отменена", 409)
             stopped = True
-        if revision(read_profile(file)) != saved["baseRevision"]:
+        if not overwrite and revision(read_profile(file)) != saved["baseRevision"]:
             raise EditorError("Конфигурация изменилась во время остановки; запись отменена", 409)
         if backup_before_apply:
             ops._set_phase("Бэкап", "Резервная копия мира перед записью конфигурации")
@@ -1178,13 +1197,13 @@ def run(data, prepare=False):
             if isinstance(backup, dict) and backup.get("name"):
                 state["worldBackup"] = backup["name"]
                 save_json(root / "state.json", state)
-        if revision(read_profile(file)) != saved["baseRevision"]:
+        if not overwrite and revision(read_profile(file)) != saved["baseRevision"]:
             raise EditorError("Файлы изменились во время бэкапа; запись отменена", 409)
         hid = commit(
             file,
             texts,
             "Загрузка Workshop" if prepare else "Применение конфигурации",
-            expected=saved["baseRevision"],
+            expected=None if overwrite else saved["baseRevision"],
         )
         committed = True
         state.update(
@@ -1657,7 +1676,12 @@ def queue(data, prepare=False):
             ini_entries(saved["texts"]["ini"]).get("WorkshopItems", {}).get("value", "")
         )
         workshop.validate_items([wid for wid in new_items if wid not in previous_items])
-        result = validate(file, prepare=prepare, draft_revision=data["draftRevision"])
+        result = validate(
+            file,
+            prepare=prepare,
+            draft_revision=data["draftRevision"],
+            overwrite=data.get("overwrite", False),
+        )
         if not result["valid"]:
             raise EditorError("; ".join(e["message"] for e in result["errors"]))
         if (prepare or data.get("restart")) and context()["activeFile"] != file:
