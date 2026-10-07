@@ -656,7 +656,7 @@ async function api(path, opts = {}) {
       method: opts.method || "GET",
       headers: { "X-PZ-Request": "1", "X-PZ-Language": I18n.language, ...(opts.body ? { "Content-Type": "application/json" } : {}) },
       body: opts.body ? JSON.stringify(opts.body) : undefined,
-      signal: ctrl.signal,
+      signal: opts.signal ? AbortSignal.any([ctrl.signal, opts.signal]) : ctrl.signal,
     });
     if (res.status === 401) {
       requireLogin();
@@ -2507,6 +2507,85 @@ $("btnTgTest").addEventListener("click", async () => {
 /* ───────────────────────── опрос ───────────────────────── */
 
 let connFailStreak = 0;
+const CONNECTION_RETRY_DELAY = 10000;
+const connectionAlert = FloatingAlerts.create({
+  id: "connBanner", className: "connection-alert", actionId: "connRetry",
+  icon: '<span class="retry-timer" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2"><circle class="retry-track" cx="16" cy="16" r="14"/><circle class="retry-progress" cx="16" cy="16" r="14" pathLength="100"/></svg><span class="retry-seconds"></span></span>',
+});
+let connectionAttempt = null;
+let connectionRetryAt = 0;
+let connectionTimer = null;
+
+function renderConnectionWarning() {
+  const busy = !!connectionAttempt;
+  setDomAttribute(connectionAlert.element, "aria-label", I18n.t("Соединение с пультом"));
+  setDomAttribute(connectionAlert.element, "aria-busy", busy);
+  setDomProperty(connectionAlert.message, "textContent", I18n.t(busy ? "Проверяем соединение…" : "Нет связи с пультом"));
+  setDomProperty(connectionAlert.label, "textContent", "Retry");
+  setDomProperty(connectionAlert.action, "disabled", busy);
+  setDomAttribute(connectionAlert.action, "aria-label", I18n.t(busy ? "Проверяем соединение…" : "Повторить подключение"));
+  const remaining = Math.max(0, connectionRetryAt - Date.now());
+  const seconds = connectionAlert.action.querySelector(".retry-seconds");
+  setDomProperty(seconds, "textContent", busy ? "" : String(Math.ceil(remaining / 1000)));
+  setDomAttribute(connectionAlert.action, "aria-description", busy ? "" : I18n.msg`Повторное подключение через ${Math.ceil(remaining / 1000)} с`);
+  connectionAlert.element.style.setProperty("--retry-progress", String(1 - remaining / CONNECTION_RETRY_DELAY));
+}
+
+function clearConnectionRetry() {
+  clearInterval(connectionTimer);
+  connectionTimer = null;
+  connectionRetryAt = 0;
+}
+
+function markConnectionHealthy() {
+  connFailStreak = 0;
+  S.lastDataOk = Date.now();
+  connectionAttempt?.abort();
+  connectionAttempt = null;
+  clearConnectionRetry();
+  connectionAlert.element.hidden = true;
+}
+
+function scheduleConnectionRetry() {
+  clearConnectionRetry();
+  connectionRetryAt = Date.now() + CONNECTION_RETRY_DELAY;
+  renderConnectionWarning();
+  connectionTimer = setInterval(() => {
+    if (document.hidden) return;
+    renderConnectionWarning();
+    if (Date.now() >= connectionRetryAt) retryConnection();
+  }, 100);
+}
+
+async function retryConnection() {
+  if (S.demo || document.hidden || connectionAttempt) return;
+  clearConnectionRetry();
+  const attempt = new AbortController();
+  connectionAttempt = attempt;
+  renderConnectionWarning();
+  try {
+    // A fresh authenticated snapshot proves recovery; health alone is not enough.
+    const overview = await api("/api/overview", { timeout: 5000, signal: attempt.signal });
+    if (connectionAttempt !== attempt || document.hidden) return;
+    if (!overview.ok || overview.error) throw new Error("Console unavailable");
+    connectionAttempt = null;
+    applyOverview(overview);
+    if (!pollingStarted) {
+      liveSource?.close();
+      liveSource = null;
+      clearTimeout(sseStartupTimer);
+      startSse();
+    }
+  } catch {
+    if (connectionAttempt !== attempt || document.hidden) return;
+    connectionAttempt = null;
+    connectionAlert.element.hidden = false;
+    scheduleConnectionRetry();
+  }
+}
+connectionAlert.action.addEventListener("click", retryConnection);
+window.addEventListener("online", retryConnection);
+document.addEventListener("pz:language-changed", renderConnectionWarning);
 
 function markConnFail() {
   connFailStreak++;
@@ -2515,9 +2594,7 @@ function markConnFail() {
 
 function applyOverview(o) {
   if (o.error && !o.serverName) { markConnFail(); return; }
-  connFailStreak = 0;
-  $("connBanner").hidden = true;
-  S.lastDataOk = Date.now();
+  markConnectionHealthy();
   renderOverview(o);
 }
 
@@ -2575,10 +2652,11 @@ function refreshAll() {
   refreshOverview(); refreshPlayers(); refreshStats(); refreshBackups(); refreshEvents(); refreshPlayersHistory(); refreshStatsHistory(); refreshMods();
 }
 
-/* Потеря связи обозначается предупреждением вне шапки, без отсчёта времени. */
+/* Try recovery silently before exposing stale data as a connection notice. */
 function updateConnectionWarning() {
+  if (S.demo || document.hidden || connectionAttempt || !connectionAlert.element.hidden) return;
   const stale = S.lastDataOk && Date.now() - S.lastDataOk >= 15000;
-  $("connBanner").hidden = S.demo || !(stale || connFailStreak >= 2);
+  if (stale || connFailStreak >= 2) retryConnection();
 }
 
 let pollingStarted = false;
@@ -2613,7 +2691,7 @@ function startPolling() {
   ]) {
     let running = false;
     const poll = async () => {
-      if (document.hidden || running) return;
+      if (document.hidden || running || (refresh === refreshOverview && (connectionAttempt || !connectionAlert.element.hidden))) return;
       running = true;
       try { await refresh(); } finally { running = false; }
     };
@@ -2868,12 +2946,15 @@ function startSse() {
     startPolling();
   };
   const bind = (name, apply) => es.addEventListener(name, (e) => {
+    if (liveSource !== es || document.hidden) return;
+    let data;
+    try { data = JSON.parse(e.data); } catch { return; }
+    if (!data || typeof data !== "object") return;
+    if (name === "overview" && (data.ok === false || (data.error && !data.serverName))) { markConnFail(); return; }
     messages++;
     errors = 0;
-    connFailStreak = 0;
-    $("connBanner").hidden = true;
-    S.lastDataOk = Date.now();
-    try { apply(JSON.parse(e.data)); } catch (err) { /* битый кадр пропускаем */ }
+    markConnectionHealthy();
+    try { apply(data); } catch (err) { /* битый кадр пропускаем */ }
   });
   bind("overview", applyOverview);
   bind("players", applyPlayers);
@@ -2890,6 +2971,7 @@ function startSse() {
     if (document.hidden || liveSource !== es) return;
     api("/api/auth/session").catch(() => {});
     errors++;
+    updateConnectionWarning();
     if (errors >= 3 && Date.now() - S.lastDataOk > 20000) fallback();
   };
   sseStartupTimer = setTimeout(() => { if (messages === 0) fallback(); }, 9000);
@@ -2897,11 +2979,15 @@ function startSse() {
 
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
+    connectionAttempt?.abort();
+    connectionAttempt = null;
+    clearConnectionRetry();
+    connectionAlert.element.hidden = true;
     liveSource?.close();
     liveSource = null;
     clearTimeout(sseStartupTimer);
-  } else if (!S.demo && !pollingStarted) {
-    startSse();
+  } else if (!S.demo) {
+    retryConnection();
   }
 });
 
@@ -2921,9 +3007,7 @@ async function boot() {
     const h = await api("/api/health", { timeout: 3500 });
     if (!h.ok) throw new Error("no health");
   } catch (e) {
-    connFailStreak = Math.max(connFailStreak, 2);
-    updateConnectionWarning();
-    $("connBanner").textContent = I18n.t("Нет связи с пультом. Последние данные сохраняются; повторное подключение идёт автоматически.");
+    retryConnection();
     startPolling();
     return;
   }

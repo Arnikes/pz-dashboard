@@ -51,9 +51,9 @@
 .pwa-button:hover:not(:disabled) { background: var(--surface-3, #211c15); }
 .pwa-button:focus-visible { outline: 2px solid #e9e2cd; outline-offset: 3px; }
 .pwa-button:disabled { opacity: .55; cursor: wait; }
-.pwa-update-alert {
+.floating-alert {
   position: fixed;
-  inset-block-start: max(16px, env(safe-area-inset-top, 0px));
+  inset-block-start: calc(max(16px, env(safe-area-inset-top, 0px)) + var(--floating-alert-offset, 0px));
   inset-inline-end: max(16px, env(safe-area-inset-right, 0px));
   z-index: 80;
   display: grid;
@@ -71,8 +71,8 @@
   box-shadow: 0 6px 18px rgb(0 0 0 / .3);
   font: 400 13.5px/1.4 var(--font-body, "Golos Text", "Segoe UI", sans-serif);
 }
-.topbar ~ .pwa-update-alert { inset-block-start: calc(var(--header-height, 76px) + 12px); }
-.pwa-update-alert[hidden], .pwa-update-alert [hidden] { display: none !important; }
+.topbar ~ .floating-alert { inset-block-start: calc(var(--header-height, 76px) + 12px + var(--floating-alert-offset, 0px)); }
+.floating-alert[hidden], .floating-alert [hidden] { display: none !important; }
 .pwa-update-message { min-width:0; margin:0; }
 .pwa-update-action {
   display:inline-flex; align-items:center; justify-content:center; gap:8px;
@@ -85,20 +85,28 @@
 .pwa-update-action:focus-visible { outline:2px solid var(--focus, #e9e2cd); outline-offset:2px; }
 .pwa-update-action:disabled { opacity:.55; cursor:wait; }
 .pwa-update-note { grid-column:1 / -1; margin:0; padding:4px 12px 8px 0; color:var(--warning, #d9a441); overflow-wrap:anywhere; }
-.pwa-update-alert:has(.pwa-update-note:not([hidden])) { border-radius:16px; }
+.floating-alert:has(.pwa-update-note:not([hidden])) { border-radius:16px; }
+.connection-alert { border-color:color-mix(in srgb, var(--warning, #d9a441) 45%, var(--surface-2, #1a1612)); }
+.retry-timer { display:grid; place-items:center; position:relative; width:28px; height:28px; flex:none; font-variant-numeric:tabular-nums; }
+.pwa-update-action .retry-timer svg { position:absolute; inset:0; width:28px; height:28px; rotate:-90deg; }
+.retry-track { opacity:.2; }
+.retry-progress { stroke-dasharray:100; stroke-dashoffset:calc(100 * (1 - var(--retry-progress, 0))); }
+.connection-alert[aria-busy="true"] .retry-progress { stroke-dasharray:25 75; stroke-dashoffset:0; }
 @media (prefers-reduced-motion: no-preference) {
-  .pwa-update-alert { animation:pwaUpdateIn 180ms cubic-bezier(.16, 1, .3, 1); }
+  .floating-alert { animation:pwaUpdateIn 180ms cubic-bezier(.16, 1, .3, 1); }
+  .connection-alert[aria-busy="true"] .retry-timer svg { animation:retrySpin 900ms linear infinite; }
 }
+@keyframes retrySpin { to { transform:rotate(360deg); } }
 @keyframes pwaUpdateIn { from { opacity:0; translate:0 -6px; } }
-@media (forced-colors: active) { .pwa-update-alert { border-color:CanvasText; } }
+@media (forced-colors: active) { .floating-alert { border-color:CanvasText; } .retry-track { opacity:1; stroke:GrayText; } }
 @media (max-width: 740px) {
-  .pwa-update-alert {
+  .floating-alert {
     inset-inline: max(16px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
     margin-inline:auto;
   }
-  .topbar ~ .pwa-update-alert {
+  .topbar ~ .floating-alert {
     inset-block-start:auto;
-    inset-block-end:calc(var(--footer-height, 44px) + var(--nav-height, 64px) + var(--draft-height, 0px) + 16px);
+    inset-block-end:calc(var(--footer-height, 44px) + var(--nav-height, 64px) + var(--draft-height, 0px) + 16px + var(--floating-alert-offset, 0px));
   }
   .toasts {
     bottom:calc(var(--footer-height) + var(--nav-height) + var(--draft-height) + 22px + var(--pwa-update-clearance, 0px));
@@ -106,7 +114,7 @@
   }
 }
 @media (max-width: 740px) and (max-height: 600px) {
-  .topbar ~ .pwa-update-alert { inset-block-end:calc(var(--footer-height, 44px) + var(--nav-height, 64px) + 16px); }
+  .topbar ~ .floating-alert { inset-block-end:calc(var(--footer-height, 44px) + var(--nav-height, 64px) + 16px + var(--floating-alert-offset, 0px)); }
   .toasts { bottom:calc(var(--footer-height) + var(--nav-height) + 22px + var(--pwa-update-clearance, 0px)); }
 }
 .login-page:has(.pwa-bar:not([hidden])) { align-content: center; gap: 20px; }

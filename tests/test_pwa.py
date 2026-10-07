@@ -21,6 +21,7 @@ def test_public_pwa_endpoints_and_private_html(auth_server):
         ("/static/app.js", "text/javascript"),
         ("/static/editor.js", "text/javascript"),
         ("/static/pwa.js", "text/javascript"),
+        ("/static/alerts.js", "text/javascript"),
     ]:
         status, headers, body = request(auth_server, "GET", path)
         assert status == 200 and body
@@ -52,6 +53,7 @@ def test_manifest_icons_and_entrypoints():
         assert 'href="/manifest.webmanifest"' in html
         assert 'href="/static/icons/apple-touch-icon.png"' in html
         assert 'src="/static/pwa.js"' in html
+        assert 'src="/static/alerts.js"' in html
 
 
 @pytest.mark.parametrize(
@@ -64,6 +66,7 @@ def test_manifest_icons_and_entrypoints():
         "editor.js",
         "pwa.css",
         "pwa.js",
+        "alerts.js",
         "offline.html",
     ],
 )

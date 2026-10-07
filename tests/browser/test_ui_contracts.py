@@ -95,8 +95,8 @@ def test_navigation_keeps_one_stream_and_hidden_polling_does_not_overlap(page, d
         Object.defineProperty(document,'hidden',{value:false,configurable:true});
         document.dispatchEvent(new Event('visibilitychange'));
     }""")
-    # Stay below the API timeout: a timed-out request may correctly be retried.
-    page.clock.run_for(6000)
+    # Stay below the foreground recovery timeout: expired requests are discarded.
+    page.clock.run_for(4000)
     assert len(held) == 1
     held[0].fulfill(json={"ok": True, "serverName": "Resumed polling", "settings": {}})
     page.wait_for_function("S.overview?.serverName === 'Resumed polling'")

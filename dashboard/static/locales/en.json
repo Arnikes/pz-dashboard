@@ -1,4 +1,7 @@
 {
+  "Соединение с пультом": "Console connection",
+  "Нет связи с пультом": "Console disconnected",
+  "Повторное подключение через {{0}} с": "Reconnecting in {{0}} s",
   "Обновление приложения": "App update",
   "Доступна новая версия": "New version available",
   "Обновить пульт": "Update",

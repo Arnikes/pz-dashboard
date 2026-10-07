@@ -192,6 +192,12 @@ Input-protection and offline explanations expand within the same alert.
 On mobile it is centered horizontally above the footer, bottom navigation and draft actions, with
 ordinary notifications stacked above it. The update button has a short visible
 label and retains its full accessible name.
+Connection loss uses the same floating alert component with an amber border and
+a Retry action. A ten-second countdown sits inside a filling circular track;
+Retry starts a fresh connection check immediately. A failed silent attempt must
+precede the notice, including when returning from a hidden window. Fresh data
+hides it and cancels pending retries. Concurrent alerts stack without overlapping
+each other, draft controls or ordinary notifications.
 
 Mods put search and filtering first and disclose package/collection addition
 separately; search has a visible label, and the page heading links to custom mod

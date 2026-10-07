@@ -33,8 +33,7 @@ def test_connection_loss_never_adds_header_timer(page, dashboard, width, transpo
     header = page.locator(".topbar")
     original_text = header.inner_text()
     original_height = header.bounding_box()["height"]
-    if transport == "polling":
-        page.route("**/api/overview", lambda route: route.abort())
+    page.route("**/api/overview", lambda route: route.abort())
     for elapsed in [15000, 45000, 60000]:
         page.clock.run_for(elapsed)
         expect(page.locator("#connBanner")).to_be_visible()
@@ -84,7 +83,7 @@ def test_hidden_tab_closes_stream_and_reopens_once(page, dashboard):
         document.dispatchEvent(new Event('visibilitychange'));
         document.dispatchEvent(new Event('visibilitychange'));
     }""")
-    assert page.evaluate("window.testStreams.length") == 2
+    page.wait_for_function("window.testStreams.length === 2")
     assert not page.evaluate("window.testStreams[1].closed")
 
 

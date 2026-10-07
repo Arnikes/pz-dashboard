@@ -311,7 +311,7 @@ def test_update_alert_floats_without_moving_layout_and_stays_visible(
     assert box["y"] + box["height"] < 900 - before[4][3]
     assert page.locator("#pwaUpdate").bounding_box()["height"] >= 44
     expect(alert.get_by_role("button")).to_have_count(1)
-    assert page.locator(".pwa-update-message").evaluate(
+    assert alert.locator(".pwa-update-message").evaluate(
         "element => getComputedStyle(element, '::before').content"
     ) in ("none", "normal")
     if width <= 740:

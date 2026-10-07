@@ -27,6 +27,7 @@ def main():
         ["node", "--check", "dashboard/static/editor.js"],
         ["node", "--check", "dashboard/static/login.js"],
         ["node", "--check", "dashboard/static/pwa.js"],
+        ["node", "--check", "dashboard/static/alerts.js"],
         ["node", "--check", "dashboard/static/sw.js"],
         [
             sys.executable,

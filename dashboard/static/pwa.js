@@ -48,20 +48,10 @@
   const message = bar.querySelector(".pwa-message");
   const install = bar.querySelector("#pwaInstall");
   const help = bar.querySelector(".pwa-help");
-  const updateAlert = document.createElement("aside");
-  updateAlert.className = "pwa-update-alert";
-  updateAlert.hidden = true;
-  updateAlert.innerHTML = '<p class="pwa-update-message" role="status" aria-live="polite"></p><button class="pwa-update-action" id="pwaUpdate" type="button"><span></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><p class="pwa-update-note" id="pwaUpdateNote" role="status" aria-live="polite" hidden></p>';
-  if (!retry) document.body.append(updateAlert);
-  const update = updateAlert.querySelector("#pwaUpdate");
-  const updateMessage = updateAlert.querySelector(".pwa-update-message");
-  const updateNote = updateAlert.querySelector(".pwa-update-note");
-  // Mobile notifications reserve space above the alert without changing page layout.
-  if (!retry && "ResizeObserver" in window) {
-    new ResizeObserver(() => {
-      document.documentElement.style.setProperty("--pwa-update-clearance", `${updateAlert.hidden ? 0 : updateAlert.offsetHeight + 12}px`);
-    }).observe(updateAlert);
-  }
+  const { element: updateAlert, action: update, message: updateMessage, note: updateNote } = FloatingAlerts.create({
+    className: "pwa-update-alert", actionId: "pwaUpdate", noteId: "pwaUpdateNote",
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  });
   const updateToken = () => registration?.waiting || (controllerChanged && navigator.serviceWorker.controller);
   help.id = "pwaInstallHelp";
   install.setAttribute("aria-controls", help.id);
@@ -87,8 +77,8 @@
       : updateBlocked ? I18n.t("Сохраните введённые изменения и дождитесь завершения операции, затем повторите обновление.") : "";
     if (updateNote.hidden) update.removeAttribute("aria-describedby");
     else update.setAttribute("aria-describedby", updateNote.id);
-    bar.hidden = !!retry || (navigator.onLine && !canInstall && !notice);
-    message.textContent = !navigator.onLine
+    bar.hidden = !!retry || (!canInstall && !notice && (navigator.onLine || !!document.querySelector(".topbar")));
+    message.textContent = !navigator.onLine && !document.querySelector(".topbar")
       ? I18n.t("Нет сети. Последние данные могут устареть; команды недоступны. Ввод остаётся в открытом окне.")
       : notice || I18n.t("Пульт можно открыть отдельным приложением.");
   }
