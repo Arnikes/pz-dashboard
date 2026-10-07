@@ -28,6 +28,12 @@ With the environment activated, `python scripts/check.py` is the shared local/CI
 It checks dependency consistency, Ruff lint/format, generated i18n catalogs,
 JavaScript syntax, backend tests, and Chromium browser tests.
 
+Before committing, format the whole repository with the same virtual environment:
+`python -m ruff format .`, then run `python scripts/check.py` after the final edit.
+Running only `ruff check` or selected tests is insufficient: Ruff lint and format
+are separate checks, and CI checks formatting across the entire repository.
+If you edit Python after a successful check, repeat the lint and format checks.
+
 Browser tests serve real static assets on loopback and intercept API/SSE with isolated
 fixtures. They do not need Docker, Steam, PZ, RCON, or Telegram.
 Temporary pytest files go in `.tmp-pytest/`; failed browser traces/screenshots go in

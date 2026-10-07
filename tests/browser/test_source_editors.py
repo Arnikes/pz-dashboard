@@ -157,7 +157,9 @@ def test_source_save_preserves_selection_and_updates_after_hidden_field_edit(
 
 
 def test_explicit_file_save_overwrites_external_changes_and_reloads_once(
-    page, dashboard, editing  # noqa: F811 (imported fixture)
+    page,
+    dashboard,
+    editing,  # noqa: F811 (imported fixture)
 ):
     data, _ = editing
     reads = []
