@@ -4,6 +4,8 @@ import json
 import struct
 from pathlib import Path
 
+import pytest
+
 import app
 import pwa
 from test_auth import auth_server as auth_server, request
@@ -14,6 +16,11 @@ def test_public_pwa_endpoints_and_private_html(auth_server):
         ("/manifest.webmanifest", "application/manifest+json"),
         ("/sw.js", "text/javascript"),
         ("/static/offline.html", "text/html"),
+        ("/static/style.css", "text/css"),
+        ("/static/pwa.css", "text/css"),
+        ("/static/app.js", "text/javascript"),
+        ("/static/editor.js", "text/javascript"),
+        ("/static/pwa.js", "text/javascript"),
     ]:
         status, headers, body = request(auth_server, "GET", path)
         assert status == 200 and body
@@ -47,15 +54,28 @@ def test_manifest_icons_and_entrypoints():
         assert 'src="/static/pwa.js"' in html
 
 
-def test_worker_revision_changes_with_private_html_and_public_assets(tmp_path):
+@pytest.mark.parametrize(
+    "changed_file",
+    [
+        "index.html",
+        "login.html",
+        "style.css",
+        "app.js",
+        "editor.js",
+        "pwa.css",
+        "pwa.js",
+        "offline.html",
+    ],
+)
+def test_worker_revision_changes_with_private_html_and_public_assets(tmp_path, changed_file):
     (tmp_path / "fonts").mkdir()
     (tmp_path / "icons").mkdir()
     (tmp_path / "sw.js").write_text("__PZ_REVISION__\n__PZ_ASSETS__")
-    private = tmp_path / "index.html"
-    private.write_text("v1")
+    asset = tmp_path / changed_file
+    asset.write_text("v1")
     first = pwa.service_worker(tmp_path)
     assert first == pwa.service_worker(tmp_path)
-    private.write_text("v2")
+    asset.write_text("v2")
     assert first != pwa.service_worker(tmp_path)
     assets = json.loads(first.decode().splitlines()[1])
     assert "/static/offline.html" in assets

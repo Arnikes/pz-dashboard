@@ -51,11 +51,69 @@
 .pwa-button:hover:not(:disabled) { background: var(--surface-3, #211c15); }
 .pwa-button:focus-visible { outline: 2px solid #e9e2cd; outline-offset: 3px; }
 .pwa-button:disabled { opacity: .55; cursor: wait; }
+.pwa-update-alert {
+  position: fixed;
+  inset-block-start: max(16px, env(safe-area-inset-top, 0px));
+  inset-inline-end: max(16px, env(safe-area-inset-right, 0px));
+  z-index: 80;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 44px;
+  align-items: center;
+  gap: 4px 8px;
+  width: max-content;
+  max-width: min(480px, calc(100% - 32px));
+  box-sizing: border-box;
+  padding: 4px 4px 4px 16px;
+  border: 1px solid color-mix(in srgb, var(--success, #86b060) 45%, var(--surface-2, #1a1612));
+  border-radius: 999px;
+  background: var(--surface-2, #1a1612);
+  color: var(--ink, #e9e2cd);
+  box-shadow: 0 6px 18px rgb(0 0 0 / .3);
+  font: 400 13.5px/1.4 var(--font-body, "Golos Text", "Segoe UI", sans-serif);
+}
+.topbar ~ .pwa-update-alert { inset-block-start: calc(var(--header-height, 76px) + 12px); }
+.pwa-update-alert[hidden], .pwa-update-alert [hidden] { display: none !important; }
+.pwa-update-message { display:flex; align-items:center; gap:8px; min-width:0; margin:0; }
+.pwa-update-message::before { content:""; flex:none; width:6px; height:6px; border-radius:50%; background:var(--success, #86b060); }
+.pwa-update-action {
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  min-height:44px; padding:8px 14px; border:0; border-radius:999px;
+  background:var(--accent, #e9e2cd); color:var(--bg-deep, #090806);
+  font:500 13.5px/1.3 var(--font-body, "Golos Text", "Segoe UI", sans-serif); cursor:pointer;
+}
+.pwa-update-action svg, .pwa-update-close svg { width:16px; height:16px; flex:none; }
+.pwa-update-action:hover:not(:disabled) { background:var(--accent-hover, #f1ead5); }
+.pwa-update-close { display:grid; place-items:center; width:44px; height:44px; padding:0; border:0; border-radius:50%; background:transparent; color:var(--muted, #b3a78c); cursor:pointer; }
+.pwa-update-close:hover:not(:disabled) { background:var(--surface-3, #211c15); color:var(--ink, #e9e2cd); }
+.pwa-update-action:focus-visible, .pwa-update-close:focus-visible { outline:2px solid var(--focus, #e9e2cd); outline-offset:2px; }
+.pwa-update-action:disabled, .pwa-update-close:disabled { opacity:.55; cursor:wait; }
+.pwa-update-note { grid-column:1 / -1; margin:0; padding:4px 12px 8px 0; color:var(--warning, #d9a441); overflow-wrap:anywhere; }
+.pwa-update-alert:has(.pwa-update-note:not([hidden])) { border-radius:16px; }
+@media (prefers-reduced-motion: no-preference) {
+  .pwa-update-alert { animation:pwaUpdateIn 180ms cubic-bezier(.16, 1, .3, 1); }
+}
+@keyframes pwaUpdateIn { from { opacity:0; translate:0 -6px; } }
+@media (forced-colors: active) { .pwa-update-alert { border-color:CanvasText; } }
+@media (max-width: 740px) {
+  .topbar ~ .pwa-update-alert {
+    inset-block-start:auto;
+    inset-block-end:calc(var(--footer-height, 44px) + var(--nav-height, 64px) + var(--draft-height, 0px) + 16px);
+  }
+  .toasts {
+    bottom:calc(var(--footer-height) + var(--nav-height) + var(--draft-height) + 22px + var(--pwa-update-clearance, 0px));
+    --toast-available-height:max(80px, calc(100dvh - var(--header-height) - var(--footer-height) - var(--nav-height) - var(--draft-height) - var(--pwa-update-clearance, 0px) - 64px));
+  }
+}
+@media (max-width: 740px) and (max-height: 600px) {
+  .topbar ~ .pwa-update-alert { inset-block-end:calc(var(--footer-height, 44px) + var(--nav-height, 64px) + 16px); }
+  .toasts { bottom:calc(var(--footer-height) + var(--nav-height) + 22px + var(--pwa-update-clearance, 0px)); }
+}
 .login-page:has(.pwa-bar:not([hidden])) { align-content: center; gap: 20px; }
 .login-page .pwa-bar { width: 100%; max-width: 400px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; }
 @media (min-width: 741px) {
   .topbar + .pwa-bar {
-    margin-left: var(--sidebar-width);
+    margin-left: var(--workspace-start);
+    width: calc(100% - var(--sidebar-width));
     max-width: var(--content-width);
     padding-inline: var(--page-gutter);
   }

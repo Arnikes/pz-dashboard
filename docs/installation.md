@@ -188,9 +188,15 @@ offline cache. Commands are not queued for later execution. Review the current s
 before retrying an operation after reconnection. Unsaved input survives only in the
 open window; server-saved drafts return after reconnecting.
 
-An available PWA update appears as “Update app”; the panel does not reload automatically.
-Its update action checks unsaved input and in-progress operations. Clear browser site
-data to remove offline assets completely.
+An available PWA update appears in a floating alert below the header (above the
+bottom controls on mobile) without shifting the page. It can be dismissed for
+that version; a newer release
+shows a new alert. The panel does not reload automatically.
+The open, visible app checks for updates every minute and on returning to the app or
+reconnecting. Its update action checks unsaved input and in-progress operations, then
+reloads the current section with the latest HTML, styles, and scripts. Other open
+windows keep their input and offer their own update action. Clear browser site data
+to remove offline assets completely.
 
 ## RCON-only use
 

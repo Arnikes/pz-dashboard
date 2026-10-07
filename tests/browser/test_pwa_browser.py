@@ -2,7 +2,7 @@
 
 import shutil
 from http.server import ThreadingHTTPServer
-from threading import Thread
+from threading import Event, Thread
 from urllib.parse import urlparse
 
 import pytest
@@ -28,6 +28,11 @@ def pwa_server(monkeypatch, tmp_path, page):
 
         def do_GET(self):
             path = urlparse(self.path).path
+            if path == "/static/offline.html" and hasattr(self.server, "precache_gate"):
+                self.server.precache_gate.wait(timeout=5)
+            if path == "/static/offline.html" and getattr(self.server, "shell_unavailable", False):
+                self._send_error_json(503, "Shell unavailable")
+                return
             if getattr(self.server, "unavailable", False) and path in ("/", "/api/health"):
                 self._send_error_json(503, "Пульт недоступен")
                 return
@@ -61,6 +66,8 @@ def pwa_server(monkeypatch, tmp_path, page):
         }
         assert not errors, f"Uncaught browser errors: {errors}"
     finally:
+        if hasattr(server, "precache_gate"):
+            server.precache_gate.set()
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
@@ -110,7 +117,7 @@ def test_update_waits_for_password_and_does_not_reload_other_tab(page, context, 
     expect(page.locator("#pwaUpdate")).to_be_visible()
     page.locator("#password").fill("do-not-lose-this")
     page.locator("#pwaUpdate").click()
-    expect(page.locator(".pwa-message")).to_contain_text("Сохраните введённые изменения")
+    expect(page.locator("#pwaUpdateNote")).to_contain_text("Сохраните введённые изменения")
     expect(page.locator("#password")).to_have_value("do-not-lose-this")
     assert page.evaluate("navigator.serviceWorker.getRegistration().then(r => !!r.waiting)")
     page.locator("#password").fill("")
@@ -121,6 +128,225 @@ def test_update_waits_for_password_and_does_not_reload_other_tab(page, context, 
     assert len(new_caches) == 1 and new_caches != old_caches
     expect(other.locator("#password")).to_have_value("keep-this-input")
     expect(other.locator("#pwaUpdate")).to_be_visible()
+
+
+def test_open_app_detects_update_within_a_minute(page, pwa_server):
+    page.clock.install()
+    ready(page, pwa_server)
+    page.evaluate("async () => (await navigator.serviceWorker.getRegistration()).update()")
+    page.wait_for_function(
+        "navigator.serviceWorker.getRegistration().then(r => !r.installing && !r.waiting)"
+    )
+    offline = pwa_server["root"] / "offline.html"
+    offline.write_text(
+        offline.read_text(encoding="utf-8") + "\n<!-- next release -->", encoding="utf-8"
+    )
+    page.clock.fast_forward(60_001)
+    expect(page.locator("#pwaUpdate")).to_be_visible(timeout=10000)
+
+
+def test_registration_already_installing_still_announces_update(page, context, pwa_server):
+    ready(page, pwa_server)
+    page.evaluate("async () => (await navigator.serviceWorker.getRegistration()).update()")
+    offline = pwa_server["root"] / "offline.html"
+    offline.write_text(
+        offline.read_text(encoding="utf-8") + "\n<!-- slow release -->", encoding="utf-8"
+    )
+    pwa_server["server"].precache_gate = Event()
+    other = context.new_page()
+    other.add_init_script("""(() => {
+      const register = navigator.serviceWorker.register.bind(navigator.serviceWorker);
+      navigator.serviceWorker.register = async (...args) => {
+        const registration = await register(...args);
+        await registration.update();
+        // Expose the supported state where updatefound precedes the register callback.
+        await new Promise(resolve => setTimeout(resolve, 100));
+        window.registerReturnedInstalling = !!registration.installing;
+        return registration;
+      };
+    })();""")
+    other.goto(pwa_server["url"] + "/login")
+    other.wait_for_function("window.registerReturnedInstalling === true")
+    pwa_server["server"].precache_gate.set()
+    other.wait_for_function("navigator.serviceWorker.getRegistration().then(r => !!r.waiting)")
+    expect(other.locator("#pwaUpdate")).to_be_visible()
+
+
+def test_update_loads_changed_dashboard_html_css_and_javascript(page, context, pwa_server):
+    token = pwa_server["auth"].sign_in("pwa-admin", "pwa-test-password-long", "fixture")
+    context.add_cookies([{"name": auth.COOKIE_NAME, "value": token, "url": pwa_server["url"]}])
+    page.goto(pwa_server["url"] + "/#/settings")
+    page.wait_for_function("!!navigator.serviceWorker.controller && !!window.ConfigEditor")
+    old_caches = page.evaluate("caches.keys()")
+    root = pwa_server["root"]
+    html = root / "index.html"
+    html.write_text(
+        html.read_text(encoding="utf-8").replace("<body", '<body data-pwa-release="two"', 1),
+        encoding="utf-8",
+    )
+    offline = root / "offline.html"
+    offline.write_text(
+        offline.read_text(encoding="utf-8").replace("<body", '<body data-pwa-release="two"', 1),
+        encoding="utf-8",
+    )
+    for name, addition in [
+        ("style.css", "\nbody { --pwa-dashboard-release: two; }"),
+        ("app.js", '\ndocument.body.dataset.pwaAppRelease = "two";'),
+        ("editor.js", '\ndocument.body.dataset.pwaEditorRelease = "two";'),
+        ("pwa.css", "\nbody { --pwa-shell-release: two; }"),
+        ("pwa.js", '\ndocument.body.dataset.pwaShellRelease = "two";'),
+    ]:
+        asset = root / name
+        asset.write_text(asset.read_text(encoding="utf-8") + addition, encoding="utf-8")
+    page.evaluate("async () => (await navigator.serviceWorker.getRegistration()).update()")
+    expect(page.locator("#pwaUpdate")).to_be_visible(timeout=10000)
+    assert page.locator("body").get_attribute("data-pwa-release") is None
+    # A fresh window must receive the latest assets even while the old worker is active.
+    fresh = context.new_page()
+    fresh.goto(pwa_server["url"] + "/")
+    expect(fresh.locator("body")).to_have_attribute("data-pwa-release", "two")
+    expect(fresh.locator("body")).to_have_attribute("data-pwa-shell-release", "two")
+    assert set(old_caches).issubset(page.evaluate("caches.keys()"))
+    with page.expect_navigation(wait_until="load"):
+        page.locator("#pwaUpdate").click()
+    assert page.url.endswith("/#/settings")
+    for attribute in [
+        "data-pwa-release",
+        "data-pwa-app-release",
+        "data-pwa-editor-release",
+        "data-pwa-shell-release",
+    ]:
+        expect(page.locator("body")).to_have_attribute(attribute, "two")
+    for prop in ["--pwa-dashboard-release", "--pwa-shell-release"]:
+        assert (
+            page.locator("body").evaluate(
+                "(body, prop) => getComputedStyle(body).getPropertyValue(prop).trim()", prop
+            )
+            == "two"
+        )
+    page.wait_for_function("caches.keys().then(names => names.length === 1)")
+    assert page.evaluate("caches.keys()") != old_caches
+    context.set_offline(True)
+    page.goto(pwa_server["url"] + "/")
+    expect(page.locator("body")).to_have_attribute("data-pwa-release", "two")
+    expect(page.locator("body")).to_have_attribute("data-pwa-shell-release", "two")
+    assert (
+        page.locator("body").evaluate(
+            "body => getComputedStyle(body).getPropertyValue('--pwa-shell-release').trim()"
+        )
+        == "two"
+    )
+    context.set_offline(False)
+
+
+def test_failed_update_preserves_active_version_and_can_retry(page, pwa_server):
+    ready(page, pwa_server)
+    page.evaluate("async () => (await navigator.serviceWorker.getRegistration()).update()")
+    old_cache = page.evaluate("caches.keys()")[0]
+    offline = pwa_server["root"] / "offline.html"
+    offline.write_text(
+        offline.read_text(encoding="utf-8") + "\n<!-- next release -->", encoding="utf-8"
+    )
+    pwa_server["server"].shell_unavailable = True
+    page.evaluate("""async () => {
+      const registration = await navigator.serviceWorker.getRegistration();
+      window.failedWorker = null;
+      registration.addEventListener('updatefound', () => {
+        window.failedWorker = registration.installing;
+      }, {once: true});
+      await registration.update();
+    }""")
+    page.wait_for_function("window.failedWorker?.state === 'redundant'")
+    expect(page.locator("#pwaUpdate")).to_be_hidden()
+    assert old_cache in page.evaluate("caches.keys()")
+    page.context.set_offline(True)
+    page.goto(pwa_server["url"] + "/")
+    expect(page.get_by_role("heading", name="Нет связи с пультом")).to_be_visible()
+    pwa_server["server"].shell_unavailable = False
+    page.context.set_offline(False)
+    # The offline shell reconnects automatically; a simultaneous goto can abort it.
+    expect(page.locator("#loginForm")).to_be_visible(timeout=15000)
+    page.evaluate("async () => (await navigator.serviceWorker.getRegistration()).update()")
+    expect(page.locator("#pwaUpdate")).to_be_visible(timeout=10000)
+    with page.expect_navigation(wait_until="load"):
+        page.locator("#pwaUpdate").click()
+    page.wait_for_function("caches.keys().then(names => names.length === 1)")
+    assert page.evaluate("caches.keys()") != [old_cache]
+
+
+@pytest.mark.parametrize("width", [1440, 390, 320])
+@pytest.mark.parametrize("language", ["ru", "en"])
+def test_update_alert_floats_without_moving_layout_and_can_dismiss(
+    page, context, pwa_server, tmp_path, width, language
+):
+    page.set_viewport_size({"width": width, "height": 900})
+    page.add_init_script(f"localStorage.setItem('pz-language', '{language}')")
+    token = pwa_server["auth"].sign_in("pwa-admin", "pwa-test-password-long", "fixture")
+    context.add_cookies([{"name": auth.COOKIE_NAME, "value": token, "url": pwa_server["url"]}])
+    page.goto(pwa_server["url"] + "/")
+    page.wait_for_function("!!navigator.serviceWorker.controller && !!window.ConfigEditor")
+    page.evaluate(
+        "async () => { await document.fonts.ready; await (await navigator.serviceWorker.getRegistration()).update(); }"
+    )
+    page.locator("#btnCommands").focus()
+    geometry = """() => ['.topbar', '.main', '#view-overview h1', '.nav', '.site-footer'].map(selector => {
+      const box = document.querySelector(selector).getBoundingClientRect();
+      return [box.x, box.y, box.width, box.height];
+    })"""
+    before = page.evaluate(geometry)
+    offline = pwa_server["root"] / "offline.html"
+    offline.write_text(
+        offline.read_text(encoding="utf-8") + "\n<!-- alert release -->", encoding="utf-8"
+    )
+    page.evaluate("async () => (await navigator.serviceWorker.getRegistration()).update()")
+    alert = page.locator(".pwa-update-alert")
+    expect(alert).to_be_visible(timeout=10000)
+    expect(page.locator(".pwa-bar")).to_be_hidden()
+    expect(page.locator("#btnCommands")).to_be_focused()
+    assert page.evaluate(geometry) == before
+    assert alert.evaluate("element => getComputedStyle(element).position") == "fixed"
+    box = alert.bounding_box()
+    assert box["x"] >= 0 and box["x"] + box["width"] <= width
+    assert box["y"] >= before[0][1] + before[0][3]
+    assert box["y"] + box["height"] < 900 - before[4][3]
+    for selector in ["#pwaUpdate", ".pwa-update-close"]:
+        assert page.locator(selector).bounding_box()["height"] >= 44
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    if language == "en":
+        assert "New version available" in alert.inner_text()
+    page.screenshot(
+        path=str(tmp_path / f"update-alert-{language}-{width}.png"), animations="disabled"
+    )
+    if width <= 740:
+        page.evaluate("toast('PWA companion notification', 'ok', 120000)")
+        page.wait_for_function("""() => {
+          const toast = document.querySelector('.toast').getBoundingClientRect();
+          const alert = document.querySelector('.pwa-update-alert').getBoundingClientRect();
+          return toast.bottom < alert.top;
+        }""")
+    if width == 320:
+        page.context.set_offline(True)
+        expect(page.locator("#pwaUpdate")).to_be_disabled()
+        expect(page.locator("#pwaUpdateNote")).to_be_visible()
+        page.context.set_offline(False)
+        expect(page.locator("#pwaUpdate")).to_be_enabled()
+    close = alert.get_by_role("button", name="Закрыть" if language == "ru" else "Close", exact=True)
+    close.click()
+    expect(alert).to_be_hidden()
+    expect(page.locator("#btnCommands")).to_be_focused()
+    assert page.evaluate("navigator.serviceWorker.getRegistration().then(r => !!r.waiting)")
+    page.evaluate("window.dispatchEvent(new Event('online'))")
+    expect(alert).to_be_hidden()
+    # Dismissal is scoped to this release, not future releases.
+    offline.write_text(
+        offline.read_text(encoding="utf-8") + "\n<!-- newer alert release -->", encoding="utf-8"
+    )
+    page.evaluate("async () => (await navigator.serviceWorker.getRegistration()).update()")
+    expect(alert).to_be_visible(timeout=10000)
+    page.locator("#pwaUpdate").focus()
+    page.keyboard.press("Escape")
+    expect(alert).to_be_hidden()
+    expect(page.locator("#btnCommands")).to_be_focused()
 
 
 def test_install_prompt_and_standalone_hides_install(page, pwa_server):

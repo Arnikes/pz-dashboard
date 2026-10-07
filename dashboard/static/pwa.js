@@ -9,6 +9,9 @@
   let updateRequested = false;
   let controllerChanged = false;
   let notice = "";
+  let updateBlocked = false;
+  let dismissedUpdate = null;
+  let lastOutsideFocus = document.activeElement;
 
   async function reconnect() {
     if (retry.disabled) return;
@@ -38,7 +41,7 @@
   bar.className = "pwa-bar";
   bar.setAttribute("aria-label", I18n.t("Приложение PZ Пульт"));
   bar.hidden = true;
-  bar.innerHTML = I18n.html('<p class="pwa-message" role="status" aria-live="polite"></p><button class="pwa-button" id="pwaInstall" type="button" hidden>Установить приложение</button><button class="pwa-button" id="pwaUpdate" type="button" hidden>Обновить приложение</button><p class="pwa-help" hidden></p>');
+  bar.innerHTML = I18n.html('<p class="pwa-message" role="status" aria-live="polite"></p><button class="pwa-button" id="pwaInstall" type="button" hidden>Установить приложение</button><p class="pwa-help" hidden></p>');
   if (!retry) {
     const topbar = document.querySelector(".topbar");
     if (topbar) topbar.after(bar);
@@ -46,8 +49,36 @@
   }
   const message = bar.querySelector(".pwa-message");
   const install = bar.querySelector("#pwaInstall");
-  const update = bar.querySelector("#pwaUpdate");
   const help = bar.querySelector(".pwa-help");
+  const updateAlert = document.createElement("aside");
+  updateAlert.className = "pwa-update-alert";
+  updateAlert.hidden = true;
+  updateAlert.innerHTML = '<p class="pwa-update-message" role="status" aria-live="polite"></p><button class="pwa-update-action" id="pwaUpdate" type="button"><span></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="pwa-update-close" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke-linecap="round"/></svg></button><p class="pwa-update-note" id="pwaUpdateNote" role="status" aria-live="polite" hidden></p>';
+  if (!retry) document.body.append(updateAlert);
+  const update = updateAlert.querySelector("#pwaUpdate");
+  const updateMessage = updateAlert.querySelector(".pwa-update-message");
+  const updateNote = updateAlert.querySelector(".pwa-update-note");
+  const closeUpdate = updateAlert.querySelector(".pwa-update-close");
+  // Mobile notifications reserve space above the alert without changing page layout.
+  if (!retry && "ResizeObserver" in window) {
+    new ResizeObserver(() => {
+      document.documentElement.style.setProperty("--pwa-update-clearance", `${updateAlert.hidden ? 0 : updateAlert.offsetHeight + 12}px`);
+    }).observe(updateAlert);
+  }
+  const updateToken = () => registration?.waiting || (controllerChanged && navigator.serviceWorker.controller);
+  document.addEventListener("focusin", (event) => {
+    if (!updateAlert.contains(event.target)) lastOutsideFocus = event.target;
+  });
+  function dismissUpdate() {
+    if (updateRequested) return;
+    dismissedUpdate = updateToken();
+    if (updateAlert.contains(document.activeElement) && lastOutsideFocus?.isConnected) lastOutsideFocus.focus();
+    render();
+  }
+  closeUpdate.addEventListener("click", dismissUpdate);
+  updateAlert.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { event.preventDefault(); dismissUpdate(); }
+  });
   help.id = "pwaInstallHelp";
   install.setAttribute("aria-controls", help.id);
   const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -55,16 +86,29 @@
   function render() {
     bar.setAttribute("aria-label", I18n.t("Приложение PZ Пульт"));
     install.textContent = I18n.t("Установить приложение");
-    update.textContent = I18n.t("Обновить приложение");
+    updateAlert.setAttribute("aria-label", I18n.t("Обновление приложения"));
+    update.setAttribute("aria-label", I18n.t("Обновить приложение"));
+    update.querySelector("span").textContent = I18n.t(updateRequested ? "Обновляем…" : "Обновить пульт");
+    closeUpdate.setAttribute("aria-label", I18n.t("Закрыть"));
+    updateMessage.textContent = I18n.t("Доступна новая версия");
     const canInstall = !standalone() && (!!installPrompt || (ios && window.isSecureContext));
-    const hasUpdate = !!registration?.waiting || controllerChanged;
+    const token = updateToken();
+    const hasUpdate = !!token;
     install.hidden = !canInstall;
-    update.hidden = !hasUpdate;
+    updateAlert.hidden = !!retry || !hasUpdate || token === dismissedUpdate;
+    updateAlert.setAttribute("aria-busy", String(updateRequested));
     update.disabled = !navigator.onLine || updateRequested;
-    bar.hidden = retry || (navigator.onLine && !canInstall && !hasUpdate && !notice);
+    closeUpdate.disabled = updateRequested;
+    updateNote.hidden = navigator.onLine && !updateBlocked;
+    updateNote.textContent = !navigator.onLine
+      ? I18n.t("Нет сети. Восстановите связь и повторите действие.")
+      : updateBlocked ? I18n.t("Сохраните введённые изменения и дождитесь завершения операции, затем повторите обновление.") : "";
+    if (updateNote.hidden) update.removeAttribute("aria-describedby");
+    else update.setAttribute("aria-describedby", updateNote.id);
+    bar.hidden = !!retry || (navigator.onLine && !canInstall && !notice);
     message.textContent = !navigator.onLine
       ? I18n.t("Нет сети. Последние данные могут устареть; команды недоступны. Ввод остаётся в открытом окне.")
-      : notice || (hasUpdate ? I18n.t("Доступна новая версия пульта. Сохраните изменения перед обновлением.") : I18n.t("Пульт можно открыть отдельным приложением."));
+      : notice || I18n.t("Пульт можно открыть отдельным приложением.");
   }
 
   window.addEventListener("beforeinstallprompt", (event) => {
@@ -110,7 +154,7 @@
     document.dispatchEvent(event);
     const password = document.getElementById("password");
     if (event.defaultPrevented || (password && password.value) || document.getElementById("loginSubmit")?.disabled) {
-      notice = I18n.t("Сохраните введённые изменения и дождитесь завершения операции, затем повторите обновление.");
+      updateBlocked = true;
       render();
       return false;
     }
@@ -125,6 +169,7 @@
   update.addEventListener("click", () => {
     if (!navigator.onLine || !canReload()) return;
     notice = "";
+    updateBlocked = false;
     if (registration?.waiting) {
       updateRequested = true;
       render();
@@ -150,15 +195,18 @@
     });
     navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" }).then((value) => {
       registration = value;
-      registration.addEventListener("updatefound", () => {
+      const watchInstalling = () => {
         registration.installing?.addEventListener("statechange", render);
-      });
+      };
+      registration.addEventListener("updatefound", watchInstalling);
+      // Registration may resolve after updatefound, while precaching is still running.
+      watchInstalling();
       render();
       checkUpdate();
     }).catch(() => { /* The regular web app remains available if storage/registration is blocked. */ });
     document.addEventListener("visibilitychange", checkUpdate);
     window.addEventListener("pageshow", checkUpdate);
-    setInterval(checkUpdate, 60 * 60 * 1000);
+    setInterval(checkUpdate, 60000);
   }
   render();
 })();

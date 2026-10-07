@@ -1,4 +1,8 @@
 {
+  "Обновление приложения": "App update",
+  "Доступна новая версия": "New version available",
+  "Обновить пульт": "Update",
+  "Обновляем…": "Updating…",
   "Минимум: {{0}}": "Minimum: {{0}}",
   "Максимум: {{0}}": "Maximum: {{0}}",
   "Диапазон и варианты из исходной конфигурации {{0}}": "Range and choices from the original {{0}} configuration",
