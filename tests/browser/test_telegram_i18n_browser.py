@@ -58,6 +58,9 @@ def test_language_selector_persists_and_test_waits_for_save(page, dashboard, lan
     page.locator("#sec-notify").screenshot(path=str(out / f"notifications-{language}-{width}.png"))
     page.locator("#languageSwitch").select_option(notification_language)
     expect(page.locator("html")).to_have_attribute("lang", notification_language)
+    # The new document sets its locale before the scripts and saved settings load.
+    page.wait_for_load_state("load")
+    expect(page.locator("#btnStop")).to_be_enabled()
     expect(page.locator("#tgLanguage")).to_have_value(notification_language)
 
 

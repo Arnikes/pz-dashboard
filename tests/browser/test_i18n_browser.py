@@ -192,6 +192,8 @@ def test_english_offline_shell_has_cached_translations(page, context, pwa_server
 
 @pytest.mark.browser_context_args(locale="en-US")
 def test_english_confirmation_and_safe_dynamic_values(page, dashboard):
+    # Keep the API and reconnecting SSE fixture consistent with the tested frame.
+    dashboard["players"].update(names=["Игроки {{0}} <script>"], count=1)
     page.goto(dashboard["url"] + "/")
     expect(page.get_by_role("button", name="Stop", exact=True)).to_be_enabled()
     page.get_by_role("button", name="Stop", exact=True).click()
@@ -199,7 +201,6 @@ def test_english_confirmation_and_safe_dynamic_values(page, dashboard):
     expect(page.locator("#warnSel")).to_contain_text("no warning")
     page.locator("#modalCancel").click()
     assert dashboard["actions"] == []
-    page.evaluate("renderPlayers({ok:true,names:['Игроки {{0}} <script>'],count:1})")
     page.evaluate("location.hash='#/players'")
     expect(page.locator("#playersBody")).to_contain_text("Игроки {{0}} <script>")
     assert page.locator("#playersBody script").count() == 0

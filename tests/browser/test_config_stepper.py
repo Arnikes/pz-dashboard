@@ -43,6 +43,8 @@ def test_stepper_keeps_statuses_and_draft_actions(
 
     page.locator('.nav [data-route="settings"]').click()
     expect(page.locator("#view-settings")).to_be_visible()
+    # Returning to an editor route reloads the profile after showing the view.
+    expect(page.locator("#configProfile")).to_be_enabled()
     field = page.locator('[data-key="PublicName"]')
     field.fill("New stepper draft")
     field.press("Tab")

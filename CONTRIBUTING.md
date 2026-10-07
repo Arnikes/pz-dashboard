@@ -28,6 +28,25 @@ With the environment activated, `python scripts/check.py` is the shared local/CI
 It checks dependency consistency, Ruff lint/format, generated i18n catalogs,
 JavaScript syntax, backend tests, and Chromium browser tests.
 
+The full suite runs in isolated pytest-xdist processes, using up to four CPUs.
+Each process has its own browser, loopback servers, and temporary test files;
+individual tests still get fresh browser contexts. Work stealing balances slow
+browser scenarios with shorter backend tests. Simultaneous `scripts/check.py`
+invocations in the same checkout queue their test stage to avoid oversubscribing
+CPU and browser memory; each active suite still uses its configured worker count.
+The slowest 20 test phases are
+printed after each run. The passing path avoids recording and compressing traces
+that would be discarded. Each check uses a private failure cache and a unique
+`test-results/check-*/` artifact directory, so concurrent checks cannot erase
+each other's evidence. After a failed suite, its cached failures are automatically
+replayed with traces and screenshots retained in that run's `diagnostic/`
+subdirectory, even if the replay passes.
+The original failure still fails the check. Use `python scripts/check.py --trace`
+to capture traces on the initial run, including intermittent failures.
+Use `python scripts/check.py --workers 2` to limit resource usage, or
+`python scripts/check.py --workers 0` for a serial run when debugging or comparing
+timings. Direct `python -m pytest` commands remain serial unless given `-n`.
+
 Before committing, format the whole repository with the same virtual environment:
 `python -m ruff format .`, then run `python scripts/check.py` after the final edit.
 Running only `ruff check` or selected tests is insufficient: Ruff lint and format

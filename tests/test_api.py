@@ -27,7 +27,10 @@ def api(monkeypatch, authenticated_admin):
     server = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
     server.auth, default_headers = authenticated_admin
     server.daemon_threads = True
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    # The default 0.5s polling interval delays every fixture's shutdown.
+    thread = threading.Thread(
+        target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
     thread.start()
 
     def request(method, path, data=None, *, raw=None, headers=None):

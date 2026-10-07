@@ -55,7 +55,7 @@ def pwa_server(monkeypatch, tmp_path, page):
     server = ThreadingHTTPServer(("127.0.0.1", 0), PwaHandler)
     server.auth = manager
     server.daemon_threads = True
-    thread = Thread(target=server.serve_forever, daemon=True)
+    thread = Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
     thread.start()
     try:
         yield {

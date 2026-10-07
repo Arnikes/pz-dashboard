@@ -26,7 +26,7 @@ class StaticHandler(SimpleHTTPRequestHandler):
 def static_url():
     directory = Path(__file__).resolve().parents[2] / "dashboard" / "static"
     server = ThreadingHTTPServer(("127.0.0.1", 0), partial(StaticHandler, directory=str(directory)))
-    thread = Thread(target=server.serve_forever, daemon=True)
+    thread = Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
     thread.start()
     try:
         yield f"http://127.0.0.1:{server.server_port}"
@@ -79,6 +79,8 @@ def dashboard(page, static_url):
             route.fulfill(status=409, json={"ok": False, "error": "Тест: сервер занят"})
         elif path == "overview":
             route.fulfill(json=overview)
+        elif path == "players":
+            route.fulfill(json=players)
         else:
             route.fulfill(json={"ok": True, "items": [], "points": [], "names": []})
 

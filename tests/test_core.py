@@ -1135,7 +1135,7 @@ def test_sse_stream_serves_data(monkeypatch, authenticated_admin):
     srv = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
     srv.auth, headers = authenticated_admin
     srv.daemon_threads = True
-    th = threading.Thread(target=srv.serve_forever, daemon=True)
+    th = threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
     th.start()
     try:
         port = srv.server_address[1]
@@ -1412,7 +1412,7 @@ def test_telegram_chats_route_on_get(monkeypatch, authenticated_admin):
     srv = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
     srv.auth, headers = authenticated_admin
     srv.daemon_threads = True
-    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
     try:
         port = srv.server_address[1]
         conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
@@ -1653,7 +1653,7 @@ def test_backup_download_missing_file_404(monkeypatch, authenticated_admin):
     srv = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
     srv.auth, headers = authenticated_admin
     srv.daemon_threads = True
-    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
     try:
         monkeypatch.setattr(ops, "backup_download_path", lambda name: "/несуществующий/путь.tar.gz")
         port = srv.server_address[1]

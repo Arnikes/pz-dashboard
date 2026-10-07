@@ -24,7 +24,9 @@ def auth_server(monkeypatch, tmp_path):
     server.auth = manager
     server.test_key = key
     server.daemon_threads = True
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(
+        target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
     thread.start()
     try:
         yield server

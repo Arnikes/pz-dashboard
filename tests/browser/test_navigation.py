@@ -29,11 +29,19 @@ def test_sidebar_defaults_toggle_and_layout(page, dashboard, width):
     expect(page.locator("#view-settings")).to_be_visible()
     expect(settings).to_have_attribute("aria-current", "page")
     # All fixed workspace elements follow the sidebar's new width.
-    page.evaluate("document.getElementById('draftBar').hidden = false")
-    assert page.locator(".main").bounding_box()["x"] == (72 if collapsed else 204)
+    # Capture one layout frame: live editor updates can hide the draft bar
+    # between separate browser calls, even after it was explicitly shown.
+    boxes = page.evaluate("""() => {
+        document.getElementById('draftBar').hidden = false;
+        return Object.fromEntries(['.main', '#draftBar', '.site-footer', '.nav'].map(selector => {
+            const {x, width} = document.querySelector(selector).getBoundingClientRect();
+            return [selector, {x, width}];
+        }));
+    }""")
+    assert boxes[".main"]["x"] == (72 if collapsed else 204)
     for selector in ["#draftBar", ".site-footer"]:
-        box = page.locator(selector).bounding_box()
-        assert box["x"] >= sidebar.bounding_box()["width"]
+        box = boxes[selector]
+        assert box["x"] >= boxes[".nav"]["width"]
         assert box["x"] + box["width"] <= width
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     page.screenshot(path=f".tmp-sidebar/navigation-{width}.png")
