@@ -1370,7 +1370,18 @@ select { cursor: pointer; }
 .nav-more, .nav-toggle { display:none; }
 .more-menu { position:fixed; right:12px; bottom:calc(var(--footer-height) + var(--nav-height) + 12px); z-index:70; padding:12px; max-height:calc(100dvh - var(--footer-height) - var(--nav-height) - 24px); overflow:auto; border:1px solid var(--line-strong); border-radius:12px; background:var(--surface-2); box-shadow:0 12px 40px #0008; }
 .more-menu a { display:block; padding:12px 18px; text-decoration:none; }
-.editor-card { grid-column:1 / -1; min-width:0; }
+.editor-card { position:relative; grid-column:1 / -1; min-width:0; }
+.editor-loading { position:absolute; inset:0; overflow:hidden; border-radius:inherit; pointer-events:none; }
+.editor-loading::before { content:""; position:absolute; inset:0 0 auto; height:3px; background:var(--line); }
+.editor-loading::after { content:""; position:absolute; inset:0 auto auto 0; width:35%; height:3px; background:var(--accent); }
+@media (prefers-reduced-motion:no-preference) {
+  .editor-loading::after { animation:editor-loading 1.4s ease-in-out infinite alternate; }
+  @keyframes editor-loading { from { transform:translateX(0); } to { transform:translateX(186%); } }
+}
+@media (forced-colors:active) {
+  .editor-loading::before { background:Canvas; }
+  .editor-loading::after { background:Highlight; forced-color-adjust:none; }
+}
 .editor-card .hint { color:var(--muted); }
 .editor-tabs { display:flex; flex-wrap:nowrap; overflow-x:auto; gap:6px; margin:16px 0; border-bottom:1px solid var(--line-strong); padding:2px 2px 12px; }
 .editor-tabs button { border:1px solid var(--line-strong); border-radius:8px; background:var(--surface); color:var(--muted); padding:10px 14px; font:inherit; cursor:pointer; }

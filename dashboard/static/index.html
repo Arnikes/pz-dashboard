@@ -282,6 +282,7 @@
     <div class="view" id="view-mods" tabindex="-1" hidden>
       <p id="modsAvailability" class="hint availability" role="status" hidden></p>
       <section class="card editor-card" aria-labelledby="hModsEditor">
+        <div id="modsLoading" class="editor-loading" role="progressbar" aria-label="Загрузка…" hidden></div>
         <header class="sr-only"><h2 id="hModsEditor">Состав модов</h2></header>
         <p class="tab-scroll-help" id="modTabsHelp">Вкладки можно прокручивать влево и вправо.</p>
         <div class="editor-tabs" id="modTabs" role="tablist" aria-label="Редактор модов" aria-describedby="modTabsHelp">
@@ -364,6 +365,7 @@
     <div class="view" id="view-settings" tabindex="-1" hidden>
       <p id="settingsAvailability" class="hint availability" role="status" hidden></p>
       <section class="card editor-card" aria-labelledby="page-settings">
+        <div id="settingsLoading" class="editor-loading" role="progressbar" aria-label="Загрузка…" hidden></div>
         <header class="sr-only"><h2 id="hConfig">Параметры профиля</h2><span id="configStatus">Выберите профиль</span></header>
         <div id="configError" class="editor-error" role="alert" hidden></div>
         <p id="configActionHelp" class="hint" role="status" hidden></p>

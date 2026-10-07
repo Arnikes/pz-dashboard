@@ -987,7 +987,6 @@
   "Профиль": "Profile",
   "Профиль {{0}}. Состав будет проверен по скачанным Steam-пакетам перед применением.": "Profile {{0}}. Composition will be checked against downloaded Steam packages before application.",
   "Профиль {{1}} · {{2}}": "Profile {{1}} · {{2}}",
-  "Профиль загружается. Дождитесь получения черновика.": "Profile loading. Wait for the draft.",
   "Профиль запуска не подтверждён. Проверьте -servername или PZ_CONFIG_FILE по руководству; черновик сохраняется.": "Launch profile unconfirmed. Check -servername or PZ_CONFIG_FILE in the guide; draft is preserved.",
   "Профиль изменился во время проверки Steam. Добавьте пакет в нужном профиле заново.": "Profile changed during Steam verification. Add the package again in the desired profile.",
   "Профиль изменился во время редактирования": "Profile changed during editing",

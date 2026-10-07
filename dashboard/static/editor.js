@@ -8,6 +8,7 @@ window.ConfigEditor = (() => {
   const orderAnimations = new Map();
   let editorRoute = "";
   let profileLoad = Promise.resolve();
+  let pendingRequests = 0;
   let resolvingWorkshop = false;
   const compositionPager = { page: 0, size: 25 };
   const pendingFields = new Map();
@@ -24,11 +25,22 @@ window.ConfigEditor = (() => {
       .replace(/\/[0-9A-F]{6}|<(?:RGB:[^>]*|SIZE:[^>]*|CENTRE|LEFT|RIGHT|H[12])>/g, "");
   }
   const statuses = { draft: I18n.t("Есть черновик"), saved: I18n.t("Сохранено, требуется запуск"), applying: I18n.t("Применение"), applied: I18n.t("Применено"), error: I18n.t("Ошибка"), unconfirmed: I18n.t("Применение не подтверждено"), "select-mods": I18n.t("Пакеты загружены; выберите ModID") };
+  function updateLoading() {
+    const active = loading || pendingRequests > 0;
+    for (const view of ["settings", "mods"]) {
+      setDomProperty($(view + "Loading"), "hidden", !active);
+      setDomAttribute($("view-" + view), "aria-busy", String(active));
+    }
+  }
   const call = async (path, body) => {
-    const result = path === "/api/action" ? await requestOperation(body, { timeout: 180000 })
-      : await api(path, body === undefined ? { timeout: 180000 } : { method: "POST", body, timeout: 180000 });
-    if (!result.ok) { const failure = new Error(result.error || I18n.t("Нет ответа редактора")); failure.remote = true; throw failure; }
-    return result;
+    pendingRequests++;
+    updateLoading();
+    try {
+      const result = path === "/api/action" ? await requestOperation(body, { timeout: 180000 })
+        : await api(path, body === undefined ? { timeout: 180000 } : { method: "POST", body, timeout: 180000 });
+      if (!result.ok) { const failure = new Error(result.error || I18n.t("Нет ответа редактора")); failure.remote = true; throw failure; }
+      return result;
+    } finally { pendingRequests--; updateLoading(); }
   };
   function error(message) {
     $("configError").textContent = message;
@@ -38,6 +50,7 @@ window.ConfigEditor = (() => {
   }
   function clearError() { $("configError").hidden = true; delete $("configError").dataset.source; }
   function updateBar() {
+    updateLoading();
     const busy = operationBusy();
     setDomProperty($("configProfile"), "disabled", busy || loading);
     if (!draft) { setDomProperty($("draftBar"), "hidden", true); setDomProperty($("configFlow"), "hidden", true); setDomProperty($("navDraftCount"), "hidden", true); attention(); return; }
@@ -82,7 +95,6 @@ window.ConfigEditor = (() => {
     setDomProperty($("configSave"), "title", running === true ? I18n.t("Сначала остановите сервер") : running === false ? "" : I18n.t("Состояние сервера ещё не получено"));
     const reason = S.demo ? I18n.t("Демо: запись файлов и применение отключены.")
       : busy ? operationAvailabilityReason()
-      : loading ? I18n.t("Профиль загружается. Дождитесь получения черновика.")
       : !draft.canWrite ? (draft.dataDiagnostic || I18n.t("Запись недоступна. Проверьте общий каталог конфигурации и права записи по руководству."))
       : !draft.canApply ? (draft.activeFile ? I18n.msg`Выбран другой профиль. Для рестарта выберите активный профиль ${draft.activeFile}.` : I18n.t("Профиль запуска не подтверждён. Проверьте -servername или PZ_CONFIG_FILE по руководству; черновик сохраняется."))
       : running === undefined ? I18n.t("Состояние сервера ещё не получено. Проверьте подключение перед записью файлов.")
