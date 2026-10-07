@@ -149,6 +149,13 @@ menus, dialogs, and tooltips. Status text accompanies color.
 Destructive text and icon buttons share the danger-text color and a quiet red
 outline before hover, with the shared visible keyboard focus. Ordinary RCON
 prompts use muted text; danger colors retain their action and error meanings.
+Shared CSS roles are `--type-button` (Golos Text, 13.5px/500), `--type-code`
+(JetBrains Mono, 13px), and `--type-source` (13px with 22px source lines).
+Text-bearing icon buttons use the button role. Technical IDs and map names use
+the code role; form keys remain 12px and guide code follows its reading size.
+`--r-control` maps to the 8px control radius. Text inputs, including inputs
+without an explicit type, share the 44px field component; map-list editing uses
+an explicit text input.
 
 ## Navigation and responsive behavior
 

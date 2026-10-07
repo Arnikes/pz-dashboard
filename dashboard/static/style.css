@@ -32,7 +32,7 @@
 .help-page p, .help-page li { font-size: 16px; line-height: 1.65; }
 .help-page nav { display: flex; flex-wrap: wrap; gap: 12px 20px; }
 .help-page a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
-.help-page code { font-family: var(--font-mono); overflow-wrap: anywhere; }
+.help-page code { font-family: var(--font-mono); font-size: 1em; line-height: inherit; overflow-wrap: anywhere; }
 .help-page section { scroll-margin-top: 24px; }
 .page-heading { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
 .page-heading h1 { margin: 0; font: 600 26px/1.25 var(--font-body); letter-spacing: -.02em; overflow-wrap: anywhere; }
@@ -100,10 +100,14 @@
   --r-sm: 8px;
   --r: 12px;
   --r-lg: 16px;
+  --r-control: var(--r-sm);
 
   --font-display: "Golos Text", "Segoe UI", system-ui, sans-serif;
   --font-body: "Golos Text", "Segoe UI", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --type-button: 500 13.5px/1.3 var(--font-body);
+  --type-code: 400 13px/1.5 var(--font-mono);
+  --type-source: 400 13px/22px var(--font-mono);
 
   --motion: 160ms;
   --ease: cubic-bezier(0.2, 0, 0, 1);
@@ -131,6 +135,7 @@ input, textarea { caret-color: var(--accent); }
 a { text-underline-offset: .2em; }
 
 .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+code { font: var(--type-code); }
 
 .sr-only {
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
@@ -482,11 +487,11 @@ a.sum-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 
 .btn {
   text-decoration: none;
-  font: 500 13.5px/1 var(--font-body);
+  font: var(--type-button);
   color: var(--ink);
   background: var(--surface-2);
   border: 1px solid var(--line-strong);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-control);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -599,12 +604,12 @@ select:focus-visible,
 .auto-block .check { margin: 10px 0 2px; }
 .check-row { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 10px 0 2px; }
 .check-row .check { margin: 0; }
-.field input, select, input[type=text], input[type=password], input[type=number], input[type=time], input[type=search] {
+.field input, select, input:not([type]), input[type=text], input[type=password], input[type=number], input[type=time], input[type=search] {
   font: 400 13.5px/1.3 var(--font-body);
   color: var(--ink);
   background: var(--bg-deep);
   border: 1px solid var(--line-strong);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-control);
   height: var(--control-height);
   min-width: 0;
   max-width: 100%;
@@ -783,6 +788,7 @@ select { cursor: pointer; }
 .backup-row .b-size, .backup-row .b-age { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .icon-btn {
+  font: var(--type-button);
   width: var(--compact-height);
   height: var(--compact-height);
   display: inline-flex;
@@ -790,7 +796,7 @@ select { cursor: pointer; }
   justify-content: center;
   background: transparent;
   border: 1px solid var(--line-strong);
-  border-radius: 7px;
+  border-radius: var(--r-control);
   color: var(--muted);
   cursor: pointer;
   flex: none;
@@ -1422,9 +1428,9 @@ input[type=checkbox] { accent-color:var(--ok); flex-shrink:0; }
 .install-notice button { margin:4px; }
 .config-operation-result { margin-bottom:18px; }
 .config-operation-result[data-state="bad"] { border-color:var(--blood-text); }
-.source-editor { position:relative; height:340px; margin:8px 0; border:1px solid var(--line-strong); border-radius:8px; overflow:hidden; background:var(--bg-deep); }
+.source-editor { position:relative; height:340px; margin:8px 0; border:1px solid var(--line-strong); border-radius:var(--r-control); overflow:hidden; background:var(--bg-deep); }
 .source-editor:focus-within { outline:2px solid var(--focus); outline-offset:2px; }
-.source-editor textarea, .source-editor pre { position:absolute; inset:0; width:100%; height:100%; margin:0; font:13px/22px var(--font-mono); white-space:pre; tab-size:4; border:0; border-radius:0; text-transform:none; letter-spacing:normal; }
+.source-editor textarea, .source-editor pre { position:absolute; inset:0; width:100%; height:100%; margin:0; font:var(--type-source); white-space:pre; tab-size:4; border:0; border-radius:0; text-transform:none; letter-spacing:normal; }
 .source-editor textarea { resize:none; padding:12px 12px 12px 58px; background:transparent; color:transparent; caret-color:var(--ink); z-index:1; overflow:auto; }
 .source-editor textarea::selection { background:var(--selection); color:transparent; }
 .source-editor pre { padding:12px; pointer-events:none; overflow:hidden; color:var(--ink); }
