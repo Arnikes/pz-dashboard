@@ -30,17 +30,27 @@ NESTED_MESSAGES = {
     "Архив не создан: {{0}}": (0,),
     "Архив повреждён: {{0}}": (0,),
     "Архив повреждён или небезопасен: {{0}}": (0,),
-    "Бэкап ({{0}}) не удался: {{1}}": (1,),
+    "Бэкап ({{0}}) не удался: {{1}}": (0, 1),
     "Конфигурация {{0}}: {{1}}": (1,),
     "Автопроверка конфигурации {{0}}: {{1}}": (1,),
     "Операция «{{0}}» не удалась: {{1}}": (1,),
     "Операция «{{0}}»: {{1}}": (1,),
     "Бэкап создан ({{0}}): {{1}} ({{2}})": (0,),
+    "Сервер перезапущен ({{0}})": (0,),
+    "Автобэкап по расписанию{{0}}: запуск ({{1}})": (0,),
+    "Watchdog: RCON не отвечает {{0}} мин — {{1}}": (1,),
+    "Не удалось удалить временный архив: {{0}}": (0,),
+    "Не удалось удалить временные данные {{0}}: {{1}}": (1,),
+    "Рескан модов после рестарта не удался: {{0}}": (0,),
 }
 SIZE_PARAMETERS = {
     "Бэкап создан ({{0}}): {{1}} ({{2}})": (2,),
     "Бэкап перед обновлением: {{0}} ({{1}})": (1,),
     "Проверка бэкапа {{0}}: OK — файлов {{1}}, {{2}}": (2,),
+    "Проверка бэкапа {{0}}: OK — файлов {{1}}, {{2}}, замечания: {{3}}": (2,),
+}
+LIST_PARAMETERS = {
+    "Проверка бэкапа {{0}}: OK — файлов {{1}}, {{2}}, замечания: {{3}}": (3,),
 }
 
 
@@ -152,11 +162,13 @@ def resolve(headers, path=""):
     return max(choices)[2] if choices else "ru"
 
 
-def translate(text, _depth=0):
+def translate(text, _depth=0, *, locale=None):
+    """Translate presentation copy in a request or an explicitly chosen locale."""
+    locale = language() if locale is None else locale
     if not isinstance(text, str) or not re.search("[А-Яа-яЁё]", text):
         return text
-    catalog = CATALOG if language() == "en" else RU_CATALOG
-    messages = MESSAGES if language() == "en" else RU_MESSAGES
+    catalog = CATALOG if locale == "en" else RU_CATALOG
+    messages = MESSAGES if locale == "en" else RU_MESSAGES
     key = re.sub(r"\s+", " ", text).strip()
     if isinstance(catalog.get(key), str):
         return catalog[key]
@@ -168,17 +180,27 @@ def translate(text, _depth=0):
             # Profile names, paths, ModID and other opaque values stay literal.
             if _depth < 8:
                 for index in NESTED_MESSAGES.get(source, ()):
-                    values[str(index)] = translate(values[str(index)], _depth + 1)
+                    raw = values[str(index)]
+                    leading = raw[: len(raw) - len(raw.lstrip())]
+                    trailing = raw[len(raw.rstrip()) :] if raw.strip() else ""
+                    values[str(index)] = (
+                        leading + translate(raw.strip(), _depth + 1, locale=locale) + trailing
+                    )
                 for index in SIZE_PARAMETERS.get(source, ()):
-                    values[str(index)] = translate(values[str(index)], _depth + 1)
+                    values[str(index)] = translate(values[str(index)], _depth + 1, locale=locale)
+                for index in LIST_PARAMETERS.get(source, ()):
+                    values[str(index)] = ", ".join(
+                        translate(item, _depth + 1, locale=locale)
+                        for item in values[str(index)].split(", ")
+                    )
             return PLACEHOLDER.sub(lambda slot: values[slot[1]], translation)
     # Prefix fragments are authored separately from dynamic diagnostics. Match
     # only a complete known prefix at a punctuation/space boundary.
-    for source in PREFIXES if language() == "en" and _depth < 8 else ():
+    for source in PREFIXES if locale == "en" and _depth < 8 else ():
         if key.startswith(source):
             tail = key[len(source) :]
             spacing = tail[: len(tail) - len(tail.lstrip())]
-            return CATALOG[source] + spacing + translate(tail.lstrip(), _depth + 1)
+            return CATALOG[source] + spacing + translate(tail.lstrip(), _depth + 1, locale=locale)
     return text
 
 

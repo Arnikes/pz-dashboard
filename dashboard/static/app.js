@@ -517,7 +517,7 @@ const DEMO = {
     containerInfo: { status: "running", running: true, startedAt: new Date(Date.now() - 569000 * 1000).toISOString(), image: "indifferentbrokkoli/pzserver:latest", uptimeSec: 569000 },
     update: { at: new Date(Date.now() - 2 * 3600 * 1000).toISOString(), local: "sha256:9f21a4c0e7b2d8f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d5f7a9c1e3b5d7f9", remote: "sha256:9f21a4c0e7b2d8f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d5f7a9c1e3b5d7f9", available: false, error: null },
     modsCheck: { at: new Date(Date.now() - 30 * 60 * 1000).toISOString(), state: "up-to-date", items: [], error: null, source: "auto" },
-    settings: { autoUpdate: { enabled: true, intervalHours: 6, warnSeconds: 300, backupBeforeUpdate: true }, modsUpdate: { enabled: true, intervalHours: 6, restartOnUpdate: true, warnSeconds: 600 }, backup: { stopServer: false, maxBackups: 10 }, watchdog: { enabled: true, thresholdMin: 5, autoRestart: false }, telegram: { enabled: true, botTokenMasked: "•••A1b2", chatId: "-1001234567890", groups: { ops: true, backup: true, update: true, problems: true } }, nextCheck: Date.now() / 1000 + 3600 * 4, nextModsCheck: Date.now() / 1000 + 3600 * 2 },
+    settings: { autoUpdate: { enabled: true, intervalHours: 6, warnSeconds: 300, backupBeforeUpdate: true }, modsUpdate: { enabled: true, intervalHours: 6, restartOnUpdate: true, warnSeconds: 600 }, backup: { stopServer: false, maxBackups: 10 }, watchdog: { enabled: true, thresholdMin: 5, autoRestart: false }, telegram: { enabled: true, language: "ru", botTokenMasked: "•••A1b2", chatId: "-1001234567890", groups: { ops: true, backup: true, update: true, problems: true } }, nextCheck: Date.now() / 1000 + 3600 * 4, nextModsCheck: Date.now() / 1000 + 3600 * 2 },
     watchdog: { lastProbeAt: demoNow(), lastResult: "ok", lastError: null, consecutiveFailures: 0, alerted: false },
     notify: { at: demoNow(), ok: true, error: null },
     backupsCount: 2, now: demoNow(),
@@ -811,6 +811,7 @@ function renderOverview(o) {
   const tgEnabled = !!tg.enabled;
   if (settingsCanRender("tgSwitch")) $("tgSwitch").checked = tgEnabled;
   if (settingsCanRender("tgChat")) $("tgChat").value = tg.chatId || "";
+  if (settingsCanRender("tgLanguage")) $("tgLanguage").value = tg.language === "en" ? "en" : "ru";
   const groups = tg.groups || {};
   if (settingsCanRender("tgOps")) $("tgOps").checked = groups.ops !== false;
   if (settingsCanRender("tgBackup")) $("tgBackup").checked = groups.backup !== false;
@@ -2243,7 +2244,7 @@ const SETTING_GROUPS = {
   autoUpdate: { ids: ["autoSwitch", "autoInterval", "autoWarn", "buBackup"], card: "sec-updates", title: I18n.t("Автообновление образа") },
   watchdog: { ids: ["wdSwitch", "wdThreshold", "wdGracePeriod", "wdRestart"], card: "sec-watchdog", title: "Watchdog RCON" },
   modsUpdate: { ids: ["modsAutoSwitch", "modsAutoInterval", "modsAutoAction", "modsAutoWarn"], card: "sec-modscheck", title: I18n.t("Автообновление модов") },
-  telegram: { ids: ["tgSwitch", "tgToken", "tgChat", "tgOps", "tgBackup", "tgUpdate", "tgProblems"], card: "sec-telegram", title: "Telegram" },
+  telegram: { ids: ["tgSwitch", "tgToken", "tgChat", "tgLanguage", "tgOps", "tgBackup", "tgUpdate", "tgProblems"], card: "sec-notify", title: "Telegram" },
   autoBackup: { ids: ["bkAutoSwitch", "bkAutoTime", "bkAutoKeep", "bkAutoStop"], card: "sec-bkauto", title: I18n.t("Расписание бэкапов") },
 };
 const settingStates = new Map();
@@ -2357,6 +2358,7 @@ function pushSettings(eventOrGroup) {
     },
     telegram: {
       enabled: $("tgSwitch").checked,
+      language: $("tgLanguage").value,
       botToken: $("tgToken").value.trim(),
       chatId: $("tgChat").value.trim(),
       groups: {
@@ -2415,6 +2417,7 @@ $("modsAutoInterval").addEventListener("change", pushSettings);
 $("modsAutoAction").addEventListener("change", pushSettings);
 $("modsAutoWarn").addEventListener("change", pushSettings);
 $("tgSwitch").addEventListener("change", pushSettings);
+$("tgLanguage").addEventListener("change", pushSettings);
 $("tgChat").addEventListener("change", pushSettings);
 $("tgToken").addEventListener("change", pushSettings);
 ["tgOps", "tgBackup", "tgUpdate", "tgProblems"].forEach((id) => $(id).addEventListener("change", pushSettings));

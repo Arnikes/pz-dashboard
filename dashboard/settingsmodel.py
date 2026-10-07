@@ -20,6 +20,7 @@ DEFAULTS = {
     },
     "telegram": {
         "enabled": False,
+        "language": "ru",
         "botToken": "",
         "chatId": "",
         "groups": {"ops": True, "backup": True, "update": True, "problems": True},
@@ -101,6 +102,8 @@ def _validate_section(section, values):
 def _validate_telegram(values):
     if "enabled" in values and not isinstance(values["enabled"], bool):
         return "telegram.enabled должен быть true/false"
+    if "language" in values and values["language"] not in ("ru", "en"):
+        return "telegram.language должен быть ru или en"
     groups = values.get("groups")
     if groups is not None:
         if not isinstance(groups, dict):
@@ -201,6 +204,8 @@ def normalize_loaded(settings):
             elif isinstance(default, str) and not isinstance(settings[section].get(key), str):
                 settings[section][key] = default
     groups = settings["telegram"].get("groups")
+    if settings["telegram"].get("language") not in ("ru", "en"):
+        settings["telegram"]["language"] = DEFAULTS["telegram"]["language"]
     settings["telegram"]["groups"] = {
         key: groups[key]
         if isinstance(groups, dict) and isinstance(groups.get(key), bool)

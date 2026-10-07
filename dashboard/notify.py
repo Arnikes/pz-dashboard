@@ -15,6 +15,7 @@ import urllib.error
 import urllib.request
 
 import config
+import i18n
 
 # Каждому типу события — группа подписки и значок в сообщении.
 KIND_GROUP = {
@@ -71,9 +72,10 @@ def _telegram_settings():
     return ops.telegram_settings_raw()
 
 
-def _format(kind, text):
+def _format(kind, text, language="ru"):
     icon = KIND_ICON.get(kind, "•")
     name = (config.CFG.get("server_name") or "").strip()
+    text = i18n.translate(text, locale=language)
     return f"{icon} [{name}] {text}" if name else f"{icon} {text}"
 
 
@@ -88,7 +90,7 @@ def enqueue(kind, text):
             return
         if not (tg.get("botToken") or "").strip() or not (tg.get("chatId") or "").strip():
             return
-        _QUEUE.put_nowait(_format(kind, text))
+        _QUEUE.put_nowait(_format(kind, text, tg.get("language", "ru")))
     except queue.Full:
         pass  # переполнение: молча теряем старое хвостовое, не копим бесконечно
     except Exception:  # noqa: BLE001 — уведомления не должны ронять события
@@ -180,7 +182,12 @@ def test_message():
     """Кнопка «Проверить» в карточке уведомлений. При ошибке добавляет к тексту
     сохранённый chat id — чтобы сразу видеть, что реально лежит в настройках."""
     tg = _telegram_settings()
-    ok, err = send_message("✅ PZ Пульт: проверка связи — уведомления работают.")
+    ok, err = send_message(
+        i18n.translate(
+            "✅ PZ Пульт: проверка связи — уведомления работают.",
+            locale=tg.get("language", "ru"),
+        )
+    )
     with _LOCK:
         _LAST.update({"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "ok": ok, "error": err})
     if not ok:

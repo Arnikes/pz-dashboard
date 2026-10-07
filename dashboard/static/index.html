@@ -518,6 +518,13 @@
               <input type="text" id="tgChat" inputmode="numeric" placeholder="123456789 или -100…" autocomplete="off" />
             </label>
           </div>
+          <label class="field">Язык уведомлений
+            <select id="tgLanguage" aria-describedby="tgLanguageHint">
+              <option value="ru" lang="ru">Русский</option>
+              <option value="en" lang="en">English</option>
+            </select>
+          </label>
+          <p class="hint" id="tgLanguageHint">Применяется ко всем сообщениям в Telegram, независимо от языка интерфейса.</p>
           <div class="check-row">
             <label class="check"><input type="checkbox" id="tgOps" checked /> Сервер</label>
             <label class="check"><input type="checkbox" id="tgBackup" checked /> Бэкапы</label>

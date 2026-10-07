@@ -1432,5 +1432,12 @@
   "Строк: {{0}} из {{1}}": "Lines: {{0}} of {{1}}",
   "Нет строк по выбранным фильтрам.": "No lines match the selected filters.",
   "Сбросить фильтры": "Reset filters",
-  "Загружаем состояние выбранного профиля…": "Loading the selected profile status…"
+  "Загружаем состояние выбранного профиля…": "Loading the selected profile status…",
+  "RCON:": "RCON:",
+  "Watchdog:": "Watchdog:",
+  "telegram.language должен быть ru или en": "telegram.language must be ru or en",
+  "Применяется ко всем сообщениям в Telegram, независимо от языка интерфейса.": "Applies to all Telegram messages, independently of the interface language.",
+  "Проверка бэкапа {{0}}: OK — файлов {{1}}, {{2}}, замечания: {{3}}": "Backup check {{0}}: OK — {{1}} files, {{2}}, notes: {{3}}",
+  "Язык уведомлений": "Notification language",
+  "Доступно обновление образа {{0}}": "Image update available: {{0}}"
 }

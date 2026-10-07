@@ -36,6 +36,17 @@ During a mod update's player-warning phase, “Cancel mod update” cancels the 
 restart and notifies players. Once stopping starts, cancellation is unavailable.
 The API action `cancel-mods-update` returns HTTP 409 if there is no cancellable operation.
 
+## Telegram notifications
+
+In Maintenance → Notifications, configure the bot token, chat ID, event groups,
+and notification language (Русский or English). Changes save automatically.
+The language applies to events and the “Test” message in the configured chat,
+independently of the interface language and of the administrator who starts an operation.
+Existing installations default to Russian. The preference persists in
+`dashboard-data/settings.json` as `telegram.language` (`ru` or `en`).
+Server names, archive filenames, Workshop IDs, and upstream diagnostics retain
+their original values. The local event journal also retains its source text.
+
 ## RCON watchdog
 
 The watchdog probes RCON every 30 seconds. It records prolonged silence and can

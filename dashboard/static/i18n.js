@@ -126,7 +126,7 @@ window.I18n = (() => {
     if (!el.matches('input:not([type="checkbox"]):not([type="radio"]),textarea') ||
         el.closest("#configFields") || /^(ini|sandbox)Source$/.test(el.id) ||
         el.type === "search" || el.readOnly ||
-        el.closest("#sec-updates,#sec-watchdog,#sec-telegram,#sec-bkauto,#sec-modscheck")) return;
+        el.closest("#sec-updates,#sec-watchdog,#sec-notify,#sec-bkauto,#sec-modscheck")) return;
     el.setAttribute("data-language-dirty", "");
   });
 
