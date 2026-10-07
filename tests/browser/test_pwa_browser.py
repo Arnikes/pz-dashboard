@@ -177,6 +177,12 @@ def test_update_loads_changed_dashboard_html_css_and_javascript(page, context, p
     context.add_cookies([{"name": auth.COOKIE_NAME, "value": token, "url": pwa_server["url"]}])
     page.goto(pwa_server["url"] + "/#/settings")
     page.wait_for_function("!!navigator.serviceWorker.controller && !!window.ConfigEditor")
+    # Drain the startup check before changing files: overlapping update() jobs can
+    # share its unchanged worker response and miss the release published below.
+    page.evaluate("async () => (await navigator.serviceWorker.getRegistration()).update()")
+    page.wait_for_function(
+        "navigator.serviceWorker.getRegistration().then(r => !r.installing && !r.waiting)"
+    )
     old_caches = page.evaluate("caches.keys()")
     root = pwa_server["root"]
     html = root / "index.html"
