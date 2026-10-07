@@ -1308,6 +1308,9 @@ select { cursor: pointer; }
 /* ─────────── бэкапы: расписание и журнал запусков ─────────── */
 .c-bksched .auto-block { display: flex; flex-direction: column; gap: 4px; margin-top: 0; padding-top: 0; border-top: none; }
 .c-bksched .field input { width: 100%; }
+/* iOS's native time-field theme can force content-box sizing and add padding. */
+#bkAutoTime { -webkit-appearance: none; appearance: none; }
+#bkAutoTime::-webkit-date-and-time-value { text-align: left; }
 
 .journal-row {
   display: grid;

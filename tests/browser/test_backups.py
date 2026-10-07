@@ -159,6 +159,19 @@ def test_archive_pager_visibility_at_page_boundary(page, backups_page, count):
 @pytest.mark.parametrize("width", [1440, 768, 390, 320])
 def test_backup_columns_are_stable_and_schedule_is_compact(page, backups_page, width):
     page.set_viewport_size({"width": width, "height": 900})
+    fields = page.locator("#sec-bksched .auto-grid input").evaluate_all(
+        """inputs => inputs.map(input => {
+          const rect = input.getBoundingClientRect();
+          const field = input.closest('.field').getBoundingClientRect();
+          return {left:rect.left,right:rect.right,width:rect.width,height:rect.height,
+                  fieldLeft:field.left,fieldRight:field.right};
+        })"""
+    )
+    for field in fields:
+        assert field["left"] >= field["fieldLeft"] - 1
+        assert field["right"] <= field["fieldRight"] + 1
+        assert field["height"] == pytest.approx(44, abs=1)
+    assert fields[0]["width"] == pytest.approx(fields[1]["width"], abs=1)
     expect(page.locator("#bkAutoNext")).to_have_count(0)
     expect(page.locator("#sec-bksched")).not_to_contain_text("Копии сверх лимита")
     expect(page.locator("#backupsBody .copy-value")).to_have_count(0)
