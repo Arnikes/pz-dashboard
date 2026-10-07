@@ -160,8 +160,10 @@ an explicit text input.
 ## Navigation and responsive behavior
 
 Desktop uses a sidebar (204 pixels) with a page gutter (28 pixels); mobile uses
-Overview, Settings, Mods, and More in the bottom bar. The top bar contains the
-active profile, language selector, quick commands,
+Overview, Settings, Mods, and More in the bottom bar. All four items share the
+same-size icon and label treatment. More
+remains a button that exposes its expanded and current-section states.
+The top bar contains the active profile, language selector, quick commands,
 and sign-out action. The active profile's status remains available through its
 accessible description without a visible active-state label. Other-profile and
 unconfirmed-profile warnings remain visible. A shared help control beside the
@@ -171,6 +173,8 @@ Mods put search and filtering first and disclose package/collection addition
 separately; search has a visible label, and the page heading links to custom mod
 settings while preserving the shared draft. Export, import and metadata refresh
 remain available. Ctrl/Cmd+K opens section, setting, and mod search.
+Load-order search uses the editor's flat labeled field treatment; its opaque
+workspace background remains sticky without an additional enclosing border.
 One SSE connection persists across route changes.
 
 Desktop and mobile show Draft → Files → Startup inside the editor, below the
@@ -200,6 +204,10 @@ border. Help stays above the mobile navigation and draft actions.
 Overview groups server state/actions, player and backup summaries, container load,
 updates, and recent events. Maintenance places image updates beside watchdog and
 Telegram settings, stacking at narrow widths. Digest fields share copy feedback.
+Desktop console panels share three rows for titles, compact filter/command tools,
+and aligned output windows. Log counts, download and auto-scroll controls, errors,
+and period feedback sit below the log output so their changes do not stretch the
+RCON command area or shift the aligned windows.
 Backup archives use aligned name, size, date, and action columns, sharing desktop
 column widths with their headings; mobile places them on separate rows.
 Download, verify and restore actions have visible labels;

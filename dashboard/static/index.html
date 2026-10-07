@@ -104,7 +104,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="m7 9.5 3 2.7-3 2.7M12.5 15H17"/></svg>
       <span>Консоль</span>
     </a>
-    <button type="button" class="nav-more" id="navMore" aria-expanded="false" aria-controls="moreMenu">Ещё</button>
+    <button type="button" class="nav-more" id="navMore" aria-expanded="false" aria-controls="moreMenu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+      <span>Ещё</span>
+    </button>
   </nav>
   <div id="moreMenu" class="more-menu" hidden>
     <a href="#/players">Игроки</a><a href="#/maintenance">Обслуживание</a>
@@ -640,13 +643,13 @@
       <section class="card c-console" id="sec-console" data-od-id="console" aria-labelledby="hConsole">
         <header class="card-head">
           <h2 id="hConsole">Консоль RCON</h2>
-          <div class="chips" id="quickCmds">
-            <button class="chip" data-cmd="save">save</button>
-            <button class="chip" data-cmd="players">players</button>
-            <button class="chip" data-cmd="help">help</button>
-            <button class="chip" data-act="broadcast">Объявить…</button>
-          </div>
         </header>
+        <div class="chips console-tools" id="quickCmds">
+          <button class="chip" data-cmd="save">save</button>
+          <button class="chip" data-cmd="players">players</button>
+          <button class="chip" data-cmd="help">help</button>
+          <button class="chip" data-act="broadcast">Объявить…</button>
+        </div>
         <div class="console-content">
           <pre class="console-out mono" id="consoleOut" aria-live="polite"></pre>
           <form class="console-form" id="consoleForm">
@@ -661,23 +664,25 @@
       <section class="card c-logs" id="sec-logs" data-od-id="logs" aria-labelledby="hLogs">
         <header class="card-head">
           <h2 id="hLogs">Логи контейнера</h2>
-          <div class="logs-tools">
-            <div class="chips" id="logLevels" role="group" aria-label="Уровень логов">
-              <button class="chip" type="button" data-level="all" aria-pressed="true">Все</button>
-              <button class="chip" type="button" data-level="warn" aria-pressed="false">WARN</button>
-              <button class="chip" type="button" data-level="error" aria-pressed="false">ERROR</button>
-            </div>
-            <input type="search" id="logsFilter" class="mono" placeholder="фильтр строк…" aria-label="Фильтр логов" />
+        </header>
+        <div class="logs-tools console-tools">
+          <div class="chips" id="logLevels" role="group" aria-label="Уровень логов">
+            <button class="chip" type="button" data-level="all" aria-pressed="true">Все</button>
+            <button class="chip" type="button" data-level="warn" aria-pressed="false">WARN</button>
+            <button class="chip" type="button" data-level="error" aria-pressed="false">ERROR</button>
+          </div>
+          <input type="search" id="logsFilter" class="mono" placeholder="фильтр строк…" aria-label="Фильтр логов" />
+        </div>
+        <div class="logs-content">
+          <pre class="logs-out mono" id="logsOut">Загрузка логов…</pre>
+          <div class="logs-footer">
             <label class="check"><input type="checkbox" id="logsAuto" checked /> Автопрокрутка</label>
             <a class="btn small" id="logsDownload" href="/api/logs/full" download title="Полный лог файлом">Скачать лог</a>
-            <div id="logsResult" class="logs-result" hidden><p id="logsCount" class="hint" role="status"></p><button type="button" id="logsResetFilters" class="btn small" hidden>Сбросить фильтры</button></div>
           </div>
-        </header>
-        <div class="logs-content">
+          <div id="logsResult" class="logs-result" hidden><p id="logsCount" class="hint" role="status"></p><button type="button" id="logsResetFilters" class="btn small" hidden>Сбросить фильтры</button></div>
           <div class="logs-scope" id="logsScope" hidden><span id="logsPeriod" class="hint"></span><button type="button" class="btn small" id="logsClearPeriod">Сбросить период</button></div>
           <p id="logsError" class="hint logs-error" role="alert" hidden></p>
           <p id="logsLimit" class="hint" hidden>Показаны последние строки за выбранный период. Полный журнал доступен по кнопке «Скачать лог».</p>
-          <pre class="logs-out mono" id="logsOut">Загрузка логов…</pre>
         </div>
       </section>
     </div>
