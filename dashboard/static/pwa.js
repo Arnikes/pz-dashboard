@@ -10,8 +10,6 @@
   let controllerChanged = false;
   let notice = "";
   let updateBlocked = false;
-  let dismissedUpdate = null;
-  let lastOutsideFocus = document.activeElement;
 
   async function reconnect() {
     if (retry.disabled) return;
@@ -53,12 +51,11 @@
   const updateAlert = document.createElement("aside");
   updateAlert.className = "pwa-update-alert";
   updateAlert.hidden = true;
-  updateAlert.innerHTML = '<p class="pwa-update-message" role="status" aria-live="polite"></p><button class="pwa-update-action" id="pwaUpdate" type="button"><span></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="pwa-update-close" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke-linecap="round"/></svg></button><p class="pwa-update-note" id="pwaUpdateNote" role="status" aria-live="polite" hidden></p>';
+  updateAlert.innerHTML = '<p class="pwa-update-message" role="status" aria-live="polite"></p><button class="pwa-update-action" id="pwaUpdate" type="button"><span></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><p class="pwa-update-note" id="pwaUpdateNote" role="status" aria-live="polite" hidden></p>';
   if (!retry) document.body.append(updateAlert);
   const update = updateAlert.querySelector("#pwaUpdate");
   const updateMessage = updateAlert.querySelector(".pwa-update-message");
   const updateNote = updateAlert.querySelector(".pwa-update-note");
-  const closeUpdate = updateAlert.querySelector(".pwa-update-close");
   // Mobile notifications reserve space above the alert without changing page layout.
   if (!retry && "ResizeObserver" in window) {
     new ResizeObserver(() => {
@@ -66,19 +63,6 @@
     }).observe(updateAlert);
   }
   const updateToken = () => registration?.waiting || (controllerChanged && navigator.serviceWorker.controller);
-  document.addEventListener("focusin", (event) => {
-    if (!updateAlert.contains(event.target)) lastOutsideFocus = event.target;
-  });
-  function dismissUpdate() {
-    if (updateRequested) return;
-    dismissedUpdate = updateToken();
-    if (updateAlert.contains(document.activeElement) && lastOutsideFocus?.isConnected) lastOutsideFocus.focus();
-    render();
-  }
-  closeUpdate.addEventListener("click", dismissUpdate);
-  updateAlert.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") { event.preventDefault(); dismissUpdate(); }
-  });
   help.id = "pwaInstallHelp";
   install.setAttribute("aria-controls", help.id);
   const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -89,16 +73,14 @@
     updateAlert.setAttribute("aria-label", I18n.t("Обновление приложения"));
     update.setAttribute("aria-label", I18n.t("Обновить приложение"));
     update.querySelector("span").textContent = I18n.t(updateRequested ? "Обновляем…" : "Обновить пульт");
-    closeUpdate.setAttribute("aria-label", I18n.t("Закрыть"));
     updateMessage.textContent = I18n.t("Доступна новая версия");
     const canInstall = !standalone() && (!!installPrompt || (ios && window.isSecureContext));
     const token = updateToken();
     const hasUpdate = !!token;
     install.hidden = !canInstall;
-    updateAlert.hidden = !!retry || !hasUpdate || token === dismissedUpdate;
+    updateAlert.hidden = !!retry || !hasUpdate;
     updateAlert.setAttribute("aria-busy", String(updateRequested));
     update.disabled = !navigator.onLine || updateRequested;
-    closeUpdate.disabled = updateRequested;
     updateNote.hidden = navigator.onLine && !updateBlocked;
     updateNote.textContent = !navigator.onLine
       ? I18n.t("Нет сети. Восстановите связь и повторите действие.")

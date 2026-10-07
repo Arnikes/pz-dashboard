@@ -274,9 +274,9 @@ def test_failed_update_preserves_active_version_and_can_retry(page, pwa_server):
     assert page.evaluate("caches.keys()") != [old_cache]
 
 
-@pytest.mark.parametrize("width", [1440, 390, 320])
+@pytest.mark.parametrize("width", [1440, 740, 600, 390, 320])
 @pytest.mark.parametrize("language", ["ru", "en"])
-def test_update_alert_floats_without_moving_layout_and_can_dismiss(
+def test_update_alert_floats_without_moving_layout_and_stays_visible(
     page, context, pwa_server, tmp_path, width, language
 ):
     page.set_viewport_size({"width": width, "height": 900})
@@ -309,8 +309,13 @@ def test_update_alert_floats_without_moving_layout_and_can_dismiss(
     assert box["x"] >= 0 and box["x"] + box["width"] <= width
     assert box["y"] >= before[0][1] + before[0][3]
     assert box["y"] + box["height"] < 900 - before[4][3]
-    for selector in ["#pwaUpdate", ".pwa-update-close"]:
-        assert page.locator(selector).bounding_box()["height"] >= 44
+    assert page.locator("#pwaUpdate").bounding_box()["height"] >= 44
+    expect(alert.get_by_role("button")).to_have_count(1)
+    assert page.locator(".pwa-update-message").evaluate(
+        "element => getComputedStyle(element, '::before').content"
+    ) in ("none", "normal")
+    if width <= 740:
+        assert abs(box["x"] + box["width"] / 2 - width / 2) < 1
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     if language == "en":
         assert "New version available" in alert.inner_text()
@@ -330,23 +335,13 @@ def test_update_alert_floats_without_moving_layout_and_can_dismiss(
         expect(page.locator("#pwaUpdateNote")).to_be_visible()
         page.context.set_offline(False)
         expect(page.locator("#pwaUpdate")).to_be_enabled()
-    close = alert.get_by_role("button", name="Закрыть" if language == "ru" else "Close", exact=True)
-    close.click()
-    expect(alert).to_be_hidden()
-    expect(page.locator("#btnCommands")).to_be_focused()
     assert page.evaluate("navigator.serviceWorker.getRegistration().then(r => !!r.waiting)")
     page.evaluate("window.dispatchEvent(new Event('online'))")
-    expect(alert).to_be_hidden()
-    # Dismissal is scoped to this release, not future releases.
-    offline.write_text(
-        offline.read_text(encoding="utf-8") + "\n<!-- newer alert release -->", encoding="utf-8"
-    )
-    page.evaluate("async () => (await navigator.serviceWorker.getRegistration()).update()")
-    expect(alert).to_be_visible(timeout=10000)
+    expect(alert).to_be_visible()
     page.locator("#pwaUpdate").focus()
     page.keyboard.press("Escape")
-    expect(alert).to_be_hidden()
-    expect(page.locator("#btnCommands")).to_be_focused()
+    expect(alert).to_be_visible()
+    expect(page.locator("#pwaUpdate")).to_be_focused()
 
 
 def test_install_prompt_and_standalone_hides_install(page, pwa_server):
