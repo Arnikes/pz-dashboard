@@ -221,6 +221,12 @@ or focuses an action; it does not execute an operation.
 Preserve draft input after failed requests. Separate loading, stale data,
 conflicts, pending operations, saved drafts, and verified startup results.
 Use inline errors with a retry action and concise success notifications.
+All editing routes share operation availability messages and lock mutations from
+request submission through completion. This includes drafts, mod order, player
+actions, schedules, watchdog and notification settings. Route navigation, search,
+logs and events remain available, as does mod-update cancellation during countdown.
+Pending input survives locking and failed requests; completion restores each
+control's ordinary profile, host/remote, demo and server-state restrictions.
 Source editing preserves native formats and masks secrets. Tabs expose linked
 panels and clear selected states. Field help opens on hover, focus, or tap,
 uses aria-describedby, stays within the viewport, and closes with Escape.

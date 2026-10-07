@@ -184,7 +184,7 @@
           <button class="btn" id="btnRestart">Перезапустить</button>
           <button class="btn ghost" id="btnSaveWorld" title="Команда save через RCON">Сохранить мир</button>
         </div>
-        <p id="operationAvailability" class="hint" role="status" hidden></p>
+        <p id="operationAvailability" class="hint availability" role="status" hidden></p>
         <p class="hint" id="absentHint" hidden>
           Контейнер не найден. Проверьте имя (переменная PZ_CONTAINER) и что compose-проект запущен.
         </p>
@@ -261,6 +261,7 @@
 
     <!-- ИГРОКИ -->
     <div class="view" id="view-players" tabindex="-1" hidden>
+      <p id="playersAvailability" class="hint availability" role="status" hidden></p>
       <section class="card c-players" id="sec-players" data-od-id="players" aria-labelledby="hPlayers">
         <header class="card-head">
           <h2 id="hPlayers">Игроки онлайн</h2>
@@ -283,6 +284,7 @@
 
     <!-- МОДЫ: состав, порядок и проблемы -->
     <div class="view" id="view-mods" tabindex="-1" hidden>
+      <p id="modsAvailability" class="hint availability" role="status" hidden></p>
       <section class="card editor-card" aria-labelledby="hModsEditor">
         <header class="sr-only"><h2 id="hModsEditor">Состав модов</h2></header>
         <p class="tab-scroll-help" id="modTabsHelp">Вкладки можно прокручивать влево и вправо.</p>
@@ -364,6 +366,7 @@
     </div>
 
     <div class="view" id="view-settings" tabindex="-1" hidden>
+      <p id="settingsAvailability" class="hint availability" role="status" hidden></p>
       <section class="card editor-card" aria-labelledby="page-settings">
         <header class="sr-only"><h2 id="hConfig">Параметры профиля</h2><span id="configStatus">Выберите профиль</span></header>
         <div id="configError" class="editor-error" role="alert" hidden></div>

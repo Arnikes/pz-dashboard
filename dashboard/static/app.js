@@ -604,7 +604,25 @@ $("btnLogout").addEventListener("click", async () => {
 });
 
 let pendingMutations = 0;
+function operationBusy() {
+  return !!S.op?.active || S.actionPending;
+}
+
+function operationAvailabilityReason() {
+  return S.demo ? I18n.t("Демо: операции отключены. Откройте пульт своего сервера для управления.")
+    : S.op?.active ? I18n.t("Идёт операция: ") + (OP_TITLES[S.op.active.op] || S.op.active.op) + I18n.t(". Дождитесь результата; прогресс показан над разделом.")
+    : S.actionPending ? I18n.t("Запрос отправляется. Дождитесь принятия или сообщения об ошибке.")
+    : "";
+}
+
 async function api(path, opts = {}) {
+  // Recheck when sending: a dialog or queued edit may predate an SSE lock.
+  const changing = opts.method && opts.method !== "GET";
+  const inspection = path === "/api/config-validate" && !opts.body?.prepare
+    || path === "/api/modpack" && !opts.body?.pack;
+  if (changing && operationBusy() && path !== "/api/action" && !path.startsWith("/api/auth/") && !inspection) {
+    throw new Error(operationAvailabilityReason());
+  }
   if (S.demo) {
     if (opts.method && opts.method !== "GET") {
       throw new Error(I18n.t("Демо-режим: операции недоступны"));
@@ -657,26 +675,33 @@ async function api(path, opts = {}) {
   }
 }
 
-async function action(op, extra = {}) {
-  if (S.actionPending) return false;
+async function requestOperation(body, { timeout } = {}) {
+  if (operationBusy()) throw new Error(operationAvailabilityReason());
   S.actionPending = true;
   updateButtons();
   try {
-    const res = await api("/api/action", { method: "POST", body: { op, ...extra } });
+    const res = await api("/api/action", { method: "POST", body, timeout });
     if (res.error || res.ok === false) throw new Error(res.error || I18n.t("Запрос не принят"));
-    toast(I18n.msg`Операция «${OP_TITLES[op] || op}» запущена`, "ok");
     S.localOpResult = null;
     $("operationResult").hidden = true;
     await refreshOps();
+    return res;
+  } finally {
+    S.actionPending = false;
+    updateButtons();
+  }
+}
+
+async function action(op, extra = {}) {
+  try {
+    await requestOperation({ op, ...extra });
+    toast(I18n.msg`Операция «${OP_TITLES[op] || op}» запущена`, "ok");
     return true;
   } catch (e) {
     if (!$("modalRoot").hidden) modal.error(e);
     else showActionError(op, e);
     toast(e.message || String(e), "error");
     return false;
-  } finally {
-    S.actionPending = false;
-    updateButtons();
   }
 }
 
@@ -914,7 +939,7 @@ function setAvailability(id, message) {
 
 function updateButtons() {
   const o = S.overview;
-  const busy = !!(S.op && S.op.active) || S.demo || S.actionPending;
+  const busy = operationBusy() || S.demo;
   const remote = !!(o && o.mode === "remote");
   const rconOk = !!(o && o.rcon && o.rcon.state === "ok");
   const running = !remote && !!(o && o.containerInfo && o.containerInfo.running);
@@ -937,23 +962,17 @@ function updateButtons() {
   // автонастройки и watchdog пишут в настройки и работают только с хоста —
   // в remote-режиме они тихо ничего не делают, честно их глушим
   const hostOnly = busy || S.demo || remote;
-  $("autoSwitch").disabled = hostOnly;
-  $("autoInterval").disabled = hostOnly;
-  $("autoWarn").disabled = hostOnly;
-  $("buBackup").disabled = hostOnly;
-  $("wdSwitch").disabled = hostOnly;
-  $("wdThreshold").disabled = hostOnly;
-  $("wdGracePeriod").disabled = hostOnly;
-  $("modsAutoSwitch").disabled = hostOnly;
-  $("modsAutoInterval").disabled = hostOnly;
-  $("modsAutoAction").disabled = hostOnly;
-  $("modsAutoWarn").disabled = hostOnly;
-  $("bkAutoSwitch").disabled = hostOnly;
-  $("bkAutoTime").disabled = hostOnly;
-  $("bkAutoKeep").disabled = hostOnly;
-  $("bkAutoStop").disabled = hostOnly;
+  for (const [group, definition] of Object.entries(SETTING_GROUPS)) {
+    const disabled = ["telegram", "playerNotifications"].includes(group) ? busy : hostOnly;
+    for (const id of definition.ids) setDomProperty($(id), "disabled", disabled);
+  }
+  setDomProperty($("btnTgChats"), "disabled", busy || !!S.telegramChatsPending);
+  setDomProperty($("btnTgTest"), "disabled", busy || !!S.telegramTestPending);
+  document.querySelectorAll(".settings-feedback button, #tgChatsBody .chat-chip").forEach(button => {
+    setDomProperty(button, "disabled", busy || remote && !button.closest("#sec-notify, #playerNotifications"));
+  });
   for (const id of ["btnStart", "btnStop", "btnRestart", "btnCheckUpd", "btnApplyUpd", "btnBackup", "btnCheckMods", "btnApplyMods",
-                    "autoSwitch", "autoInterval", "autoWarn", "buBackup", "wdSwitch", "wdThreshold", "wdGracePeriod",
+                    "autoSwitch", "autoInterval", "autoWarn", "buBackup", "wdSwitch", "wdThreshold", "wdGracePeriod", "wdRestart",
                     "modsAutoSwitch", "modsAutoInterval", "modsAutoAction", "modsAutoWarn",
                     "bkAutoSwitch", "bkAutoTime", "bkAutoKeep", "bkAutoStop"]) {
     $(id).title = remote ? hostHint : (id === "btnApplyUpd" && o && o.compose === false
@@ -967,15 +986,15 @@ function updateButtons() {
   document.querySelectorAll("#quickCmds .chip").forEach((b) => { b.disabled = !consoleLive; });
   $("consoleInput").disabled = !consoleLive;
   $("consoleForm").querySelector("button").disabled = !consoleLive;
-  const commonReason = S.demo ? I18n.t("Демо: операции отключены. Откройте пульт своего сервера для управления.")
-    : S.op?.active ? I18n.t("Идёт операция: ") + (OP_TITLES[S.op.active.op] || S.op.active.op) + I18n.t(". Дождитесь результата; прогресс показан над разделом.")
-    : S.actionPending ? I18n.t("Запрос отправляется. Дождитесь принятия или сообщения об ошибке.")
-    : "";
+  const commonReason = operationAvailabilityReason();
   const hostReason = commonReason || (remote ? I18n.t("Remote: управление контейнером, обновления и архивы доступны в пульте на хосте сервера. Здесь доступны RCON и игроки.") : "");
   setAvailability("operationAvailability", hostReason || (!found ? I18n.t("Контейнер не найден или его состояние ещё не получено. Проверьте подключение и имя контейнера.")
     : !running ? I18n.t("Сервер остановлен. Для остановки и перезапуска сначала запустите его.") : ""));
   setAvailability("maintenanceAvailability", hostReason || (o?.compose === false ? I18n.t("Обновление образа недоступно: установите docker compose в контейнере пульта и проверьте подключение.") : ""));
   setAvailability("backupAvailability", hostReason);
+  setAvailability("playersAvailability", commonReason || (!consoleLive ? I18n.t("RCON недоступен. Проверьте запуск сервера, пароль и порт RCON; последние ответы сохранены.") : ""));
+  setAvailability("modsAvailability", commonReason);
+  setAvailability("settingsAvailability", commonReason);
   setAvailability("consoleAvailability", commonReason || (!consoleLive ? I18n.t("RCON недоступен. Проверьте запуск сервера, пароль и порт RCON; последние ответы сохранены.") : ""));
   if (consoleBootLine?.isConnected) {
     const consoleStatus = commonReason || (!o ? I18n.t("Пульт подключается к серверу…")
@@ -987,6 +1006,17 @@ function updateButtons() {
   for (const id of ["btnCheckUpd", "btnApplyUpd"]) $(id).setAttribute("aria-describedby", "maintenanceAvailability");
   $("btnBackup").setAttribute("aria-describedby", "backupAvailability");
   $("consoleInput").setAttribute("aria-describedby", "consoleAvailability");
+  window.ConfigEditor?.operationChanged();
+  for (const [view, description] of Object.entries({
+    players: "playersAvailability", mods: "modsAvailability", settings: "settingsAvailability",
+    maintenance: "maintenanceAvailability", backups: "backupAvailability", console: "consoleAvailability",
+  })) {
+    document.querySelectorAll(`#view-${view} button:disabled, #view-${view} input:disabled, #view-${view} select:disabled, #view-${view} textarea[readonly]`).forEach(control => {
+      const ids = new Set((control.getAttribute("aria-describedby") || "").split(/\s+/).filter(Boolean));
+      ids.add(description);
+      setDomAttribute(control, "aria-describedby", [...ids].join(" "));
+    });
+  }
 }
 
 function renderOp(op) {
@@ -1023,7 +1053,6 @@ function renderOp(op) {
   if (activeView === "backups" && S.backupsItems?.length) renderBackupsPage();
   updateOperationElapsed();
   updateButtons();
-  window.ConfigEditor?.operationChanged();
 }
 
 function updateOperationElapsed() {
@@ -1934,6 +1963,7 @@ function consoleAppend(text, cls = "") {
 
 $("consoleForm").addEventListener("submit", async (e) => {
   e.preventDefault();
+  if (operationBusy() || $("consoleInput").disabled) return;
   const input = $("consoleInput");
   const cmd = input.value.trim();
   if (!cmd) return;
@@ -2294,6 +2324,7 @@ function settingsFeedback(group, state, message) {
   feedback.dataset.state = state;
   feedback.querySelector("p").textContent = message;
   feedback.querySelector("button").hidden = state !== "error";
+  updateButtons();
 }
 
 function saveSettingsGroup(group, body) {
@@ -2425,6 +2456,7 @@ $("btnTgChats").addEventListener("click", async () => {
   const btn = $("btnTgChats");
   const body = $("tgChatsBody");
   try {
+    S.telegramChatsPending = true;
     btn.disabled = true;
     if (!await pushSettings()) return; // токен мог быть введён только что
     const res = await api("/api/telegram-chats");
@@ -2445,16 +2477,19 @@ $("btnTgChats").addEventListener("click", async () => {
         pushSettings();
       });
     });
+    updateButtons();
   } catch (e) {
     toast(e.message || String(e), "error");
   } finally {
-    btn.disabled = false;
+    S.telegramChatsPending = false;
+    updateButtons();
   }
 });
 
 $("btnTgTest").addEventListener("click", async () => {
   const btn = $("btnTgTest");
   btn.disabled = true;
+  S.telegramTestPending = true;
   try {
     // если токен/chat ввели и сразу нажали «Проверить» — сначала дожимаем сохранение,
     // иначе проверка уйдёт со старыми настройками и скажет «не задан токен»
@@ -2465,7 +2500,8 @@ $("btnTgTest").addEventListener("click", async () => {
   } catch (e) {
     toast(e.message || String(e), "error");
   } finally {
-    btn.disabled = false;
+    S.telegramTestPending = false;
+    updateButtons();
   }
 });
 

@@ -12,26 +12,47 @@ ROUTES = ("overview", "settings", "mods", "players", "maintenance", "backups", "
 
 
 def assert_workspace_alignment(page, *, draft=False):
-    # Measure the usable viewport rather than assuming a scrollbar width.
-    viewport = page.evaluate("document.documentElement.clientWidth")
-    sidebar = page.locator(".nav").bounding_box()["width"] if viewport > 740 else 0
-    main = page.locator(".main").bounding_box()
+    # Capture one layout: live status updates can hide a forced banner between
+    # separate locator calls, making nth() wait for a node that is no longer visible.
+    layout = page.evaluate(
+        """draft => {
+        document.querySelectorAll('.banner').forEach(node => node.hidden = false);
+        const rect = node => {
+            const {x, width, y, height} = node.getBoundingClientRect();
+            return {x, width, y, height};
+        };
+        const main = document.querySelector('.main');
+        const viewport = document.documentElement.clientWidth;
+        return {
+            viewport,
+            sidebar: viewport > 740 ? rect(document.querySelector('.nav')).width : 0,
+            main: rect(main),
+            gutter: parseFloat(getComputedStyle(main).paddingLeft),
+            footer: rect(document.querySelector('.site-footer-inner')),
+            boxes: [
+                ...[...document.querySelectorAll('.banner')].map(node => ({selector:'.banner', ...rect(node)})),
+                ...(draft ? [{selector:'#draftBar', ...rect(document.getElementById('draftBar'))}] : []),
+            ],
+            overflows: document.documentElement.scrollWidth > innerWidth,
+        };
+    }""",
+        draft,
+    )
+    viewport, sidebar, main = layout["viewport"], layout["sidebar"], layout["main"]
     assert main["width"] <= 1450
     left_gap = main["x"] - sidebar
     right_gap = viewport - main["x"] - main["width"]
     assert abs(left_gap - right_gap) <= 1, (left_gap, right_gap)
-    gutter = page.locator(".main").evaluate("el => parseFloat(getComputedStyle(el).paddingLeft)")
+    gutter = layout["gutter"]
     content_left = main["x"] + gutter
     content_width = main["width"] - 2 * gutter
-    footer = page.locator(".site-footer-inner").bounding_box()
+    footer = layout["footer"]
     assert abs(footer["x"] - main["x"]) <= 1
     assert abs(footer["width"] - main["width"]) <= 1
-    for selector in [".banner:visible"] + (["#draftBar"] if draft else []):
-        for box in page.locator(selector).all():
-            bounds = box.bounding_box()
-            assert abs(bounds["x"] - content_left) <= 1, (selector, bounds, main)
-            assert abs(bounds["width"] - content_width) <= 1, (selector, bounds, main)
-    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    for bounds in layout["boxes"]:
+        assert abs(bounds["x"] - content_left) <= 1, (bounds, main)
+        assert abs(bounds["width"] - content_width) <= 1, (bounds, main)
+    assert not layout["overflows"]
 
 
 @pytest.mark.parametrize(

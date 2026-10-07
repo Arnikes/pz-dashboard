@@ -21,7 +21,8 @@ window.ConfigEditor = (() => {
   }
   const statuses = { draft: I18n.t("Есть черновик"), saved: I18n.t("Сохранено, требуется запуск"), applying: I18n.t("Применение"), applied: I18n.t("Применено"), error: I18n.t("Ошибка"), unconfirmed: I18n.t("Применение не подтверждено"), "select-mods": I18n.t("Пакеты загружены; выберите ModID") };
   const call = async (path, body) => {
-    const result = await api(path, body === undefined ? { timeout: 180000 } : { method: "POST", body, timeout: 180000 });
+    const result = path === "/api/action" ? await requestOperation(body, { timeout: 180000 })
+      : await api(path, body === undefined ? { timeout: 180000 } : { method: "POST", body, timeout: 180000 });
     if (!result.ok) { const failure = new Error(result.error || I18n.t("Нет ответа редактора")); failure.remote = true; throw failure; }
     return result;
   };
@@ -33,11 +34,11 @@ window.ConfigEditor = (() => {
   }
   function clearError() { $("configError").hidden = true; delete $("configError").dataset.source; }
   function updateBar() {
+    const busy = operationBusy();
+    setDomProperty($("configProfile"), "disabled", busy || loading);
     if (!draft) { setDomProperty($("draftBar"), "hidden", true); setDomProperty($("configFlow"), "hidden", true); setDomProperty($("navDraftCount"), "hidden", true); attention(); return; }
-    const busy = !!S.op?.active;
     const locked = busy || loading || S.demo;
     const running = S.overview?.containerInfo?.running;
-    setDomProperty($("configProfile"), "disabled", busy || loading);
     setDomProperty($("view-mods"), "inert", loading || !mods);
     for (const kind of ["ini", "sandbox"]) setDomProperty($(kind + "Source"), "readOnly", busy || loading);
     const editorView = ["settings", "mods"].includes(activeView);
@@ -76,22 +77,22 @@ window.ConfigEditor = (() => {
     setDomProperty($("configApply"), "title", draft.canApply ? "" : I18n.t("Выбран неактивный или неподтверждённый профиль"));
     setDomProperty($("configSave"), "title", running === true ? I18n.t("Сначала остановите сервер") : running === false ? "" : I18n.t("Состояние сервера ещё не получено"));
     const reason = S.demo ? I18n.t("Демо: запись файлов и применение отключены.")
-      : busy ? I18n.t("Изменения заблокированы на время операции. Дождитесь результата, показанного над разделом.")
+      : busy ? operationAvailabilityReason()
       : loading ? I18n.t("Профиль загружается. Дождитесь получения черновика.")
       : !draft.canWrite ? (draft.dataDiagnostic || I18n.t("Запись недоступна. Проверьте общий каталог конфигурации и права записи по руководству."))
       : draft.conflict ? I18n.t("Файлы изменились извне. Откройте различия и объедините черновик с диском перед записью.")
       : !draft.canApply ? (draft.activeFile ? I18n.msg`Выбран другой профиль. Для рестарта выберите активный профиль ${draft.activeFile}.` : I18n.t("Профиль запуска не подтверждён. Проверьте -servername или PZ_CONFIG_FILE по руководству; черновик сохраняется."))
       : running === undefined ? I18n.t("Состояние сервера ещё не получено. Проверьте подключение перед записью файлов.")
       : "";
-    setAvailability("configActionHelp", reason);
+    setAvailability("configActionHelp", busy ? "" : reason);
     for (const id of ["configApply", "configSave", "configDiscard"]) {
       const relevant = id === "configApply" || busy || loading || S.demo || id === "configSave" && (!draft.canWrite || draft.conflict || running === undefined);
-      if (reason && relevant) setDomAttribute($(id), "aria-describedby", "configActionHelp");
+      if (reason && relevant) setDomAttribute($(id), "aria-describedby", busy ? (activeView === "mods" ? "modsAvailability" : "settingsAvailability") : "configActionHelp");
       else $(id).removeAttribute("aria-describedby");
     }
     setDomProperty($("configVerifyHelp"), "hidden", !draft.canApply || !draft.state?.savedRevision || !S.overview?.containerInfo?.running);
     setDomProperty($("configVerify"), "disabled", busy || S.demo || loading);
-    if (busy) setDomProperty($("draftSaved"), "textContent", `${S.op.active.phase || I18n.t("Операция")} · ${S.op.active.message || ""}`);
+    if (busy) setDomProperty($("draftSaved"), "textContent", S.op?.active ? `${S.op.active.phase || I18n.t("Операция")} · ${S.op.active.message || ""}` : operationAvailabilityReason());
     else if (previousBarBusy) setDomProperty($("draftSaved"), "textContent", unsaved.length || fieldSaveFailed ? I18n.t("Сохранение требует повтора") : draft.status === "applying" ? I18n.t("Ожидаем результата применения") : draft.changed ? I18n.t("Черновик сохранён") : "");
     setDomProperty($("draftContext"), "textContent", busy || draft.conflict || draft.status === "error" ? "" : edited ? I18n.t("Сервер пока использует прежние значения") : recorded && !verified ? I18n.t("Файлы записаны · запуск ещё не подтверждён") : "");
     previousBarBusy = busy;
@@ -220,7 +221,7 @@ window.ConfigEditor = (() => {
     updateBar();
     const task = chain.then(async () => {
       if (!draft || target !== file) throw new Error(I18n.t("Профиль изменился во время редактирования"));
-      if (S.op?.active || loading || S.demo) throw new Error(I18n.t("Дождитесь завершения операции; редактор временно недоступен"));
+      if (operationBusy() || loading || S.demo) throw new Error(I18n.t("Дождитесь завершения операции; редактор временно недоступен"));
       const update = typeof body === "function" ? body() : body;
       const updates = [...unsaved, update];
       unsaved = [];
@@ -628,13 +629,13 @@ window.ConfigEditor = (() => {
     updateCandidates(); $("collectionQuery").focus();
   }
   $("workshopAdd").addEventListener("submit", async e => {
-    e.preventDefault(); if (!draft || !mods || resolvingWorkshop || S.op?.active || loading || S.demo) return;
+    e.preventDefault(); if (!draft || !mods || resolvingWorkshop || operationBusy() || loading || S.demo) return;
     const profile = file;
     resolvingWorkshop = true; updateBar();
     try {
       const result = await call("/api/workshop-resolve", { input: $("workshopInput").value });
       if (file !== profile) throw new Error(I18n.t("Профиль изменился во время проверки Steam. Добавьте пакет в нужном профиле заново."));
-      if (S.op?.active || loading) throw new Error(I18n.t("Дождитесь завершения операции и проверьте Steam-пакет заново"));
+      if (operationBusy() || loading) throw new Error(I18n.t("Дождитесь завершения операции и проверьте Steam-пакет заново"));
       if (result.source?.kind === "collection" || result.items.length > 1) { selectWorkshopCandidates(result, profile); return; }
       await patch(() => ({ mods: { items: [...new Set([...mods.workshop.map(w => w.workshopId), ...result.items.map(w => w.workshopId)])] } }));
       $("workshopInput").value = "";
@@ -686,7 +687,7 @@ window.ConfigEditor = (() => {
     if (button) { button.focus({ preventScroll: true }); row.scrollIntoView({ block: "nearest" }); }
   }
   async function move(mid, target, direction) {
-    if (S.demo || S.op?.active || loading) throw new Error(I18n.t("Редактор сейчас недоступен"));
+    if (S.demo || operationBusy() || loading) throw new Error(I18n.t("Редактор сейчас недоступен"));
     let previous = 0, position = 0;
     await patch(() => {
       const index = mods.mods.indexOf(mid);
@@ -739,7 +740,7 @@ window.ConfigEditor = (() => {
     // Keep the identity selected by the initiating press throughout the gesture.
     const row = dragOrigin?.isConnected ? dragOrigin : e.target.closest(".order-grip")?.closest("[data-order-id]");
     const grip = row?.querySelector(".order-grip");
-    if (!row || grip.disabled || S.demo || S.op?.active) { e.preventDefault(); return; }
+    if (!row || grip.disabled || S.demo || operationBusy()) { e.preventDefault(); return; }
     dragId = row.dataset.orderId; row.classList.add("dragging"); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", dragId);
   });
   $("modOrder").addEventListener("dragover", e => {
@@ -819,7 +820,7 @@ window.ConfigEditor = (() => {
   $("configSave").addEventListener("click", () => confirmApply(false, false));
   $("configApply").addEventListener("click", () => confirmApply(false, true));
   async function verifyRunning() {
-    if (S.demo || S.op?.active || loading) return;
+    if (S.demo || operationBusy() || loading) return;
     try {
       await chain; await flushFields(); await flushSources();
       if (unsaved.length) throw new Error(I18n.t("Сначала сохраните черновик после восстановления связи"));
@@ -853,7 +854,7 @@ window.ConfigEditor = (() => {
     const profile = file;
     modal.open({ title: I18n.t("Восстановить версию в черновик?"), bodyHTML: I18n.msg`Профиль <strong>${esc(profile)}</strong>. Текущий черновик будет заменён. После загрузки просмотрите различия и отдельно примените изменения.`, onConfirm: async () => {
       await chain;
-      if (file !== profile || loading || S.op?.active) throw new Error(I18n.t("Профиль или состояние сервера изменились. Откройте восстановление заново."));
+      if (file !== profile || loading || operationBusy()) throw new Error(I18n.t("Профиль или состояние сервера изменились. Откройте восстановление заново."));
       draft = await call("/api/config-history", { file: profile, historyId: id, draftRevision: draft.draftRevision });
       pendingFields.clear();
       unsaved = []; sourceDirty = fieldDirty = false;
@@ -864,7 +865,7 @@ window.ConfigEditor = (() => {
   }
   $("configHistory").addEventListener("click", e => {
     const button = e.target.closest("[data-restore-config]"); if (!button) return;
-    if (button.dataset.profile !== file || loading || S.op?.active) return;
+    if (button.dataset.profile !== file || loading || operationBusy()) return;
     restoreHistory(button.dataset.restoreConfig);
   });
   $("navMore").addEventListener("click", () => {
@@ -921,7 +922,7 @@ window.ConfigEditor = (() => {
       $("modTabs").querySelectorAll("[role=tab]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === modTab)));
       updateModTab(); $("orderQuery").focus();
     },
-    operationChanged() { if (S.op?.active) endDrag(); updateBar(); },
+    operationChanged() { if (operationBusy()) endDrag(); updateBar(); },
     route(view) { updateBar(); if (view === "mods") updateModTab(); },
     background() {
       // Live registry payloads contain committed state, not this editor's draft.
