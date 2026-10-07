@@ -22,9 +22,6 @@
 .command-footer .hint { margin: 0; }
 .command-empty { padding: 20px 12px; }
 .command-empty .hint { font-size: 14px; }
-.context-help { margin: 12px 0; }
-.context-help summary { cursor: pointer; min-height: 44px; padding: 10px 0; text-decoration: underline; text-underline-offset: 3px; }
-.context-help p { max-width: 72ch; }
 .availability { grid-column: 1 / -1; margin: 0; padding: 12px; background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 8px; }
 .help-page { max-width: 75ch; margin: 40px auto; padding: 0 24px 40px; }
 .help-page h1 { font: 600 28px/1.25 var(--font-body); margin: 28px 0 16px; }
@@ -1456,6 +1453,9 @@ input[type=checkbox] { accent-color:var(--ok); flex-shrink:0; }
   .order-actions { grid-column:1/-1; justify-content:flex-end; }
 }
 .problem-row, .install-notice { border:1px solid var(--warn); padding:14px; margin:12px 0; border-radius:8px; overflow-wrap:anywhere; }
+.mod-metadata-ok { display:flex; align-items:center; gap:12px; padding:12px 0; }
+.mod-metadata-ok > svg { flex:none; width:28px; height:28px; color:var(--ok); }
+.mod-metadata-ok > p { min-width:0; margin:0; color:var(--ink); font-weight:500; overflow-wrap:anywhere; }
 .install-notice button { margin:4px; }
 .source-editor { position:relative; height:340px; margin:8px 0; border:1px solid var(--line-strong); border-radius:var(--r-control); overflow:hidden; background:var(--bg-deep); }
 .source-editor:focus-within { outline:2px solid var(--focus); outline-offset:2px; }
@@ -1622,7 +1622,6 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--footer-heig
 .hint { color:var(--muted); }
 .availability { color:var(--warn); }
 .config-field label { font-size:14px; min-height:0; }
-.editor-card .context-help { margin:4px 0; }
 .editor-card .editor-tabs { margin-top:8px; }
 .editor-card .tab-scroll-help { margin:8px 0 0; }
 .editor-card #configSearch { margin-bottom:8px; }
@@ -1919,7 +1918,6 @@ body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--footer-height)
 .editor-search > span { display:block; margin-bottom:7px; color:var(--muted); font-size:12px; }
 .editor-card .editor-search #configSearch { margin:0; }
 .editor-card { padding:20px 24px; }
-.editor-card .context-help { border-top:1px solid var(--line); margin-top:24px; padding-top:12px; }
 @media (max-width:740px) {
   .editor-card { padding:16px; }
   .page-description { font-size:12px; }

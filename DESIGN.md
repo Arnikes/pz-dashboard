@@ -232,8 +232,8 @@ metadata provenance accompanies substantive help. Fields without additional help
 have no help control, including fields with only metadata provenance. Exact
 applicability labels, environment ownership, errors and secret-marker instructions
 remain available beside their relevant controls. Descriptions reference only
-rendered elements. Settings keeps its lifecycle stages and collapsed apply guide
-without a repeating page description.
+rendered elements. Settings keeps its lifecycle stages without a repeating page
+description. Settings and Mods omit the collapsible guide blocks.
 Changed-field labels remain visible, and changed text controls use the warning
 border. Help stays above the mobile navigation and draft actions.
 

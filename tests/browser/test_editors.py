@@ -614,7 +614,7 @@ def test_conflict_review_action_updates_draft_and_then_allows_apply_review(
     page.goto(dashboard["url"])
     expect(page.locator("#configProfile")).to_have_value("world.ini")
     navigate(page, "settings", width <= 740)
-    expect(page.locator("#configSaveHint")).to_contain_text("Сервер работает")
+    expect(page.locator("#configSaveHint")).to_have_count(0)
     expect(page.locator("#configApply")).to_be_disabled()
     page.locator("#configDiff").click()
     expect(page.get_by_role("alertdialog")).to_contain_text("Сейчас на диске")
@@ -927,10 +927,7 @@ def test_header_does_not_claim_unknown_profile_is_active(page, dashboard, editin
     expect(page.locator("#configProfile")).not_to_have_attribute("title")
     page.evaluate("location.hash='#/settings'")
     expect(page.locator("#configActionHelp")).to_contain_text("Профиль запуска не подтверждён")
-    page.locator(".context-help summary").filter(has_text="Как применить настройки").click()
-    expect(page.get_by_role("link", name="Профили, черновики и восстановление")).to_have_attribute(
-        "href", "static/config-help.html"
-    )
+    expect(page.locator(".context-help, #configSaveHint")).to_have_count(0)
     expect(page.locator("#configApply")).to_be_disabled()
 
 
@@ -2069,13 +2066,11 @@ def test_missing_server_state_does_not_offer_stopped_server_save(page, dashboard
     navigate(page, "settings")
     page.evaluate("S.overview = null; ConfigEditor.route('settings')")
     expect(page.locator("#configSave")).to_be_disabled()
-    expect(page.locator("#configSaveHint")).to_contain_text("Ожидаем состояние сервера")
+    expect(page.locator("#configSaveHint")).to_have_count(0)
     page.evaluate("S.overview = {containerInfo:{running:false}}; ConfigEditor.route('settings')")
     expect(page.locator("#configSave")).to_be_enabled()
-    expect(page.locator("#configSaveHint")).to_contain_text("при остановленном сервере")
     page.evaluate("S.overview = {containerInfo:{running:true}}; ConfigEditor.route('settings')")
     expect(page.locator("#configSave")).to_be_disabled()
-    expect(page.locator("#configSaveHint")).to_contain_text("Сервер работает")
     assert not editor.draft("world.ini")["changed"]
     assert dashboard["actions"] == []
 

@@ -116,11 +116,6 @@ window.ConfigEditor = (() => {
       $("configError").dataset.source = "conflict";
       $("configError").hidden = false;
     }
-    setDomProperty($("configSaveHint"), "textContent", running === undefined
-      ? I18n.t("Правки сохраняются в черновике. Ожидаем состояние сервера перед записью файлов.")
-      : running
-      ? I18n.t("Сервер работает. Правки полей сохраняются в черновике. Для записи файлов используйте «Применить с рестартом…» или сначала остановите сервер.")
-      : I18n.t("Правки полей сохраняются в черновике. «Записать файлы» сохраняет их при остановленном сервере; запуск выполняется отдельно."));
     if (draft.dataDiagnostic) {
       $("configError").textContent = draft.dataDiagnostic;
       $("configError").hidden = false;
@@ -403,7 +398,7 @@ window.ConfigEditor = (() => {
       $("modMapEditor").innerHTML = I18n.msg`<h3>Карты · Map=</h3><p class="hint">Порядок карт сохраняется. Добавление карты не изменяет уже исследованные области мира.</p><ol>${mods.maps.map(m => `<li><code>${esc(m)}</code></li>`).join("")}</ol><form id="mapEdit" class="editor-toolbar"><input id="mapList" type="text" data-key="maps" data-kind="mods" data-type="map-list" value="${esc(mods.maps.join(";"))}" aria-label="Порядок карт через точку с запятой" /><button class="btn" type="submit">В черновик</button></form><p class="hint">Найденные карты: ${esc([...new Set(mods.workshop.flatMap(w => w.available || []).flatMap(r => r.maps || []))].join(", ") || I18n.t("нет"))}</p>`;
       $("mapEdit").addEventListener("submit", e => { e.preventDefault(); patch({ mods: { maps: formValue($("mapList")) } }).catch(() => {}); });
     }
-    $("modProblems").innerHTML = (mods.problems || []).map(p => `<div class="problem-row"><strong>${p.severity === "error" ? I18n.t("Ошибка") : I18n.t("Непроверено")}</strong><p>${esc(p.message)}</p>${p.code === "dependency" ? I18n.msg`<button type="button" class="btn small" data-add-dependency="${esc(p.dependency)}">Добавить зависимость ${esc(p.dependency)}</button>` : ""}</div>`).join("") || I18n.msg`<div class="section-label"><p class="hint">В метаданных проблем не найдено.</p>${helpTip(I18n.t("Проверены доступные метаданные модов. Конфликты Lua-кода этой проверкой не выявляются."), I18n.t("Что проверено в модах"))}</div>`;
+    $("modProblems").innerHTML = (mods.problems || []).map(p => `<div class="problem-row"><strong>${p.severity === "error" ? I18n.t("Ошибка") : I18n.t("Непроверено")}</strong><p>${esc(p.message)}</p>${p.code === "dependency" ? I18n.msg`<button type="button" class="btn small" data-add-dependency="${esc(p.dependency)}">Добавить зависимость ${esc(p.dependency)}</button>` : ""}</div>`).join("") || I18n.msg`<div class="mod-metadata-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg><p>В метаданных проблем не найдено.</p>${helpTip(I18n.t("Проверены доступные метаданные модов. Конфликты Lua-кода этой проверкой не выявляются."), I18n.t("Что проверено в модах"))}</div>`;
     installNotice();
     $("legacyMods").hidden = !(draft?.legacyDisabled || []).length;
     $("legacyMods").innerHTML = I18n.html('<strong>Старый реестр выключенных модов</strong><p>Принадлежность профилю не определена. Перенос выполняется только вашим явным выбором; старые записи сохраняются.</p>') + (draft?.legacyDisabled || []).map(r => I18n.msg`<button type="button" class="btn small" data-legacy-id="${esc(r.workshopId)}">Восстановить ${esc(r.title || r.workshopId)} в ${esc(file)}</button>`).join("");

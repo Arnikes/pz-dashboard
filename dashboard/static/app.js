@@ -2676,12 +2676,6 @@ const VIEWS = {
   console: I18n.t("Консоль"),
 };
 $("sec-status").after($("editorAttention"));
-for (const route of ["settings", "mods"]) {
-  const card = $("view-" + route).querySelector(".editor-card"), help = card.querySelector(".context-help");
-  if (route === "mods" && help.previousElementSibling?.classList.contains("hint")) help.querySelector("summary").after(help.previousElementSibling);
-  card.append(help);
-}
-
 for (const [route, label] of Object.entries(VIEWS)) {
   const view = $("view-" + route), heading = document.createElement("header");
   heading.className = "page-heading";
