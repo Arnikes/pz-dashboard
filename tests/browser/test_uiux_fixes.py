@@ -221,9 +221,7 @@ def test_login_transport_retry_preserves_input_without_persisting_secret(
 
 @pytest.mark.parametrize("width", [320, 390, 1440])
 @pytest.mark.parametrize("language", ["ru", "en"])
-def test_profile_selector_has_no_adjacent_status_or_help(
-    page, dashboard, editing, width, language
-):  # noqa: F811
+def test_profile_selector_has_no_adjacent_status_or_help(page, dashboard, editing, width, language):  # noqa: F811
     start(page, dashboard, "settings", language, width)
     expect(page.locator("#configProfile")).to_have_value("world.ini")
     expect(page.locator("#configActive")).to_be_hidden()
@@ -255,7 +253,9 @@ def test_variable_fonts_load_all_weights_without_duplicate_urls(page, dashboard,
     )
 
 
-def test_profile_selector_stays_compact_in_loading_other_and_unknown_context(page, dashboard, editing):
+def test_profile_selector_stays_compact_in_loading_other_and_unknown_context(
+    page, dashboard, editing
+):
     data, context = editing
     (data / "Server/other.ini").write_text("PublicName=Other\n", encoding="utf-8")
     held = []
