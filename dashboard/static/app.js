@@ -730,7 +730,6 @@ function setPill(id, state, text) {
 function renderOverview(o) {
   if (o.settings) o = { ...o, settings: acceptSettings(o.settings) };
   S.overview = o;
-  setPill("pillCompose", o.compose ? "ok" : "bad", o.compose ? "compose" : "compose ✕");
   const rc = o.rcon || {};
 
   const remote = o.mode === "remote";
