@@ -123,7 +123,9 @@ def test_session_revocation_redirects_open_dashboard(page, login_url, auth_serve
     page.goto(login_url + "/")
     fill_login(page)
     expect(page.locator("#view-overview")).to_be_visible()
-    page.wait_for_function("S.overview?.serverName === 'Auth test server'")
+    page.wait_for_function(
+        "typeof S !== 'undefined' && S.overview?.serverName === 'Auth test server'"
+    )
     # The real SSE connection must stop and redirect after revocation.
     cookies = page.context.cookies()
     cookie_header = "; ".join(f"{cookie['name']}={cookie['value']}" for cookie in cookies)

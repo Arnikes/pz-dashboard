@@ -269,16 +269,30 @@ def test_operation_visible_on_all_routes_and_result_survives_navigation(page, da
     [("players", "kick"), ("players", "ban"), ("backups", "dl"), ("backups", "restore")],
 )
 def test_live_list_preserves_focus_identity_and_recovers_removed_row(page, dashboard, kind, action):
+    name = 'Дмитрий "Север" ' + "очень-длинное-имя-" * 12
+    frame = (
+        {"ok": True, "count": 2, "names": [name, "Alice"]}
+        if kind == "players"
+        else {
+            "ok": True,
+            "items": [
+                {"name": name, "mtime": "2026-10-04T20:00:00Z", "size": 100},
+                {"name": "second.tar", "mtime": "2026-10-04T20:00:00Z", "size": 200},
+            ],
+        }
+    )
+    # A late initial HTTP/SSE snapshot must preserve the same rows as the timer.
+    if kind == "players":
+        dashboard["players"].update(frame)
+    page.route(f"**/api/{kind}", lambda route: route.fulfill(json=frame))
     page.goto(dashboard["url"] + f"/#/{kind}")
     expect(page.locator("#btnStop")).to_be_enabled()
     page.clock.install()
-    name = 'Дмитрий "Север" ' + "очень-длинное-имя-" * 12
     page.evaluate(
-        """({kind,name}) => {
-        window.listFrame = kind === 'players' ? {ok:true,count:2,names:[name,'Alice']} :
-          {ok:true,items:[{name,mtime:'2026-10-04T20:00:00Z',size:100},{name:'second.tar',mtime:'2026-10-04T20:00:00Z',size:200}]};
+        """({kind,frame}) => {
+        window.listFrame = frame;
         window.paintList = () => kind === 'players' ? renderPlayers(listFrame) : renderBackups(listFrame);
-        // This regression isolates row reconciliation from the fixture's empty live snapshots.
+        // This regression isolates row reconciliation from periodic API/SSE refreshes.
         liveSource?.close(); liveSource = null; clearTimeout(sseStartupTimer);
         paintList();
         window.rowChanges = 0;
@@ -286,7 +300,7 @@ def test_live_list_preserves_focus_identity_and_recovers_removed_row(page, dashb
           document.getElementById(kind+'Body'), {subtree:true,childList:true,attributes:true});
         window.listTimer = setInterval(paintList,1000);
         }""",
-        {"kind": kind, "name": name},
+        {"kind": kind, "frame": frame},
     )
     selector = f'#{kind}Body button[data-{"p" if kind == "players" else "b"}="{action}"]'
     focused = page.locator(selector).first

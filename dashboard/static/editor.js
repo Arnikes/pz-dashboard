@@ -368,6 +368,8 @@ window.ConfigEditor = (() => {
     const elsewhere = query ? Object.keys(tabLabels).filter(tab => tab !== configTab).map(tab => ({ tab, count: fields(tab).filter(o => `${o.key} ${o.label}`.toLowerCase().includes(query)).length })).filter(result => result.count) : [];
     const suggestions = elsewhere.length ? I18n.html('<p class="hint">Совпадения есть в других разделах:</p>') + `<div class="editor-toolbar">${elsewhere.map(({tab, count}) => I18n.msg`<button type="button" class="btn small" data-search-tab="${tab}">Перейти: ${esc(tabLabels[tab])} · ${count}</button>`).join("")}</div>` : query ? I18n.html('<p class="hint">Попробуйте другое название или технический ключ.</p>') : "";
     $("configFields").innerHTML = html || I18n.html('<p class="hint">Нет настроек, соответствующих поиску.</p>') + suggestions;
+    // New controls must inherit the profile/operation lock before accepting input.
+    updateBar();
   }
   const sourceViews = new Map(["ini", "sandbox"].map(kind => {
     const input = $(kind + "Source"), output = $(kind + "Highlight");

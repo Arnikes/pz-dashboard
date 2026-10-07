@@ -1196,6 +1196,76 @@ def test_navigation_waits_for_delayed_route(page, dashboard, editing, width):
 
 
 @pytest.mark.parametrize("width", [390, 1440])
+@pytest.mark.parametrize("initial_load", [False, True])
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("PublicName", "Loaded draft"),
+        ("PublicDescription", "First line\nSecond line"),
+        ("ChatStreams", "s\nr\ny"),
+    ],
+)
+def test_rendered_fields_wait_for_profile_metadata(
+    page, dashboard, editing, width, initial_load, key, value
+):
+    data, _ = editing
+    original = INI + "PublicDescription=Before\r\nChatStreams=s,r,a\r\n"
+    (data / "Server/world.ini").write_bytes(original.encode())
+    page.set_viewport_size({"width": width, "height": 900})
+    if not initial_load:
+        page.goto(dashboard["url"])
+        expect(page.locator("#configProfile")).to_have_value("world.ini")
+        expect(page.locator("#configProfile")).to_be_enabled()
+
+    pending = []
+    page.route("**/api/mods?*", lambda route: pending.append(route))
+    with page.expect_request("**/api/mods?*"):
+        if initial_load:
+            page.goto(dashboard["url"] + "/#/settings")
+        else:
+            navigate(page, "settings", width == 390)
+
+    field = page.locator(f'[data-key="{key}"]')
+    expect(field).to_be_visible()
+    expect(page.locator("#view-settings")).to_have_attribute("aria-busy", "true")
+    page.wait_for_function("S.overview?.serverName === 'Browser test server'")
+    # Searching also creates new field nodes while the profile is still loading.
+    page.evaluate("""() => {
+        window.renderedFieldLocks = [];
+        window.fieldLockObserver = new MutationObserver(records => {
+            for (const record of records) for (const node of record.addedNodes) {
+                if (node.querySelectorAll) {
+                    renderedFieldLocks.push(...[...node.querySelectorAll('[data-key]')]
+                        .map(field => field.disabled));
+                }
+            }
+        });
+        fieldLockObserver.observe(document.getElementById('configFields'), {childList:true});
+    }""")
+    page.locator("#configSearch").fill(key)
+    page.wait_for_function("renderedFieldLocks.length > 0")
+    assert all(page.evaluate("renderedFieldLocks"))
+    page.evaluate("fieldLockObserver.disconnect()")
+    expect(field).to_be_disabled()
+    assert pending
+    pending.pop().fallback()
+    expect(page.locator("#view-settings")).to_have_attribute("aria-busy", "false")
+    field.fill(value)
+    field.press("Tab")
+    expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
+    expect(page.locator("#configError")).to_be_hidden()
+    assert editor.draft("world.ini")["changed"]
+    page.get_by_role("tab", name="Исходники", exact=True).click()
+    expected = value.replace("\n", "\\n" if key == "PublicDescription" else ",")
+    expect(page.locator("#iniSource")).to_have_value(
+        editor.draft("world.ini")["texts"]["ini"].replace("\r\n", "\n")
+    )
+    assert f"{key}={expected}" in page.locator("#iniSource").input_value()
+    assert (data / "Server/world.ini").read_bytes() == original.encode()
+    assert dashboard["actions"] == []
+
+
+@pytest.mark.parametrize("width", [390, 1440])
 def test_select_chevron_inset_and_text_space(page, dashboard, editing, width):
     page.set_viewport_size({"width": width, "height": 844})
     page.goto(dashboard["url"])

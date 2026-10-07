@@ -167,19 +167,20 @@ def test_missing_backup_notice_remains_available_without_a_config_profile(page, 
 def test_overview_state_remains_available_without_connection_disclosure(
     page, dashboard, running, remote
 ):
-    page.goto(dashboard["url"])
-    page.evaluate(
-        """({running,remote}) => renderOverview({...S.overview,
-        mode:remote?'remote':'local', docker:!remote,
-        containerInfo:{running,status:running?'running':'exited'},
-        rcon:{state:'error',error:'Connection refused'}})""",
-        {"running": running, "remote": remote},
+    # Initial and periodic API/SSE snapshots must agree with the state under test.
+    dashboard["overview"].update(
+        mode="remote" if remote else "local",
+        docker=not remote,
+        containerInfo={"running": running, "status": "running" if running else "exited"},
+        rcon={"state": "error", "error": "Connection refused"},
     )
+    page.goto(dashboard["url"])
     expect(page.locator(".health-details, #healthbar, #connectionIssue")).to_have_count(0)
     expect(page.locator("#stateLabel")).to_have_text(
         "Нет ответа RCON" if remote else "Работает" if running else "Остановлен"
     )
-    page.evaluate("renderOverview({...S.overview,rcon:{state:'ok'},containerInfo:{running:true}})")
+    dashboard["overview"].update(rcon={"state": "ok"}, containerInfo={"running": True})
+    page.evaluate("data => renderOverview(data)", dashboard["overview"])
     expect(page.locator("#stateLabel")).to_have_text("Работает (RCON)" if remote else "Работает")
 
 
@@ -216,15 +217,19 @@ def test_console_error_warning_search_and_offline_log_retention(page, dashboard)
 
 
 def test_paused_log_scrolling_keeps_receiving_new_lines(page, dashboard):
+    frame = {
+        "ok": True,
+        "text": "\n".join(f"2026-10-01T12:00:00Z INFO line {i}" for i in range(150)),
+    }
+    page.route("**/api/logs**", lambda route: route.fulfill(json=frame))
     page.goto(dashboard["url"] + "/#/console")
-    page.evaluate("""() => applyLogs({ok:true,text:Array.from({length:150}, (_,i) =>
-        `2026-10-01T12:00:00Z INFO line ${i.toString(36)}`).join('\\n')})""")
+    expect(page.locator("#logsOut")).to_contain_text("INFO line 149")
     page.locator("#logsAuto").uncheck()
     page.locator("#logsOut").evaluate("el => el.scrollTop = 50")
     before = page.locator("#logsOut").evaluate("el => el.scrollTop")
     assert before > 0
-    page.evaluate("""() => applyLogs({ok:true,text:S.logsLines.map(l => l.raw).join('\\n') +
-        '\\n2026-10-01T12:00:01Z ERROR new line while paused'})""")
+    frame["text"] += "\n2026-10-01T12:00:01Z ERROR new line while paused"
+    page.evaluate("data => applyLogs(data)", frame)
     expect(page.locator("#logsOut")).to_contain_text("new line while paused")
     assert abs(page.locator("#logsOut").evaluate("el => el.scrollTop") - before) <= 1
     assert dashboard["actions"] == []
