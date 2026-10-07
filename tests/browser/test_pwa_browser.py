@@ -282,10 +282,12 @@ def test_failed_update_preserves_active_version_and_can_retry(page, pwa_server):
 
 @pytest.mark.parametrize("width", [1440, 740, 600, 390, 320])
 @pytest.mark.parametrize("language", ["ru", "en"])
+@pytest.mark.parametrize("motion", ["no-preference", "reduce"])
 def test_update_alert_floats_without_moving_layout_and_stays_visible(
-    page, context, pwa_server, tmp_path, width, language
+    page, context, pwa_server, tmp_path, width, language, motion
 ):
     page.set_viewport_size({"width": width, "height": 900})
+    page.emulate_media(reduced_motion=motion)
     page.add_init_script(f"localStorage.setItem('pz-language', '{language}')")
     token = pwa_server["auth"].sign_in("pwa-admin", "pwa-test-password-long", "fixture")
     context.add_cookies([{"name": auth.COOKIE_NAME, "value": token, "url": pwa_server["url"]}])
@@ -307,6 +309,11 @@ def test_update_alert_floats_without_moving_layout_and_stays_visible(
     page.evaluate("async () => (await navigator.serviceWorker.getRegistration()).update()")
     alert = page.locator(".pwa-update-alert")
     expect(alert).to_be_visible(timeout=10000)
+    # Animated translation can round a 44px bounding box slightly below 44px.
+    # Measure the settled alert, including when reduced motion disables animation.
+    alert.evaluate("""async element => {
+      await Promise.all(element.getAnimations({subtree: true}).map(animation => animation.finished));
+    }""")
     expect(page.locator(".pwa-bar")).to_be_hidden()
     expect(page.locator("#btnCommands")).to_be_focused()
     assert page.evaluate(geometry) == before
