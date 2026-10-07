@@ -9,7 +9,6 @@ window.ConfigEditor = (() => {
   let deferredFields = false;
   let fieldSaveFailed = false;
   let unsaved = [];
-  let operationMarkup = "";
   let previousBarBusy = false;
   let historyRequest = 0;
   const groupStates = new Map();
@@ -92,7 +91,7 @@ window.ConfigEditor = (() => {
     $("configFields").querySelectorAll("[data-key]").forEach(el => { setDomProperty(el, "disabled", busy || loading || S.demo || !!el.dataset.owner); });
     const incompatible = new Set((mods?.workshop || []).flatMap(w => w.available || []).filter(r => r.compatible === false).map(r => r.modId));
     $("modPackages").querySelectorAll("[data-modid]").forEach(el => { setDomProperty(el, "disabled", locked || incompatible.has(el.dataset.modid) && !el.checked); });
-    document.querySelectorAll("#modPackages button, #modMapEditor input, #modMapEditor button, #modProblems button, #legacyMods button, #installNotice button, #configFields [data-remove-option], #configHistory button, #configOperationResult [data-operation-restore], #configOperationResult [data-verify-running]").forEach(el => { setDomProperty(el, "disabled", locked); });
+    document.querySelectorAll("#modPackages button, #modMapEditor input, #modMapEditor button, #modProblems button, #legacyMods button, #installNotice button, #configFields [data-remove-option], #configHistory button").forEach(el => { setDomProperty(el, "disabled", locked); });
     for (const id of ["modImport", "modExport", "modRescan", "sourceSave", "draftRetry"]) setDomProperty($(id), "disabled", locked);
     setDomAttribute($("modImport").closest("label"), "aria-disabled", String(locked));
     setDomProperty($("workshopInput"), "disabled", locked || resolvingWorkshop);
@@ -132,15 +131,6 @@ window.ConfigEditor = (() => {
       const until = Date.parse(state.operationCompletedAt || "") || 0;
       if (until && until !== S.logsUntil) { S.logsUntil = until; renderLogsFiltered(); refreshLogs(); }
     }
-    const result = $("configOperationResult");
-    setDomProperty(result, "hidden", !editorView || !state.operationStartedAt);
-    if (!result.hidden) {
-      const status = busy ? "applying" : draft.status === "unconfirmed" ? "unconfirmed" : state.status;
-      result.dataset.state = status === "error" ? "bad" : status === "applied" ? "ok" : "warn";
-      const markup = I18n.msg`<strong>${esc(state.verifiedAt && ["applied", "select-mods"].includes(status) ? I18n.t("Проверено после запуска") : statuses[status] || I18n.t("Результат операции"))}</strong><p class="hint">Профиль ${esc(file)} · ${esc(fmtTime(state.verifiedAt || state.operationCompletedAt || state.operationStartedAt))}</p>${state.error ? `<p class="editor-error">${esc(state.error)}</p>` : ""}${(state.verificationProblems || []).filter(p => p.severity !== "error").map(p => `<p class="hint">${esc(p.message)}</p>`).join("")}${state.lastFailure ? I18n.msg`<details><summary>Предыдущая ошибка операции</summary><p class="hint">${esc(state.lastFailure.error)}</p></details>` : ""}${state.worldBackup ? I18n.msg`<p class="hint">Бэкап мира: ${esc(state.worldBackup)}</p>` : state.backupBeforeApply === false ? I18n.html('<p class="hint">Бэкап мира отключён для этой операции. Исходные конфиги сохраняются в истории.</p>') : ""}<div class="editor-toolbar"><button type="button" class="btn small" data-operation-logs>Логи операции</button>${status === "error" && state.historyId ? I18n.html('<button type="button" class="btn small" data-operation-restore>Восстановить прежнюю конфигурацию…</button>') : ""}${status !== "applying" && draft.canApply && state.savedRevision ? I18n.html('<button type="button" class="btn small" data-verify-running>Проверить запущенный сервер</button>') : ""}</div>`;
-      if (markup !== operationMarkup) { result.innerHTML = markup; operationMarkup = markup; }
-      result.querySelectorAll("[data-operation-restore], [data-verify-running]").forEach(el => { setDomProperty(el, "disabled", locked); });
-    }
     attention();
   }
   function attention() {
@@ -173,7 +163,7 @@ window.ConfigEditor = (() => {
     const step = event.target.closest("[data-flow]")?.dataset.flow;
     if (!step) return;
     if (step === "files") { $("configDiff").focus(); $("configDiff").click(); return; }
-    const target = step === "launch" ? (!$("configApply").disabled ? $("configApply") : !$("configVerifyHelp").hidden ? $("configVerify") : !$("configActionHelp").hidden ? $("configActionHelp") : $("configOperationResult"))
+    const target = step === "launch" ? (!$("configApply").disabled ? $("configApply") : !$("configVerifyHelp").hidden ? $("configVerify") : !$("configActionHelp").hidden ? $("configActionHelp") : $("flowLaunch").closest("button"))
       : activeView === "mods" ? $("workshopInput") : configTab === "sources" ? $("iniSource") : $("configSearch");
     if (!target || target.hidden || target.disabled) return;
     if (!target.matches("input,textarea,button")) target.tabIndex = -1;
@@ -806,11 +796,6 @@ window.ConfigEditor = (() => {
       setTimeout(() => modal.open({ title: I18n.t("Изменения при восстановлении"), bodyHTML: diffHtml(result), onConfirm: async () => {} }), 0);
     } });
   }
-  $("configOperationResult").addEventListener("click", e => {
-    if (e.target.closest("[data-verify-running]")) verifyRunning();
-    if (e.target.closest("[data-operation-logs]")) operationLogs();
-    if (e.target.closest("[data-operation-restore]") && draft?.state?.historyId) restoreHistory(draft.state.historyId);
-  });
   $("configHistory").addEventListener("click", e => {
     const button = e.target.closest("[data-restore-config]"); if (!button) return;
     if (button.dataset.profile !== file || loading || S.op?.active) return;

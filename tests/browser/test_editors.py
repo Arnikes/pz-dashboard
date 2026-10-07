@@ -1290,18 +1290,18 @@ def test_verify_external_restart_clears_install_notice_and_old_error_without_act
     expect(page.locator("#installNotice")).to_contain_text("Загрузка требует проверки")
     page.locator("#installNotice [data-verify-running]").click()
     expect(page.locator("#installNotice")).to_be_hidden()
-    expect(page.locator("#configOperationResult > strong")).to_have_text("Проверено после запуска")
-    expect(page.locator("#configOperationResult .editor-error")).to_have_count(0)
-    expect(page.locator("#configOperationResult details")).not_to_have_attribute("open", "")
+    expect(page.locator("#configOperationResult")).to_have_count(0)
+    expect(page.locator("#flowLaunch")).to_have_text("Подтверждён")
     navigate(page, "settings", width <= 740)
     expect(page.locator("#configStatus")).to_have_text("Применено")
+    expect(page.locator("#configOperationResult")).to_have_count(0)
     expect(page.locator("#configError")).to_be_hidden()
     assert (data / "Server/world.ini").read_bytes() == original
     assert dashboard["actions"] == []
     assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
 
 
-def test_result_card_does_not_claim_previous_verification_after_another_restart(
+def test_startup_status_does_not_claim_previous_verification_after_another_restart(
     page, dashboard, editing, monkeypatch
 ):
     _, request = saved_verification(editing, monkeypatch)
@@ -1315,10 +1315,9 @@ def test_result_card_does_not_claim_previous_verification_after_another_restart(
     expect(page.locator("#configProfile")).to_have_value("world.ini")
     navigate(page, "settings")
     expect(page.locator("#configStatus")).to_have_text("Применение не подтверждено")
-    expect(page.locator("#configOperationResult > strong")).to_have_text(
-        "Применение не подтверждено"
-    )
-    expect(page.locator("#configOperationResult")).to_have_attribute("data-state", "warn")
+    expect(page.locator("#flowLaunch")).to_have_text("Нужна проверка")
+    expect(page.locator("#configVerifyHelp")).to_be_visible()
+    expect(page.locator("#configOperationResult")).to_have_count(0)
 
 
 @pytest.mark.parametrize("width", [390, 1440])
@@ -1338,11 +1337,12 @@ def test_auto_verification_updates_open_settings_and_mods_without_click(
         "const now = Date.now; Date.now = () => now() + 16000; ConfigEditor.background();"
     )
     expect(page.locator("#installNotice")).to_be_hidden()
-    expect(page.locator("#configOperationResult > strong")).to_have_text("Проверено после запуска")
-    expect(page.locator("#configOperationResult .editor-error")).to_have_count(0)
+    expect(page.locator("#flowLaunch")).to_have_text("Подтверждён")
+    expect(page.locator("#configOperationResult")).to_have_count(0)
     navigate(page, "settings", width <= 740)
     expect(page.locator("#configStatus")).to_have_text("Применено")
     expect(page.locator("#configError")).to_be_hidden()
+    expect(page.locator("#configOperationResult")).to_have_count(0)
     expect(page.locator("#configRebase")).to_be_hidden()
     assert editor.read_profile("world.ini") == original
     assert (data / "Server/world.ini").exists()
@@ -1370,10 +1370,11 @@ def test_auto_verification_refresh_keeps_saved_draft_mod_selection(
     navigate(page, "mods")
     expect(page.locator("#modSummary")).to_contain_text("1 выбранных ModID")
     editor.auto_verify_running()
-    page.evaluate(
-        "const now = Date.now; Date.now = () => now() + 16000; ConfigEditor.background();"
-    )
-    expect(page.locator("#configOperationResult > strong")).to_have_text("Проверено после запуска")
+    with page.expect_response("**/api/config-draft?file=world.ini"):
+        page.evaluate(
+            "const now = Date.now; Date.now = () => now() + 16000; ConfigEditor.background();"
+        )
+    expect(page.locator("#configOperationResult")).to_have_count(0)
     expect(page.locator("#modSummary")).to_contain_text("1 выбранных ModID")
     page.locator("#modPackages summary").click()
     expect(page.locator('[data-modid="plugin"]')).not_to_be_checked()
@@ -1491,7 +1492,8 @@ def test_operation_logs_preserve_filters_and_allow_return_to_all_logs(
     page.locator("#logsFilter").fill("database")
     page.locator('#logLevels [data-level="error"]').click()
     navigate(page, "settings")
-    page.locator("#configOperationResult [data-operation-logs]").click()
+    page.locator("#draftMore").click()
+    page.locator("#editorLogs").click()
     expect(page.locator("#logsScope")).to_be_visible()
     expect(page.locator("#logsPeriod")).to_contain_text("world.ini")
     if not completed:
@@ -1682,7 +1684,7 @@ def test_source_then_mod_edit_use_one_draft_without_restoring_old_selection(
 
 
 @pytest.mark.parametrize("width", [1440, 390])
-def test_failed_start_result_restores_configuration_into_shared_draft(
+def test_failed_start_history_restores_configuration_into_shared_draft(
     page, dashboard, editing, monkeypatch, width
 ):
     page.emulate_media(reduced_motion="reduce")
@@ -1703,13 +1705,16 @@ def test_failed_start_result_restores_configuration_into_shared_draft(
     page.goto(dashboard["url"])
     expect(page.locator("#configProfile")).to_have_value("world.ini")
     navigate(page, "mods")
-    result = page.locator("#configOperationResult")
-    expect(result).to_be_visible()
-    expect(result).to_contain_text("Не удалось запустить контейнер")
-    result.locator("[data-operation-restore]").click()
+    expect(page.locator("#configOperationResult")).to_have_count(0)
+    navigate(page, "settings", width == 390)
+    expect(page.locator("#configStatus")).to_have_text("Ошибка")
+    page.get_by_role("tab", name="История изменений", exact=True).click()
+    history_id = editor.draft("world.ini")["state"]["historyId"]
+    page.locator(f'[data-restore-config="{history_id}"]').click()
     page.locator("#modalOk").click()
     expect(page.get_by_role("alertdialog")).to_contain_text("Изменения при восстановлении")
     page.locator("#modalOk").click()
+    page.get_by_role("tab", name="Сервер", exact=True).click()
     navigate(page, "settings", width == 390)
     expect(page.locator('[data-key="PublicName"]')).to_have_value("Сервер")
     assert "PublicName=Failed start" in editor.read_profile("world.ini")["ini"]
