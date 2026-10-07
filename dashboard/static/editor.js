@@ -3,7 +3,9 @@
 window.ConfigEditor = (() => {
   let file = "", draft = null, mods = null, configTab = "server", modTab = "composition";
   let chain = Promise.resolve(), loading = false, sourceDirty = false, fieldDirty = false;
-  let previousOp = false, dragId = null, pendingPatches = 0;
+  let previousOp = false, pendingPatches = 0;
+  let orderDrag = null;
+  const orderAnimations = new Map();
   let editorRoute = "";
   let profileLoad = Promise.resolve();
   let resolvingWorkshop = false;
@@ -175,6 +177,7 @@ window.ConfigEditor = (() => {
     return profileLoad;
   }
   async function loadProfileSnapshot(next) {
+    endDrag();
     loading = true;
     updateBar();
     try {
@@ -474,6 +477,7 @@ window.ConfigEditor = (() => {
     } }));
   }
   function updateModTab() {
+    if (modTab !== "order") endDrag();
     syncTabAccessibility("modTabs");
     $("modComposition").hidden = modTab !== "composition";
     $("modOrder").hidden = modTab !== "order";
@@ -678,6 +682,7 @@ window.ConfigEditor = (() => {
     patch({ mods: { selected: [mid, ...mods.mods.filter(m => m !== mid)] } }).catch(() => {});
   });
   function renderOrder() {
+    endDrag();
     if (!mods) return;
     const names = new Map(mods.workshop.flatMap(w => w.available || []).map(r => [r.modId, r.name]));
     const query = $("orderQuery").value.trim().toLowerCase();
@@ -685,7 +690,7 @@ window.ConfigEditor = (() => {
       .filter(r => `${r.mid} ${r.name}`.toLowerCase().includes(query));
     $("orderCount").textContent = query ? I18n.msg`Найдено ${entries.length} из ${mods.mods.length} · номера позиций сохранены` : I18n.msg`Всего ${mods.mods.length} · позиция 1 загружается первой`;
     $("modOrderList").innerHTML = entries.map(({ mid, index, name }) => I18n.msg`<div class="order-row" data-order-id="${esc(mid)}">
-      <button type="button" class="btn order-grip" draggable="true" aria-label="Перетащить ${esc(mid)}" title="Потяните для изменения порядка; с клавиатуры используйте «Переместить…»"><svg width="18" height="24" viewBox="0 0 18 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="5" r="2"/><circle cx="13" cy="5" r="2"/><circle cx="5" cy="12" r="2"/><circle cx="13" cy="12" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="13" cy="19" r="2"/></svg></button>
+      <button type="button" class="btn order-grip" aria-label="Перетащить ${esc(mid)}" aria-describedby="orderDragHint" aria-pressed="false" title="Потяните для изменения порядка; пробел — взять, стрелки — переместить, Escape — отменить"><svg width="18" height="24" viewBox="0 0 18 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="5" r="2"/><circle cx="13" cy="5" r="2"/><circle cx="5" cy="12" r="2"/><circle cx="13" cy="12" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="13" cy="19" r="2"/></svg></button>
       <span class="order-position" aria-label="Позиция ${index + 1}">${index + 1}</span>
       <div class="order-identity"><code>${esc(mid)}</code>${name && name !== mid ? `<span class="hint">${esc(name)}</span>` : ""}</div>
       <div class="order-actions"><button type="button" class="btn small order-step" data-move-id="${esc(mid)}" data-direction="-1" data-edge="${index === 0}" aria-label="Поднять ${esc(mid)}" title="На одну позицию выше">↑</button><button type="button" class="btn small order-step" data-move-id="${esc(mid)}" data-direction="1" data-edge="${index === mods.mods.length - 1}" aria-label="Опустить ${esc(mid)}" title="На одну позицию ниже">↓</button><button type="button" class="btn small" data-position-id="${esc(mid)}" aria-label="Переместить ${esc(mid)}">Переместить…</button></div>
@@ -694,7 +699,7 @@ window.ConfigEditor = (() => {
   }
   function focusOrder(mid, direction) {
     const row = [...$("modOrderList").querySelectorAll("[data-order-id]")].find(el => el.dataset.orderId === mid);
-    const step = direction && row?.querySelector(`[data-direction="${direction}"]`);
+    const step = direction === "grip" ? row?.querySelector(".order-grip") : direction && row?.querySelector(`[data-direction="${direction}"]`);
     const button = step && !step.disabled ? step : row?.querySelector("[data-position-id]");
     if (button) { button.focus({ preventScroll: true }); row.scrollIntoView({ block: "nearest" }); }
   }
@@ -734,43 +739,221 @@ window.ConfigEditor = (() => {
     input.focus(); input.select();
   }
   $("modOrder").addEventListener("click", e => {
+    if (!e.target.closest(".order-grip")) endDrag();
     const position = e.target.closest("[data-position-id]");
     if (position) { showPosition(position.dataset.positionId); return; }
     const button = e.target.closest("[data-move-id]");
     if (button) move(button.dataset.moveId, index => Math.max(0, Math.min(index + Number(button.dataset.direction), mods.mods.length - 1)), button.dataset.direction).catch(() => {});
   });
-  function clearDropTarget() { $("modOrderList").querySelectorAll("[data-drop]").forEach(row => delete row.dataset.drop); }
-  let dragOrigin = null;
-  function endDrag() { dragId = null; dragOrigin = null; clearDropTarget(); $("modOrderList").querySelectorAll(".dragging").forEach(row => row.classList.remove("dragging")); }
+  const orderRows = () => [...$("modOrderList").querySelectorAll("[data-order-id]")];
+  function stopOrderAnimations() {
+    orderAnimations.forEach(animation => animation.cancel());
+    orderAnimations.clear();
+  }
+  function announceOrderDrag() {
+    const target = orderDrag.target;
+    const source = mods.mods.indexOf(orderDrag.mid);
+    const slot = target ? mods.mods.indexOf(target.id) + (target.after ? 1 : 0) : source;
+    const position = target ? slot - (source < slot ? 1 : 0) : source;
+    const preview = mods.mods.filter(mid => mid !== orderDrag.mid);
+    preview.splice(position, 0, orderDrag.mid);
+    const positions = new Map(preview.map((mid, index) => [mid, index + 1]));
+    orderRows().forEach(row => {
+      const number = positions.get(row.dataset.orderId);
+      const label = row.querySelector(".order-position");
+      label.textContent = String(number);
+      label.setAttribute("aria-label", I18n.msg`Позиция ${number}`);
+    });
+    if (orderDrag.ghost) orderDrag.ghost.querySelector(".order-position").textContent = String(position + 1);
+    $("orderAnnouncement").textContent = I18n.msg`${orderDrag.mid}: позиция ${position + 1} из ${mods.mods.length}.`;
+  }
+  function previewOrder(index) {
+    const drag = orderDrag, rows = orderRows();
+    if (rows.indexOf(drag.row) === index) return;
+    const before = new Map(rows.map(row => [row, row.getBoundingClientRect().top]));
+    stopOrderAnimations();
+    const others = rows.filter(row => row !== drag.row);
+    const next = others[index];
+    drag.target = next ? { id: next.dataset.orderId, after: false } : { id: others.at(-1).dataset.orderId, after: true };
+    $("modOrderList").insertBefore(drag.row, next || null);
+    // Inserting the held row can release pointer capture and keyboard focus.
+    if (drag.pointerId !== undefined) drag.grip.setPointerCapture(drag.pointerId);
+    drag.grip.focus({ preventScroll: true });
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      others.forEach(row => {
+        const delta = before.get(row) - row.getBoundingClientRect().top;
+        if (Math.abs(delta) < 1) return;
+        const animation = row.animate([{ transform: `translateY(${delta}px)` }, { transform: "translateY(0)" }], { duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" });
+        orderAnimations.set(row, animation);
+        animation.onfinish = () => { if (orderAnimations.get(row) === animation) orderAnimations.delete(row); };
+      });
+    }
+    announceOrderDrag();
+  }
+  function endDrag(restoreFocus = true, announce = true, restoreOrder = true) {
+    const drag = orderDrag;
+    if (!drag) return;
+    const focused = document.activeElement === drag.grip;
+    orderDrag = null;
+    cancelAnimationFrame(drag.frame);
+    drag.ghost?.remove();
+    stopOrderAnimations();
+    if (drag.pointerId !== undefined && drag.grip.hasPointerCapture(drag.pointerId)) drag.grip.releasePointerCapture(drag.pointerId);
+    // Keep a dropped row in place while saving; cancellation restores the snapshot.
+    if (restoreOrder) {
+      drag.rows.forEach(row => $("modOrderList").append(row));
+      const positions = new Map(mods.mods.map((mid, index) => [mid, index + 1]));
+      drag.rows.forEach(row => {
+        const number = positions.get(row.dataset.orderId);
+        const label = row.querySelector(".order-position");
+        label.textContent = String(number);
+        label.setAttribute("aria-label", I18n.msg`Позиция ${number}`);
+      });
+    }
+    drag.row.classList.remove("order-placeholder", "order-held");
+    drag.grip.setAttribute("aria-pressed", "false");
+    document.body.classList.remove("order-dragging");
+    if (restoreFocus && (focused || drag.active)) drag.grip.focus({ preventScroll: true });
+    if (drag.active && announce) $("orderAnnouncement").textContent = I18n.t("Перемещение отменено. Порядок сохранён.");
+  }
+  function commitOrderDrag() {
+    const drag = orderDrag;
+    if (!drag) return;
+    const changed = orderRows().indexOf(drag.row) !== drag.rows.indexOf(drag.row);
+    const target = drag.target;
+    if (!changed || !target || drag.profile !== file) { endDrag(true, false); return; }
+    endDrag(true, false, false);
+    move(drag.mid, (index, list) => {
+      const targetIndex = list.indexOf(target.id);
+      if (targetIndex < 0) throw new Error(I18n.t("Позиция назначения больше недоступна"));
+      const slot = targetIndex + (target.after ? 1 : 0);
+      return slot - (index < slot ? 1 : 0);
+    }, "grip").catch(() => { renderOrder(); focusOrder(drag.mid, "grip"); });
+  }
+  function beginOrderDrag(grip, pointer) {
+    endDrag();
+    if (grip.disabled || S.demo || operationBusy() || loading || pendingPatches) return;
+    const row = grip.closest("[data-order-id]"), box = row.getBoundingClientRect();
+    orderDrag = { row, grip, mid: row.dataset.orderId, profile: file, rows: orderRows(), active: !pointer, target: null, frame: 0 };
+    grip.focus({ preventScroll: true });
+    if (pointer) {
+      Object.assign(orderDrag, { pointerId: pointer.pointerId, startY: pointer.clientY, startX: pointer.clientX, y: pointer.clientY, x: pointer.clientX, offset: pointer.clientY - box.top, height: box.height });
+      grip.setPointerCapture(pointer.pointerId);
+    } else {
+      row.classList.add("order-held");
+      grip.setAttribute("aria-pressed", "true");
+      announceOrderDrag();
+    }
+  }
+  function orderDragViewport() {
+    const list = $("modOrderList").getBoundingClientRect();
+    const toolbar = $("modOrder").querySelector(".order-toolbar").getBoundingClientRect();
+    let bottom = innerHeight;
+    for (const selector of [".site-footer", ".nav", "#draftBar"]) {
+      const el = document.querySelector(selector);
+      if (!el || el.hidden || getComputedStyle(el).position !== "fixed") continue;
+      const box = el.getBoundingClientRect();
+      if (box.width > innerWidth / 2 && box.top > innerHeight / 2) bottom = Math.min(bottom, box.top);
+    }
+    return { top: Math.max(0, toolbar.bottom), bottom, left: list.left, right: list.right };
+  }
+  function updateOrderPointer() {
+    const drag = orderDrag;
+    if (!drag?.ghost) return;
+    const box = $("modOrderList").getBoundingClientRect();
+    drag.ghost.style.left = `${box.left}px`;
+    drag.ghost.style.width = `${box.width}px`;
+    drag.ghost.style.top = `${drag.y - drag.offset}px`;
+    if (drag.x < box.left - 24 || drag.x > box.right + 24) return;
+    const center = drag.y - drag.offset + drag.height / 2;
+    const rows = orderRows().filter(row => row !== drag.row);
+    // Use layout positions, not the moving siblings' animated visual positions.
+    const index = rows.filter(row => {
+      const rect = row.getBoundingClientRect();
+      const transform = getComputedStyle(row).transform;
+      const offset = transform === "none" ? 0 : new DOMMatrixReadOnly(transform).m42;
+      return center > rect.top - offset + rect.height / 2;
+    }).length;
+    previewOrder(index);
+  }
+  function orderScrollFrame(time) {
+    const drag = orderDrag;
+    if (!drag?.active || !drag.ghost) return;
+    if (drag.profile !== file || activeView !== "mods" || modTab !== "order" || operationBusy() || loading) { endDrag(); return; }
+    const bounds = orderDragViewport();
+    const elapsed = Math.min(32, time - (drag.lastFrame || time));
+    drag.lastFrame = time;
+    const edge = Math.min(72, Math.max(24, (bounds.bottom - bounds.top) / 4));
+    let speed = 0;
+    if (drag.x >= bounds.left - 24 && drag.x <= bounds.right + 24 && bounds.bottom > bounds.top) {
+      if (drag.y < bounds.top + edge) speed = -Math.min(1, (bounds.top + edge - drag.y) / edge);
+      else if (drag.y > bounds.bottom - edge) speed = Math.min(1, (drag.y - bounds.bottom + edge) / edge);
+    }
+    const list = $("modOrderList").getBoundingClientRect();
+    if (speed < 0 && list.top >= bounds.top || speed > 0 && list.bottom <= bounds.bottom) speed = 0;
+    if (speed) window.scrollBy({ top: speed * 700 * elapsed / 1000, behavior: "instant" });
+    drag.frame = requestAnimationFrame(orderScrollFrame);
+  }
   $("modOrder").addEventListener("pointerdown", e => {
     const grip = e.target.closest(".order-grip");
-    dragOrigin = e.button === 0 && grip && !grip.disabled ? grip.closest("[data-order-id]") : null;
+    if (e.button !== 0 || !e.isPrimary || !grip) return;
+    e.preventDefault();
+    beginOrderDrag(grip, e);
   });
-  document.addEventListener("pointerup", () => { if (!dragId) dragOrigin = null; });
-  $("modOrder").addEventListener("dragstart", e => {
-    // Scrolling between press and native dragstart can change the event target.
-    // Keep the identity selected by the initiating press throughout the gesture.
-    const row = dragOrigin?.isConnected ? dragOrigin : e.target.closest(".order-grip")?.closest("[data-order-id]");
-    const grip = row?.querySelector(".order-grip");
-    if (!row || grip.disabled || S.demo || operationBusy()) { e.preventDefault(); return; }
-    dragId = row.dataset.orderId; row.classList.add("dragging"); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", dragId);
-  });
-  $("modOrder").addEventListener("dragover", e => {
-    const row = e.target.closest("[data-order-id]"); clearDropTarget();
-    if (!dragId || !row || row.dataset.orderId === dragId) return;
-    e.preventDefault(); e.dataTransfer.dropEffect = "move";
-    const box = row.getBoundingClientRect(); row.dataset.drop = e.clientY < box.top + box.height / 2 ? "before" : "after";
-  });
-  $("modOrder").addEventListener("dragleave", e => { if (!$("modOrderList").contains(e.relatedTarget)) clearDropTarget(); });
-  $("modOrder").addEventListener("drop", e => {
-    const row = e.target.closest("[data-order-id]"), mid = dragId, after = row?.dataset.drop === "after";
-    if (mid && row && row.dataset.drop) {
-      e.preventDefault(); const targetId = row.dataset.orderId;
-      move(mid, (index, list) => { const targetIndex = list.indexOf(targetId); if (targetIndex < 0) throw new Error(I18n.t("Позиция назначения больше недоступна")); const slot = targetIndex + (after ? 1 : 0); return slot - (index < slot ? 1 : 0); }).catch(() => {});
+  document.addEventListener("pointermove", e => {
+    const drag = orderDrag;
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    drag.y = e.clientY; drag.x = e.clientX;
+    if (!drag.active && Math.hypot(drag.y - drag.startY, drag.x - drag.startX) >= 5) {
+      drag.active = true;
+      const box = drag.row.getBoundingClientRect();
+      drag.ghost = drag.row.cloneNode(true);
+      drag.ghost.removeAttribute("data-order-id");
+      drag.ghost.setAttribute("aria-hidden", "true");
+      drag.ghost.inert = true;
+      drag.ghost.classList.add("order-drag-preview");
+      drag.ghost.style.width = `${box.width}px`;
+      document.body.append(drag.ghost);
+      drag.row.classList.add("order-placeholder");
+      drag.grip.setAttribute("aria-pressed", "true");
+      document.body.classList.add("order-dragging");
+      announceOrderDrag();
+      drag.frame = requestAnimationFrame(orderScrollFrame);
     }
-    endDrag();
+    updateOrderPointer();
   });
-  $("modOrder").addEventListener("dragend", endDrag);
+  document.addEventListener("pointerup", e => {
+    if (!orderDrag || e.pointerId !== orderDrag.pointerId) return;
+    const bounds = orderDragViewport();
+    if (e.clientX < bounds.left - 24 || e.clientX > bounds.right + 24 || e.clientY < 0 || e.clientY > innerHeight) endDrag();
+    else commitOrderDrag();
+  });
+  document.addEventListener("pointercancel", e => { if (e.pointerId === orderDrag?.pointerId) endDrag(); });
+  $("modOrder").addEventListener("dragstart", e => { if (e.target.closest(".order-grip")) e.preventDefault(); });
+  $("modOrder").addEventListener("keydown", e => {
+    const grip = e.target.closest(".order-grip");
+    if (!grip) return;
+    if (e.key === " " || e.key === "Enter") {
+      e.preventDefault();
+      if (orderDrag?.active) commitOrderDrag(); else beginOrderDrag(grip);
+    } else if (orderDrag?.pointerId === undefined && orderDrag?.grip === grip && ["ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) {
+      e.preventDefault();
+      const rows = orderRows(), index = rows.indexOf(orderDrag.row);
+      const target = e.key === "Home" ? 0 : e.key === "End" ? rows.length - 1 : index + (e.key === "ArrowUp" ? -1 : 1);
+      previewOrder(Math.max(0, Math.min(rows.length - 1, target)));
+      orderDrag.row.scrollIntoView({ block: "nearest", behavior: "instant" });
+    } else if (e.key === "Tab" && orderDrag) endDrag();
+  });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && orderDrag) { e.preventDefault(); endDrag(); } });
+  $("modOrder").addEventListener("focusout", () => {
+    queueMicrotask(() => {
+      if (orderDrag?.pointerId === undefined && orderDrag && document.activeElement !== orderDrag.grip) endDrag(false);
+    });
+  });
+  window.addEventListener("blur", endDrag);
+  window.addEventListener("resize", endDrag);
+  document.addEventListener("scroll", updateOrderPointer, true);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) endDrag(); });
   $("orderQuery").addEventListener("input", renderOrder);
   for (const id of ["modQuery", "modFilter", "modSortNew"]) $(id).addEventListener(id === "modQuery" ? "input" : "change", () => {
     compositionPager.page = 0;
@@ -938,6 +1121,7 @@ window.ConfigEditor = (() => {
       }
     },
     route(view) {
+      if (view !== "mods") endDrag();
       const entering = ["settings", "mods"].includes(view) && view !== editorRoute;
       editorRoute = view;
       updateBar(); if (view === "mods") updateModTab();

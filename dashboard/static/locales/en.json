@@ -681,7 +681,6 @@
   "Нет пользовательских правок": "No user changes",
   "Нет резервной копии мира": "No world backup",
   "Нет связи · PZ Пульт": "Disconnected · PZ Console",
-  "Нет связи с пультом": "Console disconnected",
   "Нет связи с пультом — повторная попытка идёт автоматически. Проверьте, что контейнер запущен.": "Console disconnected — reconnecting automatically. Check that the container is running.",
   "Нет связи с пультом. Повторите попытку.": "Console disconnected. Try again.",
   "Нет связи с пультом. Последние данные сохраняются; повторное подключение идёт автоматически.": "Console disconnected. Last data preserved; reconnecting automatically.",
@@ -1443,5 +1442,9 @@
   },
   "{{0}}.language должен быть ru или en": "{{0}}.language must be ru or en",
   ". Выберите профиль в шапке. Оливковый селектор означает, что пульт сопоставил профиль с запуском PZ. Янтарный — выбран другой профиль или профиль запуска не подтверждён. Другой профиль можно редактировать, но нельзя применить рестартом вместо активного.": ". Select a profile in the header. An olive selector means the console matched the profile to the PZ launch. Amber means another profile is selected or the launch profile is unconfirmed. Other profiles can be edited, but cannot replace the active profile during a restart.",
-  "Страницы состава модов": "Mod composition pages"
+  "Страницы состава модов": "Mod composition pages",
+  "Потяните для изменения порядка; пробел — взять, стрелки — переместить, Escape — отменить": "Drag to reorder; Space to grab, arrow keys to move, Escape to cancel",
+  "{{0}}: позиция {{1}} из {{2}}.": "{{0}}: position {{1}} of {{2}}.",
+  "Перемещение отменено. Порядок сохранён.": "Move cancelled. Order preserved.",
+  "overwrite должен быть boolean": "overwrite must be boolean"
 }

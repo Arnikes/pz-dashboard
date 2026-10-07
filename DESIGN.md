@@ -209,6 +209,13 @@ draft and metadata refreshes preserve the page, clamping it when the list shrink
 Changing profiles resets the page. Pagination uses the shared journal controls.
 Load-order search uses the editor's flat labeled field treatment; its opaque
 workspace background remains sticky without an additional enclosing border.
+Load-order dragging lifts a copy of the row while neighboring rows slide to open
+a full-height gap. Dragging uses the handle so touch scrolling remains available
+elsewhere; the visible list edges auto-scroll past the sticky search and fixed
+footer/draft controls. Wheel scrolling also works during a drag. Space/Enter grabs
+and drops, arrows move, Home/End reach the visible list edges, and Escape restores
+the order. Search preserves full-list positions. Only a completed move saves the
+draft; reduced motion skips the sibling animation.
 One SSE connection persists across route changes.
 
 Desktop and mobile show Draft → Files → Startup inside the editor, below the
