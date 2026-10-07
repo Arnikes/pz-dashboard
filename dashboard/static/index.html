@@ -42,7 +42,7 @@
   <link rel="stylesheet" href="static/style.css" />
   <link rel="stylesheet" href="/static/pwa.css" />
 </head>
-<body>
+<body class="dashboard-page">
   <header class="topbar" data-od-id="topbar">
     <div class="brand">
       <svg class="brand-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a8 8 0 0 0-8 8c0 3 1.6 5.4 4 6.8V20a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-3.2c2.4-1.4 4-3.8 4-6.8a8 8 0 0 0-8-8Z" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="9" cy="10.5" r="1.6" fill="currentColor"/><circle cx="15" cy="10.5" r="1.6" fill="currentColor"/><path d="M10.5 15.5h3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
@@ -702,6 +702,13 @@
       </section>
     </div>
   </main>
+
+  <footer class="site-footer">
+    <div class="site-footer-inner">
+      <small>© 2026 Arnike</small>
+      <a href="https://github.com/Arnikes/pz-dashboard" target="_blank" rel="noopener noreferrer">GitHub</a>
+    </div>
+  </footer>
   <div class="draft-bar" id="draftBar" hidden role="region" aria-label="Изменения конфигурации">
     <button type="button" id="draftRetry" class="btn small" hidden>Повторить сохранение черновика</button>
     <div class="draft-copy"><strong id="draftLabel">Черновик</strong><div class="draft-status"><span id="draftSaved" class="hint" aria-live="polite"></span><span id="draftContext" class="hint"></span></div></div>

@@ -2604,7 +2604,7 @@ $("playersBody").addEventListener("click", (event) => {
 // Keep fixed navigation, draft controls and notifications clear of each other
 // when text wraps, the viewport changes or a device has a bottom safe area.
 const layoutObserver = new ResizeObserver(() => {
-  for (const [selector, variable] of [[".topbar", "--header-height"], [".nav", "--nav-height"], ["#draftBar", "--draft-height"]]) {
+  for (const [selector, variable] of [[".topbar", "--header-height"], [".nav", "--nav-height"], ["#draftBar", "--draft-height"], [".site-footer", "--footer-height"]]) {
     const height = document.querySelector(selector)?.getBoundingClientRect().height || 0;
     document.documentElement.style.setProperty(variable, `${Math.ceil(height)}px`);
   }
@@ -2615,7 +2615,7 @@ const layoutObserver = new ResizeObserver(() => {
     if (overlap > 0) window.scrollBy({ top: overlap, behavior: "instant" });
   }
 });
-for (const selector of [".topbar", ".nav", "#draftBar"]) layoutObserver.observe(document.querySelector(selector));
+for (const selector of [".topbar", ".nav", "#draftBar", ".site-footer"]) layoutObserver.observe(document.querySelector(selector));
 const mobileLayout = matchMedia("(max-width: 740px)");
 function adaptConfigFlow() {
   const editing = /^(settings|mods)$/.test(location.hash.replace(/^#\/?/, ""));
