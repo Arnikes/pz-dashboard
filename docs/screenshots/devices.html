@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>PZ Console device screenshots</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 2400px; height: 1280px; overflow: hidden; background: #fff; }
+  .device { position: absolute; background: #171717; border: 2px solid #656565;
+    box-shadow: 0 18px 30px rgb(0 0 0 / 12%), inset 0 0 0 3px #080808; }
+  .screen { display: block; object-fit: contain; background: #0d0b09; }
+  .camera { position: absolute; width: 7px; height: 7px; border-radius: 50%;
+    background: #090909; box-shadow: inset 0 0 0 2px #292929; }
+  .laptop { left: 80px; top: 130px; width: 1488px; height: 956px;
+    padding: 30px 22px 22px; border-radius: 24px 24px 8px 8px; }
+  .laptop .screen { width: 1440px; height: 900px; border-radius: 3px; }
+  .laptop .camera { top: 12px; left: 738px; }
+  .base { position: absolute; left: 30px; top: 1084px; width: 1588px; height: 36px;
+    background: linear-gradient(#bebebe, #888 55%, #c3c3c3 58%, #9a9a9a);
+    border: 1px solid #8e8e8e; border-radius: 3px 3px 50% 50% / 3px 3px 28px 28px;
+    box-shadow: 0 16px 24px rgb(0 0 0 / 13%); }
+  .base::before { content: ""; position: absolute; left: 650px; width: 280px;
+    height: 13px; background: #797979; border-radius: 0 0 12px 12px; }
+  .tablet { left: 1390px; top: 272px; width: 630px; height: 882px;
+    padding: 26px; border-radius: 34px; }
+  .tablet .screen { width: 574px; height: 826px; border-radius: 9px; }
+  .tablet .camera { top: 10px; left: 310px; }
+  .phone { left: 1950px; top: 515px; width: 313px; height: 671px;
+    padding: 38px 18px; border-radius: 43px; }
+  .phone .screen { width: 273px; height: 591px; border-radius: 5px; }
+  .phone .camera { top: 15px; left: 194px; }
+  .phone::before { content: ""; position: absolute; left: 127px; top: 17px;
+    width: 52px; height: 5px; background: #080808; border-radius: 6px; }
+  .phone::after { content: ""; position: absolute; left: 125px; bottom: 14px;
+    width: 60px; height: 4px; background: #494949; border-radius: 4px; }
+</style>
+<div class="device laptop"><span class="camera"></span><img class="screen" id="laptop" src="overview.png" alt="Laptop screenshot"></div>
+<div class="base"></div>
+<div class="device tablet"><span class="camera"></span><img class="screen" id="tablet" src="tablet.png" alt="Tablet screenshot"></div>
+<div class="device phone"><span class="camera"></span><img class="screen" id="phone" src="mobile.png" alt="Phone screenshot"></div>
+</html>

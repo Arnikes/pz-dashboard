@@ -1,5 +1,6 @@
 """Opt-in README captures using real UI/editor code and fictional local data."""
 
+import base64
 import json
 import os
 import re
@@ -199,7 +200,9 @@ def test_capture_readme(page, dashboard, editing, monkeypatch):  # noqa: F811
     page.add_style_tag(content="* {animation:none!important;transition:none!important}")
     out = Path(__file__).resolve().parents[2] / "docs" / "screenshots"
     out.mkdir(parents=True, exist_ok=True)
-    for route in ["overview", "settings", "mods", "backups", "players"]:
+    routes = ["overview", "settings", "mods", "backups", "players"]
+    captures = {route: {} for route in routes}
+    for route in routes:
         page.evaluate("route => location.hash = '#/' + route", route)
         expect(page.locator(f"#view-{route}")).to_be_visible()
         if route == "mods":
@@ -209,11 +212,42 @@ def test_capture_readme(page, dashboard, editing, monkeypatch):  # noqa: F811
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
         assert not re.search("[А-Яа-яЁё]", page.locator(f"#view-{route}").inner_text())
         page.screenshot(path=str(out / f"{route}.png"), full_page=True)
-    page.set_viewport_size({"width": 390, "height": 844})
-    page.evaluate("location.hash='#/overview'")
-    expect(page.locator("#view-overview")).to_be_visible()
-    page.wait_for_timeout(250)
-    page.evaluate("window.scrollTo(0,0)")
-    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
-    page.screenshot(path=str(out / "mobile.png"))
+        captures[route]["laptop"] = page.screenshot()
+    for device, width, height in [("tablet", 820, 1180), ("phone", 390, 844)]:
+        page.set_viewport_size({"width": width, "height": height})
+        for route in routes:
+            page.evaluate("route => location.hash = '#/' + route", route)
+            expect(page.locator(f"#view-{route}")).to_be_visible()
+            page.wait_for_timeout(250)
+            page.evaluate("window.scrollTo(0,0)")
+            assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+            assert not re.search("[А-Яа-яЁё]", page.locator(f"#view-{route}").inner_text())
+            captures[route][device] = page.screenshot()
+            if device == "phone" and route == "overview":
+                (out / "mobile.png").write_bytes(captures[route][device])
+            if device == "tablet" and route == "overview":
+                (out / "tablet.png").write_bytes(captures[route][device])
+    # Compose captured pixels in local CSS device frames; never redraw the UI.
+    composition = page.context.new_page()
+    try:
+        composition.set_viewport_size({"width": 2400, "height": 1280})
+        composition.goto((out / "devices.html").as_uri())
+        for route in routes:
+            sources = {
+                device: "data:image/png;base64," + base64.b64encode(pixels).decode("ascii")
+                for device, pixels in captures[route].items()
+            }
+            composition.evaluate(
+                """async sources => {
+                    await Promise.all(Object.entries(sources).map(async ([device, src]) => {
+                        const image = document.getElementById(device);
+                        image.src = src;
+                        await image.decode();
+                    }));
+                }""",
+                sources,
+            )
+            composition.screenshot(path=str(out / f"{route}-devices.png"))
+    finally:
+        composition.close()
     assert dashboard["actions"] == []

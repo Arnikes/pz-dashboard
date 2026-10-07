@@ -8,7 +8,7 @@ without leaving your browser. Built with Python and plain HTML, CSS, and JavaScr
 
 [Quick start](#quick-start) · [Preview](#preview) · [Configuration guide](docs/config-editor.md) · [Documentation](#documentation) · [MIT license](LICENSE)
 
-![PZ Console overview with fictional server metrics, players, and activity](docs/screenshots/overview.png)
+![PZ Console overview on a laptop, tablet, and phone with fictional server data](docs/screenshots/overview-devices.png)
 
 ## Highlights
 
@@ -22,7 +22,7 @@ without leaving your browser. Built with Python and plain HTML, CSS, and JavaScr
   downloads, and a restore workflow with explicit confirmation.
 - **Server operations with context.** Player warnings before restarts, image and mod update
   scheduling, an RCON watchdog, optional Telegram notifications, and an event journal.
-- **At home on desktop or phone.** Responsive navigation, quick commands with `Ctrl/Cmd+K`,
+- **At home on desktop, tablet, or phone.** Responsive navigation, quick commands with `Ctrl/Cmd+K`,
   English and Russian interfaces, and an installable PWA.
 - **Self-contained UI assets.** Fonts, icons, scripts, and styles are served locally.
   Workshop, registry checks, and Telegram still need their upstream services.
@@ -32,6 +32,12 @@ without leaving your browser. Built with Python and plain HTML, CSS, and JavaScr
 These are real Chromium captures of the application using isolated, fictional fixtures.
 No production server, player records, credentials, or Workshop downloads are involved.
 See [how to regenerate the screenshots](docs/screenshots/README.md).
+
+### Overview
+
+Check server status, resource usage, updates, and activity.
+
+![PZ Console overview with fictional server metrics, players, and activity](docs/screenshots/overview.png)
 
 ### Server settings
 
@@ -57,6 +63,22 @@ Review scheduled backups, retained world archives, and the run journal.
 ![Fictional players and a 24-hour activity chart](docs/screenshots/players.png)
 
 <img src="docs/screenshots/mobile.png" alt="PZ Console overview on a 390-pixel mobile viewport" width="390">
+
+</details>
+
+<details>
+<summary>Laptop, tablet, and phone gallery</summary>
+
+Each image combines real captures of the same workspace at three viewport sizes.
+Device frames are drawn with CSS; no AI image generation is used.
+
+![Server settings on a laptop, tablet, and phone](docs/screenshots/settings-devices.png)
+
+![Workshop mods on a laptop, tablet, and phone](docs/screenshots/mods-devices.png)
+
+![Backups on a laptop, tablet, and phone](docs/screenshots/backups-devices.png)
+
+![Players on a laptop, tablet, and phone](docs/screenshots/players-devices.png)
 
 </details>
 
