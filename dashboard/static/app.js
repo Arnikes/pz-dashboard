@@ -2617,6 +2617,41 @@ const layoutObserver = new ResizeObserver(() => {
 });
 for (const selector of [".topbar", ".nav", "#draftBar", ".site-footer"]) layoutObserver.observe(document.querySelector(selector));
 const mobileLayout = matchMedia("(max-width: 740px)");
+const tabletLayout = matchMedia("(max-width: 1180px)");
+// Keep independent preferences so opening the desktop sidebar does not expand
+// it on a tablet. Without a preference, tablets start with an icon rail.
+function sidebarMode() { return tabletLayout.matches ? "tablet" : "desktop"; }
+function renderSidebar(collapsed) {
+  document.documentElement.dataset.sidebar = collapsed ? "collapsed" : "expanded";
+  const toggle = $("navToggle");
+  const label = I18n.t(collapsed ? "Развернуть навигацию" : "Свернуть навигацию");
+  toggle.setAttribute("aria-expanded", String(!collapsed));
+  toggle.setAttribute("aria-label", label);
+  toggle.title = label;
+  toggle.querySelector("span").textContent = I18n.t(collapsed ? "Развернуть" : "Свернуть");
+  for (const link of document.querySelectorAll(".nav a")) {
+    link.title = link.querySelector("span").textContent;
+  }
+}
+const sidebarPreferences = {};
+for (const mode of ["desktop", "tablet"]) {
+  try { sidebarPreferences[mode] = localStorage.getItem(`pz-sidebar-${mode}`); }
+  catch { /* Navigation still works when browser storage is unavailable. */ }
+}
+function adaptSidebar() {
+  const preference = sidebarPreferences[sidebarMode()];
+  renderSidebar(preference === "collapsed" || (preference !== "expanded" && tabletLayout.matches));
+}
+$("navToggle").addEventListener("click", () => {
+  const collapsed = document.documentElement.dataset.sidebar !== "collapsed";
+  const mode = sidebarMode(), preference = collapsed ? "collapsed" : "expanded";
+  sidebarPreferences[mode] = preference;
+  try { localStorage.setItem(`pz-sidebar-${mode}`, preference); }
+  catch { /* Preserve the preference in memory for this visit. */ }
+  renderSidebar(collapsed);
+});
+tabletLayout.addEventListener("change", adaptSidebar);
+adaptSidebar();
 function adaptConfigFlow() {
   const editing = /^(settings|mods)$/.test(location.hash.replace(/^#\/?/, ""));
   const main = document.querySelector(".main"), flow = $("configFlow");

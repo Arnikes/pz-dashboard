@@ -163,7 +163,11 @@ source background.
 
 ## Navigation and responsive behavior
 
-Desktop uses a sidebar (204 pixels) with a page gutter (28 pixels); mobile uses
+Desktop uses a collapsible sidebar (204 pixels expanded, 72 pixels collapsed)
+with a page gutter (28 pixels). Tablet widths (741–1180 pixels) start collapsed;
+desktop starts expanded. The sidebar toggle retains keyboard focus and exposes
+its expanded state; collapsed links retain accessible names and native tooltips.
+Desktop and tablet preferences are stored separately in the browser. Mobile uses
 Overview, Settings, Mods, and More in the bottom bar. All four items share the
 same-size icon and label treatment. More
 remains a button that exposes its expanded and current-section states.
