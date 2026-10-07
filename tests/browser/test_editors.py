@@ -949,7 +949,7 @@ def test_real_form_draft_mod_selection_and_sources(page, dashboard, editing, wid
     packet.locator("summary").click()
     expect(page.locator('[data-modid="library"]')).to_be_checked()
     page.locator('[data-modid="plugin"]').uncheck()
-    expect(page.locator("#modSummary")).to_contain_text("1 выбранных ModID")
+    expect(page.locator("#modOrderList [data-order-id]")).to_have_count(1)
     expect(page.locator("#modPackages details")).to_have_count(1)
     navigate(page, "settings", width == 390)
     expect(page.locator('[data-key="PublicName"]')).to_have_value("UI draft")
@@ -1471,14 +1471,14 @@ def test_auto_verification_refresh_keeps_saved_draft_mod_selection(
     page.goto(dashboard["url"])
     expect(page.locator("#configProfile")).to_have_value("world.ini")
     navigate(page, "mods")
-    expect(page.locator("#modSummary")).to_contain_text("1 выбранных ModID")
+    expect(page.locator("#modOrderList [data-order-id]")).to_have_count(1)
     editor.auto_verify_running()
     with page.expect_response("**/api/config-draft?file=world.ini"):
         page.evaluate(
             "const now = Date.now; Date.now = () => now() + 16000; ConfigEditor.background();"
         )
     expect(page.locator("#configOperationResult")).to_have_count(0)
-    expect(page.locator("#modSummary")).to_contain_text("1 выбранных ModID")
+    expect(page.locator("#modOrderList [data-order-id]")).to_have_count(1)
     page.locator("#modPackages summary").click()
     expect(page.locator('[data-modid="plugin"]')).not_to_be_checked()
     expect(page.locator("#configRebase")).to_be_hidden()
@@ -1546,7 +1546,7 @@ def test_discovered_map_requires_explicit_edit_and_preserves_existing_order(
     page.locator("#modPackages summary").click()
     page.locator('[data-modid="plugin"]').uncheck()
     page.locator('[data-modid="plugin"]').check()
-    expect(page.locator("#modSummary")).to_contain_text("2 выбранных ModID")
+    expect(page.locator("#modOrderList [data-order-id]")).to_have_count(2)
     page.get_by_role("tab", name="Порядок", exact=True).click()
     expect(page.locator("#modOrder")).to_contain_text("Найденные карты: TestTown")
     expect(page.locator("#mapList")).to_have_value("OldMap;Muldraugh, KY")
@@ -1643,7 +1643,7 @@ def test_long_mod_list_on_phone(page, dashboard, editing):
     expect(page.locator("#modPackages [data-modid]")).to_have_count(102)
     page.locator('[data-modid="additional-99"]').scroll_into_view_if_needed()
     page.locator('[data-modid="additional-99"]').check()
-    expect(page.locator("#modSummary")).to_contain_text("3 выбранных ModID")
+    expect(page.locator("#modOrderList [data-order-id]")).to_have_count(3)
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
 
 
@@ -1729,7 +1729,7 @@ def test_inactive_mod_settings_are_preserved_separately_from_stock(page, dashboa
     navigate(page, "mods")
     page.locator("#modPackages summary").click()
     page.locator('[data-modid="plugin"]').uncheck()
-    expect(page.locator("#modSummary")).to_contain_text("1 выбранных ModID")
+    expect(page.locator("#modOrderList [data-order-id]")).to_have_count(1)
     navigate(page, "settings")
     page.get_by_role("tab", name="Мир", exact=True).click()
     expect(page.locator('[data-key="AnimalMetaPredator"]')).to_be_checked()
@@ -1775,7 +1775,7 @@ def test_source_then_mod_edit_use_one_draft_without_restoring_old_selection(
     navigate(page, "mods")
     page.locator("#modPackages summary").click()
     page.locator('[data-modid="plugin"]').uncheck()
-    expect(page.locator("#modSummary")).to_contain_text("1 выбранных ModID")
+    expect(page.locator("#modOrderList [data-order-id]")).to_have_count(1)
     navigate(page, "settings")
     assert "PublicName=Source draft" in source.input_value()
     assert "Mods=\\library\n" in source.input_value()
@@ -1832,9 +1832,9 @@ def test_individual_toggle_restores_original_order(page, dashboard, editing, wid
     navigate(page, "mods")
     page.locator("#modPackages summary").click()
     page.locator('[data-modid="library"]').uncheck()
-    expect(page.locator("#modSummary")).to_contain_text("1 выбранных ModID")
+    expect(page.locator("#modOrderList [data-order-id]")).to_have_count(1)
     page.locator('[data-modid="library"]').check()
-    expect(page.locator("#modSummary")).to_contain_text("2 выбранных ModID")
+    expect(page.locator("#modOrderList [data-order-id]")).to_have_count(2)
     page.get_by_role("tab", name="Порядок", exact=True).click()
     expect(page.locator("#modOrder [data-order-id]")).to_have_count(2)
     assert page.locator("#modOrder [data-order-id]").evaluate_all(
@@ -2021,16 +2021,16 @@ def test_late_mod_metadata_cannot_replace_profile_or_new_selection(
     page.locator("#modRescan").click()
     if switch_profile:
         page.locator("#configProfile").select_option("another.ini")
-        count = "0 выбранных ModID"
+        count = 0
     else:
         page.locator("#modPackages summary").click()
         page.locator('[data-modid="plugin"]').uncheck()
-        count = "1 выбранных ModID"
-    expect(page.locator("#modSummary")).to_contain_text(count)
+        count = 1
+    expect(page.locator("#modOrderList [data-order-id]")).to_have_count(count)
     assert pending
     pending[0].fulfill(json=old)
     page.wait_for_timeout(100)  # Run the delayed response's promise callback.
-    expect(page.locator("#modSummary")).to_contain_text(count)
+    expect(page.locator("#modOrderList [data-order-id]")).to_have_count(count)
     expect(page.locator("#configError")).to_be_hidden()
     assert dashboard["actions"] == []
 
@@ -2104,10 +2104,10 @@ def test_unsaved_map_input_survives_mod_controls_before_explicit_save(
     # Saving a ModID must not recreate the separate, still pending map field.
     page.locator("#modPackages summary").click()
     page.locator('[data-modid="plugin"]').uncheck()
-    expect(page.locator("#modSummary")).to_contain_text("1 выбранных ModID")
+    expect(page.locator("#modOrderList [data-order-id]")).to_have_count(1)
     expect(maps).to_have_value("TestTown;Muldraugh, KY")
     page.locator('[data-modid="plugin"]').check()
-    expect(page.locator("#modSummary")).to_contain_text("2 выбранных ModID")
+    expect(page.locator("#modOrderList [data-order-id]")).to_have_count(2)
     page.get_by_role("tab", name="Порядок", exact=True).click()
     maps.focus()
     maps.evaluate("el => el.protectedNode = true")

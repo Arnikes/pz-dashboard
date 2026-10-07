@@ -417,13 +417,11 @@ window.ConfigEditor = (() => {
   }
   function renderMods() {
     if (!mods) {
-      $("modSummary").textContent = I18n.t("Состав выбранного профиля ещё не загружен");
       for (const id of ["modPackages", "modOrderList", "modMapEditor", "modProblems", "legacyMods"]) $(id).replaceChildren();
       $("installNotice").hidden = true;
       $("modCompositionPager").hidden = true;
       return;
     }
-    $("modSummary").textContent = I18n.msg`${mods.workshop.length} пакетов · ${mods.mods.length} выбранных ModID`;
     renderComposition();
     renderOrder();
     if (!pendingFields.has("mods:maps")) {
