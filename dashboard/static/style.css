@@ -506,6 +506,7 @@ a.sum-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .btn:disabled { opacity: 0.42; cursor: not-allowed; }
 
 .btn:focus-visible,
+.icon-btn:focus-visible,
 input:focus-visible,
 select:focus-visible,
 .chip:focus-visible,
@@ -518,12 +519,12 @@ select:focus-visible,
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--bg-deep); }
 .btn.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
 
-.btn.danger {
+.btn.danger, .icon-btn.danger {
   background: transparent;
   border-color: color-mix(in srgb, var(--danger-text) 55%, transparent);
   color: var(--blood-text);
 }
-.btn.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger-text) 12%, transparent); border-color: var(--blood); }
+.btn.danger:hover:not(:disabled), .icon-btn.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger-text) 12%, transparent); border-color: var(--blood); }
 
 .btn.ghost { background: transparent; }
 
@@ -798,7 +799,6 @@ select { cursor: pointer; }
 
 .icon-btn:hover:not(:disabled) { color: var(--ink); border-color: color-mix(in srgb, var(--ink) 30%, transparent); background: var(--surface-2); }
 .icon-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-.icon-btn.danger:hover:not(:disabled) { color: var(--blood-text); border-color: color-mix(in srgb, var(--danger-text) 50%, transparent); }
 .icon-btn svg { width: 15px; height: 15px; }
 
 /* события */
@@ -1007,7 +1007,7 @@ select { cursor: pointer; }
 .console-content, .logs-content { min-width: 0; }
 .console-form { display: flex; align-items: center; gap: 10px; }
 
-.console-prompt { color: var(--blood-text); font-size: 13px; flex: none; }
+.console-prompt { color: var(--muted); font-size: 13px; flex: none; }
 
 .console-form input {
   flex: 1;

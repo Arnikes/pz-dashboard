@@ -146,6 +146,9 @@ Golos Text serves navigation, forms, and headings. JetBrains Mono serves source,
 IDs, and metrics. Fonts are bundled locally. Use the existing spacing, radii,
 and surface layers. Keep permanent workspaces flat; use elevation for temporary
 menus, dialogs, and tooltips. Status text accompanies color.
+Destructive text and icon buttons share the danger-text color and a quiet red
+outline before hover, with the shared visible keyboard focus. Ordinary RCON
+prompts use muted text; danger colors retain their action and error meanings.
 
 ## Navigation and responsive behavior
 
