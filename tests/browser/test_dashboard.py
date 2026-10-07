@@ -7,6 +7,35 @@ from playwright.sync_api import expect
 pytestmark = pytest.mark.browser
 
 
+@pytest.mark.parametrize("language", ["en", "ru"])
+@pytest.mark.parametrize("width", [390, 1440])
+def test_image_update_button_tracks_checked_status(page, dashboard, language, width):
+    page.add_init_script(f"localStorage.setItem('pz-language', '{language}')")
+    page.set_viewport_size({"width": width, "height": 900})
+    dashboard["overview"]["update"] = {"available": False}
+    page.goto(dashboard["url"] + "/#/maintenance")
+    expect(page.locator("#updPill")).to_have_text("up to date" if language == "en" else "актуально")
+    apply = page.locator("#btnApplyUpd")
+    expect(apply).to_be_disabled()
+    expect(page.locator("#btnCheckUpd")).to_be_enabled()
+    page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
+    page.evaluate("renderOp({active:null,history:[]})")
+    expect(apply).to_be_disabled()
+    output = Path(__file__).resolve().parents[2] / ".tmp-maintenance-update-button"
+    output.mkdir(exist_ok=True)
+    page.locator("#sec-updates").screenshot(path=str(output / f"{language}-{width}.png"))
+
+    page.evaluate("renderOverview({...S.overview,update:{available:true}})")
+    expect(apply).to_be_enabled()
+    apply.click()
+    expect(page.get_by_role("alertdialog")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.get_by_role("alertdialog")).to_be_hidden()
+    page.evaluate("renderOverview({...S.overview,update:{available:false}})")
+    expect(apply).to_be_disabled()
+    assert dashboard["actions"] == []
+
+
 @pytest.mark.parametrize("width", [390, 1440])
 def test_watchdog_grace_setting_and_status(page, dashboard, width):
     page.set_viewport_size({"width": width, "height": 900})

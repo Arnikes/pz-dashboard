@@ -446,10 +446,6 @@
           <button class="btn" id="btnCheckUpd">Проверить</button>
           <button class="btn primary" id="btnApplyUpd">Обновить сейчас</button>
         </div>
-        <details class="context-help maintenance-help">
-          <summary>Как проверяется образ</summary>
-          <p class="hint">Пульт сравнивает digest локального образа с Docker Hub.</p>
-        </details>
         <div class="auto-block">
           <div class="auto-row">
             <label class="switch">
@@ -500,18 +496,13 @@
               </select>
             </label>
             <label class="field">Пауза после рестарта, мин
-              <input type="number" id="wdGracePeriod" min="0" max="60" step="1" value="5" required aria-describedby="wdGraceHint" />
+              <input type="number" id="wdGracePeriod" min="0" max="60" step="1" value="5" required />
             </label>
           </div>
           <label class="check" title="Только при запуске пульта на хосте сервера">
             <input type="checkbox" id="wdRestart" /> авто-рестарт при зависании
           </label>
         </div>
-        <details class="context-help maintenance-help">
-          <summary>Как работает Watchdog</summary>
-          <p class="hint">Если RCON не отвечает дольше заданного порога, пульт фиксирует зависание. Включите авторестарт, чтобы перезапускать контейнер.</p>
-          <p class="hint" id="wdGraceHint">После управляемого рестарта сбои RCON не вызывают уведомлений и авторестартов в течение этой паузы. Затем порог тишины отсчитывается заново. 0 — без паузы.</p>
-        </details>
       </section>
 
       <!-- УВЕДОМЛЕНИЯ TELEGRAM -->

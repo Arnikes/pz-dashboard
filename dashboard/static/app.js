@@ -932,7 +932,7 @@ function updateButtons() {
   $("btnRestart").disabled = busy || S.demo || remote || !running;
   $("btnSaveWorld").disabled = !consoleLive;
   $("btnCheckUpd").disabled = busy || S.demo || remote;
-  $("btnApplyUpd").disabled = busy || remote || (o && o.compose === false);
+  $("btnApplyUpd").disabled = busy || remote || o?.compose === false || o?.update?.available === false;
   $("btnCheckMods").disabled = busy || S.demo || remote;
   $("btnApplyMods").disabled = busy || S.demo || remote;
   const modsRestart = S.op?.active?.op === "mods-restart";

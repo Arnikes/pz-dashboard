@@ -589,7 +589,6 @@ select:focus-visible,
 /* watchdog выделен в отдельную карточку на странице обслуживания */
 .c-watchdog .watchdog-block { margin: 0; padding: 0; border-top: none; }
 .watchdog-fields { align-items:end; }
-.c-watchdog #wdGraceHint { margin:var(--space-group) 0 0; }
 
 #wdStatus { margin: 10px 0 0; font-size: 11.5px; }
 #wdStatus.ok { color: var(--faint); }
@@ -645,10 +644,6 @@ input:disabled, select:disabled, textarea:disabled { opacity: 0.55; cursor: not-
 #view-maintenance .meta .copy-label { text-align:right; }
 #view-maintenance .c-updates .auto-block { margin-top:24px; padding-top:20px; border-top:1px solid var(--line); }
 #view-maintenance .auto-grid { grid-template-columns:1fr; }
-#view-maintenance .maintenance-help { margin:18px 0 0; }
-#view-maintenance .maintenance-help summary { color:var(--muted); font-size:13px; }
-#view-maintenance .maintenance-help summary:hover { color:var(--ink); }
-#view-maintenance .maintenance-help p { margin:8px 0 0; }
 #view-maintenance .c-notify .check-row { gap:6px 16px; }
 @media (max-width:1000px) {
   #view-maintenance { grid-template-columns:1fr; }
