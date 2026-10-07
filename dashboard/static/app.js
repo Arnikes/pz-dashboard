@@ -2689,6 +2689,7 @@ for (const [route, label] of Object.entries(VIEWS)) {
   view.prepend(heading);
   view.setAttribute("aria-labelledby", "page-" + route);
 }
+$("view-settings").querySelector(".page-heading").append($("configVerifyHelp"));
 const modSettingsLink = document.createElement("a");
 modSettingsLink.className = "btn";
 modSettingsLink.href = "#/settings";
