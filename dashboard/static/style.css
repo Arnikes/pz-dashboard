@@ -1332,7 +1332,7 @@ select { cursor: pointer; }
 .journal-page-size, .journal-page-actions { display: flex; align-items: center; gap: 8px; }
 .journal-page-size { color: var(--muted); font-size: 13px; }
 .journal-page-size select { min-height: 44px; }
-#bkJournalRange, #backupsRange, #eventsRange { margin: 0; font-variant-numeric: tabular-nums; }
+#bkJournalRange, #backupsRange, #eventsRange, #modCompositionRange { margin: 0; font-variant-numeric: tabular-nums; }
 .journal-page-actions { margin-left: auto; }
 
 /* telegram: подбор chat id через getUpdates */

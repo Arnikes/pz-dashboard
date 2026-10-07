@@ -1462,5 +1462,6 @@
     "other": "{{0}} in {{1}} seconds"
   },
   "{{0}}.language должен быть ru или en": "{{0}}.language must be ru or en",
-  ". Выберите профиль в шапке. Оливковый селектор означает, что пульт сопоставил профиль с запуском PZ. Янтарный — выбран другой профиль или профиль запуска не подтверждён. Другой профиль можно редактировать, но нельзя применить рестартом вместо активного.": ". Select a profile in the header. An olive selector means the console matched the profile to the PZ launch. Amber means another profile is selected or the launch profile is unconfirmed. Other profiles can be edited, but cannot replace the active profile during a restart."
+  ". Выберите профиль в шапке. Оливковый селектор означает, что пульт сопоставил профиль с запуском PZ. Янтарный — выбран другой профиль или профиль запуска не подтверждён. Другой профиль можно редактировать, но нельзя применить рестартом вместо активного.": ". Select a profile in the header. An olive selector means the console matched the profile to the PZ launch. Amber means another profile is selected or the launch profile is unconfirmed. Other profiles can be edited, but cannot replace the active profile during a restart.",
+  "Страницы состава модов": "Mod composition pages"
 }

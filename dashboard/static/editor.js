@@ -5,6 +5,7 @@ window.ConfigEditor = (() => {
   let chain = Promise.resolve(), loading = false, sourceDirty = false, fieldDirty = false;
   let previousOp = false, lastRefresh = 0, dragId = null, pendingPatches = 0;
   let resolvingWorkshop = false;
+  const compositionPager = { page: 0, size: 25 };
   const pendingFields = new Map();
   let deferredFields = false;
   let fieldSaveFailed = false;
@@ -180,6 +181,7 @@ window.ConfigEditor = (() => {
     try {
       const data = await call(`/api/config-draft?file=${encodeURIComponent(next)}`);
       if (file !== data.file) {
+        compositionPager.page = 0;
         historyRequest++;
         $("configHistory").replaceChildren();
         mods = null; renderMods();
@@ -386,13 +388,11 @@ window.ConfigEditor = (() => {
       $("modSummary").textContent = I18n.t("Состав выбранного профиля ещё не загружен");
       for (const id of ["modPackages", "modOrderList", "modMapEditor", "modProblems", "legacyMods"]) $(id).replaceChildren();
       $("installNotice").hidden = true;
+      $("modCompositionPager").hidden = true;
       return;
     }
     $("modSummary").textContent = I18n.msg`${mods.workshop.length} пакетов · ${mods.mods.length} выбранных ModID`;
-    const openIds = new Set([...$("modPackages").querySelectorAll("details[open]")].map(d => d.dataset.item));
-    let packets = mods.workshop.filter(packetVisible);
-    if ($("modSortNew").value === "title") packets = [...packets].sort((a, b) => a.title.localeCompare(b.title, I18n.locale));
-    $("modPackages").innerHTML = packets.map(w => I18n.msg`<details class="workshop-package" data-item="${esc(w.workshopId)}" ${openIds.has(w.workshopId) ? "open" : ""}><summary><strong>${esc(w.title)}</strong><code>${esc(w.workshopId)}</code><span class="pill" data-state="${w.status === "pending" ? "warn" : "ok"}">${w.status === "pending" ? I18n.t("Ожидает загрузки") : `${w.selected.length} / ${w.mods.length} ModID`}</span></summary><div class="package-content"><div class="editor-toolbar"><a href="${esc(w.url)}" target="_blank" rel="noopener">Steam Workshop ↗</a><button type="button" class="btn small" data-remove-item="${esc(w.workshopId)}">Удалить пакет из конфигурации…</button></div>${(w.available || []).map(r => r.modId ? I18n.msg`<div class="mod-option"><label><input type="checkbox" data-modid="${esc(r.modId)}" ${mods.mods.includes(r.modId) ? "checked" : ""} ${S.demo || r.compatible === false && !mods.mods.includes(r.modId) ? "disabled" : ""} /><strong>${esc(r.name)}</strong><code>${esc(r.modId)}</code></label><p class="hint">Версия ${esc(r.branch)} · папка ${esc(r.folder)}${r.compatible === false ? I18n.t(" · Нет подходящего каталога B42") : ""}${r.versionMin ? I18n.msg` · От версии ${esc(r.versionMin)}` : ""}${r.versionMax ? I18n.msg` · До версии ${esc(r.versionMax)}` : ""}${r.require?.length ? I18n.msg` · Требует: ${esc(r.require.join(", "))}` : ""}</p>${r.options?.length ? I18n.html('<a href="#/settings" data-open-custom>Настройки мода →</a>') : ""}</div>` : `<p class="editor-error">${esc(r.error)}</p>`).join("") || I18n.html('<p class="hint">Сначала загрузите пакет через сервер, затем выберите ModID. Название Steam не определяет идентификаторы.</p>')}</div></details>`).join("") || I18n.html('<p class="hint">Пакеты не найдены. Добавьте Steam-ссылку или измените фильтр.</p>');
+    renderComposition();
     renderOrder();
     if (!pendingFields.has("mods:maps")) {
       $("modMapEditor").innerHTML = I18n.msg`<h3>Карты · Map=</h3><p class="hint">Порядок карт сохраняется. Добавление карты не изменяет уже исследованные области мира.</p><ol>${mods.maps.map(m => `<li><code>${esc(m)}</code></li>`).join("")}</ol><form id="mapEdit" class="editor-toolbar"><input id="mapList" type="text" data-key="maps" data-kind="mods" data-type="map-list" value="${esc(mods.maps.join(";"))}" aria-label="Порядок карт через точку с запятой" /><button class="btn" type="submit">В черновик</button></form><p class="hint">Найденные карты: ${esc([...new Set(mods.workshop.flatMap(w => w.available || []).flatMap(r => r.maps || []))].join(", ") || I18n.t("нет"))}</p>`;
@@ -403,6 +403,22 @@ window.ConfigEditor = (() => {
     $("legacyMods").hidden = !(draft?.legacyDisabled || []).length;
     $("legacyMods").innerHTML = I18n.html('<strong>Старый реестр выключенных модов</strong><p>Принадлежность профилю не определена. Перенос выполняется только вашим явным выбором; старые записи сохраняются.</p>') + (draft?.legacyDisabled || []).map(r => I18n.msg`<button type="button" class="btn small" data-legacy-id="${esc(r.workshopId)}">Восстановить ${esc(r.title || r.workshopId)} в ${esc(file)}</button>`).join("");
     updateModTab();
+    updateBar();
+  }
+  function renderComposition() {
+    if (!mods) return;
+    const openIds = new Set([...$("modPackages").querySelectorAll("details[open]")].map(d => d.dataset.item));
+    let packets = mods.workshop.filter(packetVisible);
+    if ($("modSortNew").value === "title") packets = [...packets].sort((a, b) => a.title.localeCompare(b.title, I18n.locale));
+    compositionPager.page = Math.min(compositionPager.page, Math.max(0, Math.ceil(packets.length / compositionPager.size) - 1));
+    const start = compositionPager.page * compositionPager.size;
+    const pageItems = packets.slice(start, start + compositionPager.size);
+    $("modCompositionPager").hidden = packets.length === 0;
+    $("modCompositionPrev").disabled = compositionPager.page === 0;
+    $("modCompositionNext").disabled = start + pageItems.length >= packets.length;
+    $("modCompositionRange").textContent = packets.length
+      ? I18n.msg`${start + 1}–${start + pageItems.length} из ${packets.length} · Страница ${compositionPager.page + 1}` : "";
+    $("modPackages").innerHTML = pageItems.map(w => I18n.msg`<details class="workshop-package" data-item="${esc(w.workshopId)}" ${openIds.has(w.workshopId) ? "open" : ""}><summary><strong>${esc(w.title)}</strong><code>${esc(w.workshopId)}</code><span class="pill" data-state="${w.status === "pending" ? "warn" : "ok"}">${w.status === "pending" ? I18n.t("Ожидает загрузки") : `${w.selected.length} / ${w.mods.length} ModID`}</span></summary><div class="package-content"><div class="editor-toolbar"><a href="${esc(w.url)}" target="_blank" rel="noopener">Steam Workshop ↗</a><button type="button" class="btn small" data-remove-item="${esc(w.workshopId)}">Удалить пакет из конфигурации…</button></div>${(w.available || []).map(r => r.modId ? I18n.msg`<div class="mod-option"><label><input type="checkbox" data-modid="${esc(r.modId)}" ${mods.mods.includes(r.modId) ? "checked" : ""} ${S.demo || r.compatible === false && !mods.mods.includes(r.modId) ? "disabled" : ""} /><strong>${esc(r.name)}</strong><code>${esc(r.modId)}</code></label><p class="hint">Версия ${esc(r.branch)} · папка ${esc(r.folder)}${r.compatible === false ? I18n.t(" · Нет подходящего каталога B42") : ""}${r.versionMin ? I18n.msg` · От версии ${esc(r.versionMin)}` : ""}${r.versionMax ? I18n.msg` · До версии ${esc(r.versionMax)}` : ""}${r.require?.length ? I18n.msg` · Требует: ${esc(r.require.join(", "))}` : ""}</p>${r.options?.length ? I18n.html('<a href="#/settings" data-open-custom>Настройки мода →</a>') : ""}</div>` : `<p class="editor-error">${esc(r.error)}</p>`).join("") || I18n.html('<p class="hint">Сначала загрузите пакет через сервер, затем выберите ModID. Название Steam не определяет идентификаторы.</p>')}</div></details>`).join("") || I18n.html('<p class="hint">Пакеты не найдены. Добавьте Steam-ссылку или измените фильтр.</p>');
     updateBar();
   }
   function installNotice() {
@@ -713,7 +729,25 @@ window.ConfigEditor = (() => {
   });
   $("modOrder").addEventListener("dragend", endDrag);
   $("orderQuery").addEventListener("input", renderOrder);
-  for (const id of ["modQuery", "modFilter", "modSortNew"]) $(id).addEventListener(id === "modQuery" ? "input" : "change", renderMods);
+  for (const id of ["modQuery", "modFilter", "modSortNew"]) $(id).addEventListener(id === "modQuery" ? "input" : "change", () => {
+    compositionPager.page = 0;
+    renderComposition();
+  });
+  $("modCompositionPrev").addEventListener("click", () => {
+    if (compositionPager.page === 0) return;
+    compositionPager.page--;
+    renderComposition();
+  });
+  $("modCompositionNext").addEventListener("click", () => {
+    if ($("modCompositionNext").disabled) return;
+    compositionPager.page++;
+    renderComposition();
+  });
+  $("modCompositionPageSize").addEventListener("change", () => {
+    compositionPager.size = Number($("modCompositionPageSize").value);
+    compositionPager.page = 0;
+    renderComposition();
+  });
   $("modRescan").addEventListener("click", () => loadMods(true).catch(e => error(e.message)));
   $("modExport").addEventListener("click", async () => {
     try {

@@ -198,6 +198,10 @@ Mods put search and filtering first and disclose package/collection addition
 separately; search has a visible label, and the page heading links to custom mod
 settings while preserving the shared draft. Export, import and metadata refresh
 remain available. Ctrl/Cmd+K opens section, setting, and mod search.
+Composition shows Workshop packages in 25/50/100-item pages, defaulting to 25.
+Search, filtering and sorting apply before pagination and reset to the first page;
+draft and metadata refreshes preserve the page, clamping it when the list shrinks.
+Changing profiles resets the page. Pagination uses the shared journal controls.
 Load-order search uses the editor's flat labeled field treatment; its opaque
 workspace background remains sticky without an additional enclosing border.
 One SSE connection persists across route changes.
