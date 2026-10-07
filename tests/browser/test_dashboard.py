@@ -8,6 +8,70 @@ pytestmark = pytest.mark.browser
 
 
 @pytest.mark.parametrize("language", ["en", "ru"])
+@pytest.mark.parametrize("width", [320, 1024, 1440])
+def test_mod_updates_remain_available_in_maintenance(page, dashboard, language, width):
+    page.add_init_script(f"localStorage.setItem('pz-language', '{language}')")
+    page.set_viewport_size({"width": width, "height": 900})
+    page.goto(dashboard["url"])
+    page.locator("#sec-sumupd .sum-name").nth(1).click()
+    expect(page.locator("#view-maintenance")).to_be_visible()
+    widget = page.locator("#sec-mods-update")
+    expect(widget).to_be_visible()
+    page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
+
+    page.evaluate("location.hash='#/mods'")
+    expect(page.locator("#view-mods")).to_be_visible()
+    expect(page.locator("#modTabs [role=tab]")).to_have_count(3)
+    page.locator('#modTabs [data-tab="order"]').click()
+    page.locator('#modTabs [data-tab="composition"]').click()
+    page.evaluate("location.hash='#/maintenance'")
+    expect(widget).to_be_visible()
+
+    settings_requests = []
+
+    def save(route):
+        settings_requests.append(route.request.post_data_json)
+        route.fulfill(json={"ok": True, "settings": route.request.post_data_json})
+
+    page.route("**/api/settings", save)
+    page.locator("#modsAutoInterval").select_option("12")
+    expect(widget.locator(".settings-feedback")).to_contain_text(
+        "saved" if language == "en" else "сохранено"
+    )
+    assert settings_requests == [
+        {
+            "modsUpdate": {
+                "enabled": False,
+                "intervalHours": 12,
+                "restartOnUpdate": True,
+                "warnSeconds": 600,
+            }
+        }
+    ]
+
+    page.locator("#btnCheckMods").click()
+    expect(page.locator("#btnCheckMods")).to_be_enabled()
+    assert dashboard["actions"] == [{"op": "check-mods-update"}]
+
+    page.add_style_tag(content="* { animation:none!important;transition:none!important; }")
+    image = page.locator("#sec-updates").bounding_box()
+    mods = widget.bounding_box()
+    watchdog = page.locator("#sec-watchdog").bounding_box()
+    assert abs(image["x"] - mods["x"]) <= 1
+    assert abs(image["width"] - mods["width"]) <= 1
+    assert mods["y"] >= image["y"] + image["height"]
+    if width > 1000:
+        assert watchdog["x"] >= image["x"] + image["width"]
+        assert abs(watchdog["y"] - image["y"]) <= 1
+    else:
+        assert watchdog["y"] >= mods["y"] + mods["height"]
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    output = Path(__file__).resolve().parents[2] / ".tmp-mods-update"
+    output.mkdir(exist_ok=True)
+    page.screenshot(path=str(output / f"maintenance-{language}-{width}.png"), full_page=True)
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
 @pytest.mark.parametrize("width", [390, 1440])
 def test_image_update_button_tracks_checked_status(page, dashboard, language, width):
     page.add_init_script(f"localStorage.setItem('pz-language', '{language}')")

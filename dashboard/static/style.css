@@ -335,7 +335,6 @@ a.sum-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .c-watchdog  { grid-column: span 6; }
 .c-players   { grid-column: 1 / -1; }
 .c-mods      { grid-column: span 7; }
-.c-mupd      { grid-column: span 5; }
 .c-backups   { grid-column: 1 / -1; }
 .c-bksched   { grid-column: 1 / -1; }
 .c-bkjournal { grid-column: 1 / -1; }
@@ -347,7 +346,7 @@ a.sum-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 /* Планшет: широкие карточки во всю ширину страницы */
 @media (max-width: 1180px) {
   .c-status, .c-metrics, .c-sumupd, .c-recent, .c-updates, .c-watchdog,
-  .c-mods, .c-mupd, .c-console, .c-logs, .c-notify { grid-column: 1 / -1; }
+  .c-mods, .c-console, .c-logs, .c-notify { grid-column: 1 / -1; }
 }
 
 @media (max-width: 740px) {
@@ -629,8 +628,8 @@ input:disabled, select:disabled, textarea:disabled { opacity: 0.55; cursor: not-
 
 /* Обслуживание: обновления слева, Watchdog и Telegram в правой колонке. */
 #view-maintenance { grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; }
-#view-maintenance > .card { grid-column:auto; padding:22px; }
-#view-maintenance .c-updates { grid-row:span 2; }
+#view-maintenance .maintenance-column { display:grid; gap:var(--layout-gap); min-width:0; }
+#view-maintenance .maintenance-column > .card { grid-column:auto; padding:22px; }
 #view-maintenance .card-head { border-bottom:0; padding-bottom:0; margin-bottom:20px; }
 #view-maintenance .card-head > .pill { margin-left:auto; }
 #view-maintenance .meta { grid-template-columns:1fr; gap:8px; margin-bottom:20px; }
@@ -644,10 +643,9 @@ input:disabled, select:disabled, textarea:disabled { opacity: 0.55; cursor: not-
 #view-maintenance .c-notify .check-row { gap:6px 16px; }
 @media (max-width:1000px) {
   #view-maintenance { grid-template-columns:1fr; }
-  #view-maintenance .c-updates { grid-row:auto; }
 }
 @media (max-width:740px) {
-  #view-maintenance > .card { padding:18px; }
+  #view-maintenance .maintenance-column > .card { padding:18px; }
   #view-maintenance .field input, #view-maintenance .field select { font-size:16px; }
 }
 

@@ -239,7 +239,7 @@
                 <span class="pill" id="sumImagePill" data-state="unknown">—</span>
               </div>
               <div class="sum-row">
-                <a class="sum-name" href="#/mods">Моды Workshop</a>
+                <a class="sum-name" href="#/maintenance">Моды Workshop</a>
                 <span class="pill" id="sumModsPill" data-state="unknown">—</span>
               </div>
             </div>
@@ -281,7 +281,7 @@
       </section>
     </div>
 
-    <!-- МОДЫ: реестр + обновления -->
+    <!-- МОДЫ: состав, порядок и проблемы -->
     <div class="view" id="view-mods" tabindex="-1" hidden>
       <section class="card editor-card" aria-labelledby="hModsEditor">
         <header class="card-head"><h2 id="hModsEditor" class="sr-only">Состав модов</h2><span id="modSummary" class="hint"></span></header>
@@ -290,7 +290,6 @@
           <button type="button" role="tab" aria-selected="true" aria-controls="modComposition" data-tab="composition">Состав</button>
           <button type="button" role="tab" aria-selected="false" aria-controls="modOrder" tabindex="-1" data-tab="order">Порядок</button>
           <button type="button" role="tab" aria-selected="false" aria-controls="modProblems" tabindex="-1" data-tab="problems">Проблемы</button>
-          <button type="button" role="tab" aria-selected="false" aria-controls="sec-mods-update" tabindex="-1" data-tab="updates">Обновления</button>
         </div>
         <div class="mod-composition" id="modComposition">
 
@@ -363,52 +362,6 @@
         </div>
       </section>
 
-      <!-- ОБНОВЛЕНИЯ МОДОВ (RCON checkModsNeedUpdate) -->
-      <section class="card c-mupd" id="sec-mods-update" data-od-id="mods-update" aria-labelledby="hModsUpd" hidden>
-        <header class="card-head">
-          <h2 id="hModsUpd">Обновления модов</h2>
-          <span class="pill" id="modsPill" data-state="unknown">—</span>
-        </header>
-        <p class="upd-note" id="modsCheckNote" hidden></p>
-        <div class="actions">
-          <button class="btn" id="btnCheckMods">Проверить моды</button>
-          <button class="btn primary" id="btnApplyMods" hidden>Перезапустить для обновления</button>
-        </div>
-        <div id="modsNeedList" class="list mods-need" hidden></div>
-        <div class="auto-block">
-          <div class="auto-row">
-            <label class="switch">
-              <input type="checkbox" id="modsAutoSwitch" role="switch" />
-              <span class="switch-track" aria-hidden="true"></span>
-              <span class="switch-label">Автообновление модов</span>
-            </label>
-          </div>
-          <div class="auto-grid">
-            <label class="field">Интервал проверки
-              <select id="modsAutoInterval">
-                <option value="1">каждый 1 ч</option>
-                <option value="6" selected>каждые 6 ч</option>
-                <option value="12">каждые 12 ч</option>
-                <option value="24">раз в сутки</option>
-              </select>
-            </label>
-            <label class="field">При обновлениях
-              <select id="modsAutoAction">
-                <option value="restart" selected>перезапустить сервер</option>
-                <option value="notify">только сообщить</option>
-              </select>
-            </label>
-            <label class="field">Предупреждать игроков
-              <select id="modsAutoWarn">
-                <option value="60">за 1 мин</option>
-                <option value="300">за 5 мин</option>
-                <option value="600" selected>за 10 мин</option>
-                <option value="0">без предупреждения</option>
-              </select>
-            </label>
-          </div>
-        </div>
-      </section>
     </div>
 
     <div class="view" id="view-settings" tabindex="-1" hidden>
@@ -438,134 +391,185 @@
         <div id="configHistory" hidden></div>
       </section>
     </div>
-    <!-- ОБСЛУЖИВАНИЕ: образ, автообновление, watchdog -->
+    <!-- ОБСЛУЖИВАНИЕ: обновления образа и модов, watchdog, уведомления -->
     <div class="view" id="view-maintenance" tabindex="-1" hidden>
       <p id="maintenanceAvailability" class="hint availability" role="status" hidden></p>
-      <section class="card c-updates" id="sec-updates" data-od-id="updates" aria-labelledby="hUpdates">
-        <header class="card-head">
-          <h2 id="hUpdates">Обновления образа</h2>
-          <span class="pill" id="updPill" data-state="unknown">—</span>
-        </header>
-        <p class="upd-note" id="updNote" hidden></p>
-        <dl class="meta">
-          <div><dt>Локальный</dt><dd class="mono"><button type="button" class="copy-value" id="updLocalCopy" aria-label="Скопировать локальный digest" disabled><span class="copy-label" id="updLocal">—</span></button></dd></div>
-          <div><dt>В Docker Hub</dt><dd class="mono"><button type="button" class="copy-value" id="updRemoteCopy" aria-label="Скопировать digest из Docker Hub" disabled><span class="copy-label" id="updRemote">—</span></button></dd></div>
-          <div><dt>Сборка latest</dt><dd id="updHubDate">—</dd></div>
-        </dl>
-        <div class="actions">
-          <button class="btn" id="btnCheckUpd">Проверить</button>
-          <button class="btn primary" id="btnApplyUpd">Обновить сейчас</button>
-        </div>
-        <div class="auto-block">
-          <div class="auto-row">
-            <label class="switch">
-              <input type="checkbox" id="autoSwitch" role="switch" />
-              <span class="switch-track" aria-hidden="true"></span>
-              <span class="switch-label">Автообновление</span>
-            </label>
-          </div>
-          <div class="auto-grid">
-            <label class="field">Интервал проверки
-              <select id="autoInterval">
-                <option value="1">каждый 1 ч</option>
-                <option value="6" selected>каждые 6 ч</option>
-                <option value="12">каждые 12 ч</option>
-                <option value="24">раз в сутки</option>
-              </select>
-            </label>
-            <label class="field">Предупреждать игроков
-              <select id="autoWarn">
-                <option value="60">за 1 мин</option>
-                <option value="300" selected>за 5 мин</option>
-                <option value="600">за 10 мин</option>
-                <option value="0">без предупреждения</option>
-              </select>
-            </label>
-          </div>
-          <label class="check"><input type="checkbox" id="buBackup" /> Бэкап перед обновлением</label>
-        </div>
-      </section>
-
-      <section class="card c-watchdog" id="sec-watchdog" data-od-id="watchdog" aria-labelledby="hWatchdog">
-        <header class="card-head">
-          <h2 id="hWatchdog">Watchdog RCON</h2>
-          <span class="pill" id="wdPill" data-state="unknown">—</span>
-        </header>
-        <div class="watchdog-block">
-          <label class="switch">
-              <input type="checkbox" id="wdSwitch" role="switch" aria-label="Watchdog RCON" />
-            <span class="switch-track" aria-hidden="true"></span>
-              <span class="switch-label">Следить за RCON</span>
-          </label>
-          <div class="auto-grid watchdog-fields">
-            <label class="field">Порог тишины RCON
-              <select id="wdThreshold">
-                <option value="3">3 мин тишины</option>
-                <option value="5" selected>5 мин тишины</option>
-                <option value="10">10 мин тишины</option>
-              </select>
-            </label>
-            <label class="field">Пауза после рестарта, мин
-              <input type="number" id="wdGracePeriod" min="0" max="60" step="1" value="5" required />
-            </label>
-          </div>
-          <label class="check" title="Только при запуске пульта на хосте сервера">
-            <input type="checkbox" id="wdRestart" /> авто-рестарт при зависании
-          </label>
-        </div>
-      </section>
-
-      <!-- УВЕДОМЛЕНИЯ TELEGRAM -->
-      <section class="card c-notify" id="sec-notify" data-od-id="notify" aria-labelledby="hNotify">
-        <header class="card-head">
-          <h2 id="hNotify">Уведомления</h2>
-          <span class="pill" id="tgPill" data-state="unknown">—</span>
-        </header>
-        <div class="auto-block" id="playerNotifications">
-          <label class="field">Язык предупреждений игрокам
-            <select id="playerLanguage" aria-describedby="playerLanguageHint">
-              <option value="en" lang="en" selected>English</option>
-              <option value="ru" lang="ru">Русский</option>
-            </select>
-          </label>
-          <p class="hint" id="playerLanguageHint">Для ручных и автоматических операций на сервере. Не зависит от языка интерфейса и Telegram.</p>
-        </div>
-        <div class="auto-block">
-          <div class="auto-row">
-            <label class="switch">
-              <input type="checkbox" id="tgSwitch" role="switch" />
-              <span class="switch-track" aria-hidden="true"></span>
-              <span class="switch-label">Отправлять в Telegram</span>
-            </label>
-          </div>
-          <div class="auto-grid">
-            <label class="field">Bot token
-              <input type="password" id="tgToken" placeholder="123456:ABC-DEF…" autocomplete="off" />
-            </label>
-            <label class="field">Chat ID
-              <input type="text" id="tgChat" inputmode="numeric" placeholder="123456789 или -100…" autocomplete="off" />
-            </label>
-          </div>
-          <label class="field">Язык уведомлений
-            <select id="tgLanguage" aria-describedby="tgLanguageHint">
-              <option value="en" lang="en" selected>English</option>
-              <option value="ru" lang="ru">Русский</option>
-            </select>
-          </label>
-          <p class="hint" id="tgLanguageHint">Применяется ко всем сообщениям в Telegram, независимо от языка интерфейса.</p>
-          <div class="check-row">
-            <label class="check"><input type="checkbox" id="tgOps" checked /> Сервер</label>
-            <label class="check"><input type="checkbox" id="tgBackup" checked /> Бэкапы</label>
-            <label class="check"><input type="checkbox" id="tgUpdate" checked /> Обновления</label>
-            <label class="check"><input type="checkbox" id="tgProblems" checked /> Проблемы</label>
-          </div>
+      <div class="maintenance-column">
+        <section class="card c-updates" id="sec-updates" data-od-id="updates" aria-labelledby="hUpdates">
+          <header class="card-head">
+            <h2 id="hUpdates">Обновления образа</h2>
+            <span class="pill" id="updPill" data-state="unknown">—</span>
+          </header>
+          <p class="upd-note" id="updNote" hidden></p>
+          <dl class="meta">
+            <div><dt>Локальный</dt><dd class="mono"><button type="button" class="copy-value" id="updLocalCopy" aria-label="Скопировать локальный digest" disabled><span class="copy-label" id="updLocal">—</span></button></dd></div>
+            <div><dt>В Docker Hub</dt><dd class="mono"><button type="button" class="copy-value" id="updRemoteCopy" aria-label="Скопировать digest из Docker Hub" disabled><span class="copy-label" id="updRemote">—</span></button></dd></div>
+            <div><dt>Сборка latest</dt><dd id="updHubDate">—</dd></div>
+          </dl>
           <div class="actions">
-            <button class="btn small" id="btnTgChats" type="button">Найти чаты бота</button>
-            <button class="btn" id="btnTgTest">Проверить</button>
+            <button class="btn" id="btnCheckUpd">Проверить</button>
+            <button class="btn primary" id="btnApplyUpd">Обновить сейчас</button>
           </div>
-          <div id="tgChatsBody" class="tg-chats" hidden></div>
-        </div>
-      </section>
+          <div class="auto-block">
+            <div class="auto-row">
+              <label class="switch">
+                <input type="checkbox" id="autoSwitch" role="switch" />
+                <span class="switch-track" aria-hidden="true"></span>
+                <span class="switch-label">Автообновление</span>
+              </label>
+            </div>
+            <div class="auto-grid">
+              <label class="field">Интервал проверки
+                <select id="autoInterval">
+                  <option value="1">каждый 1 ч</option>
+                  <option value="6" selected>каждые 6 ч</option>
+                  <option value="12">каждые 12 ч</option>
+                  <option value="24">раз в сутки</option>
+                </select>
+              </label>
+              <label class="field">Предупреждать игроков
+                <select id="autoWarn">
+                  <option value="60">за 1 мин</option>
+                  <option value="300" selected>за 5 мин</option>
+                  <option value="600">за 10 мин</option>
+                  <option value="0">без предупреждения</option>
+                </select>
+              </label>
+            </div>
+            <label class="check"><input type="checkbox" id="buBackup" /> Бэкап перед обновлением</label>
+          </div>
+        </section>
+
+        <!-- ОБНОВЛЕНИЯ МОДОВ (RCON checkModsNeedUpdate) -->
+        <section class="card c-mupd" id="sec-mods-update" data-od-id="mods-update" aria-labelledby="hModsUpd">
+          <header class="card-head">
+            <h2 id="hModsUpd">Обновления модов</h2>
+            <span class="pill" id="modsPill" data-state="unknown">—</span>
+          </header>
+          <p class="upd-note" id="modsCheckNote" hidden></p>
+          <div class="actions">
+            <button class="btn" id="btnCheckMods">Проверить моды</button>
+            <button class="btn primary" id="btnApplyMods" hidden>Перезапустить для обновления</button>
+          </div>
+          <div id="modsNeedList" class="list mods-need" hidden></div>
+          <div class="auto-block">
+            <div class="auto-row">
+              <label class="switch">
+                <input type="checkbox" id="modsAutoSwitch" role="switch" />
+                <span class="switch-track" aria-hidden="true"></span>
+                <span class="switch-label">Автообновление модов</span>
+              </label>
+            </div>
+            <div class="auto-grid">
+              <label class="field">Интервал проверки
+                <select id="modsAutoInterval">
+                  <option value="1">каждый 1 ч</option>
+                  <option value="6" selected>каждые 6 ч</option>
+                  <option value="12">каждые 12 ч</option>
+                  <option value="24">раз в сутки</option>
+                </select>
+              </label>
+              <label class="field">При обновлениях
+                <select id="modsAutoAction">
+                  <option value="restart" selected>перезапустить сервер</option>
+                  <option value="notify">только сообщить</option>
+                </select>
+              </label>
+              <label class="field">Предупреждать игроков
+                <select id="modsAutoWarn">
+                  <option value="60">за 1 мин</option>
+                  <option value="300">за 5 мин</option>
+                  <option value="600" selected>за 10 мин</option>
+                  <option value="0">без предупреждения</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="maintenance-column">
+        <section class="card c-watchdog" id="sec-watchdog" data-od-id="watchdog" aria-labelledby="hWatchdog">
+          <header class="card-head">
+            <h2 id="hWatchdog">Watchdog RCON</h2>
+            <span class="pill" id="wdPill" data-state="unknown">—</span>
+          </header>
+          <div class="watchdog-block">
+            <label class="switch">
+                <input type="checkbox" id="wdSwitch" role="switch" aria-label="Watchdog RCON" />
+              <span class="switch-track" aria-hidden="true"></span>
+                <span class="switch-label">Следить за RCON</span>
+            </label>
+            <div class="auto-grid watchdog-fields">
+              <label class="field">Порог тишины RCON
+                <select id="wdThreshold">
+                  <option value="3">3 мин тишины</option>
+                  <option value="5" selected>5 мин тишины</option>
+                  <option value="10">10 мин тишины</option>
+                </select>
+              </label>
+              <label class="field">Пауза после рестарта, мин
+                <input type="number" id="wdGracePeriod" min="0" max="60" step="1" value="5" required />
+              </label>
+            </div>
+            <label class="check" title="Только при запуске пульта на хосте сервера">
+              <input type="checkbox" id="wdRestart" /> авто-рестарт при зависании
+            </label>
+          </div>
+        </section>
+
+        <!-- УВЕДОМЛЕНИЯ TELEGRAM -->
+        <section class="card c-notify" id="sec-notify" data-od-id="notify" aria-labelledby="hNotify">
+          <header class="card-head">
+            <h2 id="hNotify">Уведомления</h2>
+            <span class="pill" id="tgPill" data-state="unknown">—</span>
+          </header>
+          <div class="auto-block" id="playerNotifications">
+            <label class="field">Язык предупреждений игрокам
+              <select id="playerLanguage" aria-describedby="playerLanguageHint">
+                <option value="en" lang="en" selected>English</option>
+                <option value="ru" lang="ru">Русский</option>
+              </select>
+            </label>
+            <p class="hint" id="playerLanguageHint">Для ручных и автоматических операций на сервере. Не зависит от языка интерфейса и Telegram.</p>
+          </div>
+          <div class="auto-block">
+            <div class="auto-row">
+              <label class="switch">
+                <input type="checkbox" id="tgSwitch" role="switch" />
+                <span class="switch-track" aria-hidden="true"></span>
+                <span class="switch-label">Отправлять в Telegram</span>
+              </label>
+            </div>
+            <div class="auto-grid">
+              <label class="field">Bot token
+                <input type="password" id="tgToken" placeholder="123456:ABC-DEF…" autocomplete="off" />
+              </label>
+              <label class="field">Chat ID
+                <input type="text" id="tgChat" inputmode="numeric" placeholder="123456789 или -100…" autocomplete="off" />
+              </label>
+            </div>
+            <label class="field">Язык уведомлений
+              <select id="tgLanguage" aria-describedby="tgLanguageHint">
+                <option value="en" lang="en" selected>English</option>
+                <option value="ru" lang="ru">Русский</option>
+              </select>
+            </label>
+            <p class="hint" id="tgLanguageHint">Применяется ко всем сообщениям в Telegram, независимо от языка интерфейса.</p>
+            <div class="check-row">
+              <label class="check"><input type="checkbox" id="tgOps" checked /> Сервер</label>
+              <label class="check"><input type="checkbox" id="tgBackup" checked /> Бэкапы</label>
+              <label class="check"><input type="checkbox" id="tgUpdate" checked /> Обновления</label>
+              <label class="check"><input type="checkbox" id="tgProblems" checked /> Проблемы</label>
+            </div>
+            <div class="actions">
+              <button class="btn small" id="btnTgChats" type="button">Найти чаты бота</button>
+              <button class="btn" id="btnTgTest">Проверить</button>
+            </div>
+            <div id="tgChatsBody" class="tg-chats" hidden></div>
+          </div>
+        </section>
+      </div>
     </div>
 
     <!-- БЭКАПЫ -->

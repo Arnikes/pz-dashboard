@@ -1040,7 +1040,7 @@
   "Резервная копия мира перед записью конфигурации": "World backup before writing configuration",
   "Результат операции": "Operation result",
   "Результат применения конфигурации": "Configuration application result",
-  "Результат сервера появится в разделе «Моды». Принимаемый запрос ещё не подтверждает актуальность пакетов.": "Server result will appear in “Mods”. An accepted request does not yet confirm package freshness.",
+  "Результат сервера появится в разделе «Обслуживание». Принимаемый запрос ещё не подтверждает актуальность пакетов.": "Server result will appear in “Maintenance”. An accepted request does not yet confirm package freshness.",
   "Рескан модов после рестарта не удался: {{0}}": "Mod rescan after restart failed: {{0}}",
   "Рестарт": "Restart",
   "Рестарт доступен только для подтверждённого активного профиля": "Restart available only for a confirmed active profile",

@@ -246,8 +246,9 @@ border. Help stays above the mobile navigation and draft actions.
 ## Workspace layout
 
 Overview groups server state/actions, player and backup summaries, container load,
-updates, and recent events. Maintenance places image updates beside watchdog and
-Telegram settings, stacking at narrow widths. Digest fields share copy feedback.
+updates, and recent events. Maintenance stacks image and mod updates in the left
+column beside watchdog and Telegram settings, stacking both columns at narrow widths.
+Mods keeps composition, load order, and problems tabs. Digest fields share copy feedback.
 Desktop console panels share three rows for titles, compact filter/command tools,
 and aligned output windows. Log counts, download and auto-scroll controls, errors,
 and period feedback sit below the log output so their changes do not stretch the

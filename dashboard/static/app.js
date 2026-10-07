@@ -2197,7 +2197,7 @@ $("btnCheckMods").addEventListener("click", async () => {
   try {
     const res = await api("/api/action", { method: "POST", body: { op: "check-mods-update" } });
     if (res.error || res.ok === false) throw new Error(res.error || I18n.t("Проверка не принята"));
-    showLocalResult("ok", I18n.t("Проверка модов — запрос принят"), I18n.t("Результат сервера появится в разделе «Моды». Принимаемый запрос ещё не подтверждает актуальность пакетов."));
+    showLocalResult("ok", I18n.t("Проверка модов — запрос принят"), I18n.t("Результат сервера появится в разделе «Обслуживание». Принимаемый запрос ещё не подтверждает актуальность пакетов."));
     toast(I18n.t("Проверка модов запущена — результат появится в карточке"), "ok");
   } catch (e) {
     showActionError("check-mods-update", e);
@@ -2239,7 +2239,7 @@ const SETTING_GROUPS = {
   playerNotifications: { ids: ["playerLanguage"], card: "playerNotifications", title: I18n.t("Предупреждения игрокам") },
   autoUpdate: { ids: ["autoSwitch", "autoInterval", "autoWarn", "buBackup"], card: "sec-updates", title: I18n.t("Автообновление образа") },
   watchdog: { ids: ["wdSwitch", "wdThreshold", "wdGracePeriod", "wdRestart"], card: "sec-watchdog", title: "Watchdog RCON" },
-  modsUpdate: { ids: ["modsAutoSwitch", "modsAutoInterval", "modsAutoAction", "modsAutoWarn"], card: "sec-modscheck", title: I18n.t("Автообновление модов") },
+  modsUpdate: { ids: ["modsAutoSwitch", "modsAutoInterval", "modsAutoAction", "modsAutoWarn"], card: "sec-mods-update", title: I18n.t("Автообновление модов") },
   telegram: { ids: ["tgSwitch", "tgToken", "tgChat", "tgLanguage", "tgOps", "tgBackup", "tgUpdate", "tgProblems"], card: "sec-notify", title: "Telegram" },
   autoBackup: { ids: ["bkAutoSwitch", "bkAutoTime", "bkAutoKeep", "bkAutoStop"], card: "sec-bkauto", title: I18n.t("Расписание бэкапов") },
 };

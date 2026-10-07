@@ -145,7 +145,7 @@ window.ConfigEditor = (() => {
     if (backups.length && !dates.length) add("backup-date", I18n.t("Дата последнего бэкапа неизвестна"), "backups", I18n.t("Проверить архивы"));
     else if (dates.length && Math.max(...dates) < Date.now() - 48 * 3600000) add("backup-old", I18n.t("Последнему бэкапу больше двух суток"), "backups", I18n.t("Проверить архивы"));
     if (S.overview?.update?.error) add("image", S.overview.update.error, "maintenance", I18n.t("Проверить обновление образа"));
-    if (S.overview?.modsCheck?.error) add("mods-check", S.overview.modsCheck.error, "mods", I18n.t("Проверить моды"));
+    if (S.overview?.modsCheck?.error) add("mods-check", S.overview.modsCheck.error, "maintenance", I18n.t("Проверить моды"));
     const box = $("editorAttention"), focus = document.activeElement;
     const focusedKey = box.contains(focus) ? focus.dataset.attentionKey : null;
     setDomProperty(box, "hidden", activeView !== "overview" || !messages.length);
@@ -474,7 +474,6 @@ window.ConfigEditor = (() => {
     $("modComposition").hidden = modTab !== "composition";
     $("modOrder").hidden = modTab !== "order";
     $("modProblems").hidden = modTab !== "problems";
-    $("sec-mods-update").hidden = modTab !== "updates";
   }
   async function validate(prepare = false) {
     await chain;
