@@ -2650,7 +2650,7 @@ for (const route of ["settings", "mods"]) {
 for (const [route, label] of Object.entries(VIEWS)) {
   const view = $("view-" + route), heading = document.createElement("header");
   heading.className = "page-heading";
-  heading.innerHTML = `<h1 id="page-${route}">${esc(label)}</h1>` + (route === "overview" ? I18n.html('<div class="page-actions"><a class="btn" href="#/settings">Редактировать настройки</a><a class="btn" href="#/mods">Изменить состав модов</a><a id="overviewDraft" class="btn" href="#/settings" hidden>Черновик</a></div>') : "");
+  heading.innerHTML = `<h1 id="page-${route}">${esc(label)}</h1>` + (route === "overview" ? I18n.html('<div class="page-actions"><a id="overviewDraft" class="btn" href="#/settings" hidden>Черновик</a></div>') : "");
   view.prepend(heading);
   view.setAttribute("aria-labelledby", "page-" + route);
 }
