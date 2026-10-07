@@ -1708,7 +1708,6 @@ body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--footer-height)
 }
 
 /* Компактные строки: подпись и значение, название мода и идентификатор. */
-#view-settings .editor-card, #view-mods .editor-card { border-color:transparent; }
 #view-mods .editor-card > .card-head { border:0; padding:0; margin-bottom:4px; gap:8px; }
 #view-mods #modSummary { margin-left:0; margin-right:auto; }
 .editor-card .editor-tabs { gap:20px; padding:0; margin:0 0 16px; border-color:var(--line); }
