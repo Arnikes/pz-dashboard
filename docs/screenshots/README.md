@@ -53,13 +53,16 @@ and timezones may produce small visual differences.
 
 ## Device compositions
 
-The five `*-devices.png` images are 2400 × 1280 compositions on a white background,
+The five `*-devices.png` images are 2400 × 1280 compositions on a transparent background,
 with overlapping laptop, portrait tablet, and phone frames inspired by device showcases.
 They use visible viewport captures rather than full-page images: each screen shows
 the actual responsive layout at its own viewport size. Mobile navigation remains visible.
 Screens are scaled proportionally, without stretching or redrawing interface content.
+The PNG alpha channel preserves soft device shadows and lets the surrounding README
+theme show through. The application screens and device frames remain opaque.
 
 The local [device frame template](devices.html) draws hardware silhouettes using CSS.
 The capture test inserts the three real PNG captures into that template and screenshots
-the result in Chromium. No image generation, external device assets, or new dependencies
-are involved. Open the template locally to preview the overview composition.
+the result in Chromium with `omit_background=True`. No image generation, external device
+assets, or new dependencies are involved. Open the template locally to preview the
+overview composition.

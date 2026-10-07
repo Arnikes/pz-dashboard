@@ -247,7 +247,7 @@ def test_capture_readme(page, dashboard, editing, monkeypatch):  # noqa: F811
                 }""",
                 sources,
             )
-            composition.screenshot(path=str(out / f"{route}-devices.png"))
+            composition.screenshot(path=str(out / f"{route}-devices.png"), omit_background=True)
     finally:
         composition.close()
     assert dashboard["actions"] == []
