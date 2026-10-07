@@ -36,13 +36,26 @@ During a mod update's player-warning phase, “Cancel mod update” cancels the 
 restart and notifies players. Once stopping starts, cancellation is unavailable.
 The API action `cancel-mods-update` returns HTTP 409 if there is no cancellable operation.
 
+## Player warning language
+
+In Maintenance → Notifications, choose the player warning language (English or Русский).
+Changes save automatically as `playerNotifications.language` (`en` or `ru`) in
+`dashboard-data/settings.json`. English is the default for new and legacy settings
+without a valid preference. The setting applies to RCON countdowns for stop, restart,
+image/mod updates, stopped backups, restore and configuration application, including
+automatic operations and mod-update cancellation. EN/RU countdowns use singular and
+plural time units. Each operation keeps the language selected when it starts.
+The preference is independent of the interface language and Telegram language.
+Free-text RCON commands remain as entered by the administrator.
+
 ## Telegram notifications
 
 In Maintenance → Notifications, configure the bot token, chat ID, event groups,
 and notification language (Русский or English). Changes save automatically.
 The language applies to events and the “Test” message in the configured chat,
 independently of the interface language and of the administrator who starts an operation.
-Existing installations default to Russian. The preference persists in
+New and existing installations without a valid preference default to English.
+Explicitly saved Russian preferences are preserved. The preference persists in
 `dashboard-data/settings.json` as `telegram.language` (`ru` or `en`).
 Server names, archive filenames, Workshop IDs, and upstream diagnostics retain
 their original values. The local event journal also retains its source text.

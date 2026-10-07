@@ -517,7 +517,7 @@ const DEMO = {
     containerInfo: { status: "running", running: true, startedAt: new Date(Date.now() - 569000 * 1000).toISOString(), image: "indifferentbrokkoli/pzserver:latest", uptimeSec: 569000 },
     update: { at: new Date(Date.now() - 2 * 3600 * 1000).toISOString(), local: "sha256:9f21a4c0e7b2d8f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d5f7a9c1e3b5d7f9", remote: "sha256:9f21a4c0e7b2d8f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d5f7a9c1e3b5d7f9", available: false, error: null },
     modsCheck: { at: new Date(Date.now() - 30 * 60 * 1000).toISOString(), state: "up-to-date", items: [], error: null, source: "auto" },
-    settings: { autoUpdate: { enabled: true, intervalHours: 6, warnSeconds: 300, backupBeforeUpdate: true }, modsUpdate: { enabled: true, intervalHours: 6, restartOnUpdate: true, warnSeconds: 600 }, backup: { stopServer: false, maxBackups: 10 }, watchdog: { enabled: true, thresholdMin: 5, autoRestart: false }, telegram: { enabled: true, language: "ru", botTokenMasked: "•••A1b2", chatId: "-1001234567890", groups: { ops: true, backup: true, update: true, problems: true } }, nextCheck: Date.now() / 1000 + 3600 * 4, nextModsCheck: Date.now() / 1000 + 3600 * 2 },
+    settings: { autoUpdate: { enabled: true, intervalHours: 6, warnSeconds: 300, backupBeforeUpdate: true }, modsUpdate: { enabled: true, intervalHours: 6, restartOnUpdate: true, warnSeconds: 600 }, backup: { stopServer: false, maxBackups: 10 }, watchdog: { enabled: true, thresholdMin: 5, autoRestart: false }, playerNotifications: { language: "en" }, telegram: { enabled: true, language: "en", botTokenMasked: "•••A1b2", chatId: "-1001234567890", groups: { ops: true, backup: true, update: true, problems: true } }, nextCheck: Date.now() / 1000 + 3600 * 4, nextModsCheck: Date.now() / 1000 + 3600 * 2 },
     watchdog: { lastProbeAt: demoNow(), lastResult: "ok", lastError: null, consecutiveFailures: 0, alerted: false },
     notify: { at: demoNow(), ok: true, error: null },
     backupsCount: 2, now: demoNow(),
@@ -811,7 +811,8 @@ function renderOverview(o) {
   const tgEnabled = !!tg.enabled;
   if (settingsCanRender("tgSwitch")) $("tgSwitch").checked = tgEnabled;
   if (settingsCanRender("tgChat")) $("tgChat").value = tg.chatId || "";
-  if (settingsCanRender("tgLanguage")) $("tgLanguage").value = tg.language === "en" ? "en" : "ru";
+  if (settingsCanRender("playerLanguage")) $("playerLanguage").value = o.settings?.playerNotifications?.language === "ru" ? "ru" : "en";
+  if (settingsCanRender("tgLanguage")) $("tgLanguage").value = tg.language === "ru" ? "ru" : "en";
   const groups = tg.groups || {};
   if (settingsCanRender("tgOps")) $("tgOps").checked = groups.ops !== false;
   if (settingsCanRender("tgBackup")) $("tgBackup").checked = groups.backup !== false;
@@ -2241,6 +2242,7 @@ $("btnModsRestart").addEventListener("click", () => {
 /* ───────────────────────── настройки автообновления ───────────────────────── */
 
 const SETTING_GROUPS = {
+  playerNotifications: { ids: ["playerLanguage"], card: "playerNotifications", title: I18n.t("Предупреждения игрокам") },
   autoUpdate: { ids: ["autoSwitch", "autoInterval", "autoWarn", "buBackup"], card: "sec-updates", title: I18n.t("Автообновление образа") },
   watchdog: { ids: ["wdSwitch", "wdThreshold", "wdGracePeriod", "wdRestart"], card: "sec-watchdog", title: "Watchdog RCON" },
   modsUpdate: { ids: ["modsAutoSwitch", "modsAutoInterval", "modsAutoAction", "modsAutoWarn"], card: "sec-modscheck", title: I18n.t("Автообновление модов") },
@@ -2282,8 +2284,8 @@ function acceptSettings(settings) {
 function settingsFeedback(group, state, message) {
   const definition = SETTING_GROUPS[group];
   const card = $(definition.card) || $(definition.ids[0]).closest("section");
-  let feedback = card.querySelector(".settings-feedback");
-  if ((group === "autoBackup" || group === "telegram") && state === "ok") {
+  let feedback = card.querySelector(":scope > .settings-feedback");
+  if ((group === "autoBackup" || group === "telegram" || group === "playerNotifications") && state === "ok") {
     feedback?.remove();
     toast(message, "ok");
     return;
@@ -2338,6 +2340,7 @@ function pushSettings(eventOrGroup) {
   const group = typeof eventOrGroup === "string" ? eventOrGroup : settingGroup(eventOrGroup?.target?.id) || "telegram";
   if (group === "watchdog" && !$("wdGracePeriod").reportValidity()) return Promise.resolve(false);
   const body = {
+    playerNotifications: { language: $("playerLanguage").value },
     autoUpdate: {
       enabled: $("autoSwitch").checked,
       intervalHours: Number($("autoInterval").value),
@@ -2418,6 +2421,7 @@ $("modsAutoAction").addEventListener("change", pushSettings);
 $("modsAutoWarn").addEventListener("change", pushSettings);
 $("tgSwitch").addEventListener("change", pushSettings);
 $("tgLanguage").addEventListener("change", pushSettings);
+$("playerLanguage").addEventListener("change", pushSettings);
 $("tgChat").addEventListener("change", pushSettings);
 $("tgToken").addEventListener("change", pushSettings);
 ["tgOps", "tgBackup", "tgUpdate", "tgProblems"].forEach((id) => $(id).addEventListener("change", pushSettings));

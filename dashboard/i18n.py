@@ -7,12 +7,9 @@ from pathlib import Path
 
 LANGUAGE = ContextVar("presentation_language", default="ru")
 CATALOG = json.loads((Path(__file__).parent / "static/locales/en.json").read_text(encoding="utf-8"))
+RU_ALL = json.loads((Path(__file__).parent / "static/locales/ru.json").read_text(encoding="utf-8"))
 RU_CATALOG = {
-    key: value
-    for key, value in json.loads(
-        (Path(__file__).parent / "static/locales/ru.json").read_text(encoding="utf-8")
-    ).items()
-    if isinstance(value, str) and key != value
+    key: value for key, value in RU_ALL.items() if isinstance(value, str) and key != value
 }
 PLACEHOLDER = re.compile(r"{{(\d+)}}")
 NESTED_MESSAGES = {
@@ -129,6 +126,27 @@ RAW_KEYS = {
 
 def language():
     return LANGUAGE.get()
+
+
+def message(source, *values, locale, count=None):
+    """Format an authored message, including EN/RU cardinal plural forms.
+
+    Substitute opaque values only after choosing the translation.
+    """
+    template = (CATALOG if locale == "en" else RU_ALL).get(source, source)
+    if isinstance(template, dict):
+        if locale == "en":
+            form = "one" if count == 1 else "other"
+        elif count is None or count != int(count):
+            form = "other"
+        elif count % 10 == 1 and count % 100 != 11:
+            form = "one"
+        elif 2 <= count % 10 <= 4 and not 12 <= count % 100 <= 14:
+            form = "few"
+        else:
+            form = "many"
+        template = template.get(form, template["other"])
+    return PLACEHOLDER.sub(lambda slot: str(values[int(slot[1])]), template)
 
 
 def resolve(headers, path=""):

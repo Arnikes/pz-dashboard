@@ -16,10 +16,12 @@ import urllib.error
 import urllib.request
 import uuid
 from collections import Counter, deque
+from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from itertools import islice
 
 import config
+import i18n
 import fileio
 import settingsmodel
 from settingsmodel import (
@@ -255,6 +257,19 @@ def patch_settings(patch):
 
 # ─────────────────────────── RCON-хелперы ───────────────────────────
 
+_PLAYER_LANGUAGE = ContextVar("player_notification_language", default=None)
+
+
+def player_notification_language():
+    """Use the operation's snapshot, or the persisted preference for direct calls."""
+    snapshot = _PLAYER_LANGUAGE.get()
+    if snapshot is not None:
+        return snapshot
+    with _SET_LOCK:
+        value = (_SETTINGS.get("playerNotifications") or {}).get("language")
+    return "ru" if value == "ru" else "en"
+
+
 _RCON_CACHE = {"state": "unknown", "error": None, "at": None}
 _RCON_LOG = {"at": 0.0}  # когда последний раз писали rcon-error событие
 
@@ -296,6 +311,8 @@ def rcon_warn_broadcast(seconds, reason, abort_check=None, abort_wait=None):
     abort_wait — прерываемое ожидание шага, возвращающее True при отмене."""
     if seconds <= 0:
         return True
+    locale = player_notification_language()
+    reason = i18n.translate(reason, locale=locale)
     thresholds = {30, 10}
     thresholds.update(range(60, seconds + 1, 60))
     if seconds < 10:
@@ -309,9 +326,9 @@ def rcon_warn_broadcast(seconds, reason, abort_check=None, abort_wait=None):
         if abort_check is not None and abort_check():
             return ok
         if left in thresholds and left != last_sent:
-            text = (
-                f"{reason} через {left // 60} мин" if left >= 60 else f"{reason} через {left} сек"
-            )
+            count = left // 60 if left >= 60 else left
+            source = "{{0}} через {{1}} минут" if left >= 60 else "{{0}} через {{1}} секунд"
+            text = i18n.message(source, reason, count, locale=locale, count=count)
             try:
                 rcon(f'servermsg "{text}"', quiet=True)
                 last_sent = left
@@ -500,7 +517,10 @@ def _set_phase(phase, message=""):
 
 
 def _start_worker(op, fn):
+    notification_language = player_notification_language()
+
     def worker():
+        language_token = _PLAYER_LANGUAGE.set(notification_language)
         try:
             result = fn()
             with _OP_LOCK:
@@ -540,6 +560,7 @@ def _start_worker(op, fn):
                     {"op": op, "ok": False, "message": str(e), "finishedAt": now_iso()}
                 )
         finally:
+            _PLAYER_LANGUAGE.reset(language_token)
             with _OP_LOCK:
                 _ACTIVE["op"] = None
                 _ACTIVE["phase"] = ""
@@ -647,7 +668,12 @@ def _do_restart(
             if warn_seconds > 0:
                 try:
                     rcon(
-                        'servermsg "Обновление модов отменено. Сервер продолжает работу."',
+                        'servermsg "'
+                        + i18n.translate(
+                            "Обновление модов отменено. Сервер продолжает работу.",
+                            locale=player_notification_language(),
+                        )
+                        + '"',
                         quiet=True,
                     )
                 except rconlib.RCONError:

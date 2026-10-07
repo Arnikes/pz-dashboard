@@ -103,11 +103,11 @@ def test_invalid_language_rejects_entire_patch(value):
 
 
 @pytest.mark.parametrize("loaded", [{}, {"language": "de"}, {"language": []}, {"language": None}])
-def test_legacy_and_invalid_language_default_to_russian(loaded):
+def test_legacy_and_invalid_language_default_to_english(loaded):
     current = deepcopy(settingsmodel.DEFAULTS)
     settingsmodel.merge_loaded(current, {"telegram": loaded})
     settingsmodel.normalize_loaded(current)
-    assert current["telegram"]["language"] == "ru"
+    assert current["telegram"]["language"] == "en"
 
 
 EVENTS = [

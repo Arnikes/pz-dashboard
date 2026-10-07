@@ -555,7 +555,7 @@ def test_cancel_mods_restart_wakes_countdown_and_preserves_server(
     def broadcast(command, quiet=False):
         messages.append(command)
         warned.set()
-        if notify_fails and "отменено" in command:
+        if notify_fails and "cancelled" in command:
             raise rcon.RCONError("Нет связи")
         return ""
 
@@ -571,7 +571,7 @@ def test_cancel_mods_restart_wakes_countdown_and_preserves_server(
     assert not threads[0].is_alive(), "Отмена должна прервать ожидание десятисекундного шага"
     stop.assert_not_called()
     start.assert_not_called()
-    assert any("отменено" in message for message in messages)
+    assert any("cancelled" in message for message in messages)
     state = ops.op_state()
     assert state["active"] is None
     assert state["history"][0]["cancelled"] is True
@@ -880,7 +880,7 @@ def test_telegram_enqueue_filters(monkeypatch):
     notify.enqueue("error", "Бэкап не удался")  # problems → в очередь
     notify.enqueue("console", "команда")  # без группы → мимо
     assert len(sent) == 2
-    assert sent[0].startswith("🔄") and sent[0].endswith("Сервер перезапущен")
+    assert sent[0].startswith("🔄") and sent[0].endswith("Server restarted")
     assert sent[1].startswith("❌")
     # выключено → ничего
     monkeypatch.setattr(ops, "telegram_settings_raw", lambda: {"enabled": False})
@@ -929,7 +929,7 @@ def test_telegram_send_and_test(monkeypatch):
     assert url == "https://api.telegram.org/bot123456:SECRET/sendMessage"
     assert body == {"chat_id": "42", "text": "привет"}
     ok, err = notify.test_message()
-    assert ok is True and "проверка связи" in calls[-1][1]["text"]
+    assert ok is True and "connection test" in calls[-1][1]["text"]
     # без настроек — честная ошибка, без сетевого вызова
     monkeypatch.setattr(ops, "telegram_settings_raw", lambda: {})
     ok, err = notify.send_message("x")
@@ -1546,6 +1546,7 @@ def test_warn_broadcast_non_multiple_of_ten(monkeypatch):
     """Отсчёт 45 с раньше не отправлял ни одного сообщения (шаг 10 не попадал
     в пороги {30, 10, 60…}) — сервер останавливался молча."""
     sent = []
+    monkeypatch.setattr(ops, "player_notification_language", lambda: "ru")
     monkeypatch.setattr(ops, "rcon", lambda cmd, quiet=False: sent.append(cmd) or "")
     monkeypatch.setattr(ops.time, "sleep", lambda s: None)
     assert ops.rcon_warn_broadcast(45, "Стоп") is True

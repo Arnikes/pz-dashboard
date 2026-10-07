@@ -502,6 +502,15 @@
           <h2 id="hNotify">Уведомления</h2>
           <span class="pill" id="tgPill" data-state="unknown">—</span>
         </header>
+        <div class="auto-block" id="playerNotifications">
+          <label class="field">Язык предупреждений игрокам
+            <select id="playerLanguage" aria-describedby="playerLanguageHint">
+              <option value="en" lang="en" selected>English</option>
+              <option value="ru" lang="ru">Русский</option>
+            </select>
+          </label>
+          <p class="hint" id="playerLanguageHint">Для ручных и автоматических операций на сервере. Не зависит от языка интерфейса и Telegram.</p>
+        </div>
         <div class="auto-block">
           <div class="auto-row">
             <label class="switch">
@@ -520,8 +529,8 @@
           </div>
           <label class="field">Язык уведомлений
             <select id="tgLanguage" aria-describedby="tgLanguageHint">
+              <option value="en" lang="en" selected>English</option>
               <option value="ru" lang="ru">Русский</option>
-              <option value="en" lang="en">English</option>
             </select>
           </label>
           <p class="hint" id="tgLanguageHint">Применяется ко всем сообщениям в Telegram, независимо от языка интерфейса.</p>

@@ -6,6 +6,7 @@ import re
 
 
 DEFAULTS = {
+    "playerNotifications": {"language": "en"},
     "autoUpdate": {
         "enabled": False,
         "intervalHours": 6,
@@ -20,7 +21,7 @@ DEFAULTS = {
     },
     "telegram": {
         "enabled": False,
-        "language": "ru",
+        "language": "en",
         "botToken": "",
         "chatId": "",
         "groups": {"ops": True, "backup": True, "update": True, "problems": True},
@@ -36,6 +37,7 @@ DEFAULTS = {
 
 # Field order preserves the API's first validation error for each section.
 RULES = {
+    "playerNotifications": {"language": "language"},
     "autoUpdate": {
         "enabled": "enabled",
         "intervalHours": (1, 168),
@@ -94,6 +96,9 @@ def _validate_section(section, values):
             if not valid_hhmm(values[key]):
                 return "time должен быть временем в формате ЧЧ:ММ"
             values[key] = norm_hhmm(values[key])
+        elif key == "language":
+            if values[key] not in ("en", "ru"):
+                return f"{section}.language должен быть ru или en"
         elif not isinstance(values[key], bool):
             return f"{rule} должен быть true/false"
     return None
@@ -204,8 +209,9 @@ def normalize_loaded(settings):
             elif isinstance(default, str) and not isinstance(settings[section].get(key), str):
                 settings[section][key] = default
     groups = settings["telegram"].get("groups")
-    if settings["telegram"].get("language") not in ("ru", "en"):
-        settings["telegram"]["language"] = DEFAULTS["telegram"]["language"]
+    for section in ("telegram", "playerNotifications"):
+        if settings[section].get("language") not in ("ru", "en"):
+            settings[section]["language"] = DEFAULTS[section]["language"]
     settings["telegram"]["groups"] = {
         key: groups[key]
         if isinstance(groups, dict) and isinstance(groups.get(key), bool)

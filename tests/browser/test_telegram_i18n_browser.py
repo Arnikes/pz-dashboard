@@ -39,7 +39,7 @@ def test_language_selector_persists_and_test_waits_for_save(page, dashboard, lan
         name="Язык уведомлений" if language == "ru" else "Notification language",
         exact=True,
     )
-    expect(selector).to_have_value("ru")
+    expect(selector).to_have_value("en")
     expect(selector).to_have_attribute("aria-describedby", "tgLanguageHint")
     selector.select_option(notification_language)
     expect(page.locator("#toasts")).to_contain_text("сохранено" if language == "ru" else "saved")

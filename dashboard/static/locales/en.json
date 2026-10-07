@@ -1439,5 +1439,20 @@
   "Применяется ко всем сообщениям в Telegram, независимо от языка интерфейса.": "Applies to all Telegram messages, independently of the interface language.",
   "Проверка бэкапа {{0}}: OK — файлов {{1}}, {{2}}, замечания: {{3}}": "Backup check {{0}}: OK — {{1}} files, {{2}}, notes: {{3}}",
   "Язык уведомлений": "Notification language",
-  "Доступно обновление образа {{0}}": "Image update available: {{0}}"
+  "Доступно обновление образа {{0}}": "Image update available: {{0}}",
+  "Язык предупреждений игрокам": "Player warning language",
+  "Предупреждения игрокам": "Player warnings",
+  "Для ручных и автоматических операций на сервере. Не зависит от языка интерфейса и Telegram.": "For manual and automatic server operations. Independent of the interface and Telegram languages.",
+  "playerNotifications.language должен быть ru или en": "playerNotifications.language must be ru or en",
+  "неверный формат playerNotifications": "invalid playerNotifications format",
+  "Обновление модов отменено. Сервер продолжает работу.": "Mod update cancelled. The server continues running.",
+  "{{0}} через {{1}} минут": {
+    "one": "{{0}} in {{1}} minute",
+    "other": "{{0}} in {{1}} minutes"
+  },
+  "{{0}} через {{1}} секунд": {
+    "one": "{{0}} in {{1}} second",
+    "other": "{{0}} in {{1}} seconds"
+  },
+  "{{0}}.language должен быть ru или en": "{{0}}.language must be ru or en"
 }

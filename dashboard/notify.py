@@ -72,7 +72,7 @@ def _telegram_settings():
     return ops.telegram_settings_raw()
 
 
-def _format(kind, text, language="ru"):
+def _format(kind, text, language="en"):
     icon = KIND_ICON.get(kind, "•")
     name = (config.CFG.get("server_name") or "").strip()
     text = i18n.translate(text, locale=language)
@@ -90,7 +90,7 @@ def enqueue(kind, text):
             return
         if not (tg.get("botToken") or "").strip() or not (tg.get("chatId") or "").strip():
             return
-        _QUEUE.put_nowait(_format(kind, text, tg.get("language", "ru")))
+        _QUEUE.put_nowait(_format(kind, text, tg.get("language", "en")))
     except queue.Full:
         pass  # переполнение: молча теряем старое хвостовое, не копим бесконечно
     except Exception:  # noqa: BLE001 — уведомления не должны ронять события
@@ -185,7 +185,7 @@ def test_message():
     ok, err = send_message(
         i18n.translate(
             "✅ PZ Пульт: проверка связи — уведомления работают.",
-            locale=tg.get("language", "ru"),
+            locale=tg.get("language", "en"),
         )
     )
     with _LOCK:
