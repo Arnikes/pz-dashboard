@@ -57,7 +57,9 @@ window.ConfigEditor = (() => {
     setDomProperty($("flowLaunch"), "textContent", busy ? I18n.t("Идёт операция") : verified ? I18n.t("Подтверждён") : draft.status === "error" ? I18n.t("Проверьте ошибку") : recorded ? I18n.t("Нужна проверка") : I18n.t("После записи файлов"));
     $("configFlow").querySelectorAll("[data-flow]").forEach(el => {
       setDomAttribute(el, "aria-current", el.dataset.flow === stage ? "step" : "false");
-      setDomProperty(el.dataset, "state", el.dataset.flow === "launch" && verified ? "ok" : el.dataset.flow === "files" && draft.conflict || el.dataset.flow === "launch" && draft.status === "error" ? "bad" : "normal");
+      const failed = el.dataset.flow === "files" && draft.conflict || el.dataset.flow === "launch" && draft.status === "error";
+      const complete = el.dataset.flow === "launch" ? verified : recorded && !draft.conflict;
+      setDomProperty(el.dataset, "state", failed ? "bad" : complete ? "ok" : "normal");
     });
     const needsAction = draft.changed || sourceDirty || fieldDirty || pendingFields.size || unsaved.length || draft.conflict || !$("configError").hidden || ["saved", "applying", "error", "select-mods"].includes(draft.status);
     setDomProperty($("draftBar"), "hidden", !editorView || !needsAction);

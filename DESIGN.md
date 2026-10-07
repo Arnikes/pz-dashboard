@@ -193,7 +193,12 @@ workspace background remains sticky without an additional enclosing border.
 One SSE connection persists across route changes.
 
 Desktop and mobile show Draft → Files → Startup inside the editor, below the
-page heading and above the tabs and editing fields. On mobile, draft actions stay
+page heading and above the tabs and editing fields. The shared stepper uses round
+numbered indicators, inline titles with status descriptions beneath, and thin
+connecting lines. The current stage has a beige indicator; recorded stages use
+olive checkmarks and errors use a brick-red warning mark. On mobile the labels
+stack below the indicators while keeping all three status descriptions visible.
+On mobile, draft actions stay
 fixed above the bottom navigation. Viewports up to 600 pixels high keep the draft
 bar in the document flow. Stage selection reviews changes
 or focuses an action; it does not execute an operation.

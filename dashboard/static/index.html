@@ -141,9 +141,26 @@
     </section>
     <section id="editorAttention" class="card attention" hidden aria-label="Требуют внимания"></section>
     <ol id="configFlow" class="config-flow" aria-label="Стадии изменения конфигурации" hidden>
-      <li><button type="button" data-flow="draft"><strong>Черновик</strong><span id="flowDraft">Загрузка…</span></button></li>
-      <li><button type="button" data-flow="files"><strong>Файлы</strong><span id="flowFiles">Проверить различия</span></button></li>
-      <li><button type="button" data-flow="launch"><strong>Запуск</strong><span id="flowLaunch">Проверить применение</span></button></li>
+      <li>
+        <button type="button" data-flow="draft">
+          <span class="flow-indicator" aria-hidden="true"><span class="flow-number">1</span><svg viewBox="0 0 24 24" class="flow-check"><path d="m5 12 4 4L19 6"/></svg><svg viewBox="0 0 24 24" class="flow-error"><path d="M12 5v9m0 4v1"/></svg></span>
+          <span class="flow-copy"><strong>Черновик</strong><span id="flowDraft">Загрузка…</span></span>
+        </button>
+        <span class="flow-connector" aria-hidden="true"></span>
+      </li>
+      <li>
+        <button type="button" data-flow="files">
+          <span class="flow-indicator" aria-hidden="true"><span class="flow-number">2</span><svg viewBox="0 0 24 24" class="flow-check"><path d="m5 12 4 4L19 6"/></svg><svg viewBox="0 0 24 24" class="flow-error"><path d="M12 5v9m0 4v1"/></svg></span>
+          <span class="flow-copy"><strong>Файлы</strong><span id="flowFiles">Проверить различия</span></span>
+        </button>
+        <span class="flow-connector" aria-hidden="true"></span>
+      </li>
+      <li>
+        <button type="button" data-flow="launch">
+          <span class="flow-indicator" aria-hidden="true"><span class="flow-number">3</span><svg viewBox="0 0 24 24" class="flow-check"><path d="m5 12 4 4L19 6"/></svg><svg viewBox="0 0 24 24" class="flow-error"><path d="M12 5v9m0 4v1"/></svg></span>
+          <span class="flow-copy"><strong>Запуск</strong><span id="flowLaunch">Проверить применение</span></span>
+        </button>
+      </li>
     </ol>
 
     <!-- ОБЗОР: показатели, состояние и нагрузка -->

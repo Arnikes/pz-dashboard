@@ -1640,17 +1640,26 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--footer-heig
 .head-link, .copy-value { min-height:44px; align-items:center; }
 .modal, .command-dialog, .more-menu, .draft-extra { border:0; box-shadow:var(--elevation-dialog); }
 .draft-bar { box-shadow:none; border-color:var(--line-strong); }
-.config-flow { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0; list-style:none; padding:0; margin:0 0 20px; border-bottom:1px solid var(--line); }
-.config-flow button { position:relative; display:flex; flex-direction:column; gap:5px; width:100%; min-height:68px; padding:12px 16px; border:0; background:transparent; color:var(--muted); text-align:left; font:inherit; cursor:pointer; }
-.config-flow button strong { font-size:15px; font-weight:600; }
-.config-flow button span { font-size:12px; overflow-wrap:anywhere; }
-.config-flow button[aria-current=step] { background:var(--surface-2); color:var(--accent); }
-.config-flow button[aria-current=step]::after { content:""; position:absolute; inset:auto 12px 0; height:2px; background:var(--accent); }
-.config-flow button[data-state=ok] { color:var(--ok); }
-.config-flow button[data-state=bad] { color:var(--danger-text); }
-.config-flow button:hover:not(:disabled) { background:var(--surface-3); }
+.config-flow { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)) auto; gap:20px; list-style:none; padding:8px 0; margin:14px 0 16px; }
+.config-flow > li { position:relative; display:flex; align-items:center; gap:20px; min-width:0; }
+.config-flow button { display:flex; align-items:center; gap:12px; min-width:0; min-height:44px; padding:4px 0; border:0; border-radius:var(--r-control); background:transparent; color:var(--muted); text-align:left; font:inherit; cursor:pointer; }
+.config-flow .flow-copy { display:grid; gap:3px; min-width:0; }
+.config-flow .flow-copy strong { color:var(--ink); font-size:13px; font-weight:500; }
+.config-flow .flow-copy > span { font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
+.config-flow .flow-indicator { display:flex; flex:none; align-items:center; justify-content:center; width:32px; height:32px; border:1px solid var(--line-strong); border-radius:50%; color:var(--muted); background:var(--surface); font-size:13px; font-weight:500; }
+.config-flow .flow-indicator svg { display:none; width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.config-flow button[aria-current=step] .flow-indicator { border-color:var(--accent); background:var(--accent); color:var(--bg-deep); }
+.config-flow button[data-state=ok] .flow-indicator { border-color:var(--ok); background:var(--success-tint); color:var(--ok); }
+.config-flow button[data-state=bad] .flow-indicator { border-color:var(--danger-text); background:var(--danger-tint); color:var(--danger-text); }
+.config-flow button[data-state=ok] .flow-number, .config-flow button[data-state=bad] .flow-number { display:none; }
+.config-flow button[data-state=ok] .flow-check, .config-flow button[data-state=bad] .flow-error { display:block; }
+.config-flow button[data-state=ok] .flow-copy > span { color:var(--ok); }
+.config-flow button[data-state=bad] .flow-copy > span { color:var(--danger-text); }
+.config-flow .flow-connector { flex:1; min-width:20px; height:1px; background:var(--line-strong); }
+.config-flow button[data-state=ok] + .flow-connector { background:var(--ok); }
+.config-flow button:hover:not(:disabled) .flow-copy strong { text-decoration:underline; text-underline-offset:4px; }
 .config-flow button:disabled { cursor:default; }
-.config-flow button:focus-visible { outline:2px solid var(--focus); outline-offset:-3px; }
+.config-flow button:focus-visible { outline:2px solid var(--focus); outline-offset:4px; }
 .help-tip { display:inline-flex; flex:none; }
 .help-trigger { display:inline-flex; align-items:center; justify-content:center; width:32px; min-height:32px; padding:6px; border:0; border-radius:8px; background:transparent; color:var(--muted); cursor:pointer; }
 .help-trigger svg { width:18px; height:18px; }
@@ -1674,10 +1683,10 @@ body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--footer-height)
   .page-heading h1 { font-size:24px; }
   .page-actions { gap:6px; }
   .page-actions .btn { font-size:12px; padding:8px 10px; }
-  .config-flow { margin-bottom:8px; }
-  .config-flow button { padding:8px 6px; gap:2px; min-height:48px; }
-  .config-flow button strong { font-size:13px; }
-  .config-flow button span { font-size:11px; }
+  .config-flow { grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:8px 0 12px; }
+  .config-flow > li { display:block; }
+  .config-flow button { flex-direction:column; gap:8px; width:100%; min-height:44px; padding:6px 0; text-align:center; }
+  .config-flow .flow-connector { position:absolute; top:22px; left:calc(50% + 20px); width:calc(100% - 32px); min-width:0; }
   .backup-row .b-age { display:block; }
   .editor-card input:not([type=checkbox]), .editor-card select, .editor-card textarea:not(.source-editor textarea) { font-size:16px; }
   .view { gap:12px; }
@@ -1687,11 +1696,16 @@ body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--footer-height)
   .config-grid { padding:8px 0; }
 
 }
+@media (max-width:380px) {
+  .config-flow .flow-copy > span { font-size:11px; }
+}
 @media (forced-colors:active) {
   .source-editor pre { display:none; }
   .source-editor textarea { color:CanvasText; caret-color:CanvasText; }
   .source-editor textarea::selection { color:HighlightText; background:Highlight; }
   .nav a[aria-current=page], .nav-more[aria-current=page], .nav-more[aria-expanded=true], .editor-tabs button[aria-selected=true], .config-flow button[aria-current=step] { outline:2px solid Highlight; outline-offset:-2px; }
+  .config-flow .flow-connector { background:CanvasText; }
+  .config-flow button[aria-current=step] .flow-indicator { border-color:Highlight; }
 }
 @media (max-height:600px) and (min-width:741px) {
   .topbar { position:relative; }
@@ -1750,11 +1764,6 @@ body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--footer-height)
 #view-mods .mod-option label code { min-width:0; }
 #view-mods .mod-option > .hint { margin:0 0 4px 30px; font-size:12px; }
 #view-mods .mod-option > a { margin-left:30px; display:inline-flex; align-items:center; min-height:44px; }
-.config-flow { margin:14px 0 16px; padding:8px 0; border-top:1px solid var(--line); }
-.config-flow button { flex-direction:row; flex-wrap:wrap; align-items:center; gap:4px 10px; padding:8px 0; min-height:44px; }
-.config-flow button strong { font-size:13px; font-weight:500; }
-.config-flow button[aria-current=step] { background:transparent; }
-.config-flow button[aria-current=step]::after { content:none; }
 @media (max-width:1000px) and (min-width:741px) {
   #view-mods .workshop-package > summary { grid-template-columns:16px minmax(0,1fr) 12ch 17ch; gap:8px; }
   #view-mods .mod-option label { grid-template-columns:20px minmax(0,1fr) minmax(12ch,32%); }
@@ -1772,8 +1781,6 @@ body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--footer-height)
   #view-mods .package-content { padding-left:0; }
   #view-mods .mod-option label { grid-template-columns:20px minmax(0,1fr); gap:4px 10px; padding:4px 0; }
   #view-mods .mod-option label code { grid-column:2; }
-  .config-flow button { align-content:center; padding:8px 6px; }
-  .config-flow button strong { font-size:12px; }
 }
 
 /* Собранный обзор: состояние и команды, затем нагрузка и короткие сводки. */
