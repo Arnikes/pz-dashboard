@@ -1275,6 +1275,7 @@ select { cursor: pointer; }
   gap: 16px;
   min-height: 44px;
   max-width: var(--content-width);
+  margin-inline: auto;
   padding-inline: var(--page-gutter);
   font-size: 12px;
 }
@@ -1504,9 +1505,11 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--footer-heig
   :root[data-sidebar=collapsed] .nav a > span:not(.nav-count), :root[data-sidebar=collapsed] .nav-toggle > span { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
   :root[data-sidebar=collapsed] .nav-toggle svg { transform:scaleX(-1); }
   :root[data-sidebar=collapsed] .nav-count { position:absolute; top:0; right:0; margin:0; min-width:15px; padding:0 3px; }
-  .main { margin-left:var(--sidebar-width); }
-  .main { width:calc(100% - var(--sidebar-width)); max-width:var(--content-width); margin-right:0; }
-  .banner { margin-left:calc(var(--sidebar-width) + var(--page-gutter)); width:calc(100% - var(--sidebar-width) - 2 * var(--page-gutter)); }
+  /* Center the bounded workspace in the space beside either sidebar state. */
+  :root { --workspace-start:calc(var(--sidebar-width) + max(0px, (100% - var(--sidebar-width) - var(--content-width)) / 2)); }
+  .main { width:calc(100% - var(--sidebar-width)); max-width:var(--content-width); margin-left:var(--workspace-start); }
+  .banner { margin-left:calc(var(--workspace-start) + var(--page-gutter)); width:calc(100% - var(--sidebar-width) - 2 * var(--page-gutter)); }
+  .draft-bar { left:calc(var(--workspace-start) + var(--page-gutter)); }
   .topbar .brand { max-width:360px; }
 }
 @media (max-width:740px) {
@@ -1701,7 +1704,7 @@ body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--footer-height)
   body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--footer-height) + var(--nav-height) + 12px); max-height:calc(100dvh - var(--footer-height) - var(--nav-height) - 24px); }
 }
 @media (max-height:600px) and (min-width:741px) {
-  .draft-bar { margin-left:calc(var(--sidebar-width) + var(--page-gutter)); }
+  .draft-bar { width:calc(100% - var(--sidebar-width) - 2 * var(--page-gutter)); max-width:calc(var(--content-width) - 2 * var(--page-gutter)); margin-left:calc(var(--workspace-start) + var(--page-gutter)); }
 }
 
 /* Компактные строки: подпись и значение, название мода и идентификатор. */

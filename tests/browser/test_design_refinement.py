@@ -90,6 +90,8 @@ def test_demo_archive_dates_agree_across_sections(page, dashboard):
 
 def test_mod_settings_shortcut_preserves_draft(page, dashboard, editing):  # noqa: F811
     page.goto(dashboard["url"] + "/#/settings")
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    expect(page.locator("#configProfile")).to_be_enabled()
     page.locator('[data-key="PublicName"]').fill("Retained through shortcut")
     page.locator('[data-key="PublicName"]').press("Tab")
     expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
