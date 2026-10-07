@@ -1912,15 +1912,12 @@ body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--footer-height)
 }
 
 .config-change { display:none; grid-column:1; color:var(--warn); font-size:12px; }
-.page-description { flex-basis:100%; margin:0; color:var(--muted); font-size:13px; line-height:1.6; }
-.page-heading:has(.page-description) { gap:8px; margin-bottom:8px; }
 .editor-search { display:block; max-width:600px; margin-bottom:16px; }
 .editor-search > span { display:block; margin-bottom:7px; color:var(--muted); font-size:12px; }
 .editor-card .editor-search #configSearch { margin:0; }
 .editor-card { padding:20px 24px; }
 @media (max-width:740px) {
   .editor-card { padding:16px; }
-  .page-description { font-size:12px; }
   #view-settings .config-label { min-height:24px; }
   #view-settings .config-group { margin-top:20px; }
 }

@@ -33,9 +33,6 @@ let helpSequence = 0;
 function helpTip(text, label, id = `help-tip-${++helpSequence}`) {
   return `<span class="help-tip"><button type="button" class="help-trigger" data-help="${esc(id)}" aria-label="${esc(label)}" aria-describedby="${esc(id)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v6M12 7v2"/></svg></button><span id="${esc(id)}" class="help-content" role="tooltip" popover="manual" hidden>${esc(text)}</span></span>`;
 }
-document.querySelectorAll("[data-help-text]").forEach(slot => {
-  slot.outerHTML = helpTip(slot.dataset.helpText, slot.dataset.helpLabel);
-});
 (() => {
   let active = null, pinned = false, leaveTimer = null;
   const close = () => {
@@ -2696,15 +2693,6 @@ modSettingsLink.addEventListener("click", async event => {
   } catch (error) { toast(error.message, "error"); }
 });
 $("view-mods").querySelector(".page-heading").append(modSettingsLink);
-for (const [route, description] of Object.entries({
-  mods: I18n.t("Workshop-пакеты, ModID и порядок загрузки — в одном черновике."),
-  backups: I18n.t("Создавайте архивы, проверяйте их и восстанавливайте мир."),
-})) {
-  const copy = document.createElement("p");
-  copy.className = "page-description";
-  copy.textContent = description;
-  $("view-" + route).querySelector(".page-heading").append(copy);
-}
 // Primary editing routes share the same DOM, visual and keyboard order.
 const primaryNav = document.querySelector(".nav");
 for (const route of ["overview", "settings", "mods", "players", "maintenance", "backups", "events", "console"]) {

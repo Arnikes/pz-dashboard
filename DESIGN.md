@@ -238,6 +238,9 @@ applicability labels, environment ownership, errors and secret-marker instructio
 remain available beside their relevant controls. Descriptions reference only
 rendered elements. Settings keeps its lifecycle stages without a repeating page
 description. Settings and Mods omit the collapsible guide blocks.
+Page and section headings omit repeating descriptions and general instructional
+help, including draft, restart, mod composition, load-order and chart explanations. Keep substantive
+field help, operational diagnostics and action-specific confirmations.
 Changed-field labels remain visible, and changed text controls use the warning
 border. Help stays above the mobile navigation and draft actions.
 

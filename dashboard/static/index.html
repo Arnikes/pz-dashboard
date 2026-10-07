@@ -208,7 +208,7 @@
       <div class="overview-content">
         <!-- МЕТРИКИ -->
         <section class="card c-metrics" id="sec-metrics" data-od-id="metrics" aria-labelledby="hMetrics">
-          <header class="card-head"><h2 id="hMetrics">Нагрузка контейнера</h2><span data-help-label="О графиках нагрузки" data-help-text="Графики показывают историю CPU и RAM за час."></span></header>
+          <header class="card-head"><h2 id="hMetrics">Нагрузка контейнера</h2></header>
           <div class="metric">
             <div class="metric-row"><span>CPU</span><span class="mono" id="cpuVal">—</span></div>
             <div class="bar"><i id="cpuBar" style="width:0%"></i></div>
@@ -284,7 +284,7 @@
     <!-- МОДЫ: реестр + обновления -->
     <div class="view" id="view-mods" tabindex="-1" hidden>
       <section class="card editor-card" aria-labelledby="hModsEditor">
-        <header class="card-head"><h2 id="hModsEditor" class="sr-only">Состав модов</h2><span id="modSummary" class="hint"></span><span data-help-label="О составе модов" data-help-text="Workshop item — пакет Steam. После загрузки выберите отдельные ModID внутри пакета. Карты добавляются отдельно. Изменения сохраняются в черновике."></span></header>
+        <header class="card-head"><h2 id="hModsEditor" class="sr-only">Состав модов</h2><span id="modSummary" class="hint"></span></header>
         <p class="tab-scroll-help" id="modTabsHelp">Вкладки можно прокручивать влево и вправо.</p>
         <div class="editor-tabs" id="modTabs" role="tablist" aria-label="Редактор модов" aria-describedby="modTabsHelp">
           <button type="button" role="tab" aria-selected="true" aria-controls="modComposition" data-tab="composition">Состав</button>
@@ -322,7 +322,7 @@
         </div>
         <div id="legacyMods" class="install-notice" hidden></div>
         <div id="modOrder" hidden>
-          <div class="section-label"><h3>Порядок загрузки</h3><span data-help-label="Как изменить порядок модов" data-help-text="Перетащите мод за ручку слева или нажмите «Переместить…» и укажите позицию. Порядок сохраняется в черновике."></span></div>
+          <div class="section-label"><h3>Порядок загрузки</h3></div>
           <div class="order-toolbar">
             <label for="orderQuery">Найти в порядке загрузки</label>
             <input id="orderQuery" type="search" placeholder="ModID или название мода…" aria-describedby="orderCount" />
@@ -355,7 +355,6 @@
           </select>
         </div>
         <div class="actions mods-manage" id="modsManageBar" hidden>
-          <span class="hint">Состав модов правится в конфиге и применяется рестартом сервера.</span>
           <button class="btn" id="btnModsRestart">Перезапустить…</button>
         </div>
         <p class="mods-note" id="modsShown" hidden></p>
@@ -367,7 +366,7 @@
       <!-- ОБНОВЛЕНИЯ МОДОВ (RCON checkModsNeedUpdate) -->
       <section class="card c-mupd" id="sec-mods-update" data-od-id="mods-update" aria-labelledby="hModsUpd" hidden>
         <header class="card-head">
-          <h2 id="hModsUpd">Обновления модов</h2><span data-help-label="Как проверяются обновления модов" data-help-text="Сервер сверяет версии со Steam Workshop. Для загрузки обновлений нужен рестарт."></span>
+          <h2 id="hModsUpd">Обновления модов</h2>
           <span class="pill" id="modsPill" data-state="unknown">—</span>
         </header>
         <p class="upd-note" id="modsCheckNote" hidden></p>
@@ -764,7 +763,6 @@
     <div id="commandResults" class="command-results" role="group" aria-label="Найденные команды"></div>
     <div class="command-footer">
       <p id="commandCount" class="hint" role="status" aria-live="polite" aria-atomic="true"></p>
-      <p class="hint">Операции требуют подтверждения.</p>
     </div>
   </dialog>
 
