@@ -300,6 +300,11 @@ def test_update_alert_floats_without_moving_layout_and_stays_visible(
     page.evaluate(
         "async () => { await document.fonts.ready; await (await navigator.serviceWorker.getRegistration()).update(); }"
     )
+    # The view entrance translates its heading independently of the update alert.
+    # Capture the baseline only after it settles; keep exact geometry assertions.
+    page.locator("#view-overview").evaluate("""async element => {
+      await Promise.all(element.getAnimations().map(animation => animation.finished));
+    }""")
     page.locator("#btnCommands").focus()
     geometry = """() => ['.topbar', '.main', '#view-overview h1', '.nav', '.site-footer'].map(selector => {
       const box = document.querySelector(selector).getBoundingClientRect();

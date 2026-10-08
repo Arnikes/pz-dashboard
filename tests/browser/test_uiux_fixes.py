@@ -94,13 +94,18 @@ def test_log_empty_states_reset_text_level_and_operation_period(page, dashboard,
         "Строк: 0 из 2" if language == "ru" else "Lines: 0 of 2"
     )
     screenshot(page, f"logs-filter-{language}")
-    page.locator("#logsResetFilters").click()
+    # Reset fetches logs again. Let that response finish before changing the frame.
+    with page.expect_response("**/api/logs**"):
+        page.locator("#logsResetFilters").click()
     expect(page.locator("#logsFilter")).to_have_value("")
     expect(page.locator("#logsFilter")).to_be_focused()
     assert page.evaluate("S.logsLevel==='all' && !S.logsSince && !S.logsUntil && !S.logsProfile")
     expect(page.locator('#logLevels [data-level="all"]')).to_have_attribute("aria-pressed", "true")
     expect(page.locator("#logsOut")).to_contain_text("ready")
-    page.evaluate("renderLogs({ok:true,text:'\\n   \\n'})")
+    # Use the same frame for explicit and periodic refreshes so a pending request
+    # cannot replace the empty state with the initial non-empty fixture.
+    frame["text"] = "\n   \n"
+    page.evaluate("async () => { await refreshLogs(); }")
     expect(page.locator("#logsOut")).to_have_text(
         "Нет данных логов" if language == "ru" else "No log data"
     )
