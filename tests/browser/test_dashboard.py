@@ -13,7 +13,9 @@ def test_mod_updates_remain_available_in_maintenance(page, dashboard, language, 
     page.add_init_script(f"localStorage.setItem('pz-language', '{language}')")
     page.set_viewport_size({"width": width, "height": 900})
     page.goto(dashboard["url"])
-    page.locator("#sec-sumupd .sum-name").nth(1).click()
+    page.locator("#sec-sumupd").get_by_role(
+        "link", name="Workshop mods" if language == "en" else "Моды Workshop"
+    ).click()
     expect(page.locator("#view-maintenance")).to_be_visible()
     widget = page.locator("#sec-mods-update")
     expect(widget).to_be_visible()

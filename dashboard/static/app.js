@@ -1113,12 +1113,15 @@ function renderKpis() {
 
 /* сводка обновлений на обзоре: зеркалит пилюли карточек обслуживания и модов */
 function renderSummaries() {
-  const img = $("updPill"), mods = $("modsPill");
-  const si = $("sumImagePill"), sm = $("sumModsPill");
-  si.dataset.state = img.dataset.state;
-  si.textContent = img.textContent;
-  sm.dataset.state = mods.dataset.state;
-  sm.textContent = mods.textContent;
+  for (const [summaryId, sourceId] of [
+    ["sumImagePill", "updPill"],
+    ["sumDashboardPill", "dashboardUpdPill"],
+    ["sumModsPill", "modsPill"],
+  ]) {
+    const summary = $(summaryId), source = $(sourceId);
+    summary.dataset.state = source.dataset.state;
+    summary.textContent = source.textContent;
+  }
 }
 
 function setAvailability(id, message) {

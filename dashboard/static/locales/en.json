@@ -725,6 +725,7 @@
   "Обновления модов": "Mod updates",
   "Обновления образа": "Image updates",
   "Образ Docker": "Docker image",
+  "Образ пульта": "Console image",
   "Образ уже актуален": "Image already up to date",
   "Образ уже актуален, обновление не требуется": "Image already up to date, no update required",
   "Обслуживание": "Maintenance",

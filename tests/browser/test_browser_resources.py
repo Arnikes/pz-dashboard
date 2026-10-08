@@ -31,6 +31,7 @@ def test_connection_loss_never_adds_header_timer(page, dashboard, width, transpo
     expect(page.locator("#btnStop")).to_be_enabled()
     expect(page.locator("#connBanner")).to_be_hidden()
     header = page.locator(".topbar")
+    expect(header).to_be_visible()
     original_text = header.inner_text()
     original_height = header.bounding_box()["height"]
     page.route("**/api/overview", lambda route: route.abort())
