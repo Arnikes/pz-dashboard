@@ -240,6 +240,13 @@ pending operations, saved drafts, and verified startup results. Editors load sna
 on entry and explicit actions; live updates do not refresh their contents. External
 changes appear in diff review and are overwritten when the browser writes files.
 Use inline errors with a retry action and concise success notifications.
+Toast reading time scales with message length from 5.2 to 20 seconds, unless a
+caller supplies an explicit duration. Hover, keyboard focus and background tabs
+pause the remaining time. Dismiss controls name their message. Notification
+updates preserve focus on the same action and keep the list's scroll position;
+unread rows use the second surface layer. Filters, read controls, links and toast
+dismiss controls share the visible focus outline. Long lists scroll independently
+of the center's heading, filters and footer.
 All editing routes share operation availability messages and lock mutations from
 request submission through completion. This includes drafts, mod order, player
 actions, schedules, watchdog and notification settings. Route navigation, search,

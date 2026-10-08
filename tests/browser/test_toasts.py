@@ -75,6 +75,22 @@ def test_hover_resumes_remaining_time_without_stuck_toasts(page, dashboard):
     expect(page.locator(".toast")).to_have_count(0)
 
 
+def test_long_feedback_gets_reading_time_and_named_dismiss_control(page, dashboard):
+    open_toasts(page, dashboard)
+    message = "Long feedback. " * 40
+    page.evaluate("message => toast(message, 'error')", message)
+    expect(page.locator(".toast-close")).to_have_attribute(
+        "aria-label", f"Закрыть уведомление: {message}"
+    )
+    page.clock.run_for(19999)
+    expect(page.locator(".toast")).to_have_count(1)
+    page.clock.run_for(1)
+    expect(page.locator(".toast")).to_have_count(0)
+    page.evaluate("message => toast(message, 'error', 1000)", message)
+    page.clock.run_for(1000)
+    expect(page.locator(".toast")).to_have_count(0)
+
+
 def test_stack_waits_for_each_message_and_keyboard_dismissal_keeps_focus(page, dashboard):
     open_toasts(page, dashboard)
     page.locator("#btnCommands").focus()

@@ -322,6 +322,11 @@ const Notifications = (() => {
     $("notificationReadAll").disabled = !unread;
   }
   function render() {
+    const active = document.activeElement;
+    const focusedRow = active?.closest(".notification-item");
+    const focusedId = focusedRow?.dataset.id;
+    const focusedHref = active?.closest("a")?.getAttribute("href");
+    const scrollTop = list.scrollTop;
     updateControls();
     const visible = items.filter(matches);
     const fragment = document.createDocumentFragment();
@@ -352,6 +357,12 @@ const Notifications = (() => {
       fragment.append(row);
     }
     list.replaceChildren(fragment);
+    list.scrollTop = scrollTop;
+    if (focusedId && list.contains(focusedRow) === false) {
+      const row = [...list.children].find(node => node.dataset.id === focusedId);
+      const replacement = focusedHref ? [...(row?.querySelectorAll("a") || [])].find(link => link.getAttribute("href") === focusedHref) : row?.querySelector(".notification-read");
+      (replacement || $("notificationClose")).focus({ preventScroll: true });
+    }
     $("notificationEmpty").hidden = !!visible.length;
     $("notificationEmpty").textContent = I18n.t(!items.length ? "Пока нет уведомлений" : filter === "unread" ? "Все уведомления прочитаны" : "Нет уведомлений в этом фильтре");
   }
@@ -409,7 +420,7 @@ const Notifications = (() => {
   });
   render();
   return {
-    publish({ id = `local:${Date.now()}:${Math.random().toString(36).slice(2)}`, title = "", message = "", kind = "info", operation = false, createdAt = Date.now(), popup = true, duration = 5200 } = {}) {
+    publish({ id = `local:${Date.now()}:${Math.random().toString(36).slice(2)}`, title = "", message = "", kind = "info", operation = false, createdAt = Date.now(), popup = true, duration } = {}) {
       const previous = items.find(item => item.id === id);
       if (previous && previous.kind !== "pending") return previous;
       if (!previous && operation && (seen.some(receipt => receipt.id === id) || (createdAt > 0 && createdAt <= ignoredBefore))) return null;
@@ -425,7 +436,7 @@ const Notifications = (() => {
   };
 })();
 
-function toast(text, kind = "info", ms = 5200) {
+function toast(text, kind = "info", ms) {
   return Notifications.publish({ message: text, kind, duration: ms });
 }
 
@@ -518,8 +529,11 @@ const showToast = (() => {
   });
   resize.observe(root);
 
-  const show = (notification, ms = 5200) => {
+  const show = (notification, ms) => {
     const { id, title, message: text, kind, operation } = notification;
+    // Longer feedback earns reading time; callers can still set an exact duration.
+    const readingTime = Math.min(20000, Math.max(5200, 2000 + (title.length + text.length) * 55));
+    const duration = Number.isFinite(ms) && ms >= 0 ? ms : readingTime;
     const box = document.createElement("div");
     box.className = "toast";
     box.dataset.kind = kind;
@@ -549,10 +563,10 @@ const showToast = (() => {
     const close = document.createElement("button");
     close.type = "button";
     close.className = "toast-close";
-    close.setAttribute("aria-label", I18n.t("Закрыть"));
+    close.setAttribute("aria-label", I18n.msg`Закрыть уведомление: ${title || text}`);
     close.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>';
     box.append(icon, message, close);
-    const entry = { id, box, close, remaining: ms, startedAt: null, timer: null };
+    const entry = { id, box, close, remaining: duration, startedAt: null, timer: null };
     close.addEventListener("click", () => dismiss(entry, true));
     entries.push(entry);
     root.appendChild(box);

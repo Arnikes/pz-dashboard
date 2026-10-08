@@ -59,13 +59,16 @@ def test_diagnostics_reflow_preserves_hash_url_path_and_list_errors(page, dashbo
 
 
 def test_log_coalescing_keeps_identifiers_and_timestamp_precision(page, dashboard):
-    start(page, dashboard, "console")
     rows = [
         "2026-10-07T12:00:00.001Z WARN Failed to load Workshop item 123456789",
         "2026-10-07T12:00:00.001Z WARN Failed to load Workshop item 987654321",
         "2026-10-07T12:00:00.002Z WARN Failed to load Workshop item 987654321",
     ]
-    page.evaluate("text=>renderLogs({ok:true,text})", "\n".join(rows + [rows[-1]]))
+    text = "\n".join(rows + [rows[-1]])
+    # Initial and periodic refreshes must agree with the frame under assertion.
+    page.route("**/api/logs**", lambda route: route.fulfill(json={"ok": True, "text": text}))
+    start(page, dashboard, "console")
+    page.evaluate("text=>renderLogs({ok:true,text})", text)
     expect(page.locator("#logsOut")).to_contain_text("123456789")
     expect(page.locator("#logsOut")).to_contain_text("987654321")
     expect(page.locator("#logsOut > span")).to_have_count(3)

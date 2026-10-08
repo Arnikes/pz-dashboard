@@ -1079,10 +1079,11 @@ select { cursor: pointer; }
 .notification-filters button { min-height:44px; padding:8px 10px; border:0; border-radius:var(--r-control); background:transparent; color:var(--muted); font:var(--type-button); cursor:pointer; white-space:nowrap; }
 .notification-filters button:hover { background:var(--surface-2); color:var(--ink); }
 .notification-filters button[aria-pressed="true"] { background:var(--surface-3); color:var(--ink); }
-.notification-list { min-height:80px; overflow:auto; overscroll-behavior:contain; }
+.notification-list { min-height:0; overflow:auto; overscroll-behavior:contain; scrollbar-gutter:stable; overflow-anchor:none; }
 .notification-list:empty { display:none; }
 .notification-item { display:flex; align-items:flex-start; gap:12px; padding:18px 20px; border-bottom:1px solid var(--line); }
 .notification-item:last-child { border-bottom:0; }
+.notification-item[data-read="false"] { background:var(--surface-2); }
 .notification-icon, .toast-icon { flex:none; width:22px; height:22px; color:var(--muted); }
 .notification-icon svg, .toast-icon svg { width:100%; height:100%; }
 .notification-item[data-kind="ok"] .notification-icon, .toast[data-kind="ok"] .toast-icon { color:var(--success); }
@@ -1099,6 +1100,8 @@ select { cursor: pointer; }
 .notification-actions a { display:inline-flex; align-items:center; min-height:44px; color:var(--ink); font-size:13px; text-underline-offset:4px; }
 .notification-read { flex:none; display:grid; place-items:center; width:44px; height:44px; margin:-10px -10px 0 0; padding:12px; border:0; border-radius:var(--r-control); color:var(--muted); background:transparent; cursor:pointer; }
 .notification-read:hover { color:var(--ink); background:var(--surface-2); }
+.notification-filters button:focus-visible, .notification-read:focus-visible, .toast-close:focus-visible,
+.notification-actions a:focus-visible, .toast-action:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
 .notification-empty { margin:0; padding:40px 20px; color:var(--muted); text-align:center; }
 .notification-footer { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 12px; border-top:1px solid var(--line); flex:none; }
 .notification-footer .btn { min-height:44px; font-size:13px; padding:8px; white-space:nowrap; border-color:transparent; }
@@ -1165,10 +1168,10 @@ select { cursor: pointer; }
 .toasts:not([data-expanded="true"]) .toast[data-front="false"] > * { visibility: hidden; }
 .toast[data-hidden="true"] { visibility: hidden; }
 .toasts[data-expanded="true"] .toast { flex-shrink: 0; transform: none; }
-.toast-message { flex: 1; min-width: 0; padding-block: 9px; overflow-wrap: anywhere; max-height: calc(var(--toast-available-height) - 14px); overflow-y: auto; }
+.toast-message { flex: 1; min-width: 0; padding-block: 9px; overflow-wrap: anywhere; max-height: calc(var(--toast-available-height) - 18px); overflow-y: auto; overscroll-behavior:contain; }
 .toast-icon { margin-top:11px; }
 .toast-title, .toast-description { display:block; }
-.toast-title { margin-bottom:5px; font-size:13.5px; font-weight:500; }
+.toast-title { margin-bottom:5px; font:var(--type-button); }
 .toast-title + .toast-description { color:var(--muted); }
 .toast-description { white-space:pre-wrap; }
 .toast-action { display:inline-flex; align-items:center; min-height:44px; margin-top:4px; color:var(--ink); font-weight:500; text-underline-offset:4px; }

@@ -37,7 +37,7 @@ def test_notification_trigger_toggles_open_center(page, dashboard, width, activa
     page.goto(dashboard["url"])
     trigger = page.locator("#btnNotifications")
     panel = page.locator("#notificationCenter")
-    expect(page.locator("#startupLoading")).to_be_hidden()
+    expect(page.locator("#startupLoader")).to_be_hidden()
     for _ in range(2):
         for expanded in (True, False):
             if activation == "click":
@@ -133,6 +133,37 @@ def test_center_keyboard_filters_and_mark_all_when_new_feedback_arrives(page, da
     page.locator("#btnNotifications").click()
     page.mouse.click(1, 1)
     expect(page.locator("#notificationCenter")).not_to_be_visible()
+
+
+def test_live_updates_preserve_focused_action_and_scroll_position(page, dashboard):
+    page.goto(dashboard["url"])
+    expect(page.locator("#btnStop")).to_be_enabled()
+    history = [dict(HISTORY[0], id=f"run-{i}") for i in range(15)]
+    render_history(page, history)
+    page.locator("#btnNotifications").click()
+    link = page.locator('[data-id="operation:run-7"] a[href="#/console"]')
+    link.focus()
+    scroll_top = page.locator("#notificationList").evaluate("node => node.scrollTop")
+    assert scroll_top > 0
+    page.evaluate("toast('New feedback while reading', 'info', 120000)")
+    expect(link).to_be_focused()
+    assert page.locator("#notificationList").evaluate("node => node.scrollTop") == scroll_top
+    page.keyboard.press("Enter")
+    expect(page.locator("#view-console")).to_be_visible()
+    expect(page.locator("#notificationCenter")).not_to_be_visible()
+
+
+def test_live_updates_preserve_focused_unread_control(page, dashboard):
+    page.goto(dashboard["url"])
+    expect(page.locator("#btnStop")).to_be_enabled()
+    page.locator("#btnNotifications").click()
+    page.evaluate("toast('First unread', 'info', 120000)")
+    read = page.get_by_role("button", name="Прочитать уведомление: First unread", exact=True)
+    read.focus()
+    page.evaluate("toast('Second unread', 'info', 120000)")
+    expect(read).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(page.locator('.notification-item[data-read="false"]')).to_have_count(1)
 
 
 def test_identical_same_second_runs_use_server_ids(page, dashboard):
@@ -239,6 +270,12 @@ def test_center_layout_and_localization(page, dashboard, language, width):
     page.locator("#notificationClose").click()
     render_history(page, [dict(HISTORY[0], finishedAt="2026-10-08T12:03:00Z")])
     page.evaluate("toast('Settings saved', 'ok')")
+    expect(page.locator('.toast[data-front="true"] .toast-close')).to_have_attribute(
+        "aria-label",
+        "Dismiss notification: Settings saved"
+        if language == "en"
+        else "Закрыть уведомление: Settings saved",
+    )
     page.locator('.toast[data-front="true"] .toast-close').focus()
     page.wait_for_function("!document.getAnimations().some(a => a.playState === 'running')")
     page.screenshot(path=str(out / f"toast-{language}-{width}.png"))

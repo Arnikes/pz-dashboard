@@ -1493,5 +1493,6 @@
   "Пульт перезапускается. Соединение восстановится автоматически.": "The console is restarting. It will reconnect automatically.",
   "Не удалось запустить обновление пульта.": "Could not start the console update.",
   "Обновление пульта не удалось. Проверьте контейнер и журнал Docker.": "Console update failed. Check the container and Docker logs.",
-  "Контейнер пульта обновлён и запущен": "Console container updated and running"
+  "Контейнер пульта обновлён и запущен": "Console container updated and running",
+  "Закрыть уведомление: {{0}}": "Dismiss notification: {{0}}"
 }
