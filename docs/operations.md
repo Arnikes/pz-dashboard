@@ -47,6 +47,12 @@ Image checks compare the running container's local digest with the registry dige
 Applying an update pulls first and restarts only when the image changes.
 A configured pre-update world backup must succeed before the update proceeds.
 
+On every console start or restart, mod freshness is checked in the background
+when the game container is running, RCON responds, and no maintenance operation
+is active. This initial check populates the mod status even when scheduled mod
+checks are disabled. Applying updates still follows the existing manual or
+scheduled restart workflow.
+
 Automatic checks, warning periods, backups, and mod restart behavior are configured
 in Maintenance and Mods. Scheduled restarts warn players through RCON.
 After any server restart, mod freshness is rechecked so an already completed update

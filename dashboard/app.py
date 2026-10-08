@@ -659,9 +659,25 @@ def main():
         except Exception as error:  # noqa: BLE001
             ops.log_event("error", str(error))
 
+    def _startup_mods_check():
+        time.sleep(2)
+        try:
+            if ops.op_busy() or not ops.is_running():
+                return
+            ops.rcon("players", quiet=True)
+            ops.check_mods_update(source="startup")
+        except rcon.RCONError:
+            # A running container may still be loading the game server.
+            pass
+        except Exception as error:  # noqa: BLE001
+            ops.log_event("error", str(error))
+
     if docker_ok:
         threading.Thread(
             target=_startup_dashboard_check, daemon=True, name="pz-dashboard-startup-check"
+        ).start()
+        threading.Thread(
+            target=_startup_mods_check, daemon=True, name="pz-mods-startup-check"
         ).start()
 
     # первичная проба RCON, чтобы статус сразу показал живость сервера
