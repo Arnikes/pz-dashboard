@@ -1798,8 +1798,10 @@ function renderBackupsPage() {
     const verified = S.op?.history?.find(h => h.op === "verify-backup" && h.ok && h.archive?.name === b.name);
     const result = row.querySelector(".backup-result");
     setDomProperty(result, "hidden", !verified);
-    const note = verified && (!verified.archive.hasServerIni || !verified.archive.hasMapData) ? I18n.t(" · Проверьте состав архива в событиях") : "";
-    setDomProperty(result, "textContent", verified ? I18n.msg`Проверен ${fmtTime(verified.finishedAt)} · файлов: ${verified.archive.files}` + note : "");
+    const notes = [];
+    if (verified && !verified.archive.hasServerIni) notes.push(I18n.t("Нет конфигурации сервера (Server/*.ini)"));
+    if (verified && !verified.archive.hasMapData) notes.push(I18n.t("Нет данных мира"));
+    setDomProperty(result, "textContent", verified ? [I18n.msg`Проверен ${fmtTime(verified.finishedAt)} · файлов: ${verified.archive.files}`, ...notes].join(" · ") : "");
   });
   updateButtons();
 }

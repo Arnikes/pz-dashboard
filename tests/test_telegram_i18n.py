@@ -131,6 +131,13 @@ EVENTS = [
         "Проверка бэкапа Мир.tar.gz: OK — файлов 2, 5.3 МБ, замечания: нет Server/*.ini, нет Maps/",
         "Backup check Мир.tar.gz: OK — 2 files, 5.3 MB, notes: no Server/*.ini, no Maps/",
     ),
+    (
+        "backup",
+        "Проверка бэкапа Мир.tar.gz: OK — файлов 2, 5.3 МБ, замечания: "
+        "нет Server/*.ini, нет данных мира (Maps/ или Saves/Multiplayer/)",
+        "Backup check Мир.tar.gz: OK — 2 files, 5.3 MB, notes: "
+        "no Server/*.ini, no world data (Maps/ or Saves/Multiplayer/)",
+    ),
     ("restore", "Мир восстановлен из Мир.tar.gz", "World restored from Мир.tar.gz"),
     ("backup-delete", "Бэкап удалён: Мир.tar.gz", "Backup deleted: Мир.tar.gz"),
     ("backup-delete", "Удалено старых бэкапов: 3", "Old backups deleted: 3"),

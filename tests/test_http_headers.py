@@ -1,6 +1,5 @@
 """Header injection regressions exercised through real HTTP responses."""
 
-import io
 from pathlib import Path
 import urllib.parse
 
@@ -34,14 +33,15 @@ def test_static_mime_mapping_cannot_inject_headers(auth_server, monkeypatch, sep
         "backup%0D%0AX-Injected.tar.gz",
     ],
 )
-def test_backup_download_encodes_resolved_filename(auth_server, monkeypatch, filename):  # noqa: F811
+def test_backup_download_encodes_resolved_filename(auth_server, monkeypatch, tmp_path, filename):  # noqa: F811
     body = b"fictional archive bytes"
     # A POSIX symlink target may contain characters Windows cannot create.
     # Simulate that resolved file while exercising the real HTTP handler.
     path = "/backups/" + filename
+    archive = tmp_path / "archive.tar.gz"
+    archive.write_bytes(body)
     monkeypatch.setattr(app.ops, "backup_download_path", lambda name: path)
-    monkeypatch.setattr(app.os.path, "getsize", lambda path: len(body))
-    monkeypatch.setattr(app, "open", lambda *args: io.BytesIO(body), raising=False)
+    monkeypatch.setattr(app, "open", lambda *args: archive.open("rb"), raising=False)
     status, headers, received = request(
         auth_server,
         "GET",
@@ -57,3 +57,36 @@ def test_backup_download_encodes_resolved_filename(auth_server, monkeypatch, fil
     encoded = disposition.removeprefix(prefix)
     assert urllib.parse.unquote(encoded) == filename
     assert all(ord(char) < 128 and char not in '\r\n"; ' for char in encoded)
+
+
+def test_backup_disappearing_before_open_returns_error(auth_server, monkeypatch, tmp_path):  # noqa: F811
+    missing = tmp_path / "gone.tar.gz"
+    monkeypatch.setattr(app.ops, "backup_download_path", lambda name: str(missing))
+    monkeypatch.setattr(app.os.path, "getsize", lambda path: 100)
+    status, headers, body = request(
+        auth_server,
+        "GET",
+        "/api/backup/download?name=gone.tar.gz",
+        cookie=sign_in(auth_server),
+    )
+    assert status == 404
+    assert body["ok"] is False
+    assert headers["Cache-Control"] == "no-store"
+
+
+def test_backup_download_size_comes_from_open_file(auth_server, monkeypatch, tmp_path):  # noqa: F811
+    archive = tmp_path / "world.tar.gz"
+    content = b"complete archive bytes"
+    archive.write_bytes(content)
+    monkeypatch.setattr(app.ops, "backup_download_path", lambda name: str(archive))
+    monkeypatch.setattr(app.os.path, "getsize", lambda path: 3)
+    status, headers, body = request(
+        auth_server,
+        "GET",
+        "/api/backup/download?name=world.tar.gz",
+        cookie=sign_in(auth_server),
+    )
+    assert status == 200
+    assert headers["Content-Length"] == str(len(content))
+    assert headers["Cache-Control"] == "no-store"
+    assert body == content

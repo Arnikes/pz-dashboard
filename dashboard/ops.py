@@ -1327,7 +1327,11 @@ def verify_backup(name):
                 rel = os.path.relpath(fp, dest).replace(os.sep, "/")
                 if rel.startswith("Server/") and fn.lower().endswith(".ini"):
                     has_ini = True
-                if rel.startswith("Maps/"):
+                if rel.startswith("Maps/") or (
+                    rel.startswith("Saves/Multiplayer/")
+                    and (fn == "map.bin" or fn.startswith("map_"))
+                    and fn.endswith(".bin")
+                ):
                     has_map = True
         if not files:
             raise OpsError("Архив распаковался, но файлов внутри нет")
@@ -1335,7 +1339,7 @@ def verify_backup(name):
         if not has_ini:
             notes.append("нет Server/*.ini")
         if not has_map:
-            notes.append("нет Maps/")
+            notes.append("нет данных мира (Maps/ или Saves/Multiplayer/)")
         res = {
             "name": name,
             "files": files,

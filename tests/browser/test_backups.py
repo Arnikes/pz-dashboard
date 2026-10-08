@@ -224,3 +224,47 @@ def test_schedule_saved_message_uses_toast_and_keeps_errors_inline(page, backups
     expect(page.locator("#sec-bksched .settings-feedback")).to_contain_text("Ввод сохранён")
     expect(page.locator("#bkAutoStop")).to_be_checked()
     expect(page.get_by_role("button", name="Повторить сохранение")).to_be_visible()
+
+
+@pytest.mark.parametrize("width", [390, 1440])
+@pytest.mark.parametrize("language", ["ru", "en"])
+def test_verified_archive_explains_missing_contents_inline(page, dashboard, width, language):
+    page.set_viewport_size({"width": width, "height": 900})
+    page.add_init_script(f"localStorage.setItem('pz-language', '{language}')")
+    page.goto(dashboard["url"] + "/#/backups")
+    expect(page.locator("#startupLoader")).to_be_hidden()
+    page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
+    page.evaluate("""() => renderBackups({ok:true,items:[{
+        name:'world-with-a-very-long-name.tar.gz',size:123456789,
+        mtime:'2026-10-08T00:00:00Z'}]})""")
+    result = page.locator(".backup-result")
+    for has_ini, has_map in [(False, True), (True, False), (True, True), (False, False)]:
+        page.evaluate(
+            """([ini,map]) => renderOp({active:null,history:[{op:'verify-backup',ok:true,
+            finishedAt:'2026-10-08T01:00:00Z',archive:{
+            name:'world-with-a-very-long-name.tar.gz',files:3,
+            hasServerIni:ini,hasMapData:map}}]})""",
+            [has_ini, has_map],
+        )
+        expect(result).to_be_visible()
+        text = result.inner_text()
+        assert ("Проверен" if language == "ru" else "Verified") in text
+        assert ("файлов: 3" if language == "ru" else "files: 3") in text
+        ini_note = (
+            "Нет конфигурации сервера" if language == "ru" else "Missing server configuration"
+        )
+        map_note = "Нет данных мира" if language == "ru" else "Missing world data"
+        assert (ini_note in text) is (not has_ini)
+        assert (map_note in text) is (not has_map)
+        assert "Server/*.ini" in text if not has_ini else "Server/*.ini" not in text
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    assert dashboard["actions"] == []
+    if os.getenv("PZ_BACKUP_AUDIT_EVIDENCE"):
+        page.locator("#toasts").evaluate("el => el.replaceChildren()")
+        result.scroll_into_view_if_needed()
+        page.screenshot(
+            path=str(
+                Path(os.environ["PZ_BACKUP_AUDIT_EVIDENCE"]) / f"backups-{language}-{width}.png"
+            ),
+            full_page=True,
+        )

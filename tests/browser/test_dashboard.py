@@ -377,6 +377,8 @@ def test_stop_requires_confirmation_and_shows_api_error(page, dashboard):
 
 @pytest.mark.parametrize("width,height", [(1440, 900), (390, 844)])
 def test_cancel_auto_mods_update(page, dashboard, width, height):
+    operation = {"active": None, "history": []}
+    page.route("**/api/ops", lambda route: route.fulfill(json=operation))
     page.set_viewport_size({"width": width, "height": height})
     page.goto(dashboard["url"])
     expect(page.locator("#btnStop")).to_be_enabled()
@@ -389,7 +391,8 @@ def test_cancel_auto_mods_update(page, dashboard, width, height):
         "cancellable": True,
         "cancelRequested": False,
     }
-    page.evaluate("active => renderOp({active, history: []})", active)
+    operation["active"] = active
+    page.evaluate("op => renderOp(op)", operation)
     expect(cancel).to_be_visible()
     expect(cancel).to_be_enabled()
     expect(page.locator("#btnStop")).to_be_disabled()
@@ -405,16 +408,26 @@ def test_cancel_auto_mods_update(page, dashboard, width, height):
     expect(cancel).to_have_text("Отмена…")
     expect(cancel).to_be_disabled()
     assert requests == [{"op": "cancel-mods-update"}]
-    page.evaluate("""renderOp({active: null, history: [{
-        op: 'mods-restart', ok: true, cancelled: true,
-        finishedAt: '2026-10-08T12:00:00Z',
-        message: 'Автообновление модов отменено администратором'
-    }]})""")
+    operation.update(
+        active=None,
+        history=[
+            {
+                "op": "mods-restart",
+                "ok": True,
+                "cancelled": True,
+                "finishedAt": "2026-10-08T12:00:00Z",
+                "message": "Автообновление модов отменено администратором",
+            }
+        ],
+    )
+    page.evaluate("op => renderOp(op)", operation)
     expect(cancel).to_be_hidden()
     expect(page.locator("#toasts")).to_contain_text("Автообновление модов отменено администратором")
 
 
 def test_cancel_button_hidden_for_other_operations_and_stopping(page, dashboard):
+    state = {"active": None, "history": []}
+    page.route("**/api/ops", lambda route: route.fulfill(json=state))
     page.goto(dashboard["url"])
     expect(page.locator("#btnStop")).to_be_enabled()
     for operation, cancellable in [
@@ -422,19 +435,22 @@ def test_cancel_button_hidden_for_other_operations_and_stopping(page, dashboard)
         ("apply-mods-update", True),
         ("mods-restart", False),
     ]:
-        page.evaluate(
-            "active => renderOp({active, history: []})",
-            {"op": operation, "phase": "Остановка", "cancellable": cancellable},
-        )
+        state["active"] = {"op": operation, "phase": "Остановка", "cancellable": cancellable}
+        page.evaluate("op => renderOp(op)", state)
         expect(page.locator("#btnCancelMods")).to_be_hidden()
 
 
 def test_cancel_mods_update_shows_api_rejection(page, dashboard):
+    operation = {
+        "active": {
+            "op": "mods-restart",
+            "phase": "Предупреждение игроков",
+            "cancellable": True,
+        },
+        "history": [],
+    }
+    page.route("**/api/ops", lambda route: route.fulfill(json=operation))
     page.goto(dashboard["url"])
-    expect(page.locator("#btnStop")).to_be_enabled()
-    page.evaluate("""renderOp({active: {
-        op: 'mods-restart', phase: 'Предупреждение игроков', cancellable: true
-    }, history: []})""")
     page.locator("#btnCancelMods").click()
     expect(page.locator("#toasts")).to_contain_text("Тест: сервер занят")
     assert dashboard["actions"] == [{"op": "cancel-mods-update"}]

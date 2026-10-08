@@ -331,3 +331,50 @@ def test_rcon_waits_for_response_and_rejects_silence(reply):
     finally:
         thread.join(timeout=3)
     assert not thread.is_alive() and not errors
+
+
+def test_rcon_reset_after_response_packet_is_not_success(monkeypatch):
+    connection = Mock()
+    connection.recv.side_effect = [
+        rcon._pack(2, 0, "partial result"),
+        ConnectionResetError("connection reset"),
+        b"",
+    ]
+    monkeypatch.setattr(rcon.socket, "create_connection", lambda *args, **kwargs: connection)
+    monkeypatch.setattr(rcon.RCON, "_auth", lambda self: True)
+    with pytest.raises(rcon.RCONError, match="недоступен"):
+        rcon.RCON("127.0.0.1", 27015, "secret").run("players")
+    connection.close.assert_called_once()
+
+
+def test_rcon_auth_eof_stops_reading_closed_connection():
+    client = rcon.RCON("127.0.0.1", 27015, "secret")
+    client.sock = Mock()
+    client.sock.recv.side_effect = [b"", AssertionError("read after EOF")]
+    with pytest.raises(rcon.RCONError, match="не ответил на авторизацию"):
+        client._auth()
+    client.sock.recv.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "map_path", ["Saves/Multiplayer/test/map.bin", "Saves/Multiplayer/test/map_0_0.bin"]
+)
+def test_verify_backup_detects_multiplayer_world(audit_env, map_path):
+    world = audit_env / map_path
+    world.parent.mkdir(parents=True)
+    world.write_bytes(b"fictional map data")
+    ini = audit_env / "Server" / "test.ini"
+    ini.parent.mkdir()
+    ini.write_bytes(b"Mods=\n")
+    backup = ops.run_backup_job("manual", False)
+    result = ops.verify_backup(backup["name"])
+    assert result["hasMapData"] is True
+    assert result["hasServerIni"] is True
+
+
+def test_verify_backup_does_not_mistake_player_database_for_map_data(audit_env):
+    players = audit_env / "Saves/Multiplayer/test/players.db"
+    players.parent.mkdir(parents=True)
+    players.write_bytes(b"fictional player data")
+    backup = ops.run_backup_job("manual", False)
+    assert ops.verify_backup(backup["name"])["hasMapData"] is False

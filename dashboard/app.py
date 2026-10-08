@@ -208,34 +208,41 @@ class Handler(BaseHTTPRequestHandler):
             self._send_error_json(400, str(e))
             return
         try:
-            size = os.path.getsize(path)
+            source = open(path, "rb")
         except OSError:
-            # архив исчез между проверкой и чтением (например, удалил prune)
+            # Rotation can remove an archive after name validation.
             self._send_error_json(404, "Файл бэкапа не найден")
             return
-        try:
-            # RFC 5987 keeps Unicode and quoted filenames out of raw HTTP headers.
-            download_name = urllib.parse.quote(os.path.basename(path), safe="")
-            disposition = (
-                f"attachment; filename=\"backup.tar.gz\"; filename*=UTF-8''{download_name}"
-            )
-            # Enforce the same CR/LF boundary as for host-derived MIME headers.
-            disposition = disposition.replace("\r", "").replace("\n", "")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/gzip")
-            self.send_header("Content-Length", str(size))
-            self.send_header("Content-Disposition", disposition)
-            self.end_headers()
-            with open(path, "rb") as f:
-                while True:
-                    chunk = f.read(1024 * 256)
+        with source:
+            try:
+                size = os.fstat(source.fileno()).st_size
+            except OSError:
+                self._send_error_json(404, "Файл бэкапа не найден")
+                return
+            try:
+                # RFC 5987 keeps Unicode and quoted filenames out of raw HTTP headers.
+                download_name = urllib.parse.quote(os.path.basename(path), safe="")
+                disposition = (
+                    f"attachment; filename=\"backup.tar.gz\"; filename*=UTF-8''{download_name}"
+                )
+                disposition = disposition.replace("\r", "").replace("\n", "")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/gzip")
+                self.send_header("Content-Length", str(size))
+                self.send_header("Content-Disposition", disposition)
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                remaining = size
+                while remaining:
+                    chunk = source.read(min(1024 * 256, remaining))
                     if not chunk:
+                        self.close_connection = True
                         break
                     self.wfile.write(chunk)
-        except OSError:
-            # заголовки уже ушли (файл пропал mid-stream или клиент отвалился) —
-            # остаётся честно закрыть соединение
-            self.close_connection = True
+                    remaining -= len(chunk)
+            except OSError:
+                # Headers have already been sent; close an interrupted download.
+                self.close_connection = True
 
     def log_message(self, fmt, *args):  # тише в логах
         sys.stderr.write("[http] %s\n" % (fmt % args))

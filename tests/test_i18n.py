@@ -49,10 +49,12 @@ def test_catalog_parity_placeholders_and_english_coverage():
     ru = json.loads((ROOT / "locales/ru.json").read_text(encoding="utf-8"))
     assert en.keys() == ru.keys()
     for key in en:
+        assert not re.search(r"(?<!\{)\{\d+\}(?!\})", key), key
         slots = sorted(re.findall(r"{{\d+}}", key))
         for language in (en, ru):
             forms = language[key].values() if isinstance(language[key], dict) else [language[key]]
             for form in forms:
+                assert not re.search(r"(?<!\{)\{\d+\}(?!\})", form), (key, form)
                 assert sorted(re.findall(r"{{\d+}}", form)) == slots, (key, form)
         assert not re.search("[А-Яа-яЁё]", str(en[key])), key
 

@@ -80,8 +80,6 @@ class RCON:
                 if (out or not wait_first) and not self._buf:
                     break
                 continue
-            except OSError:
-                break
             if not chunk:
                 break
             self._buf += chunk
@@ -91,7 +89,10 @@ class RCON:
         self.sock.sendall(_pack(1, SERVERDATA_AUTH, self.password))
         deadline = time.monotonic() + self.connect_timeout + 2.0
         while time.monotonic() < deadline:
-            for rid, typ, body in self._read_packets(deadline):
+            packets = self._read_packets(deadline)
+            if not packets:
+                break
+            for rid, typ, body in packets:
                 if typ == SERVERDATA_EXECCOMMAND and rid == 1:
                     # SERVERDATA_AUTH_RESPONSE приходит с rid==1 при успехе
                     return True
