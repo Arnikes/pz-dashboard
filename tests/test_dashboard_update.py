@@ -8,6 +8,7 @@ from unittest.mock import Mock
 import pytest
 
 import actions
+import app
 import config
 import dashboardupdate as updater
 import dockerlib
@@ -16,6 +17,88 @@ import ops
 OLD = "sha256:" + "a" * 64
 NEW = "sha256:" + "b" * 64
 IMAGE = "ghcr.io/example/console:latest"
+
+
+@pytest.fixture
+def startup(monkeypatch, tmp_path, authenticated_admin):
+    monkeypatch.setitem(config.CFG, "backup_dir", str(tmp_path / "backups"))
+    monkeypatch.setitem(config.CFG, "dashboard_dir", str(tmp_path / "dashboard"))
+    monkeypatch.setattr(app.auth.Auth, "from_env", lambda: authenticated_admin[0])
+    monkeypatch.setattr(ops, "_load_settings", Mock())
+    monkeypatch.setattr(ops, "log_event", Mock())
+    monkeypatch.setattr(ops, "start_scheduler", Mock())
+    monkeypatch.setattr(ops, "start_watchdog", Mock())
+    monkeypatch.setattr(ops, "rcon", Mock())
+    monkeypatch.setattr(ops, "check_update", Mock())
+    monkeypatch.setattr(app.notify, "start_worker", Mock())
+    monkeypatch.setattr(dockerlib, "docker_version", lambda: True)
+    monkeypatch.setattr(dockerlib, "compose_version", lambda: True)
+    monkeypatch.setattr(app.time, "sleep", Mock())
+    monkeypatch.setattr(app, "ThreadingHTTPServer", Mock())
+    threads = {}
+
+    def thread(*, target, daemon, name):
+        assert daemon
+        threads[name] = target
+        return Mock()
+
+    monkeypatch.setattr(app.threading, "Thread", thread)
+    return threads
+
+
+@pytest.mark.parametrize("available", [True, False, None])
+def test_startup_populates_console_check_without_manual_action(
+    startup, deployment, monkeypatch, available
+):
+    command = deployment[2]
+    command.side_effect = lambda args, **kw: (
+        1 if available is None else 0,
+        json.dumps(
+            {"SchemaV2Manifest": {"config": {"digest": NEW if available else OLD}}}
+            if "manifest" in args
+            else [{"Os": "linux", "Architecture": "amd64"}]
+        ),
+        "",
+    )
+    # A failed game-image check must not prevent the console's independent check.
+    ops.check_update.side_effect = RuntimeError("game registry unavailable")
+    app.main()
+    assert not updater.state().get("at")
+    startup["pz-startup-check"]()
+    startup["pz-dashboard-startup-check"]()
+    result = updater.state()
+    assert result["at"] and result["available"] is available
+    assert bool(result["error"]) is (available is None)
+    ops.check_update.assert_called_once_with(force_event=True)
+    dockerlib.image_pull.assert_not_called()
+    assert not updater.operation()
+    assert all("run" not in call.args[0] for call in command.call_args_list)
+
+
+def test_startup_skips_unsupported_console_image(startup, deployment, monkeypatch):
+    deployment[0]["Config"]["Image"] = IMAGE + "@" + OLD
+    check = Mock()
+    monkeypatch.setattr(updater, "check", check)
+    app.main()
+    startup["pz-dashboard-startup-check"]()
+    check.assert_not_called()
+    assert all(call.args[0] != "error" for call in ops.log_event.call_args_list)
+
+
+def test_startup_skips_console_check_without_docker(startup, monkeypatch):
+    monkeypatch.setattr(dockerlib, "docker_version", lambda: False)
+    app.main()
+    assert "pz-startup-check" in startup
+    assert "pz-dashboard-startup-check" not in startup
+
+
+def test_startup_console_failure_is_contained(startup, monkeypatch):
+    monkeypatch.setattr(updater, "state", Mock(side_effect=RuntimeError("inspect unavailable")))
+    app.main()
+    startup["pz-dashboard-startup-check"]()
+    ops.log_event.assert_called_with("error", "inspect unavailable")
+    startup["pz-startup-check"]()
+    ops.check_update.assert_called_once_with(force_event=True)
 
 
 @pytest.fixture(

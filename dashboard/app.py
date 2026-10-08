@@ -20,6 +20,7 @@ import config
 import configeditor
 import i18n
 from configformats import FormatError
+import dashboardupdate
 import dockerlib
 import notify
 import ops
@@ -649,6 +650,19 @@ def main():
             ops.log_event("error", "Стартовая проверка обновлений: " + str(e))
 
     threading.Thread(target=_startup_check, daemon=True, name="pz-startup-check").start()
+
+    def _startup_dashboard_check():
+        time.sleep(2)
+        try:
+            if dashboardupdate.state()["supported"]:
+                dashboardupdate.check()
+        except Exception as error:  # noqa: BLE001
+            ops.log_event("error", str(error))
+
+    if docker_ok:
+        threading.Thread(
+            target=_startup_dashboard_check, daemon=True, name="pz-dashboard-startup-check"
+        ).start()
 
     # первичная проба RCON, чтобы статус сразу показал живость сервера
     try:

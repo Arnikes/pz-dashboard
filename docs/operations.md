@@ -59,7 +59,9 @@ The API action `cancel-mods-update` returns HTTP 409 if there is no cancellable 
 ## Player warning language
 
 Maintenance → Console update checks the running console image against its registry
-and updates only the console service. The game server stays running. Confirm the
+and updates only the console service. The check also runs automatically in the
+background after every console start or restart, independently of game image checks.
+The game server stays running. Confirm the
 update to download the image and recreate the console through a temporary helper;
 the browser reconnects automatically. The operation result survives the restart.
 The helper uses the current console image and shared mounts, freezes Compose
