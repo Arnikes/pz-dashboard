@@ -113,6 +113,9 @@ def test_navigation_keeps_one_stream_and_hidden_polling_does_not_overlap(page, d
 def test_unchanged_events_and_journal_retain_nodes_but_changes_refresh(page, dashboard):
     page.goto(dashboard["url"] + "/#/events")
     expect(page.locator("#btnStop")).to_be_enabled()
+    # The overview can arrive before the route's initial events request finishes.
+    # Drain startup before injecting snapshots that must survive filter changes.
+    expect(page.locator("#startupLoader")).to_be_hidden()
     page.evaluate(r"""() => {
         liveSource?.close(); liveSource=null; clearTimeout(sseStartupTimer);
         window.eventSnapshot={ok:true,items:[{ts:'2026-09-01T00:00:00Z',type:'backup',text:'Архив "Север" — администратор\'s'}]};

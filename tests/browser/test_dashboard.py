@@ -142,15 +142,21 @@ def test_watchdog_grace_setting_and_status(page, dashboard, width):
     grace.fill("61")
     grace.press("Tab")
     assert len(requests) == 1
+    # Saving triggers an overview refresh. Keep its response consistent with the
+    # next live snapshot so it cannot restore the previous grace state.
+    dashboard["overview"]["watchdog"] = {"graceRemainingSec": 0, "lastResult": "ok"}
     grace.fill("0")
     grace.press("Tab")
     page.wait_for_function("settingState('watchdog').pending === 0")
     assert requests[-1]["watchdog"]["gracePeriodMin"] == 0
-    page.evaluate("renderOverview({...S.overview,watchdog:{graceRemainingSec:0,lastResult:'ok'}})")
+    page.evaluate(
+        "watchdog => renderOverview({...S.overview,watchdog})", dashboard["overview"]["watchdog"]
+    )
     expect(page.locator("#wdPill")).to_have_text("следит")
     page.locator("#sec-watchdog").scroll_into_view_if_needed()
     page.screenshot(path=f".tmp-watchdog/maintenance-{width}.png", full_page=True)
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    dashboard["overview"]["mode"] = "remote"
     page.evaluate("renderOverview({...S.overview,mode:'remote'})")
     expect(grace).to_be_disabled()
 

@@ -213,6 +213,13 @@ def test_update_loads_changed_dashboard_html_css_and_javascript(page, context, p
     fresh.goto(pwa_server["url"] + "/")
     expect(fresh.locator("body")).to_have_attribute("data-pwa-release", "two")
     expect(fresh.locator("body")).to_have_attribute("data-pwa-shell-release", "two")
+    # The fresh window registers the worker and starts its own update check.
+    # Finish that job before asking the original tab to activate the waiting worker.
+    expect(fresh.locator("#pwaUpdate")).to_be_visible()
+    fresh.evaluate("async () => (await navigator.serviceWorker.getRegistration()).update()")
+    fresh.wait_for_function(
+        "navigator.serviceWorker.getRegistration().then(r => !r.installing && r.waiting?.state === 'installed')"
+    )
     assert set(old_caches).issubset(page.evaluate("caches.keys()"))
     # The fresh-window check switched tabs; updating is a foreground user action.
     page.bring_to_front()
