@@ -211,8 +211,20 @@ def test_capture_readme(page, dashboard, editing, monkeypatch):  # noqa: F811
         page.evaluate("window.scrollTo(0,0)")
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
         assert not re.search("[А-Яа-яЁё]", page.locator(f"#view-{route}").inner_text())
-        page.screenshot(path=str(out / f"{route}.png"), full_page=True)
         captures[route]["laptop"] = page.screenshot()
+        # Fit the document into the viewport so fixed chrome stays at its edge.
+        # full_page=True alone leaves the footer across the middle of long pages.
+        try:
+            page.set_viewport_size(
+                {"width": 1440, "height": page.evaluate("document.documentElement.scrollHeight")}
+            )
+            assert page.evaluate("document.documentElement.scrollHeight <= innerHeight")
+            content = page.locator(f"#view-{route}").bounding_box()
+            footer = page.locator(".site-footer").bounding_box()
+            assert content["y"] + content["height"] <= footer["y"]
+            page.screenshot(path=str(out / f"{route}.png"))
+        finally:
+            page.set_viewport_size({"width": 1440, "height": 900})
     for device, width, height in [("tablet", 820, 1180), ("phone", 390, 844)]:
         page.set_viewport_size({"width": width, "height": height})
         for route in routes:

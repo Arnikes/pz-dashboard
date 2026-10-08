@@ -5,9 +5,12 @@ against isolated local fixtures. The fictional server is **Riverside Co-op**;
 player names, metrics, history, archives, Workshop IDs, and mod metadata are synthetic.
 Workshop IDs 111, 222, and 333 are fixture identifiers, not package recommendations.
 
-Desktop captures use 1440 × 900; tablet captures use 820 × 1180;
+Desktop device captures use 1440 × 900; tablet captures use 820 × 1180;
 the mobile viewport is 390 × 844.
-Desktop images capture the full page; mobile captures the visible viewport.
+Standalone desktop images use a 1440-pixel-wide viewport expanded to fit the full
+page before capture, keeping the fixed footer below the content. The capture
+asserts that the page fits and its content ends above the footer. Device and
+mobile images capture the visible viewport at their original dimensions.
 The browser locale is `en-US` and its timezone is UTC.
 The interface is English, fonts are bundled locally,
 the clock starts at 2026-10-06 18:00 UTC, and animations are disabled.
