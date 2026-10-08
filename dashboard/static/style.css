@@ -131,6 +131,30 @@ body {
 }
 
 ::selection { color: var(--ink); background: var(--selection); }
+
+/* Keep the first paint independent of JavaScript and network timing. */
+.is-booting { overflow: hidden; }
+#dashboardShell { display: contents; }
+.is-booting #dashboardShell { display: none; }
+.startup-loader {
+  position: fixed; inset: 0; z-index: 200;
+  display: grid; place-items: center; padding: 24px;
+  overflow-y: auto; background: var(--bg); color: var(--ink);
+}
+.startup-content { width: min(100%, 320px); text-align: center; }
+.startup-brand { display: block; width: 40px; height: 40px; margin: 0 auto 16px; color: var(--danger-text); }
+.startup-title { font: 600 26px/1.25 var(--font-body); letter-spacing: -.02em; }
+.startup-track { width: 144px; height: 3px; margin: 28px auto 16px; overflow: hidden; border-radius: var(--r-pill, 999px); background: var(--surface-3); }
+.startup-track span { display: block; width: 48px; height: 100%; border-radius: inherit; background: var(--ink); animation: startup-loading 1.6s var(--ease) infinite alternate; }
+.startup-label, .startup-slow p { margin: 0; color: var(--muted); }
+.startup-slow { margin-top: 24px; }
+.startup-slow .btn { margin-top: 16px; }
+@keyframes startup-loading { from { transform: translateX(0); } to { transform: translateX(96px); } }
+@media (prefers-reduced-motion: reduce) { .startup-track span { animation: none; transform: translateX(48px); } }
+@media (forced-colors: active) {
+  .startup-track { background: Canvas; outline: 1px solid CanvasText; }
+  .startup-track span { background: CanvasText; }
+}
 * { scrollbar-color: var(--line-strong) var(--bg-deep); scrollbar-width: thin; }
 input, textarea { caret-color: var(--accent); }
 a { text-underline-offset: .2em; }

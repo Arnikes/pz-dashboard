@@ -177,6 +177,7 @@ def test_update_loads_changed_dashboard_html_css_and_javascript(page, context, p
     context.add_cookies([{"name": auth.COOKIE_NAME, "value": token, "url": pwa_server["url"]}])
     page.goto(pwa_server["url"] + "/#/settings")
     page.wait_for_function("!!navigator.serviceWorker.controller && !!window.ConfigEditor")
+    expect(page.locator("#startupLoader")).to_be_hidden()
     # Drain the startup check before changing files: overlapping update() jobs can
     # share its unchanged worker response and miss the release published below.
     page.evaluate("async () => (await navigator.serviceWorker.getRegistration()).update()")
@@ -293,6 +294,7 @@ def test_update_alert_floats_without_moving_layout_and_stays_visible(
     context.add_cookies([{"name": auth.COOKIE_NAME, "value": token, "url": pwa_server["url"]}])
     page.goto(pwa_server["url"] + "/")
     page.wait_for_function("!!navigator.serviceWorker.controller && !!window.ConfigEditor")
+    expect(page.locator("#startupLoader")).to_be_hidden()
     page.evaluate(
         "async () => { await document.fonts.ready; await (await navigator.serviceWorker.getRegistration()).update(); }"
     )

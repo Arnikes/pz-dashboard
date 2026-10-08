@@ -1445,5 +1445,8 @@
   "Потяните для изменения порядка; пробел — взять, стрелки — переместить, Escape — отменить": "Drag to reorder; Space to grab, arrow keys to move, Escape to cancel",
   "{{0}}: позиция {{1}} из {{2}}.": "{{0}}: position {{1}} of {{2}}.",
   "Перемещение отменено. Порядок сохранён.": "Move cancelled. Order preserved.",
-  "overwrite должен быть boolean": "overwrite must be boolean"
+  "overwrite должен быть boolean": "overwrite must be boolean",
+  "Загружаем данные сервера…": "Loading server data…",
+  "Загрузка занимает больше времени, чем обычно.": "Loading is taking longer than usual.",
+  "Перезагрузить": "Reload"
 }

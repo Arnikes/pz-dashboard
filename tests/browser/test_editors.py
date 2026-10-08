@@ -666,6 +666,8 @@ def test_apply_review_can_skip_world_backup(page, dashboard, editing, width, ent
     page.goto(dashboard["url"] + "/#/mods")
     expect(page.locator("#configProfile")).to_have_value("world.ini")
     if entry == "save":
+        expect(page.locator("#startupLoader")).to_be_hidden()
+        page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
         page.evaluate(
             "renderOverview({...S.overview,containerInfo:{running:false,status:'exited'}})"
         )
@@ -1226,7 +1228,12 @@ def test_rendered_fields_wait_for_profile_metadata(
             navigate(page, "settings", width == 390)
 
     field = page.locator(f'[data-key="{key}"]')
-    expect(field).to_be_visible()
+    if initial_load:
+        expect(page.locator("#startupLoader")).to_be_visible()
+        expect(field).to_be_attached()
+        expect(field).to_be_hidden()
+    else:
+        expect(field).to_be_visible()
     expect(page.locator("#view-settings")).to_have_attribute("aria-busy", "true")
     page.wait_for_function("S.overview?.serverName === 'Browser test server'")
     # Searching also creates new field nodes while the profile is still loading.
@@ -1242,7 +1249,14 @@ def test_rendered_fields_wait_for_profile_metadata(
         });
         fieldLockObserver.observe(document.getElementById('configFields'), {childList:true});
     }""")
-    page.locator("#configSearch").fill(key)
+    if initial_load:
+        # Exercise rendering beneath the startup screen without user interaction.
+        page.locator("#configSearch").evaluate(
+            "(el, value) => { el.value = value; el.dispatchEvent(new Event('input', {bubbles:true})); }",
+            key,
+        )
+    else:
+        page.locator("#configSearch").fill(key)
     page.wait_for_function("renderedFieldLocks.length > 0")
     assert all(page.evaluate("renderedFieldLocks"))
     page.evaluate("fieldLockObserver.disconnect()")

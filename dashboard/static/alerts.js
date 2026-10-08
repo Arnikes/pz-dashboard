@@ -26,7 +26,8 @@ window.FloatingAlerts = (() => {
     if (noteId) note.id = noteId;
     const alert = { element, action, label: action.querySelector("span"), message: element.querySelector(".pwa-update-message"), note };
     alerts.push(alert);
-    document.body.append(element);
+    // Dashboard startup protects dynamically created controls as well.
+    (document.getElementById("dashboardShell") || document.body).append(element);
     resize.observe(element);
     visibility.observe(element, { attributes: true, attributeFilter: ["hidden"] });
     return alert;

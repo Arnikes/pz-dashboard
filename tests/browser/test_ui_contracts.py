@@ -91,10 +91,11 @@ def test_navigation_keeps_one_stream_and_hidden_polling_does_not_overlap(page, d
     assert held == []
     assert hidden_requests == []
     assert page.evaluate("liveSource===null")
-    page.evaluate("""() => {
-        Object.defineProperty(document,'hidden',{value:false,configurable:true});
-        document.dispatchEvent(new Event('visibilitychange'));
-    }""")
+    with page.expect_request("**/api/overview"):
+        page.evaluate("""() => {
+            Object.defineProperty(document,'hidden',{value:false,configurable:true});
+            document.dispatchEvent(new Event('visibilitychange'));
+        }""")
     # Stay below the foreground recovery timeout: expired requests are discarded.
     page.clock.run_for(4000)
     assert len(held) == 1
@@ -170,6 +171,7 @@ def test_local_help_is_available_without_external_assets(page, dashboard, width)
 def test_commands_keyboard_navigation_and_escape_restore_focus(page, dashboard, width):
     page.set_viewport_size({"width": width, "height": 844})
     page.goto(dashboard["url"])
+    expect(page.locator("#startupLoader")).to_be_hidden()
     trigger = page.locator("#btnCommands")
     trigger.focus()
     page.keyboard.press("Control+k")

@@ -57,6 +57,7 @@ def test_draft_stays_reachable(page, dashboard, editing, width):  # noqa: F811
 
 def test_archive_result_is_specific_and_schedule_distinguishes_time_zones(page, dashboard):
     page.goto(dashboard["url"] + "/#/backups")
+    expect(page.locator("#startupLoader")).to_be_hidden()
     page.evaluate("""() => renderBackups({ok:true,autoBackup:{enabled:true,time:'03:00',
         nextRun:'2026-10-07T03:00:00+03:00'},items:[
         {name:'first.tar.gz',size:10,mtime:'2026-10-06T00:00:00Z'},

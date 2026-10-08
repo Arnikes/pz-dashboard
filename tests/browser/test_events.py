@@ -12,6 +12,7 @@ pytestmark = pytest.mark.browser
 @pytest.fixture
 def events_page(page, dashboard):
     page.goto(dashboard["url"] + "/#/events")
+    expect(page.locator("#startupLoader")).to_be_hidden()
     expect(page.locator("#btnStop")).to_be_enabled()
     page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
     entries = [

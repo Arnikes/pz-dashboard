@@ -469,7 +469,8 @@ const modal = (() => {
 /* ───────────────────────── API / демо-режим ───────────────────────── */
 
 const S = {
-  demo: false,
+  // Establish intent before editor.js can issue its initial profile request.
+  demo: location.protocol === "file:" || new URLSearchParams(location.search).get("demo") === "1",
   overview: null,
   stats: null,
   players: null,
@@ -938,7 +939,7 @@ function setAvailability(id, message) {
 
 function updateButtons() {
   const o = S.overview;
-  const busy = operationBusy() || S.demo;
+  const busy = operationBusy() || S.demo || document.body.classList.contains("is-booting");
   const remote = !!(o && o.mode === "remote");
   const rconOk = !!(o && o.rcon && o.rcon.state === "ok");
   const running = !remote && !!(o && o.containerInfo && o.containerInfo.running);
@@ -1006,6 +1007,8 @@ function updateButtons() {
   $("btnBackup").setAttribute("aria-describedby", "backupAvailability");
   $("consoleInput").setAttribute("aria-describedby", "consoleAvailability");
   window.ConfigEditor?.operationChanged();
+  // The inert startup shell needs no temporary availability descriptions.
+  if (document.body.classList.contains("is-booting")) return;
   for (const [view, description] of Object.entries({
     players: "playersAvailability", mods: "modsAvailability", settings: "settingsAvailability",
     maintenance: "maintenanceAvailability", backups: "backupAvailability", console: "consoleAvailability",
@@ -2570,7 +2573,7 @@ async function retryConnection() {
     if (!overview.ok || overview.error) throw new Error("Console unavailable");
     connectionAttempt = null;
     applyOverview(overview);
-    if (!pollingStarted) {
+    if (!pollingStarted && !document.body.classList.contains("is-booting")) {
       liveSource?.close();
       liveSource = null;
       clearTimeout(sseStartupTimer);
@@ -2671,18 +2674,18 @@ async function pollVisibleLogs() {
   try { await refreshLogs(); } finally { logsPollRunning = false; }
 }
 
-function startLogsPolling() {
+function startLogsPolling(initial = true) {
   if (logsPollingStarted) return;
   logsPollingStarted = true;
   setInterval(pollVisibleLogs, 5000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) pollVisibleLogs(); });
-  pollVisibleLogs();
+  if (initial) pollVisibleLogs();
 }
 
-function startPolling() {
+function startPolling(initial = true) {
   if (pollingStarted) return;
   pollingStarted = true;
-  startLogsPolling();
+  startLogsPolling(initial);
   for (const [refresh, interval] of [
     [refreshOverview, 3000], [refreshPlayers, 5000], [refreshStats, 5000],
     [refreshBackups, 10000], [refreshEvents, 12000],
@@ -2695,7 +2698,7 @@ function startPolling() {
       running = true;
       try { await refresh(); } finally { running = false; }
     };
-    poll();
+    if (initial) poll();
     setInterval(poll, interval);
     document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
   }
@@ -2832,7 +2835,7 @@ function applyRoute() {
   adaptConfigFlow();
   window.scrollTo(0, 0);
   const view = $("view-" + r);
-  if (view) view.focus({ preventScroll: true });
+  if (view && !document.body.classList.contains("is-booting")) view.focus({ preventScroll: true });
   if (r === "mods" && modsPending) renderModsFiltered();
   window.ConfigEditor?.route(r);
   pollVisibleLogs();
@@ -2892,7 +2895,7 @@ const commands = (() => {
     try { await item.run(); } catch (error) { toast(error.message, "error"); }
   }
   function open() {
-    if (!$("modalRoot").hidden || dialog.open) return;
+    if (document.body.classList.contains("is-booting") || !$("modalRoot").hidden || dialog.open) return;
     opener = document.activeElement;
     search.value = ""; render(); dialog.showModal(); search.focus(); results.scrollTop = 0;
   }
@@ -2992,6 +2995,8 @@ document.addEventListener("visibilitychange", () => {
 });
 
 async function boot() {
+  const slowTimer = setTimeout(() => { $("startupSlow").hidden = false; }, 15000);
+  $("startupRetry").addEventListener("click", () => location.reload());
   setInterval(() => {
     if (document.hidden) return;
     updateConnectionWarning();
@@ -2999,19 +3004,41 @@ async function boot() {
   }, 5000);
   consoleBootLine = consoleAppend(I18n.t("Пульт подключается к серверу…"), "c-dim");
   applyRoute();
+  let liveReady = false;
   if (location.protocol === "file:" || new URLSearchParams(location.search).get("demo") === "1") {
     enterDemo();
-    return;
+  } else {
+    try {
+      const h = await api("/api/health", { timeout: 3500 });
+      if (!h.ok) throw new Error("no health");
+      liveReady = true;
+    } catch (e) {
+      // Complete the initial attempts before starting recurring recovery.
+    }
   }
-  try {
-    const h = await api("/api/health", { timeout: 3500 });
-    if (!h.ok) throw new Error("no health");
-  } catch (e) {
-    retryConnection();
-    startPolling();
-    return;
-  }
-  startSse();
+  // The initial snapshot cannot depend on the timing or completeness of SSE.
+  // Load the visible route and shared state together; later updates stay live.
+  const routeLoads = {
+    overview: [refreshPlayers, refreshStats, refreshBackups, refreshEvents, refreshPlayersHistory, refreshStatsHistory],
+    players: [refreshPlayers, refreshPlayersHistory],
+    backups: [refreshBackups],
+    events: [refreshEvents],
+    console: [refreshLogs],
+  };
+  await Promise.allSettled([
+    liveReady || S.demo ? refreshOverview() : retryConnection(), refreshOps(),
+    ...(routeLoads[activeView] || []).map(load => load()),
+    window.ConfigEditor?.ready,
+  ]);
+  clearTimeout(slowTimer);
+  $("startupLoader").hidden = true;
+  $("startupLoader").setAttribute("aria-busy", "false");
+  $("dashboardShell").inert = false;
+  document.body.classList.remove("is-booting");
+  updateButtons();
+  $("view-" + activeView)?.focus({ preventScroll: true });
+  if (liveReady && typeof EventSource !== "undefined") startSse();
+  else startPolling(false);
 }
 
 function enterDemo() {
@@ -3023,7 +3050,7 @@ function enterDemo() {
     consoleBootLine = null;
   }
   consoleAppend(I18n.t("Демо-режим: данные вымышленные, операции отключены."), "c-dim");
-  startPolling();
 }
 
-boot();
+// All synchronous scripts, including the profile editor, must publish readiness.
+window.addEventListener("DOMContentLoaded", boot, { once: true });

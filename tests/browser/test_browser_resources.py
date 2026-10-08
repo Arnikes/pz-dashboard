@@ -89,6 +89,7 @@ def test_hidden_tab_closes_stream_and_reopens_once(page, dashboard):
 
 def test_polling_has_no_overlapping_requests_and_pauses_hidden_tab(page, dashboard):
     page.goto(dashboard["url"])
+    expect(page.locator("#startupLoader")).to_be_hidden()
     page.evaluate("""() => {
         liveSource?.close(); liveSource = null; clearTimeout(sseStartupTimer);
         S.demo = true;

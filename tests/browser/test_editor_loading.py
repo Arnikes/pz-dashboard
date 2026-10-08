@@ -16,7 +16,7 @@ def test_settings_loading_preserves_layout(page, dashboard, editing, language, w
     page.route("**/api/server-configs", lambda route: profiles.append(route))
     page.goto(dashboard["url"] + "/#/settings")
     progress = page.locator("#settingsLoading")
-    expect(progress).to_be_visible()
+    expect(page.locator("#startupLoader")).to_be_visible()
     expect(progress).to_have_attribute("role", "progressbar")
     expect(progress).to_have_attribute(
         "aria-label", "Loading…" if language == "en" else "Загрузка…"
@@ -24,6 +24,7 @@ def test_settings_loading_preserves_layout(page, dashboard, editing, language, w
     expect(page.locator("#view-settings")).to_have_attribute("aria-busy", "true")
     assert len(profiles) == 1
     profiles.pop().fallback()
+    expect(page.locator("#startupLoader")).to_be_hidden()
     expect(progress).to_be_hidden()
     field = page.locator('[data-key="PublicName"]')
     expect(field).to_be_enabled()

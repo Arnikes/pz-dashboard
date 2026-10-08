@@ -36,6 +36,7 @@ def test_player_warning_language_is_independent_and_persistent(page, dashboard, 
     assert requests == [{"playerNotifications": {"language": "ru"}}]
     expect(page.locator("#tgLanguage")).to_have_value("en")
     page.reload()
+    expect(page.locator("#startupLoader")).to_be_hidden()
     expect(selector).to_have_value("ru")
     expect(page.locator("#languageSwitch")).to_have_value(language)
     selector.focus()

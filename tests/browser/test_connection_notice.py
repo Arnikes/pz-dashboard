@@ -24,6 +24,7 @@ def open_connection(page, dashboard, transport="sse", language="ru"):
       Object.defineProperty(document, 'hidden', {get: () => window.testHidden});"""
     )
     page.goto(dashboard["url"])
+    expect(page.locator("#startupLoader")).to_be_hidden()
     if transport == "sse":
         page.wait_for_function("testStreams.length === 1")
         send_overview(page, dashboard)
@@ -107,7 +108,8 @@ def test_failed_recovery_countdown_manual_retry_and_success(page, dashboard, tra
     expect(page.locator(".retry-seconds")).to_have_text("10")
     page.clock.run_for(9900)
     assert len(held) == 2
-    page.clock.run_for(100)
+    with page.expect_request("**/api/overview"):
+        page.clock.run_for(100)
     page.wait_for_function("!!connectionAttempt")
     assert len(held) == 3
     held[2].fulfill(json=dashboard["overview"])

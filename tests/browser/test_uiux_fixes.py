@@ -17,6 +17,7 @@ def start(page, dashboard, route, language="ru", width=390):
     page.add_init_script(f"localStorage.setItem('pz-language', '{language}')")
     page.set_viewport_size({"width": width, "height": 844})
     page.goto(dashboard["url"] + "/#/" + route)
+    expect(page.locator("#startupLoader")).to_be_hidden()
     expect(page.locator("#btnStop")).to_be_enabled()
     page.evaluate("liveSource?.close(); liveSource=null; clearTimeout(sseStartupTimer)")
 

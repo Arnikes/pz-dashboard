@@ -1096,8 +1096,9 @@ window.ConfigEditor = (() => {
   });
   window.addEventListener("beforeunload", e => { if (sourceDirty || fieldDirty || pendingFields.size || unsaved.length) { e.preventDefault(); e.returnValue = ""; } });
   window.addEventListener("hashchange", updateBar);
-  init();
+  const ready = init();
   return {
+    get ready() { return Promise.all([ready, profileLoad]); },
     get file() { return file; },
     async prepareLanguageChange() {
       if (!draft) return;

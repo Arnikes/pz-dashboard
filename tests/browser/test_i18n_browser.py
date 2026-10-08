@@ -64,14 +64,16 @@ def test_language_switch_flushes_draft_and_preserves_route(page, dashboard, edit
     field = page.locator('[data-key="PublicName"]')
     expect(field).to_be_enabled()
     field.fill("Мой сервер {{0}} <test>")
-    page.locator("#languageSwitch").select_option("en")
+    with page.expect_navigation(wait_until="load"):
+        page.locator("#languageSwitch").select_option("en")
     expect(page.locator("html")).to_have_attribute("lang", "en")
     expect(field).to_have_value("Мой сервер {{0}} <test>")
     assert page.url.endswith("#/settings")
     page.reload()
     expect(page.locator("#languageSwitch")).to_have_value("en")
     expect(field).to_have_value("Мой сервер {{0}} <test>")
-    page.locator("#languageSwitch").select_option("ru")
+    with page.expect_navigation(wait_until="load"):
+        page.locator("#languageSwitch").select_option("ru")
     expect(page.locator("html")).to_have_attribute("lang", "ru")
     expect(field).to_have_value("Мой сервер {{0}} <test>")
 
