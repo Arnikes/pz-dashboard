@@ -13,8 +13,9 @@ def test_console_update_flow_and_mod_timestamp(page, dashboard, language, width)
     dashboard["overview"].update(
         dashboardUpdate={
             "supported": True,
-            "image": "ghcr.io/example/console:latest",
-            "local": "sha256:" + "a" * 64,
+            "image": "gitea.arnike.ru/arnike/pz-console:latest",
+            "imageId": "sha256:" + "a" * 64,
+            "local": "sha256:" + "c" * 64,
         },
         modsCheck={"state": "up-to-date", "at": "2026-10-08T17:24:00Z"},
     )
@@ -22,6 +23,10 @@ def test_console_update_flow_and_mod_timestamp(page, dashboard, language, width)
     page.add_init_script(f"localStorage.setItem('pz-language','{language}')")
     page.goto(dashboard["url"] + "/#/maintenance")
     expect(page.locator("#btnCheckDashboardUpd")).to_be_enabled()
+    expect(page.locator("#dashboardUpdImage")).to_have_text(
+        "gitea.arnike.ru/arnike/pz-console:latest"
+    )
+    expect(page.locator("#dashboardUpdLocalCopy")).to_have_text("c" * 12)
     expect(page.locator("#modsCheckNote")).to_be_hidden()
     page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
     requests = []
@@ -74,7 +79,9 @@ def test_console_update_flow_and_mod_timestamp(page, dashboard, language, width)
 
 
 @pytest.mark.parametrize("mode", ["remote", "demo", "unsupported", "current", "compose"])
-def test_console_update_availability(page, dashboard, mode):
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_console_update_availability(page, dashboard, mode, language):
+    page.add_init_script(f"localStorage.setItem('pz-language','{language}')")
     dashboard["overview"]["dashboardUpdate"] = {"supported": True}
     if mode == "remote":
         dashboard["overview"]["mode"] = "remote"
@@ -84,7 +91,13 @@ def test_console_update_availability(page, dashboard, mode):
             "note": "Use a published image",
         }
     elif mode == "current":
-        dashboard["overview"]["dashboardUpdate"]["available"] = False
+        dashboard["overview"]["dashboardUpdate"].update(
+            available=False,
+            image="gitea.arnike.ru/arnike/pz-console:latest",
+            imageId="sha256:" + "a" * 64,
+            local="sha256:" + "c" * 64,
+            remote="sha256:" + "c" * 64,
+        )
     elif mode == "compose":
         dashboard["overview"]["compose"] = False
     page.goto(dashboard["url"] + "/#/maintenance" + ("?demo=1" if mode == "demo" else ""))
@@ -95,3 +108,10 @@ def test_console_update_availability(page, dashboard, mode):
         expect(page.locator("#btnCheckDashboardUpd")).to_be_disabled()
     else:
         expect(page.locator("#btnCheckDashboardUpd")).to_be_enabled()
+    if mode == "current":
+        expect(page.locator("#dashboardUpdPill")).to_have_text(
+            "up to date" if language == "en" else "актуально"
+        )
+        expect(page.locator("#dashboardUpdRemoteCopy")).to_have_text(
+            "matches" if language == "en" else "совпадает"
+        )

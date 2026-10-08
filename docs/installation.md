@@ -147,6 +147,30 @@ docker compose up -d --build pz-dashboard
 For an overlay, include both `-f` arguments. Recreate the panel after changing its
 environment. Do not remove persistent volumes during an update.
 
+### Update the console from Maintenance
+
+The console update card follows the tagged image reference in the running
+`pz-dashboard` container, such as `gitea.arnike.ru/arnike/pz-console:latest` or
+`ghcr.io/<owner>/<repository>:latest`. Both checking and downloading use that
+reference; there is no registry override or GHCR fallback. `PZ_IMAGE` configures
+the game image, not the console. After changing the console image in Compose,
+recreate the console on the host before checking for updates in Maintenance.
+
+Checks query the registry without downloading the image and refresh the running
+container's identity. The local and registry values compare the same kind of
+digest for the running platform: image configuration digests with the classic
+Docker image store, and platform manifest digests with containerd. An index ID
+and a configuration digest can differ even when the installed image is current.
+If Docker or the registry does not expose enough information to compare them,
+the check reports an error and leaves availability unknown.
+
+Self-update requires a published image with a tag, the Compose plugin and mounted
+Compose files, and a persistent writable `DASHBOARD_DIR`. Set
+`PZ_DASHBOARD_CONTAINER` and `PZ_DASHBOARD_SERVICE` when using names other than
+`pz-dashboard`. Local builds and digest-pinned deployments are updated from the
+host. The console downloads the image before a detached helper recreates only
+its Compose service and confirms that it is running and healthy.
+
 ### Released images from GHCR
 
 GitHub tag releases publish the panel to `ghcr.io/<owner>/<repository>` for

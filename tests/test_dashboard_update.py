@@ -18,8 +18,14 @@ NEW = "sha256:" + "b" * 64
 IMAGE = "ghcr.io/example/console:latest"
 
 
-@pytest.fixture
-def deployment(monkeypatch, tmp_path):
+@pytest.fixture(
+    params=[
+        IMAGE,
+        "gitea.arnike.ru/arnike/pz-console:latest",
+        "registry.example:5443/team/console:stable",
+    ]
+)
+def deployment(monkeypatch, tmp_path, request):
     monkeypatch.setitem(config.CFG, "dashboard_dir", str(tmp_path))
     monkeypatch.setitem(config.CFG, "compose_file", "/compose/docker-compose.yml")
     monkeypatch.setattr(updater, "_CHECK", {})
@@ -29,7 +35,7 @@ def deployment(monkeypatch, tmp_path):
         "Image": OLD,
         "State": {"Running": True, "Health": {"Status": "healthy"}},
         "Config": {
-            "Image": IMAGE,
+            "Image": request.param,
             "Labels": {
                 "com.docker.compose.project": "pz",
                 "com.docker.compose.service": "pz-dashboard",
@@ -49,7 +55,7 @@ def deployment(monkeypatch, tmp_path):
         "name": "pz",
         "services": {
             "pz-dashboard": {
-                "image": IMAGE,
+                "image": request.param,
                 "container_name": "pz-dashboard",
                 "environment": {"TOKEN": "fictional-secret"},
                 "volumes": [{"type": "bind", "source": "/compose", "target": "/compose"}],
@@ -86,6 +92,8 @@ def test_detached_handoff_preserves_host_paths_and_secrets(deployment):
     frozen = json.loads(snapshot.read_text())
     assert frozen["services"]["pz-dashboard"]["volumes"][0]["source"] == "/srv/pz"
     assert frozen["services"]["pz-dashboard"]["environment"]["TOKEN"] == "fictional-secret"
+    assert frozen["services"]["pz-dashboard"]["image"] == deployment[0]["Config"]["Image"]
+    dockerlib.image_pull.assert_called_once_with(deployment[0]["Config"]["Image"])
     assert ops.op_busy()
     assert ops.op_state()["active"]["op"] == "apply-dashboard-update"
 
@@ -169,8 +177,193 @@ def test_registry_check_selects_running_platform_without_pull(deployment, schema
     )
     result = updater.check()
     assert result["available"] is True and result["remote"] == NEW
+    command.assert_any_call(
+        ["docker", "manifest", "inspect", "--verbose", deployment[0]["Config"]["Image"]],
+        timeout=25,
+    )
     dockerlib.image_pull.assert_not_called()
     assert updater.state()["available"] is True
+
+
+@pytest.mark.parametrize("schema", ["SchemaV2Manifest", "OCIManifest"])
+@pytest.mark.parametrize("changed", [False, True])
+@pytest.mark.parametrize("multi_platform", [False, True])
+def test_containerd_compares_running_manifest_not_index_or_config(
+    deployment, schema, changed, multi_platform
+):
+    container, _, command = deployment
+    platform = {"os": "linux", "architecture": "arm64", "variant": "v8"}
+    running_manifest = "sha256:" + "c" * 64
+    remote_manifest = NEW if changed else running_manifest
+    container["ImageManifestDescriptor"] = {"digest": running_manifest, "platform": platform}
+    manifests = {
+        "Descriptor": {"digest": remote_manifest, "platform": platform},
+        schema: {"config": {"digest": "sha256:" + "d" * 64}},
+    }
+    if multi_platform:
+        manifests = [
+            {
+                "Descriptor": {
+                    "digest": OLD,
+                    "platform": {"os": "unknown", "architecture": "unknown"},
+                },
+                schema: {"config": {"digest": OLD}},
+            },
+            {
+                "Descriptor": {"digest": OLD, "platform": {**platform, "variant": "v7"}},
+                schema: {"config": {"digest": OLD}},
+            },
+            manifests,
+        ]
+    command.side_effect = lambda args, **kw: (
+        0,
+        json.dumps(
+            manifests
+            if "manifest" in args
+            else [
+                {
+                    "Id": OLD,
+                    "Os": "linux",
+                    "Architecture": "amd64",
+                    "Descriptor": {
+                        "digest": OLD,
+                        "mediaType": "application/vnd.oci.image.index.v1+json",
+                    },
+                }
+            ]
+        ),
+        "",
+    )
+    result = updater.check()
+    assert result["image"] == container["Config"]["Image"]
+    assert result["imageId"] == OLD
+    assert result["local"] == running_manifest
+    assert result["remote"] == remote_manifest
+    assert result["available"] is changed
+    assert result["error"] is None
+    assert updater.state() == result
+    command.assert_any_call(["docker", "image", "inspect", OLD], timeout=30)
+    dockerlib.image_pull.assert_not_called()
+
+
+def test_missing_containerd_manifest_leaves_availability_unknown(deployment):
+    _, _, command = deployment
+    command.side_effect = lambda args, **kw: (
+        0,
+        json.dumps(
+            {"OCIManifest": {"config": {"digest": NEW}}}
+            if "manifest" in args
+            else [{"Os": "linux", "Architecture": "amd64", "Descriptor": {"digest": OLD}}]
+        ),
+        "",
+    )
+    result = updater.check()
+    assert result["available"] is None
+    assert result["remote"] is None
+    assert result["error"]
+
+
+@pytest.mark.parametrize("change", ["repository", "image-id", "manifest"])
+def test_explicit_check_refreshes_replaced_container_and_invalidates_old_result(deployment, change):
+    container, _, command = deployment
+    command.side_effect = lambda args, **kw: (
+        0,
+        json.dumps(
+            {
+                "Descriptor": {"digest": NEW},
+                "OCIManifest": {"config": {"digest": NEW}},
+            }
+            if "manifest" in args
+            else [{"Os": "linux", "Architecture": "amd64"}]
+        ),
+        "",
+    )
+    assert updater.check()["available"] is True
+    if change == "repository":
+        container["Config"]["Image"] = "other-registry.example/new/console:latest"
+    elif change == "image-id":
+        container["Image"] = NEW
+    else:
+        container["ImageManifestDescriptor"] = {"digest": NEW}
+    assert updater.state()["available"] is True  # Passive overview still uses its cache.
+    result = updater.check()
+    assert result["image"] == container["Config"]["Image"]
+    assert result["available"] is (change == "repository")
+    command.assert_any_call(
+        ["docker", "manifest", "inspect", "--verbose", container["Config"]["Image"]], timeout=25
+    )
+
+
+def test_containerd_handoff_uses_runnable_image_id(deployment):
+    container, _, command = deployment
+    manifest = "sha256:" + "c" * 64
+    container["ImageManifestDescriptor"] = {"digest": manifest}
+    assert updater.apply(Mock()) == "handoff"
+    launch = command.call_args.args[0]
+    assert launch[launch.index("python3") + 1] == OLD
+    assert launch[-1] == NEW
+    assert manifest not in launch
+
+
+def test_current_containerd_image_clears_previous_update_notice(deployment):
+    container, _, command = deployment
+    manifest = "sha256:" + "c" * 64
+    container["ImageManifestDescriptor"] = {"digest": manifest}
+    current = updater.state()
+    updater._CHECK.update(current, remote=NEW, available=True, error=None)
+    original = command.side_effect
+    command.side_effect = lambda args, **kw: (
+        (0, OLD, "") if "image" in args and "--format" in args else original(args, **kw)
+    )
+    assert updater.apply(Mock()) is None
+    result = updater.state()
+    assert result["available"] is False
+    assert result["local"] == result["remote"] == manifest
+    assert all("run" not in call.args[0] for call in command.call_args_list)
+
+
+def test_image_reference_change_during_apply_aborts_before_pull(deployment, monkeypatch):
+    container, _, command = deployment
+    changed = copy.deepcopy(container)
+    changed["Config"]["Image"] = "other-registry.example/console:latest"
+    monkeypatch.setattr(updater, "inspect", Mock(side_effect=[container, changed]))
+    with pytest.raises(ops.OpsError, match="Контейнер пульта изменился"):
+        updater.apply(Mock())
+    dockerlib.image_pull.assert_not_called()
+    assert not command.called
+
+
+def test_containerd_update_then_check_reports_current(deployment, monkeypatch):
+    container, _, command = deployment
+    container["ImageManifestDescriptor"] = {"digest": "sha256:" + "c" * 64}
+    assert updater.apply(Mock()) == "handoff"
+    snapshot = next(Path(config.CFG["dashboard_dir"]).glob("dashboard-compose-*.json"))
+    container["Image"] = NEW
+    running_manifest = "sha256:" + "d" * 64
+    container["ImageManifestDescriptor"] = {
+        "digest": running_manifest,
+        "platform": {"os": "linux", "architecture": "amd64"},
+    }
+    monkeypatch.setattr(updater.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(ops, "log_event", Mock())
+    updater.run_helper(snapshot, "pz-dashboard", "pz-dashboard", "pz", NEW)
+    assert updater.operation()["ok"] is True
+    command.side_effect = lambda args, **kw: (
+        0,
+        json.dumps(
+            {
+                "Descriptor": {"digest": running_manifest},
+                "OCIManifest": {"config": {"digest": OLD}},
+            }
+            if "manifest" in args
+            else [{"Os": "linux", "Architecture": "amd64", "Descriptor": {"digest": NEW}}]
+        ),
+        "",
+    )
+    result = updater.check()
+    assert result["error"] is None
+    assert result["available"] is False
+    assert result["local"] == result["remote"] == running_manifest
 
 
 def test_registry_failure_never_claims_image_is_current(deployment):

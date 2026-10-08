@@ -24,9 +24,9 @@ def inspect(name):
         return None
 
 
-def container_cached():
+def container_cached(*, refresh=False):
     name = config.CFG["dashboard_container"]
-    if _CONTAINER["name"] != name or time.monotonic() - _CONTAINER["at"] > 60:
+    if refresh or _CONTAINER["name"] != name or time.monotonic() - _CONTAINER["at"] > 60:
         _CONTAINER.update(at=time.monotonic(), name=name, value=inspect(name))
         _CONTAINER["digest"] = (
             dockerlib.image_digests((_CONTAINER["value"] or {}).get("Image"))
@@ -36,10 +36,14 @@ def container_cached():
     return _CONTAINER["value"]
 
 
-def state():
-    container = container_cached()
+def state(*, refresh=False):
+    container = container_cached(refresh=refresh)
     image = (container or {}).get("Config", {}).get("Image")
-    local = (container or {}).get("Image")
+    image_id = (container or {}).get("Image")
+    descriptor = (container or {}).get("ImageManifestDescriptor") or {}
+    # containerd IDs may identify an index; compare the running platform's
+    # manifest instead. Classic Docker IDs identify the image configuration.
+    local = descriptor.get("digest") or image_id
     labels = (container or {}).get("Config", {}).get("Labels") or {}
     reason = ""
     if not container:
@@ -50,14 +54,28 @@ def state():
         reason = "Для обновления пульта задайте COMPOSE_FILE и подключите файлы Compose."
     elif not image or "@" in image or not _CONTAINER.get("digest"):
         reason = "Используйте опубликованный образ пульта с тегом в Compose вместо локальной сборки или digest."
-    check = _CHECK if _CHECK.get("image") == image and _CHECK.get("local") == local else {}
-    return {**check, "image": image, "local": local, "supported": not reason, "note": reason}
+    check = (
+        _CHECK
+        if _CHECK.get("image") == image
+        and _CHECK.get("imageId") == image_id
+        and _CHECK.get("local") == local
+        else {}
+    )
+    return {
+        **check,
+        "image": image,
+        "imageId": image_id,
+        "local": local,
+        "supported": not reason,
+        "note": reason,
+    }
 
 
 def check():
-    current = state()
+    current = state(refresh=True)
     if not current["supported"]:
         raise OpsError(current["note"])
+    descriptor = (_CONTAINER["value"] or {}).get("ImageManifestDescriptor") or {}
     code, out, _ = dockerlib.sh(
         ["docker", "manifest", "inspect", "--verbose", current["image"]], timeout=25
     )
@@ -69,24 +87,40 @@ def check():
         if not isinstance(manifests, list):
             manifests = [manifests]
         code, image_out, _ = dockerlib.sh(
-            ["docker", "image", "inspect", current["local"]], timeout=30
+            ["docker", "image", "inspect", current["imageId"]], timeout=30
         )
         if code:
             raise ValueError
         image = json.loads(image_out)[0]
+        manifest_digest = descriptor.get("digest")
+        # Without the running manifest, an index/manifest ID cannot safely be
+        # compared to a config digest. Leave availability unknown in that case.
+        if image.get("Descriptor") and not manifest_digest:
+            raise ValueError
+        platform = descriptor.get("platform") or {
+            key: image.get(field, "")
+            for key, field in (
+                ("os", "Os"),
+                ("architecture", "Architecture"),
+                ("variant", "Variant"),
+            )
+        }
+        if not platform.get("os") or not platform.get("architecture"):
+            raise ValueError
         for manifest in manifests:
-            platform = manifest.get("Descriptor", {}).get("platform", {})
-            if platform and any(
-                platform.get(key, "") != image.get(field, "")
-                for key, field in (
-                    ("os", "Os"),
-                    ("architecture", "Architecture"),
-                    ("variant", "Variant"),
-                )
+            remote_descriptor = manifest.get("Descriptor") or {}
+            remote_platform = remote_descriptor.get("platform") or {}
+            if remote_platform and any(
+                remote_platform.get(key, "") != platform.get(key, "")
+                for key in ("os", "architecture", "variant")
             ):
                 continue
             schema = manifest.get("SchemaV2Manifest") or manifest.get("OCIManifest") or {}
-            digest = schema.get("config", {}).get("digest")
+            digest = (
+                remote_descriptor.get("digest")
+                if manifest_digest
+                else schema.get("config", {}).get("digest")
+            )
             if digest:
                 result.update(remote=digest, available=digest != current["local"])
                 break
@@ -190,13 +224,17 @@ def prepare(container):
 
 
 def apply(phase):
-    current = state()
+    current = state(refresh=True)
     if not current["supported"]:
         raise OpsError(current["note"])
     if not dockerlib.compose_version():
         raise OpsError("Недоступен плагин docker compose в контейнере пульта")
     container = inspect(config.CFG["dashboard_container"])
-    if not container or container["Image"] != current["local"]:
+    if (
+        not container
+        or container["Image"] != current["imageId"]
+        or container["Config"]["Image"] != current["image"]
+    ):
         raise OpsError("Контейнер пульта изменился. Повторите проверку.")
     model = prepare(container)
     if not any(
@@ -219,7 +257,9 @@ def apply(phase):
     )
     if code or not out.startswith("sha256:"):
         raise OpsError("Не удалось подтвердить скачанный образ пульта.")
-    if out == current["local"]:
+    if out == current["imageId"]:
+        _CHECK.clear()
+        _CHECK.update(current, at=time.time(), remote=current["local"], available=False, error=None)
         phase("Готово", "Образ пульта уже актуален")
         return
     snapshot = _path().with_name(f"dashboard-compose-{uuid.uuid4().hex}.json")
@@ -247,7 +287,7 @@ def apply(phase):
         f"DASHBOARD_DIR={config.CFG['dashboard_dir']}",
         "--entrypoint",
         "python3",
-        current["local"],
+        current["imageId"],
         "/app/dashboardupdate.py",
         str(snapshot),
         config.CFG["dashboard_container"],
