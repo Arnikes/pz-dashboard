@@ -518,6 +518,7 @@ def _set_phase(phase, message=""):
 
 def _start_worker(op, fn):
     notification_language = player_notification_language()
+    operation_id = uuid.uuid4().hex
 
     def worker():
         language_token = _PLAYER_LANGUAGE.set(notification_language)
@@ -526,6 +527,7 @@ def _start_worker(op, fn):
             with _OP_LOCK:
                 _OP_HISTORY.appendleft(
                     {
+                        "id": operation_id,
                         "op": op,
                         "ok": True,
                         "message": _ACTIVE["message"],
@@ -543,21 +545,39 @@ def _start_worker(op, fn):
             with _OP_LOCK:
                 _ACTIVE["message"] = str(e)
                 _OP_HISTORY.appendleft(
-                    {"op": op, "ok": False, "message": str(e), "finishedAt": now_iso()}
+                    {
+                        "id": operation_id,
+                        "op": op,
+                        "ok": False,
+                        "message": str(e),
+                        "finishedAt": now_iso(),
+                    }
                 )
         except OpsError as e:
             log_event("error", f"Операция «{op}» не удалась: {e}")
             with _OP_LOCK:
                 _ACTIVE["message"] = str(e)
                 _OP_HISTORY.appendleft(
-                    {"op": op, "ok": False, "message": str(e), "finishedAt": now_iso()}
+                    {
+                        "id": operation_id,
+                        "op": op,
+                        "ok": False,
+                        "message": str(e),
+                        "finishedAt": now_iso(),
+                    }
                 )
         except Exception as e:  # noqa: BLE001 — не роняем поток
             log_event("error", f"Операция «{op}»: {e}")
             with _OP_LOCK:
                 _ACTIVE["message"] = f"Внутренняя ошибка: {e}"
                 _OP_HISTORY.appendleft(
-                    {"op": op, "ok": False, "message": str(e), "finishedAt": now_iso()}
+                    {
+                        "id": operation_id,
+                        "op": op,
+                        "ok": False,
+                        "message": str(e),
+                        "finishedAt": now_iso(),
+                    }
                 )
         finally:
             _PLAYER_LANGUAGE.reset(language_token)

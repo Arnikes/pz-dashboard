@@ -214,6 +214,8 @@ def test_update_loads_changed_dashboard_html_css_and_javascript(page, context, p
     expect(fresh.locator("body")).to_have_attribute("data-pwa-release", "two")
     expect(fresh.locator("body")).to_have_attribute("data-pwa-shell-release", "two")
     assert set(old_caches).issubset(page.evaluate("caches.keys()"))
+    # The fresh-window check switched tabs; updating is a foreground user action.
+    page.bring_to_front()
     with page.expect_navigation(wait_until="load"):
         page.locator("#pwaUpdate").click()
     assert page.url.endswith("/#/settings")

@@ -3,6 +3,26 @@
 The panel serializes heavy operations and shows their progress in the operation bar.
 Lifecycle and world archive actions require local Docker/data access.
 
+## Dashboard notifications
+
+The bell in the header opens a shared inbox for operation results and toast feedback.
+Filter by all, unread, errors, or successful results. Operation entries link to the
+console and event journal. Cancelled operations have a warning status.
+
+Opening the inbox or selecting a filter marks its displayed entries as read.
+Notifications received while it is open remain unread until acknowledged; use the
+individual read control or **Mark all as read**. Closing a toast also marks that
+entry as read; letting its timer expire keeps it available as unread in the inbox.
+Toast timers pause while the window is hidden or unfocused and while reading the
+stack with a pointer, keyboard, or touch.
+
+**Clear all** removes the inbox and its visible toasts. Read receipts survive
+reloads and clearing, so replayed operation history does not recreate old results.
+The browser retains the latest 100 entries and synchronizes reads and clearing
+between tabs on the same origin. This history belongs to the browser; it does not
+replace the server's event journal. Initial server history appears silently in the
+inbox, while newly completed operations also show a toast.
+
 ## Backups and restore
 
 Manual backups request an RCON save and archive the data directory; logs are excluded.

@@ -19,13 +19,14 @@ def test_rejected_request_survives_unchanged_operation_history(page, dashboard):
     page.evaluate("showActionError('start',new Error('Связь потеряна'))")
     for _ in range(3):
         page.evaluate("h=>renderOp({active:null,history:[h]})", history)
-    expect(page.locator("#operationResult")).to_contain_text("Связь потеряна")
-    page.locator("#operationResultDismiss").click()
+    page.locator("#btnNotifications").click()
+    expect(page.locator("#notificationList")).to_contain_text("Связь потеряна")
+    page.locator("#notificationClear").click()
     page.evaluate("h=>renderOp({active:null,history:[h]})", history)
-    expect(page.locator("#operationResult")).to_be_hidden()
+    expect(page.locator(".notification-item")).to_have_count(0)
     history["finishedAt"] = "2026-10-04T13:00:00Z"
     page.evaluate("h=>renderOp({active:null,history:[h]})", history)
-    expect(page.locator("#operationResult")).to_contain_text("Old backup")
+    expect(page.locator("#notificationList")).to_contain_text("Old backup")
 
 
 def test_update_check_has_persistent_result_and_serializes_requests(page, dashboard):
@@ -34,14 +35,17 @@ def test_update_check_has_persistent_result_and_serializes_requests(page, dashbo
     page.goto(dashboard["url"] + "/#/maintenance")
     expect(page.locator("#btnCheckUpd")).to_be_enabled()
     page.locator("#btnCheckUpd").click()
-    expect(page.locator("#operationResult")).to_contain_text("выполняется")
+    page.locator("#btnNotifications").click()
+    expect(page.locator("#notificationList")).to_contain_text("выполняется")
     expect(page.locator("#btnCheckUpd")).to_be_disabled()
     page.evaluate("document.getElementById('btnCheckUpd').click()")
     assert len(held) == 1
     held[0].fulfill(json={"ok": True, "check": {"available": False}})
-    expect(page.locator("#operationResult")).to_contain_text("образ актуален")
+    expect(page.locator("#notificationList")).to_contain_text("образ актуален")
     page.evaluate("renderOp({active:null,history:[]});location.hash='#/settings'")
-    expect(page.locator("#operationResult")).to_contain_text("образ актуален")
+    page.locator("#btnNotifications").click()
+    expect(page.locator("#notificationList")).to_contain_text("образ актуален")
+    expect(page.locator(".notification-item")).to_have_count(1)
 
 
 @pytest.mark.parametrize("name", ['Дмитрий "Север"', "Alice\nBob", "Игрок 'Север'"])
@@ -254,16 +258,17 @@ def test_operation_visible_on_all_routes_and_result_survives_navigation(page, da
         "finishedAt": "2026-10-04T21:00:00Z",
     }
     page.evaluate("h => renderOp({active:null,history:[h]})", result)
-    expect(page.locator("#operationResult")).to_contain_text("Проверьте диск")
-    page.locator('#operationResult a[href="#/console"]').click()
+    page.locator("#btnNotifications").click()
+    expect(page.locator("#notificationList")).to_contain_text("Проверьте диск")
+    page.locator('#notificationList a[href="#/console"]').click()
     expect(page.locator("#view-console")).to_be_visible()
-    expect(page.locator("#operationResult")).to_be_visible()
-    page.locator("#operationResultDismiss").click()
+    page.locator("#btnNotifications").click()
+    page.locator("#notificationClear").click()
     page.evaluate("h => renderOp({active:null,history:[h]})", result)
-    expect(page.locator("#operationResult")).to_be_hidden()
+    expect(page.locator(".notification-item")).to_have_count(0)
     result.update(ok=True, message="Архив проверен", finishedAt="2026-10-04T21:01:00Z")
     page.evaluate("h => renderOp({active:null,history:[h]})", result)
-    expect(page.locator("#operationResult")).to_contain_text("Архив проверен")
+    expect(page.locator("#notificationList")).to_contain_text("Архив проверен")
 
 
 @pytest.mark.parametrize(

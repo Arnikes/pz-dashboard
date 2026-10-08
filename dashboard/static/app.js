@@ -280,7 +280,156 @@ for (const id of ["configTabs", "modTabs"]) syncTabAccessibility(id);
 
 /* ───────────────────────── тосты ───────────────────────── */
 
-const toast = (() => {
+function notificationIcon(kind) {
+  const paths = {
+    ok: '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
+    error: '<circle cx="12" cy="12" r="9"/><path d="m9 9 6 6m0-6-6 6"/>',
+    warning: '<path d="m12 3 10 18H2L12 3Z"/><path d="M12 9v5m0 3v1"/>',
+    pending: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/>',
+  };
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[kind] || paths.info}</svg>`;
+}
+
+// One inbox for local feedback and server results. Stable operation IDs survive SSE replay.
+const Notifications = (() => {
+  const storageKey = "pz-notifications-v1";
+  const panel = $("notificationCenter"), trigger = $("btnNotifications"), list = $("notificationList");
+  let items = [], seen = [], ignoredBefore = 0, filter = "all";
+  const kindTitles = () => ({ ok: I18n.t("Готово"), error: I18n.t("Ошибка"), warning: I18n.t("Отменено"), pending: I18n.t("Выполняется"), info: I18n.t("Информация") });
+  const matches = item => filter === "all" || (filter === "unread" ? !item.read : item.kind === filter);
+  function load(value) {
+    try {
+      const data = JSON.parse(value);
+      if (!data || !Array.isArray(data.items) || !Array.isArray(data.seen)) return;
+      items = data.items.filter(item => item && typeof item.id === "string" && typeof item.message === "string" && typeof item.title === "string" && ["ok", "error", "warning", "info"].includes(item.kind) && Number.isFinite(new Date(item.createdAt).getTime())).slice(0, 100);
+      seen = data.seen.filter(receipt => typeof receipt?.id === "string" && Number.isFinite(receipt.time)).slice(-500);
+      ignoredBefore = Number.isFinite(data.ignoredBefore) ? data.ignoredBefore : 0;
+    } catch { /* A corrupt or unavailable browser store must not break the dashboard. */ }
+  }
+  try { load(localStorage.getItem(storageKey)); } catch { /* Keep an in-memory inbox. */ }
+  function save() {
+    while (seen.length > 500) ignoredBefore = Math.max(ignoredBefore, seen.shift().time);
+    try { localStorage.setItem(storageKey, JSON.stringify({ items: items.filter(item => item.kind !== "pending"), seen, ignoredBefore })); } catch { /* Storage can be blocked or full. */ }
+  }
+  function updateControls() {
+    const unread = items.filter(item => !item.read).length;
+    const count = $("notificationCount");
+    count.hidden = !unread;
+    count.textContent = unread > 99 ? "99+" : String(unread);
+    trigger.setAttribute("aria-label", unread ? I18n.msg`Уведомления: непрочитанных ${unread}` : I18n.t("Уведомления"));
+    $("notificationClear").disabled = !items.length;
+    $("notificationReadAll").disabled = !unread;
+  }
+  function render() {
+    updateControls();
+    const visible = items.filter(matches);
+    const fragment = document.createDocumentFragment();
+    for (const item of visible) {
+      const row = document.createElement("article");
+      row.className = "notification-item";
+      row.dataset.id = item.id;
+      row.dataset.kind = item.kind;
+      row.dataset.read = String(!!item.read);
+      row.innerHTML = `<span class="notification-icon">${notificationIcon(item.kind)}</span><div class="notification-content"><div class="notification-item-heading"><strong>${esc(item.title || kindTitles()[item.kind])}</strong>${!item.read ? '<span class="notification-unread" aria-hidden="true"></span>' : ""}</div><p>${esc(item.message)}</p><div class="notification-meta"><span>${esc(kindTitles()[item.kind])}</span><time datetime="${new Date(item.createdAt).toISOString()}">${esc(fmtTime(new Date(item.createdAt).toISOString()))}</time></div></div>`;
+      const content = row.querySelector(".notification-content");
+      if (item.operation) {
+        const actions = document.createElement("div");
+        actions.className = "notification-actions";
+        actions.innerHTML = `<a href="#/console">${esc(I18n.t("Посмотреть логи"))}</a><a href="#/events">${esc(I18n.t("События"))}</a>`;
+        actions.addEventListener("click", () => { markRead([item.id]); panel.hidePopover(); });
+        content.append(actions);
+      }
+      if (!item.read) {
+        const read = document.createElement("button");
+        read.type = "button";
+        read.className = "notification-read";
+        read.setAttribute("aria-label", I18n.msg`Прочитать уведомление: ${item.title || item.message}`);
+        read.innerHTML = notificationIcon("ok");
+        read.addEventListener("click", () => { markRead([item.id]); $("notificationReadAll").disabled ? $("notificationClose").focus() : $("notificationReadAll").focus(); });
+        row.append(read);
+      }
+      fragment.append(row);
+    }
+    list.replaceChildren(fragment);
+    $("notificationEmpty").hidden = !!visible.length;
+    $("notificationEmpty").textContent = I18n.t(!items.length ? "Пока нет уведомлений" : filter === "unread" ? "Все уведомления прочитаны" : "Нет уведомлений в этом фильтре");
+  }
+  function markRead(ids) {
+    const selected = new Set(ids);
+    items.forEach(item => { if (selected.has(item.id)) item.read = true; });
+    save(); render();
+    showToast.dismissIds(selected);
+  }
+  function readVisible() {
+    // Capture the current filter before marking so the unread filter empties predictably.
+    markRead(items.filter(matches).map(item => item.id));
+  }
+  function position() {
+    if (!panel.matches(":popover-open")) return;
+    const rect = trigger.getBoundingClientRect();
+    const width = document.documentElement.clientWidth;
+    const bottom = Math.min(innerHeight - 12, document.querySelector(".site-footer")?.getBoundingClientRect().top || innerHeight - 12,
+      !$("draftBar").hidden && getComputedStyle($("draftBar")).position === "fixed" ? $("draftBar").getBoundingClientRect().top - 12 : innerHeight - 12,
+      matchMedia("(max-width:740px)").matches ? document.querySelector(".nav").getBoundingClientRect().top - 12 : innerHeight - 12);
+    panel.style.width = `${Math.min(440, width - 24)}px`;
+    panel.style.maxHeight = `${Math.max(100, bottom - rect.bottom - 10)}px`;
+    panel.style.top = `${rect.bottom + 8}px`;
+    panel.style.left = `${Math.max(12, Math.min(rect.right - panel.offsetWidth, width - panel.offsetWidth - 12))}px`;
+  }
+  trigger.addEventListener("click", () => {
+    if (panel.matches(":popover-open")) panel.hidePopover();
+    else { render(); panel.showPopover(); position(); readVisible(); $("notificationClose").focus({ preventScroll: true }); }
+  });
+  panel.addEventListener("toggle", event => {
+    trigger.setAttribute("aria-expanded", String(event.newState === "open"));
+    if (event.newState === "closed" && (panel.contains(document.activeElement) || document.activeElement === document.body)) trigger.focus({ preventScroll: true });
+  });
+  $("notificationClose").addEventListener("click", () => panel.hidePopover());
+  $("notificationReadAll").addEventListener("click", () => { markRead(items.map(item => item.id)); $("notificationClose").focus(); });
+  $("notificationClear").addEventListener("click", () => {
+    showToast.clear();
+    items = []; save(); render(); $("notificationClose").focus();
+  });
+  panel.querySelectorAll("[data-notification-filter]").forEach(button => button.addEventListener("click", () => {
+    filter = button.dataset.notificationFilter;
+    panel.querySelectorAll("[data-notification-filter]").forEach(control => control.setAttribute("aria-pressed", String(control === button)));
+    render(); readVisible();
+  }));
+  window.addEventListener("resize", position);
+  window.addEventListener("scroll", position, true);
+  window.addEventListener("hashchange", () => { if (panel.matches(":popover-open")) panel.hidePopover(); });
+  window.addEventListener("storage", event => {
+    if (event.key !== storageKey) return;
+    const previous = items.map(item => item.id);
+    if (event.newValue === null) { items = []; seen = []; ignoredBefore = 0; }
+    else load(event.newValue);
+    showToast.dismissIds(new Set(previous.filter(id => !items.some(item => item.id === id && !item.read))));
+    render();
+  });
+  render();
+  return {
+    publish({ id = `local:${Date.now()}:${Math.random().toString(36).slice(2)}`, title = "", message = "", kind = "info", operation = false, createdAt = Date.now(), popup = true, duration = 5200 } = {}) {
+      const previous = items.find(item => item.id === id);
+      if (previous && previous.kind !== "pending") return previous;
+      if (!previous && operation && (seen.some(receipt => receipt.id === id) || (createdAt > 0 && createdAt <= ignoredBefore))) return null;
+      const item = { id, title: String(title), message: String(message), kind, operation, createdAt, read: false };
+      if (previous) items.splice(items.indexOf(previous), 1);
+      items.unshift(item); items = items.slice(0, 100);
+      if (operation && kind !== "pending") seen.push({ id, time: createdAt });
+      save(); render();
+      if (popup && kind !== "pending") showToast(item, duration);
+      return item;
+    },
+    markRead,
+  };
+})();
+
+function toast(text, kind = "info", ms = 5200) {
+  return Notifications.publish({ message: text, kind, duration: ms });
+}
+
+const showToast = (() => {
   const root = $("toasts");
   const entries = [];
   let focused = document.hasFocus(), hovered = false, keyboard = false, expandedByTouch = false;
@@ -293,13 +442,14 @@ const toast = (() => {
     entry.startedAt = null;
   }
 
-  function dismiss(entry) {
+  function dismiss(entry, read = false) {
     const index = entries.indexOf(entry);
     if (index < 0) return;
     const hadFocus = entry.box.contains(document.activeElement);
     pause(entry);
     entries.splice(index, 1);
     entry.box.remove();
+    if (read) Notifications.markRead([entry.id]);
     if (!entries.length) expandedByTouch = false;
     sync();
     if (hadFocus) {
@@ -368,26 +518,49 @@ const toast = (() => {
   });
   resize.observe(root);
 
-  return (text, kind = "info", ms = 5200) => {
+  const show = (notification, ms = 5200) => {
+    const { id, title, message: text, kind, operation } = notification;
     const box = document.createElement("div");
     box.className = "toast";
     box.dataset.kind = kind;
-    const message = document.createElement("span");
+    const icon = document.createElement("span");
+    icon.className = "toast-icon";
+    icon.innerHTML = notificationIcon(kind);
+    const message = document.createElement("div");
     message.className = "toast-message";
-    message.textContent = text;
+    if (title) {
+      const heading = document.createElement("strong");
+      heading.className = "toast-title";
+      heading.textContent = title;
+      message.append(heading);
+    }
+    const description = document.createElement("span");
+    description.className = "toast-description";
+    description.textContent = text;
+    message.append(description);
+    if (operation) {
+      const action = document.createElement("a");
+      action.className = "toast-action";
+      action.href = "#/console";
+      action.textContent = I18n.t("Посмотреть логи");
+      action.addEventListener("click", () => dismiss(entry, true));
+      message.append(action);
+    }
     const close = document.createElement("button");
     close.type = "button";
     close.className = "toast-close";
     close.setAttribute("aria-label", I18n.t("Закрыть"));
     close.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>';
-    box.append(message, close);
-    const entry = { box, close, remaining: ms, startedAt: null, timer: null };
-    close.addEventListener("click", () => dismiss(entry));
-    box.addEventListener("dblclick", () => dismiss(entry));
+    box.append(icon, message, close);
+    const entry = { id, box, close, remaining: ms, startedAt: null, timer: null };
+    close.addEventListener("click", () => dismiss(entry, true));
     entries.push(entry);
     root.appendChild(box);
     sync();
   };
+  show.dismissIds = ids => entries.slice().forEach(entry => { if (ids.has(entry.id)) dismiss(entry); });
+  show.clear = () => entries.slice().forEach(entry => dismiss(entry));
+  return show;
 })();
 
 /* ───────────────────────── модальное окно ───────────────────────── */
@@ -477,9 +650,8 @@ const S = {
   op: null,
   logsAuto: true,
   lastOpActive: false,
-  lastOpResult: null,
-  dismissedOpResult: null,
-  localOpResult: null,
+  opsLoaded: false,
+  localResultId: null,
   actionPending: false,
   settingsVersion: null,
   serverSettings: null,
@@ -683,8 +855,6 @@ async function requestOperation(body, { timeout } = {}) {
   try {
     const res = await api("/api/action", { method: "POST", body, timeout });
     if (res.error || res.ok === false) throw new Error(res.error || I18n.t("Запрос не принят"));
-    S.localOpResult = null;
-    $("operationResult").hidden = true;
     await refreshOps();
     return res;
   } finally {
@@ -701,7 +871,7 @@ async function action(op, extra = {}) {
   } catch (e) {
     if (!$("modalRoot").hidden) modal.error(e);
     else showActionError(op, e);
-    toast(e.message || String(e), "error");
+    if (!$("modalRoot").hidden) toast(e.message || String(e), "error");
     return false;
   }
 }
@@ -711,12 +881,9 @@ function showActionError(op, error) {
 }
 
 function showLocalResult(state, title, message) {
-  S.localOpResult = { historyKey: S.lastOpResult, state, title, message };
-  const result = $("operationResult");
-  result.hidden = false;
-  result.dataset.state = state;
-  $("operationResultTitle").textContent = title;
-  $("operationResultMessage").textContent = message;
+  const id = S.localResultId || `request:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+  S.localResultId = state === "pending" ? id : null;
+  Notifications.publish({ id, kind: state, title, message, operation: true, duration: 8000 });
 }
 
 /* ───────────────────────── отрисовка: обзор ───────────────────────── */
@@ -1024,32 +1191,25 @@ function updateButtons() {
 function renderOp(op) {
   const active = op && op.active;
   if (active) {
-    S.localOpResult = null;
     $("opbar").hidden = false;
     $("opPhase").textContent = `${OP_TITLES[active.op] || active.op}: ${active.phase}`;
     $("opMsg").textContent = active.message || "";
-    $("operationResult").hidden = true;
   } else {
     $("opbar").hidden = true;
   }
-  if (!active && op?.history?.[0]) {
-    const h = op.history[0];
-    const key = JSON.stringify([h.op, h.finishedAt, h.ok, h.cancelled, h.message]);
-    if (key !== S.lastOpResult) {
-      if (S.localOpResult && key !== S.localOpResult.historyKey) S.localOpResult = null;
-      S.lastOpResult = key;
-      if (S.lastOpActive) {
-        toast(h.cancelled ? h.message : h.ok ? I18n.msg`Готово: ${h.message || h.op}` : I18n.msg`Не удалось: ${h.message || h.op}`, h.ok ? "ok" : "error", 8000);
-        refreshAll();
-      }
-    }
-    if (!S.localOpResult) {
-      $("operationResult").hidden = key === S.dismissedOpResult;
-      $("operationResult").dataset.state = h.cancelled ? "cancelled" : h.ok ? "ok" : "error";
-      $("operationResultTitle").textContent = `${OP_TITLES[h.op] || h.op} — ${h.cancelled ? I18n.t("отменено") : h.ok ? I18n.t("готово") : I18n.t("не удалось")}`;
-      $("operationResultMessage").textContent = h.message || (h.ok ? I18n.t("Операция завершена. Подробности в событиях.") : I18n.t("Откройте логи, устраните причину и повторите действие."));
-    }
+  for (const h of [...(op?.history || [])].reverse()) {
+    const finished = Date.parse(h.finishedAt);
+    if (!Number.isFinite(finished)) continue;
+    Notifications.publish({
+      id: `operation:${h.id || JSON.stringify([h.op, h.finishedAt, h.ok, !!h.cancelled, h.message])}`,
+      kind: h.cancelled ? "warning" : h.ok ? "ok" : "error",
+      title: `${OP_TITLES[h.op] || h.op} — ${h.cancelled ? I18n.t("отменено") : h.ok ? I18n.t("готово") : I18n.t("не удалось")}`,
+      message: h.message || (h.ok ? I18n.t("Операция завершена. Подробности в событиях.") : I18n.t("Откройте логи, устраните причину и повторите действие.")),
+      createdAt: finished, operation: true, popup: S.opsLoaded, duration: 8000,
+    });
   }
+  if (!active && S.lastOpActive) refreshAll();
+  S.opsLoaded = true;
   S.lastOpActive = !!(active);
   S.op = op;
   if (activeView === "backups" && S.backupsItems?.length) renderBackupsPage();
@@ -1061,13 +1221,6 @@ function updateOperationElapsed() {
   const started = Date.parse(S.op?.active?.startedAt);
   $("opElapsed").textContent = Number.isFinite(started) ? I18n.msg`Прошло ${fmtUptime(Math.floor(Math.max(0, (Date.now() - started) / 1000)))}` : "";
 }
-
-$("operationResultDismiss").addEventListener("click", () => {
-  S.localOpResult = null;
-  S.dismissedOpResult = S.lastOpResult;
-  $("operationResult").hidden = true;
-  document.querySelector(`#view-${activeView}`)?.focus({ preventScroll: true });
-});
 
 /* человеческие названия операций для полосы прогресса и тостов */
 const OP_TITLES = {
@@ -2196,13 +2349,9 @@ $("btnCheckUpd").addEventListener("click", async () => {
     const c = res.check || {};
     if (c.error) throw new Error(c.error);
     showLocalResult("ok", I18n.t("Проверка обновлений — готово"), c.available ? I18n.t("Доступно обновление образа. Откройте обслуживание, чтобы проверить версию и применить обновление.") : I18n.t("Обновлений нет — образ актуален."));
-    if (c.available) toast(I18n.t("Доступно обновление образа"), "ok");
-    else if (c.error) toast(c.error, "error");
-    else toast(I18n.t("Обновлений нет — образ актуален"), "ok");
     refreshOverview();
   } catch (e) {
     showActionError("check-update", e);
-    toast(e.message || String(e), "error");
   } finally {
     S.actionPending = false; updateButtons();
   }
@@ -2233,7 +2382,6 @@ $("btnCheckMods").addEventListener("click", async () => {
     toast(I18n.t("Проверка модов запущена — результат появится в карточке"), "ok");
   } catch (e) {
     showActionError("check-mods-update", e);
-    toast(e.message || String(e), "error");
   } finally {
     S.actionPending = false; updateButtons();
   }

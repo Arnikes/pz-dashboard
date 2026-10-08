@@ -24,6 +24,7 @@ def stop_stream(page):
 
 @pytest.mark.parametrize("language,width", [("ru", 390), ("en", 1440)])
 def test_every_mutating_view_locks_and_recovers(page, dashboard, editing, language, width):  # noqa: F811
+    dashboard["players"].update(names=["Alice"], count=1)
     page.set_viewport_size({"width": width, "height": 1000})
     page.add_init_script(f"localStorage.setItem('pz-language', '{language}')")
     page.goto(dashboard["url"] + "/#/settings")
@@ -173,4 +174,5 @@ def test_finished_operation_unlocks_and_cancel_stays_available(page, dashboard, 
     expect(page.locator("#wdRestart")).to_be_enabled()
     expect(page.locator("#maintenanceAvailability")).to_be_hidden()
     expect(page.locator("#btnCancelMods")).to_be_hidden()
-    expect(page.locator("#operationResult")).to_be_visible()
+    page.locator("#btnNotifications").click()
+    expect(page.locator("#notificationList")).to_contain_text("Finished")

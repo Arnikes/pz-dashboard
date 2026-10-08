@@ -74,6 +74,10 @@
       </div>
       <button class="btn" id="btnCommands" type="button" title="Быстрые команды (Ctrl K)" aria-label="Быстрые команды" aria-keyshortcuts="Control+k Meta+k" aria-haspopup="dialog" aria-controls="commandDialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><span class="command-label">Быстрые команды</span></button>
       <div class="session-tools">
+        <button class="btn ghost notification-trigger" id="btnNotifications" type="button" title="Уведомления" aria-label="Уведомления" aria-expanded="false" aria-controls="notificationCenter">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>
+          <span class="notification-count" id="notificationCount" aria-hidden="true" hidden></span>
+        </button>
         <div class="language-control">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 4 6 4 9s-1 6-4 9c-3-3-4-6-4-9s1-6 4-9Z"/></svg>
           <select id="languageSwitch" class="language-switch" data-language-switch aria-label="Язык интерфейса"><option value="en" lang="en">EN</option><option value="ru" lang="ru">RU</option></select>
@@ -142,12 +146,6 @@
       <span class="mono" id="opElapsed" aria-label="Длительность операции"></span>
       <a class="btn" href="#/console">Логи</a>
       <button class="btn" id="btnCancelMods" hidden>Отменить обновление модов</button>
-    </section>
-    <section class="op-result" id="operationResult" hidden role="status" aria-label="Результат операции">
-      <div><strong id="operationResultTitle"></strong><p id="operationResultMessage"></p></div>
-      <a class="btn" href="#/console">Посмотреть логи</a>
-      <a class="btn" href="#/events">События</a>
-      <button class="btn ghost" id="operationResultDismiss" type="button">Закрыть результат</button>
     </section>
     <section id="editorAttention" class="card attention" hidden aria-label="Требуют внимания"></section>
     <ol id="configFlow" class="config-flow" aria-label="Стадии изменения конфигурации" hidden>
@@ -754,7 +752,25 @@
     <button type="button" id="draftMore" class="btn small draft-more" aria-label="Другие действия с черновиком" aria-expanded="false" aria-controls="draftExtra"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button>
   </div>
 
-  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+  <section class="notification-center" id="notificationCenter" popover="auto" aria-labelledby="notificationHeading">
+    <header class="notification-header">
+      <h2 id="notificationHeading">Уведомления</h2>
+      <button class="btn ghost notification-panel-close" id="notificationClose" type="button" aria-label="Закрыть уведомления"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+    </header>
+    <div class="notification-filters" role="group" aria-label="Фильтр уведомлений">
+      <button type="button" data-notification-filter="all" aria-pressed="true">Все</button>
+      <button type="button" data-notification-filter="unread" aria-pressed="false">Непрочитанные</button>
+      <button type="button" data-notification-filter="error" aria-pressed="false">Ошибки</button>
+      <button type="button" data-notification-filter="ok" aria-pressed="false">Успешные</button>
+    </div>
+    <div class="notification-list" id="notificationList"></div>
+    <p class="notification-empty" id="notificationEmpty">Пока нет уведомлений</p>
+    <footer class="notification-footer">
+      <button class="btn ghost" id="notificationReadAll" type="button">Прочитать все</button>
+      <button class="btn ghost" id="notificationClear" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>Очистить все</button>
+    </footer>
+  </section>
+  <div class="toasts" id="toasts" role="status" aria-live="polite" aria-relevant="additions"></div>
 
   <div class="modal-root" id="modalRoot" hidden>
     <div class="modal-backdrop" id="modalBackdrop"></div>

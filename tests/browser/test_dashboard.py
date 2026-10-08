@@ -301,6 +301,7 @@ def test_copy_field_writes_full_text_to_clipboard(page, dashboard, mode):
 def test_failed_copy_shows_error_and_restores_focus(page, dashboard):
     page.goto(dashboard["url"])
     expect(page.locator("#btnStop")).to_be_enabled()
+    expect(page.locator("#startupLoader")).to_be_hidden()
     page.evaluate("""() => {
         Object.defineProperty(navigator, 'clipboard', { value: undefined });
         document.execCommand = () => false;
@@ -406,6 +407,7 @@ def test_cancel_auto_mods_update(page, dashboard, width, height):
     assert requests == [{"op": "cancel-mods-update"}]
     page.evaluate("""renderOp({active: null, history: [{
         op: 'mods-restart', ok: true, cancelled: true,
+        finishedAt: '2026-10-08T12:00:00Z',
         message: 'Автообновление модов отменено администратором'
     }]})""")
     expect(cancel).to_be_hidden()

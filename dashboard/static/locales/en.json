@@ -1448,5 +1448,19 @@
   "overwrite должен быть boolean": "overwrite must be boolean",
   "Загружаем данные сервера…": "Loading server data…",
   "Загрузка занимает больше времени, чем обычно.": "Loading is taking longer than usual.",
-  "Перезагрузить": "Reload"
+  "Перезагрузить": "Reload",
+  "Уведомления: непрочитанных {{0}}": "Notifications: {{0}} unread",
+  "Закрыть уведомления": "Close notifications",
+  "Фильтр уведомлений": "Notification filter",
+  "Непрочитанные": "Unread",
+  "Успешные": "Success",
+  "Пока нет уведомлений": "No notifications yet",
+  "Все уведомления прочитаны": "All notifications read",
+  "Нет уведомлений в этом фильтре": "No notifications in this filter",
+  "Прочитать все": "Mark all as read",
+  "Очистить все": "Clear all",
+  "Прочитать уведомление: {{0}}": "Mark notification as read: {{0}}",
+  "Выполняется": "In progress",
+  "Информация": "Information",
+  "Ошибки": "Errors"
 }
