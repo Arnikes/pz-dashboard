@@ -3,6 +3,7 @@
 from functools import partial
 
 import ops
+import dashboardupdate
 
 
 class ActionError(Exception):
@@ -39,18 +40,21 @@ def dispatch(data):
         "stop": partial(ops._do_stop, warn),
         "restart": partial(ops._do_restart, warn),
         "apply-update": partial(ops._do_apply_update, warn, "Обновление сервера"),
+        "apply-dashboard-update": partial(dashboardupdate.apply, ops._set_phase),
         "check-mods-update": partial(ops.check_mods_update, source="manual"),
         "apply-mods-update": partial(ops._do_apply_mods_update, warn),
         "backup": partial(ops.run_backup_job, "manual", bool(data.get("stopServer", False))),
         "verify-backup": partial(ops.verify_backup, data.get("name") or ""),
         "restore": partial(ops._do_restore, data.get("name") or ""),
     }
-    if action != "check-update" and action not in workers:
+    if action not in {"check-update", "check-dashboard-update"} and action not in workers:
         raise ActionError(400, "Неизвестная операция")
     if ops.op_busy():
         raise ActionError(409, "Уже выполняется другая операция")
 
     try:
+        if action == "check-dashboard-update":
+            return {"ok": True, "check": dashboardupdate.check()}
         if action == "check-update":
             return {"ok": True, "check": ops.check_update(force_event=True)}
         if action == "apply-update":

@@ -31,6 +31,7 @@ from settingsmodel import (
 )
 from errors import OpsError as OpsError, OpsErrorReported as OpsErrorReported
 import dockerlib
+import dashboardupdate
 import notify as notifylib
 import rcon as rconlib
 
@@ -483,15 +484,26 @@ _NAME_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
 def op_state():
     with _OP_LOCK:
+        dashboard_op = dashboardupdate.operation()
+        active = dict(_ACTIVE) if _ACTIVE["op"] else None
+        history = list(_OP_HISTORY)
+        if dashboard_op:
+            if dashboard_op.get("active"):
+                active = dashboard_op
+            elif not any(row["id"] == dashboard_op["id"] for row in history):
+                history.append(dashboard_op)
+                history.sort(
+                    key=lambda row: row.get("finishedAt", row.get("startedAt", "")), reverse=True
+                )
         return {
-            "active": dict(_ACTIVE) if _ACTIVE["op"] else None,
-            "history": list(_OP_HISTORY),
+            "active": active,
+            "history": history,
         }
 
 
 def op_busy():
     with _OP_LOCK:
-        return _ACTIVE["op"] is not None
+        return _ACTIVE["op"] is not None or bool((dashboardupdate.operation() or {}).get("active"))
 
 
 def cancel_mods_update():
@@ -524,6 +536,8 @@ def _start_worker(op, fn):
         language_token = _PLAYER_LANGUAGE.set(notification_language)
         try:
             result = fn()
+            if result == "handoff":
+                return
             with _OP_LOCK:
                 _OP_HISTORY.appendleft(
                     {
@@ -590,7 +604,7 @@ def _start_worker(op, fn):
                 _OP_CANCEL.clear()
 
     with _OP_LOCK:
-        if _ACTIVE["op"]:
+        if _ACTIVE["op"] or (dashboardupdate.operation() or {}).get("active"):
             raise OpsError("Уже выполняется другая операция, подождите")
         _OP_CANCEL.clear()
         _ACTIVE.update(
@@ -1915,6 +1929,7 @@ def overview(*, state_provider=None):
             **update_state(),
             "local": local_digest_cached(image=image, image_id=(st or {}).get("imageId")),
         },
+        "dashboardUpdate": dashboardupdate.state() if docker_ok else {"supported": False},
         "modsCheck": mods_check_state(),
         "settings": get_settings(),
         "watchdog": watchdog_state(),

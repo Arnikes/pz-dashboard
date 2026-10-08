@@ -973,6 +973,15 @@ function renderOverview(o) {
   setCopyTarget("updLocalCopy", u.local, shortDigest(u.local));
   setCopyTarget("updRemoteCopy", u.remote, same ? I18n.t("совпадает") : shortDigest(u.remote));
 
+  const du = o.dashboardUpdate || {};
+  setPill("dashboardUpdPill", du.error ? "bad" : du.available === true ? "warn" : du.available === false ? "ok" : "unknown",
+    du.error ? I18n.t("ошибка проверки") : du.available === true ? I18n.t("есть обновление") : du.available === false ? I18n.t("актуально") : I18n.t("не проверялось"));
+  $("dashboardUpdImage").textContent = du.image || "—";
+  $("dashboardUpdNote").textContent = du.error || du.note || "";
+  $("dashboardUpdNote").hidden = !$("dashboardUpdNote").textContent;
+  setCopyTarget("dashboardUpdLocalCopy", du.local, shortDigest(du.local));
+  setCopyTarget("dashboardUpdRemoteCopy", du.remote, du.local && du.local === du.remote ? I18n.t("совпадает") : shortDigest(du.remote));
+
   // автообновление
   const au = o.settings?.autoUpdate || {};
   if (settingsCanRender("autoSwitch")) $("autoSwitch").checked = !!au.enabled;
@@ -1024,11 +1033,11 @@ function renderOverview(o) {
   const mc = o.modsCheck || {};
   if (mc.state === "up-to-date") {
     setPill("modsPill", "ok", I18n.t("актуальны"));
-    $("modsCheckNote").textContent = mc.at ? I18n.msg`Проверено ${fmtTime(mc.at)}` : "";
+    $("modsCheckNote").textContent = "";
   } else if (mc.state === "needs-update") {
     const n = (mc.items || []).length;
     setPill("modsPill", "warn", n ? I18n.msg`обновить: ${n}` : I18n.t("есть обновления"));
-    $("modsCheckNote").textContent = mc.at ? I18n.msg`Проверено ${fmtTime(mc.at)}. Для загрузки обновлений нужен рестарт.` : I18n.t("Для загрузки обновлений нужен рестарт.");
+    $("modsCheckNote").textContent = I18n.t("Для загрузки обновлений нужен рестарт.");
   } else if (mc.state === "inconclusive") {
     setPill("modsPill", "warn", I18n.t("нет ответа"));
     $("modsCheckNote").textContent = I18n.t("Сервер не вернул результат вовремя. Повторите проверку позже.");
@@ -1119,6 +1128,8 @@ function updateButtons() {
   $("btnSaveWorld").disabled = !consoleLive;
   $("btnCheckUpd").disabled = busy || S.demo || remote;
   $("btnApplyUpd").disabled = busy || remote || o?.compose === false || o?.update?.available === false;
+  $("btnCheckDashboardUpd").disabled = busy || remote || !o?.dashboardUpdate?.supported;
+  $("btnApplyDashboardUpd").disabled = busy || remote || !o?.dashboardUpdate?.supported || o?.compose === false || o?.dashboardUpdate?.available === false;
   $("btnCheckMods").disabled = busy || S.demo || remote;
   $("btnApplyMods").disabled = busy || S.demo || remote;
   const modsRestart = S.op?.active?.op === "mods-restart";
@@ -1171,6 +1182,7 @@ function updateButtons() {
   }
   for (const id of ["btnStart", "btnStop", "btnRestart", "btnSaveWorld"]) $(id).setAttribute("aria-describedby", "operationAvailability");
   for (const id of ["btnCheckUpd", "btnApplyUpd"]) $(id).setAttribute("aria-describedby", "maintenanceAvailability");
+  for (const id of ["btnCheckDashboardUpd", "btnApplyDashboardUpd"]) $(id).setAttribute("aria-describedby", "maintenanceAvailability dashboardUpdNote");
   $("btnBackup").setAttribute("aria-describedby", "backupAvailability");
   $("consoleInput").setAttribute("aria-describedby", "consoleAvailability");
   window.ConfigEditor?.operationChanged();
@@ -1226,6 +1238,7 @@ function updateOperationElapsed() {
 const OP_TITLES = {
   start: I18n.t("Запуск"), stop: I18n.t("Остановка"), restart: I18n.t("Рестарт"),
   "check-update": I18n.t("Проверка обновлений"), "apply-update": I18n.t("Обновление сервера"),
+  "check-dashboard-update": I18n.t("Проверка обновлений пульта"), "apply-dashboard-update": I18n.t("Обновление пульта"),
   "check-mods-update": I18n.t("Проверка модов"), "apply-mods-update": I18n.t("Обновление модов"),
   "mods-restart": I18n.t("Авторестарт модов"),
   backup: I18n.t("Бэкап"), restore: I18n.t("Восстановление"), "verify-backup": I18n.t("Проверка архива"),
@@ -2370,6 +2383,31 @@ $("btnApplyUpd").addEventListener("click", () => {
 });
 
 /* ─────────────────────── проверка модов (RCON) ─────────────────────── */
+
+$("btnCheckDashboardUpd").addEventListener("click", async () => {
+  if (operationBusy()) return;
+  S.actionPending = true; updateButtons();
+  showLocalResult("pending", I18n.t("Проверка обновлений пульта"), I18n.t("Сверяем образ. Дождитесь ответа; отмена этой проверки не поддерживается."));
+  try {
+    const res = await api("/api/action", { method: "POST", body: { op: "check-dashboard-update" }, timeout: 65000 });
+    if (res.error || res.ok === false || res.check?.error) throw new Error(res.error || res.check?.error || I18n.t("Проверка не принята"));
+    if (S.overview) renderOverview({ ...S.overview, dashboardUpdate: res.check });
+    showLocalResult("ok", I18n.t("Проверка обновлений пульта"), res.check?.available === true ? I18n.t("Доступна новая версия") : I18n.t("Образ пульта уже актуален"));
+    refreshOverview();
+  } catch (e) {
+    showActionError("check-dashboard-update", e);
+  } finally {
+    S.actionPending = false; updateButtons();
+  }
+});
+$("btnApplyDashboardUpd").addEventListener("click", () => {
+  modal.open({
+    title: I18n.t("Обновить контейнер пульта?"),
+    okLabel: I18n.t("Обновить"),
+    bodyHTML: `<p>${esc(I18n.t("Новый образ скачается заранее. Пульт перезапустится, затем соединение восстановится автоматически. Игровой сервер продолжит работу."))}</p>`,
+    onConfirm: async () => action("apply-dashboard-update"),
+  });
+});
 
 $("btnCheckMods").addEventListener("click", async () => {
   if (S.actionPending || S.op?.active) return;

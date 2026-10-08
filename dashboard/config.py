@@ -19,6 +19,8 @@ CFG = {
     "port": _int("PORT", 8080),
     "pz_container": os.getenv("PZ_CONTAINER", "pzserver"),
     "pz_service": os.getenv("PZ_SERVICE", "pzserver"),
+    "dashboard_container": os.getenv("PZ_DASHBOARD_CONTAINER", "pz-dashboard"),
+    "dashboard_service": os.getenv("PZ_DASHBOARD_SERVICE", "pz-dashboard"),
     "pz_image": IMAGE,
     "image_repo": _REPO,
     "image_tag": _TAG,

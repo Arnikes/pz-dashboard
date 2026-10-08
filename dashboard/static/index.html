@@ -451,6 +451,23 @@
           </div>
         </section>
 
+        <section class="card" id="sec-dashboard-update" aria-labelledby="hDashboardUpdate">
+          <header class="card-head">
+            <h2 id="hDashboardUpdate">Обновление пульта</h2>
+            <span class="pill" id="dashboardUpdPill" data-state="unknown">—</span>
+          </header>
+          <p class="upd-note" id="dashboardUpdNote" hidden></p>
+          <dl class="meta">
+            <div><dt>Образ</dt><dd class="mono" id="dashboardUpdImage">—</dd></div>
+            <div><dt>Локальный</dt><dd class="mono"><button type="button" class="copy-value" id="dashboardUpdLocalCopy" aria-label="Скопировать локальный digest" disabled><span class="copy-label">—</span></button></dd></div>
+            <div><dt>В реестре</dt><dd class="mono"><button type="button" class="copy-value" id="dashboardUpdRemoteCopy" aria-label="Скопировать digest из реестра" disabled><span class="copy-label">—</span></button></dd></div>
+          </dl>
+          <div class="actions">
+            <button class="btn" id="btnCheckDashboardUpd">Проверить</button>
+            <button class="btn primary" id="btnApplyDashboardUpd">Обновить сейчас</button>
+          </div>
+        </section>
+
         <!-- ОБНОВЛЕНИЯ МОДОВ (RCON checkModsNeedUpdate) -->
         <section class="card c-mupd" id="sec-mods-update" data-od-id="mods-update" aria-labelledby="hModsUpd">
           <header class="card-head">

@@ -16,16 +16,26 @@ def browser_context_args(browser_context_args):
 
 
 class StaticHandler(SimpleHTTPRequestHandler):
+    # Match the application's HTTP/1.1 transport and reuse asset connections;
+    # HTTP/1.0 churn can exhaust Windows sockets across the full browser suite.
+    protocol_version = "HTTP/1.1"
+
     def do_GET(self):
         if self.path.startswith("/static/"):
             self.path = self.path.removeprefix("/static")
         super().do_GET()
 
 
+class StaticServer(ThreadingHTTPServer):
+    # Chromium opens several asset connections at once. Python 3.12's
+    # five-slot default backlog can refuse a required script during navigation.
+    request_queue_size = 128
+
+
 @pytest.fixture(scope="session")
 def static_url():
     directory = Path(__file__).resolve().parents[2] / "dashboard" / "static"
-    server = ThreadingHTTPServer(("127.0.0.1", 0), partial(StaticHandler, directory=str(directory)))
+    server = StaticServer(("127.0.0.1", 0), partial(StaticHandler, directory=str(directory)))
     thread = Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
     thread.start()
     try:

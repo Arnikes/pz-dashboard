@@ -58,6 +58,22 @@ The API action `cancel-mods-update` returns HTTP 409 if there is no cancellable 
 
 ## Player warning language
 
+Maintenance → Console update checks the running console image against its registry
+and updates only the console service. The game server stays running. Confirm the
+update to download the image and recreate the console through a temporary helper;
+the browser reconnects automatically. The operation result survives the restart.
+The helper uses the current console image and shared mounts, freezes Compose
+interpolation, preserves host bind paths, and removes its temporary configuration
+after completion. Failed recreation or health checks appear in the operation history.
+
+This requires a published image with a mutable tag in Compose (see
+[released images](installation.md#released-images-from-ghcr)), Docker/Compose access,
+mounted Compose files and `.env`, and a persistent writable `DASHBOARD_DIR`.
+Local builds and images pinned by digest must be updated on the host.
+`PZ_DASHBOARD_CONTAINER` and `PZ_DASHBOARD_SERVICE` default to `pz-dashboard`;
+set them in the console environment when using different names. Changes to the
+image reference in Compose must first be applied on the host.
+
 In Maintenance → Notifications, choose the player warning language (English or Русский).
 Changes save automatically as `playerNotifications.language` (`en` or `ru`) in
 `dashboard-data/settings.json`. English is the default for new and legacy settings

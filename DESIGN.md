@@ -270,6 +270,12 @@ border. Help stays above the mobile navigation and draft actions.
 
 ## Workspace layout
 
+Maintenance includes a console image update section between server image updates
+and mod updates, using the same status, copy fields, and action controls. Its
+confirmation explains the console restart and automatic reconnection. Unsupported
+deployments show the required configuration beside disabled controls. Mod updates
+omit the check timestamp while retaining restart guidance and inconclusive errors.
+
 Overview groups server state/actions, player and backup summaries, container load,
 updates, and recent events. Maintenance stacks image and mod updates in the left
 column beside watchdog and Telegram settings, stacking both columns at narrow widths.
