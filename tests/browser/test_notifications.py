@@ -27,6 +27,34 @@ def render_history(page, history=HISTORY):
     page.evaluate("history => renderOp({active: null, history})", history)
 
 
+@pytest.mark.browser_context_args(has_touch=True)
+@pytest.mark.parametrize(
+    "width,activation",
+    [(1440, "click"), (390, "click"), (390, "tap"), (1440, "Enter"), (1440, "Space")],
+)
+def test_notification_trigger_toggles_open_center(page, dashboard, width, activation):
+    page.set_viewport_size({"width": width, "height": 900})
+    page.goto(dashboard["url"])
+    trigger = page.locator("#btnNotifications")
+    panel = page.locator("#notificationCenter")
+    expect(page.locator("#startupLoading")).to_be_hidden()
+    for _ in range(2):
+        for expanded in (True, False):
+            if activation == "click":
+                trigger.click()
+            elif activation == "tap":
+                trigger.tap()
+            else:
+                trigger.focus()
+                page.keyboard.press(activation)
+            expect(trigger).to_have_attribute("aria-expanded", str(expanded).lower())
+            if expanded:
+                expect(panel).to_be_visible()
+            else:
+                expect(panel).to_be_hidden()
+        expect(trigger).to_be_focused()
+
+
 def test_read_results_do_not_repeat_after_replay_reload_or_clear(page, dashboard):
     page.route("**/api/ops", lambda route: route.fulfill(json={"active": None, "history": HISTORY}))
     page.goto(dashboard["url"])

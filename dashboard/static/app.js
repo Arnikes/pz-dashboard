@@ -377,12 +377,12 @@ const Notifications = (() => {
     panel.style.top = `${rect.bottom + 8}px`;
     panel.style.left = `${Math.max(12, Math.min(rect.right - panel.offsetWidth, width - panel.offsetWidth - 12))}px`;
   }
-  trigger.addEventListener("click", () => {
-    if (panel.matches(":popover-open")) panel.hidePopover();
-    else { render(); panel.showPopover(); position(); readVisible(); $("notificationClose").focus({ preventScroll: true }); }
+  panel.addEventListener("beforetoggle", event => {
+    if (event.newState === "open") { render(); readVisible(); }
   });
   panel.addEventListener("toggle", event => {
     trigger.setAttribute("aria-expanded", String(event.newState === "open"));
+    if (event.newState === "open") { position(); $("notificationClose").focus({ preventScroll: true }); }
     if (event.newState === "closed" && (panel.contains(document.activeElement) || document.activeElement === document.body)) trigger.focus({ preventScroll: true });
   });
   $("notificationClose").addEventListener("click", () => panel.hidePopover());

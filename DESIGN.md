@@ -180,7 +180,11 @@ beside the same globe-and-language control used by login and the dashboard,
 with 24px separation before the page title. Shared language-control styling
 lives in `pwa.css` so it also works from the offline cache.
 The top bar contains the active profile, language selector, quick commands,
-and sign-out action. The profile's status remains available through its
+notification toggle, and sign-out action. The notification toggle uses the same
+borderless muted treatment as the session tools, with a surface background on
+hover or while open and the shared visible keyboard focus. Activating it again
+closes the notification center; Escape and clicking outside also dismiss it.
+The profile's status remains available through its
 accessible description and selector color in every state, without a visible
 status label or adjacent help control. Settings navigation shows a count
 of changed draft lines when a draft has changes.

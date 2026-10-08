@@ -1064,7 +1064,8 @@ select { cursor: pointer; }
 
 /* ───────────────────────── тосты ───────────────────────── */
 
-.notification-trigger { position:relative; width:44px; height:44px; padding:10px; flex:none; }
+.btn.notification-trigger { position:relative; width:44px; height:44px; padding:10px; flex:none; border-color:transparent; color:var(--muted); }
+.btn.notification-trigger:hover:not(:disabled) { background:var(--surface-2); border-color:transparent; color:var(--ink); }
 .notification-trigger svg { width:22px; height:22px; }
 .notification-count { position:absolute; right:1px; top:1px; min-width:17px; height:17px; padding:0 4px; border-radius:999px; background:var(--ink); color:var(--bg-deep); font:600 10px/17px var(--font-body); text-align:center; }
 .notification-trigger[aria-expanded="true"] { background:var(--surface-2); color:var(--ink); }
