@@ -109,7 +109,18 @@ def test_checks_share_pending_progress_and_one_failure_result(
     held[0].fulfill(json={"ok": True, "started": operation})
     expect(page.locator("#opPhase")).to_contain_text(phase)
     expect(page.locator("#sec-updates .operation-label")).to_have_text(
-        page.evaluate("op=>I18n.msg`Идёт операция: ${OP_TITLES[op]}`", operation)
+        {
+            "ru": {
+                "check-update": "Идёт операция: Проверка обновлений",
+                "check-dashboard-update": "Идёт операция: Проверка обновлений пульта",
+                "check-mods-update": "Идёт операция: Проверка модов",
+            },
+            "en": {
+                "check-update": "Operation in progress: Checking updates",
+                "check-dashboard-update": "Operation in progress: Check console updates",
+                "check-mods-update": "Operation in progress: Checking mods",
+            },
+        }[language][operation]
     )
     snapshot.update(
         active=None,

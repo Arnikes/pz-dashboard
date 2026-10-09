@@ -63,6 +63,11 @@ def test_every_mutating_view_locks_and_recovers(page, dashboard, editing, langua
         widget = page.locator(f"#view-{view} .operation-loading").first
         expect(widget).to_have_attribute("aria-busy", "true")
         expect(widget.locator(":scope > .operation-loader")).to_be_visible()
+        expect(widget.locator(":scope > .operation-loader .operation-label")).to_have_text(
+            "Идёт операция: Авторестарт модов"
+            if language == "ru"
+            else "Operation in progress: Automatic mod restart"
+        )
         assert (
             widget.locator(":scope > :not(.operation-loader)").first.evaluate(
                 "el=>getComputedStyle(el).filter"
@@ -98,6 +103,22 @@ def test_every_mutating_view_locks_and_recovers(page, dashboard, editing, langua
         expect(page.locator(control)).to_be_enabled()
     expect(page.locator("#tgToken")).to_have_value("unsaved-token")
     expect(page.locator("#consoleInput")).to_have_value("players")
+
+
+@pytest.mark.parametrize("language", ["ru", "en"])
+def test_operation_loading_fallback_uses_selected_language(page, dashboard, language):
+    page.add_init_script(f"localStorage.setItem('pz-language', '{language}')")
+    page.goto(dashboard["url"] + "/#/maintenance")
+    expect(page.locator("#btnStop")).to_be_enabled()
+    stop_stream(page)
+    page.evaluate("S.actionPending=true;S.pendingOperation=null;updateButtons()")
+    expect(page.locator("#sec-updates .operation-label")).to_have_text(
+        "Идёт операция" if language == "ru" else "Operation in progress"
+    )
+    page.evaluate("S.pendingOperation='restart';updateButtons()")
+    expect(page.locator("#sec-updates .operation-label")).to_have_text(
+        "Идёт операция: Рестарт" if language == "ru" else "Operation in progress: Restart"
+    )
 
 
 def test_pending_editor_launch_locks_other_views_and_rejection_restores_input(
