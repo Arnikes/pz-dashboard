@@ -147,6 +147,11 @@ The browser editor can overwrite external edits when applying its restored draft
 or restarting it. It requires PZ/RCON readiness, matching revisions and Sandbox values,
 and fresh Workshop metadata. The background scheduler retries startup verification
 every 20 seconds when readiness or metadata is unavailable, even without an open browser.
+INI verification accepts CRLF/LF line-ending serialization alongside the recognized
+startup-generated ResetID changes. It still rejects other INI text changes, including
+setting values and secrets. Successful verification adopts the disk line endings
+in panel metadata and preserves pending draft edits without writing game files.
+Revision checks for concurrent edits remain exact.
 Cancelling package installation removes its new items/IDs from the draft; apply that
 change separately. Downloaded Workshop cache remains available.
 

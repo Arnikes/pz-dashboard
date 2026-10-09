@@ -1235,6 +1235,40 @@ RESET_COMMENT = (
 
 
 @pytest.mark.parametrize("prepare", [False, True])
+def test_startup_ini_line_endings_are_adopted_without_false_draft_changes(
+    env, monkeypatch, prepare
+):
+    data, _ = env
+    path = data / "Server/world.ini"
+    path.write_bytes((INI + RESET_COMMENT).encode())
+    current = change(ini={"PublicName": "Deferred"}, mods={"items": ["111", "222"]})
+    if prepare:
+        monkeypatch.setattr(workshop, "scan", lambda *args, **kwargs: {"222": [{"modId": "new"}]})
+        monkeypatch.setattr(workshop, "problems", lambda *args: [])
+
+    def start(name):
+        path.write_bytes(
+            path.read_bytes()
+            .replace(b"\r\n", b"\n")
+            .replace(b"Default: 123456", b"Default: 654321")
+        )
+        return 0, "", ""
+
+    monkeypatch.setattr(editor.dockerlib, "container_start", start)
+    monkeypatch.setattr(editor, "wait_ready", lambda: None)
+    editor.run(
+        {"file": "world.ini", "draftRevision": current["draftRevision"], "restart": True},
+        prepare=prepare,
+    )
+    result = editor.draft("world.ini")
+    assert not result["conflict"] and result["changed"] is prepare
+    assert result["state"]["appliedRevision"] == result["currentRevision"]
+    assert "\r" not in result["texts"]["ini"]
+    assert "PublicName=Deferred" in result["texts"]["ini"]
+    assert (b"PublicName=Deferred" in path.read_bytes()) is not prepare
+
+
+@pytest.mark.parametrize("prepare", [False, True])
 def test_pz_random_default_comment_is_adopted_after_verified_start(env, monkeypatch, prepare):
     data, _ = env
     path = data / "Server/world.ini"
@@ -1698,6 +1732,65 @@ def test_refresh_clean_page_preserves_old_written_snapshot_for_startup_verificat
     assert current["texts"] != old
     request["draftRevision"] = current["draftRevision"]
     assert editor.verify_running(request)["status"] == "applied"
+
+
+@pytest.mark.parametrize("automatic", [False, True])
+@pytest.mark.parametrize("pending", [False, True])
+def test_verification_accepts_ini_line_endings_and_preserves_draft(
+    env, monkeypatch, automatic, pending
+):
+    data, request = saved_verification(env, monkeypatch)
+    if pending:
+        draft = change(ini={"PublicName": "Pending setting"})
+        request["draftRevision"] = draft["draftRevision"]
+    path = data / "Server/world.ini"
+    path.write_bytes(path.read_bytes().replace(b"\r\n", b"\n"))
+    before = editor.read_profile("world.ini")
+    request["currentRevision"] = editor.revision(before)
+    for _ in range(2):
+        if automatic:
+            editor.auto_verify_running()
+            result = editor.draft("world.ini")
+        else:
+            result = editor.verify_running(request)
+            request.update(
+                draftRevision=result["draftRevision"], currentRevision=result["currentRevision"]
+            )
+        assert result["state"]["status"] == "applied"
+        assert result["changed"] is pending
+        assert not result["conflict"]
+        assert result["state"]["savedRevision"] == result["currentRevision"]
+        assert ("PublicName=Pending setting" in result["texts"]["ini"]) is pending
+        assert "\r" not in result["texts"]["ini"]
+        assert "topsecret" not in json.dumps(result)
+        assert "hidden-token" not in json.dumps(result)
+        assert editor.read_profile("world.ini") == before
+
+
+@pytest.mark.parametrize("failure", ["value", "secret", "comment", "reset", "sandbox"])
+def test_ini_line_endings_do_not_hide_real_verification_differences(env, monkeypatch, failure):
+    data, request = saved_verification(env, monkeypatch)
+    path = data / "Server/world.ini"
+    text = path.read_bytes().replace(b"\r\n", b"\n")
+    replacements = {
+        "value": (b"PublicName=", b"PublicName=changed "),
+        "secret": (b"topsecret", b"changed-secret"),
+        "comment": (b"# keep comment", b"# changed comment"),
+        "reset": (b"ResetID=2748676", b"ResetID=100000000"),
+    }
+    if failure == "sandbox":
+        sandbox = data / "Server/world_SandboxVars.lua"
+        sandbox.write_bytes(sandbox.read_bytes().replace(b"Zombies = 4", b"Zombies = 3"))
+    else:
+        text = text.replace(*replacements[failure])
+    path.write_bytes(text)
+    root = editor.state_dir("world.ini")
+    state, draft = editor.load_json(root / "state.json"), editor.load_json(root / "draft.json")
+    request["currentRevision"] = editor.revision(editor.read_profile("world.ini"))
+    with pytest.raises(editor.EditorError):
+        editor.verify_running(request)
+    assert editor.load_json(root / "state.json") == state
+    assert editor.load_json(root / "draft.json") == draft
 
 
 @pytest.mark.parametrize("installed", [False, True])

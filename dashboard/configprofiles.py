@@ -5,7 +5,7 @@ import hashlib
 import json
 import re
 
-from configformats import edit_ini, ini_entries, literal_table
+from configformats import edit_ini, ini_entries, literal_table, preserve_newlines
 from errors import EditorError
 
 
@@ -100,20 +100,22 @@ PZ_RESET_COMMENT = re.compile(
 def startup_profile_matches(expected, actual, allow_runtime_reset=False):
     """Accept only identified PZ startup metadata, never general disk changes.
 
-    B42 also generates ResetID after loading a world without z_outfits.bin.
+    CRLF/LF serialization does not change INI settings. B42 also generates
+    ResetID after loading a world without z_outfits.bin.
     Callers may accept it only when ResetID was not a requested edit and PZ/RCON
     readiness was checked. Optimistic concurrency stays byte-exact everywhere.
     """
     if expected == actual:
         return True
-    actual_ini = actual["ini"]
+    expected_ini = expected["ini"].replace("\r\n", "\n")
+    actual_ini = actual["ini"].replace("\r\n", "\n")
     if allow_runtime_reset:
-        old = ini_entries(expected["ini"]).get("ResetID", {}).get("value")
+        old = ini_entries(expected_ini).get("ResetID", {}).get("value")
         new = ini_entries(actual_ini).get("ResetID", {}).get("value")
         if old and new and new.isdigit() and 0 <= int(new) < 100_000_000:
             actual_ini = edit_ini(actual_ini, {"ResetID": old})
     return expected["sandbox"] == actual["sandbox"] and PZ_RESET_COMMENT.sub(
-        r"\g<1><generated>", expected["ini"]
+        r"\g<1><generated>", expected_ini
     ) == PZ_RESET_COMMENT.sub(r"\g<1><generated>", actual_ini)
 
 
@@ -127,9 +129,23 @@ def adopt_startup_ini(text, expected, actual):
     before = ini_entries(expected).get("ResetID", {}).get("value")
     pending = ini_entries(text).get("ResetID", {}).get("value")
     current = ini_entries(actual).get("ResetID", {}).get("value")
-    return (
+    text = (
         edit_ini(text, {"ResetID": current}) if before and pending == before and current else text
     )
+    return preserve_newlines(actual, text)
+
+
+def merge_verified_profile(saved, current):
+    """Merge pending edits across accepted startup INI newline serialization."""
+    # Align endings before the line-based merge, so changing every CRLF to LF
+    # cannot turn a disjoint setting edit into an overlapping source conflict.
+    aligned = {
+        **current,
+        "ini": preserve_newlines(saved["base"]["ini"], current["ini"]),
+    }
+    merged = merge_profile(saved, aligned)
+    merged["ini"] = preserve_newlines(current["ini"], merged["ini"])
+    return merged
 
 
 def same_lua_value(left, right):

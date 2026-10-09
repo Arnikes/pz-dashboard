@@ -24,6 +24,7 @@ from configprofiles import (
     revision as revision,
     merge_source as merge_source,
     merge_profile as merge_profile,
+    merge_verified_profile,
     issue_identity as issue_identity,
     preserve_existing_issues as preserve_existing_issues,
     startup_profile_matches as startup_profile_matches,
@@ -1609,7 +1610,7 @@ def verify_running(data, *, automatic=False):
                 )
                 else None
             )
-        merged = merge_profile(saved, current)
+        merged = merge_verified_profile(saved, current)
         after_container = ops.container_state() or {}
         if (
             ops.op_busy()

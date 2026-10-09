@@ -1496,6 +1496,28 @@ def test_verify_external_restart_clears_install_notice_and_old_error_without_act
     assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
 
 
+@pytest.mark.parametrize("language", ["ru", "en"])
+def test_verify_unchanged_settings_accepts_ini_line_endings(
+    page, dashboard, editing, monkeypatch, language
+):
+    data, _ = saved_verification(editing, monkeypatch)
+    path = data / "Server/world.ini"
+    path.write_bytes(path.read_bytes().replace(b"\r\n", b"\n"))
+    original = editor.read_profile("world.ini")
+    page.add_init_script(f"localStorage.setItem('pz-language', {json.dumps(language)})")
+    page.goto(dashboard["url"] + "/#/settings")
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    page.locator("#configVerify").click()
+    expect(page.locator("#flowLaunch")).to_have_text(
+        "Подтверждён" if language == "ru" else "Confirmed"
+    )
+    expect(page.locator("#configError")).to_be_hidden()
+    result = editor.draft("world.ini")
+    assert result["status"] == "applied" and not result["changed"] and not result["conflict"]
+    assert editor.read_profile("world.ini") == original
+    assert dashboard["actions"] == []
+
+
 def test_startup_status_does_not_claim_previous_verification_after_another_restart(
     page, dashboard, editing, monkeypatch
 ):
