@@ -566,7 +566,7 @@ def _set_phase(phase, message="", *, countdown_seconds=None):
             time.time() + countdown_seconds if countdown_seconds is not None else None
         )
         stages = _ACTIVE.setdefault("stages", [])
-        if not stages or stages[-1] != phase:
+        if phase not in {"Подготовка…", "Готово"} and (not stages or stages[-1] != phase):
             stages.append(phase)
 
 
@@ -588,7 +588,7 @@ def _start_worker(op, fn):
                         "ok": True,
                         "message": _ACTIVE["message"],
                         "finishedAt": now_iso(),
-                        **({"cancelled": True} if result == "cancelled" else {}),
+                        **({"cancelled": True} if result in ("cancelled", "aborted") else {}),
                         **(
                             {"archive": result}
                             if op == "verify-backup" and isinstance(result, dict)
@@ -772,7 +772,7 @@ def _do_restart(
             log_event("auto", msg)
             if verdict == "restarted":
                 _require_ready()
-            _set_phase("Готово", "Авторестарт отменён: сервер уже перезапущен")
+            _set_phase("Отменено", msg)
             return "aborted"
     _begin_watchdog_grace()
     if graceful_stop(lambda m: _set_phase("Остановка", m)) == "resurrected":
@@ -881,6 +881,30 @@ def check_update(force_event=False):
 
 def update_state():
     return dict(_LAST_CHECK)
+
+
+def _do_check_update():
+    _set_phase("Проверка актуального образа", "Docker Hub")
+    result = check_update(force_event=True)
+    if result.get("error") or result.get("available") is None:
+        raise OpsError(
+            result.get("error") or result.get("note") or "Не удалось сравнить версии образа"
+        )
+    _set_phase(
+        "Готово", "Доступно обновление образа" if result["available"] else "Образ уже актуален"
+    )
+    return result
+
+
+def _do_check_dashboard_update():
+    _set_phase("Проверка обновлений пульта")
+    result = dashboardupdate.check()
+    if result.get("error") or result.get("available") is None:
+        raise OpsError(result.get("error") or "Не удалось сравнить версии образа")
+    _set_phase(
+        "Готово", "Доступна новая версия" if result["available"] else "Образ пульта уже актуален"
+    )
+    return result
 
 
 _LOCAL_DIGEST = {"digest": None, "image": None, "imageId": None, "at": 0.0}

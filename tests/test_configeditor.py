@@ -78,6 +78,8 @@ def change(**kwargs):
 @pytest.mark.parametrize("prepare", [False, True])
 def test_controlled_config_restart_refreshes_watchdog_grace(env, monkeypatch, prepare):
     data, _ = env
+    phases = []
+    monkeypatch.setattr(ops, "_set_phase", lambda phase, *args, **kwargs: phases.append(phase))
     current = (
         change(mods={"items": ["111", "222"]}) if prepare else change(ini={"PublicName": "New"})
     )
@@ -116,6 +118,8 @@ def test_controlled_config_restart_refreshes_watchdog_grace(env, monkeypatch, pr
         prepare=prepare,
     )
     assert ops.watchdog_state()["graceRemainingSec"] == 300
+    assert phases.index("Запись конфигурации") < phases.index("Проверка конфигурации")
+    assert phases[-1] == "Готово"
 
 
 def test_ini_lossless_and_secret_masking():

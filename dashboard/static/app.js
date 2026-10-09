@@ -887,7 +887,6 @@ async function requestOperation(body, { timeout } = {}) {
 async function action(op, extra = {}) {
   try {
     await requestOperation({ op, ...extra });
-    toast(I18n.msg`Операция «${OP_TITLES[op] || op}» запущена`, "info");
     return true;
   } catch (e) {
     if (!$("modalRoot").hidden) modal.error(e);
@@ -1245,6 +1244,7 @@ function updateButtons() {
   $("btnBackup").setAttribute("aria-describedby", "backupAvailability");
   $("consoleInput").setAttribute("aria-describedby", "consoleAvailability");
   window.ConfigEditor?.operationChanged();
+  renderActiveOperation();
   updateOperationWidgets();
   // The inert startup shell needs no temporary availability descriptions.
   if (document.body.classList.contains("is-booting")) return;
@@ -1261,22 +1261,30 @@ function updateButtons() {
   }
 }
 
+function renderActiveOperation() {
+  const active = S.op?.active || (S.actionPending ? { op: S.pendingOperation, phase: I18n.t("Подготовка…") } : null);
+  if (active) {
+    setDomProperty($("opbar"), "hidden", false);
+    setDomProperty($("opMsg"), "textContent", active.message || "");
+    const stages = (active.stages || [active.phase]).filter(stage => !["Подготовка…", I18n.t("Подготовка…"), "Готово", I18n.t("Готово")].includes(stage));
+    const markup = stages.map((stage, index) => {
+      const current = index === stages.length - 1 && stage === active.phase;
+      const label = `${stage}: ${current ? I18n.t("Выполняется") : I18n.t("Завершено")}`;
+      return `<li${current ? ' aria-current="step"' : ' data-complete="true"'} aria-label="${esc(label)}">${current ? "" : '<svg class="op-stage-check" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>'}${esc(stage)}</li>`;
+    }).join("");
+    const title = OP_TITLES[active.op] || active.op;
+    setDomProperty($("opPhase"), "textContent", stages.length > 1 ? title : `${title}: ${active.phase}`);
+    if ($("opStages").innerHTML !== markup) $("opStages").innerHTML = markup;
+    setDomProperty($("opStages"), "hidden", stages.length < 2);
+    setDomProperty($("opPhase"), "title", active.message || "");
+  } else {
+    setDomProperty($("opbar"), "hidden", true);
+  }
+  updateOperationCountdown();
+}
+
 function renderOp(op) {
   const active = op && op.active;
-  if (active) {
-    $("opbar").hidden = false;
-    $("opPhase").textContent = `${OP_TITLES[active.op] || active.op}: ${active.phase}`;
-    $("opMsg").textContent = active.message || "";
-    const stages = (active.stages || [active.phase]).filter(stage => !["Подготовка…", I18n.t("Подготовка…"), "Готово", I18n.t("Готово")].includes(stage));
-    const markup = stages.map((stage, index) =>
-      `<li${index === stages.length - 1 ? ' aria-current="step"' : ' data-complete="true"'}>${esc(stage)}</li>`).join("");
-    if (stages.length > 1) $("opPhase").textContent = OP_TITLES[active.op] || active.op;
-    if ($("opStages").innerHTML !== markup) $("opStages").innerHTML = markup;
-    $("opStages").hidden = stages.length < 2;
-    $("opPhase").title = active.message || "";
-  } else {
-    $("opbar").hidden = true;
-  }
   for (const h of [...(op?.history || [])].reverse()) {
     const finished = Date.parse(h.finishedAt);
     if (!Number.isFinite(finished)) continue;
@@ -1293,17 +1301,16 @@ function renderOp(op) {
   S.lastOpActive = !!(active);
   S.op = op;
   if (activeView === "backups" && S.backupsItems?.length) renderBackupsPage();
-  updateOperationCountdown();
   updateButtons();
 }
 
 function updateOperationCountdown() {
   const deadline = Number(S.op?.active?.countdownEndsAt);
   const available = Number.isFinite(deadline) && deadline > 0;
-  $("opCountdown").hidden = !available;
+  setDomProperty($("opCountdown"), "hidden", !available);
   if (available) {
     const left = Math.max(0, Math.ceil(deadline - Date.now() / 1000));
-    $("opCountdown").textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+    setDomProperty($("opCountdown"), "textContent", `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`);
   }
 }
 
@@ -2428,21 +2435,7 @@ $("btnSaveWorld").addEventListener("click", async () => {
   $("consoleForm").requestSubmit();
 });
 $("btnCheckUpd").addEventListener("click", async () => {
-  if (S.actionPending || S.op?.active) return;
-  S.actionPending = true; S.pendingOperation = "check-update"; updateButtons();
-  showLocalResult("pending", I18n.t("Проверка обновлений — выполняется"), I18n.t("Сверяем образ. Дождитесь ответа; отмена этой проверки не поддерживается."));
-  try {
-    const res = await api("/api/action", { method: "POST", body: { op: "check-update" }, timeout: 25000 });
-    if (res.error || res.ok === false) throw new Error(res.error || I18n.t("Проверка не принята"));
-    const c = res.check || {};
-    if (c.error) throw new Error(c.error);
-    showLocalResult("ok", I18n.t("Проверка обновлений — готово"), c.available ? I18n.t("Доступно обновление образа. Откройте обслуживание, чтобы проверить версию и применить обновление.") : I18n.t("Обновлений нет — образ актуален."));
-    refreshOverview();
-  } catch (e) {
-    showActionError("check-update", e);
-  } finally {
-    S.actionPending = false; S.pendingOperation = null; updateButtons();
-  }
+  await action("check-update");
 });
 $("btnApplyUpd").addEventListener("click", () => {
   modal.open({
@@ -2460,20 +2453,7 @@ $("btnApplyUpd").addEventListener("click", () => {
 /* ─────────────────────── проверка модов (RCON) ─────────────────────── */
 
 $("btnCheckDashboardUpd").addEventListener("click", async () => {
-  if (operationBusy()) return;
-  S.actionPending = true; S.pendingOperation = "check-dashboard-update"; updateButtons();
-  showLocalResult("pending", I18n.t("Проверка обновлений пульта"), I18n.t("Сверяем образ. Дождитесь ответа; отмена этой проверки не поддерживается."));
-  try {
-    const res = await api("/api/action", { method: "POST", body: { op: "check-dashboard-update" }, timeout: 65000 });
-    if (res.error || res.ok === false || res.check?.error) throw new Error(res.error || res.check?.error || I18n.t("Проверка не принята"));
-    if (S.overview) renderOverview({ ...S.overview, dashboardUpdate: res.check });
-    showLocalResult("ok", I18n.t("Проверка обновлений пульта"), res.check?.available === true ? I18n.t("Доступна новая версия") : I18n.t("Образ пульта уже актуален"));
-    refreshOverview();
-  } catch (e) {
-    showActionError("check-dashboard-update", e);
-  } finally {
-    S.actionPending = false; S.pendingOperation = null; updateButtons();
-  }
+  await action("check-dashboard-update");
 });
 $("btnApplyDashboardUpd").addEventListener("click", () => {
   modal.open({
@@ -2485,18 +2465,7 @@ $("btnApplyDashboardUpd").addEventListener("click", () => {
 });
 
 $("btnCheckMods").addEventListener("click", async () => {
-  if (S.actionPending || S.op?.active) return;
-  showLocalResult("pending", I18n.t("Проверка модов — выполняется"), I18n.t("Ожидаем ответ RCON; отмена этой проверки не поддерживается."));
-  try {
-    const res = await requestOperation({ op: "check-mods-update" });
-    if (res.error || res.ok === false) throw new Error(res.error || I18n.t("Проверка не принята"));
-    showLocalResult("info", I18n.t("Проверка модов — запрос принят"), I18n.t("Результат сервера появится в разделе «Обслуживание». Принимаемый запрос ещё не подтверждает актуальность пакетов."));
-    toast(I18n.t("Проверка модов запущена — результат появится в карточке"), "info");
-  } catch (e) {
-    showActionError("check-mods-update", e);
-  } finally {
-    S.actionPending = false; updateButtons();
-  }
+  await action("check-mods-update");
 });
 $("btnApplyMods").addEventListener("click", () => {
   modal.open({

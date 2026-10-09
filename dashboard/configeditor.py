@@ -1189,6 +1189,7 @@ def run(data, prepare=False):
                 save_json(root / "state.json", state)
         if not overwrite and revision(read_profile(file)) != saved["baseRevision"]:
             raise EditorError("Файлы изменились во время бэкапа; запись отменена", 409)
+        ops._set_phase("Запись конфигурации", file)
         hid = commit(
             file,
             texts,
@@ -1242,6 +1243,7 @@ def run(data, prepare=False):
             if code != 0:
                 raise EditorError("Не удалось запустить контейнер", 500)
             wait_ready()
+            ops._set_phase("Проверка конфигурации", file)
             started_texts = read_profile(file)
             if not startup_profile_matches(
                 {**texts, "sandbox": started_texts["sandbox"]},
@@ -1423,6 +1425,7 @@ def run(data, prepare=False):
             and not (root / "transaction.json").exists()
             and revision(read_profile(file)) == saved["baseRevision"]
         ):
+            ops._set_phase("Запуск сервера", "Восстановление сервера после ошибки")
             code, out, err = ops._start_container()
             try:
                 if code != 0:

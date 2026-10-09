@@ -270,6 +270,8 @@ def test_config_http_rejects_invalid_backup_choice(api, editor_env, monkeypatch,
         ("start", "_do_start", {}, (), {}),
         ("stop", "_do_stop", {}, (120,), {}),
         ("restart", "_do_restart", {"warnSeconds": 30}, (30,), {}),
+        ("check-update", "_do_check_update", {}, (), {}),
+        ("check-dashboard-update", "_do_check_dashboard_update", {}, (), {}),
         ("apply-update", "_do_apply_update", {}, (120, "Обновление сервера"), {}),
         ("check-mods-update", "check_mods_update", {}, (), {"source": "manual"}),
         ("apply-mods-update", "_do_apply_mods_update", {}, (120,), {}),
@@ -306,17 +308,6 @@ def test_warning_normalization(monkeypatch, operation_env, value, expected):
     actions.dispatch({"op": "stop", "warnSeconds": value})
     operation_env[0].call_args.args[1]()
     worker.assert_called_once_with(expected)
-
-
-def test_synchronous_update_check(api, monkeypatch, operation_env):
-    check = Mock(return_value={"available": True})
-    monkeypatch.setattr(ops, "check_update", check)
-    assert api("POST", "/api/action", {"op": "check-update"}) == (
-        200,
-        {"ok": True, "check": {"available": True}},
-    )
-    check.assert_called_once_with(force_event=True)
-    operation_env[0].assert_not_called()
 
 
 def test_action_rejections(api, monkeypatch, operation_env):

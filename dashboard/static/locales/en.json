@@ -1506,5 +1506,10 @@
   "docker compose up не удался: {{0}}. {{1}}": "docker compose up failed: {{0}}. {{1}}",
   "Проверка готовности пульта": "Checking console readiness",
   "Ошибка операции: {{0}}. Восстановление сервера: {{1}}": "Operation failed: {{0}}. Server recovery: {{1}}",
-  "Ожидание": "Waiting"
+  "Ожидание": "Waiting",
+  "Завершено": "Completed",
+  "Не удалось сравнить версии образа": "Could not compare image versions",
+  "Запись конфигурации": "Writing configuration",
+  "Проверка конфигурации": "Verifying configuration",
+  "Восстановление сервера после ошибки": "Recovering the server after an error"
 }

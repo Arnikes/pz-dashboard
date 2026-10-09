@@ -201,6 +201,64 @@ def test_update_recovery_diagnostics_translate_as_a_complete_message(lifecycle):
     )
 
 
+@pytest.mark.parametrize("operation", ["check-update", "check-dashboard-update"])
+@pytest.mark.parametrize("available", [True, False, None])
+def test_image_checks_hold_shared_lock_and_report_unknown_as_failure(
+    lifecycle, monkeypatch, operation, available
+):
+    entered = threading.Event()
+    release = threading.Event()
+    finished = threading.Event()
+
+    def check(**kwargs):
+        entered.set()
+        assert release.wait(5)
+        return {"available": available, "note": "Cannot compare"}
+
+    target = ops if operation == "check-update" else ops.dashboardupdate
+    monkeypatch.setattr(target, "check_update" if target is ops else "check", check)
+    real_thread = threading.Thread
+
+    def thread(*, target, **kwargs):
+        def run():
+            try:
+                target()
+            finally:
+                finished.set()
+
+        return real_thread(target=run, **kwargs)
+
+    monkeypatch.setattr(ops.threading, "Thread", thread)
+    worker = ops._do_check_update if operation == "check-update" else ops._do_check_dashboard_update
+    ops.start_op(operation, worker)
+    try:
+        assert entered.wait(5)
+        assert ops.op_busy()
+        assert ops.op_state()["active"]["stages"][-1] != "Подготовка…"
+        with pytest.raises(ops.OpsError):
+            ops.start_op("restart", Mock())
+        assert not ops.op_state()["history"]
+    finally:
+        release.set()
+        assert finished.wait(5)
+    assert not ops.op_busy()
+    result = ops.op_state()["history"][0]
+    assert result["ok"] == (available is not None)
+    assert result["message"]
+
+
+def test_nested_backup_completion_is_not_an_operation_stage(lifecycle):
+    ops._set_phase("Скачивание нового образа")
+    ops._set_phase("Создание архива")
+    ops._set_phase("Готово", "Archive created")
+    ops._set_phase("Предупреждение игроков")
+    assert ops._ACTIVE["stages"] == [
+        "Скачивание нового образа",
+        "Создание архива",
+        "Предупреждение игроков",
+    ]
+
+
 @pytest.mark.parametrize("state", ["up-to-date", "needs-update", "inconclusive"])
 def test_mod_check_reports_unknown_result_as_failure(lifecycle, monkeypatch, state):
     result = {

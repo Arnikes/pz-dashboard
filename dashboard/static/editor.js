@@ -539,7 +539,6 @@ window.ConfigEditor = (() => {
       modal.open({ title: prepare ? I18n.t("Загрузить Workshop items?") : restart ? I18n.t("Применить конфигурацию?") : I18n.t("Сохранить файлы?"), bodyHTML: `<p>${prepare ? I18n.t("Первый рестарт загрузит пакеты. Прежние ModID и остальные настройки останутся без изменений.") : restart ? I18n.t("Сервер сохранит мир, остановится, применит конфигурацию и запустится.") : I18n.t("Файлы будут записаны при остановленном сервере.")}</p>${options}${diffHtml(result)}`, onConfirm: async () => {
         if (draft.draftRevision !== revisionAtReview || sourceDirty || fieldDirty || pendingFields.size) throw new Error(I18n.t("Черновик изменился после просмотра. Проверьте изменения заново"));
         await call("/api/action", { op: prepare ? "prepare-workshop" : "apply-config", file, draftRevision: revisionAtReview, overwrite: true, restart, backupBeforeApply: $("editorBackup").checked, warnSeconds: restart ? Number($("editorWarn").value) : 0 });
-        toast(I18n.t("Операция запущена. Прогресс отображается в панели сервера."), "ok");
         draft.status = "applying";
         updateBar();
         if (!operationBusy()) await loadProfile(file);

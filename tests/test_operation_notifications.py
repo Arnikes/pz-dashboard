@@ -38,3 +38,28 @@ def test_same_second_results_have_distinct_stable_ids(monkeypatch, failure):
     assert ops.op_state()["history"] == [second, first]
     assert ops.op_state()["history"] == [second, first]
     assert ops.op_state()["active"] is None
+
+
+@pytest.mark.parametrize("verdict", ["restarted", "stopped"])
+def test_guarded_mod_restart_records_cancellation_and_actual_reason(monkeypatch, verdict):
+    monkeypatch.setattr(ops, "_ACTIVE", dict(ops._ACTIVE, op=None))
+    monkeypatch.setattr(ops, "_OP_HISTORY", deque(maxlen=10))
+    monkeypatch.setattr(ops, "_OP_CANCEL", threading.Event())
+    monkeypatch.setattr(ops.dashboardupdate, "operation", lambda: None)
+    monkeypatch.setattr(ops, "log_event", Mock())
+    monkeypatch.setattr(ops, "is_running", lambda: True)
+    monkeypatch.setattr(ops, "container_state", lambda: {"startedAt": "before"})
+    monkeypatch.setattr(ops, "_restarted_since", lambda started: verdict)
+    ready = Mock()
+    stop = Mock()
+    monkeypatch.setattr(ops, "_require_ready", ready)
+    monkeypatch.setattr(ops, "graceful_stop", stop)
+    monkeypatch.setattr(
+        ops.threading, "Thread", lambda target, **kwargs: SimpleNamespace(start=target)
+    )
+    ops.start_op("mods-restart", lambda: ops._do_restart(0, guard_restarted=True))
+    result = ops.op_state()["history"][0]
+    assert result["cancelled"] and result["ok"]
+    assert ("перезапущен" if verdict == "restarted" else "остановлен") in result["message"]
+    assert ready.call_count == (1 if verdict == "restarted" else 0)
+    stop.assert_not_called()

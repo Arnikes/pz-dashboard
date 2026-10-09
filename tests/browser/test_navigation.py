@@ -14,6 +14,8 @@ def test_sidebar_defaults_toggle_and_layout(page, dashboard, width):
     collapsed = width <= 1180
     expect(toggle).to_have_attribute("aria-expanded", str(not collapsed).lower())
     sidebar = page.locator(".nav")
+    # Sidebar attributes initialize before the startup shell reveals its layout.
+    expect(sidebar).to_be_visible()
     assert sidebar.bounding_box()["width"] == (72 if collapsed else 204)
     # Hidden visual labels retain accessible names and native hover tooltips.
     settings = sidebar.get_by_role("link", name="Настройки", exact=True)

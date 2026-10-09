@@ -253,6 +253,11 @@ labeled "Operation in progress: <operation name>" in the selected language;
 repeated operation availability blocks are hidden. The shared operation bar shows
 completed stages and the current stage, with Countdown for timed waits and no
 Elapsed row. Detailed phase messages remain accessible and available on hover.
+The operation bar also covers request submission and manual image checks.
+Request acceptance uses the bar; the inbox records the operation's final result.
+Completed stages carry olive checkmarks and accessible completion labels.
+Nested backup completion does not add a terminal stage; configuration writing and
+post-start verification remain explicit stages until the operation finishes.
 Game launches retain the lock until a valid PZ players response confirms RCON
 readiness, including restarts, updates, restore, stopped-server backups and
 configuration/Workshop application. A readiness timeout reports failure without

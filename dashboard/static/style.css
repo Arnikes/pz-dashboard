@@ -2031,8 +2031,10 @@ body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--footer-height)
 /* Operations keep unavailable widgets recognizable without repeated notices. */
 .op-countdown { font-size:16px; font-variant-numeric:tabular-nums; color:var(--warn); }
 .op-stages { display:flex; flex-wrap:wrap; gap:4px 12px; padding:0; margin:3px 0 0; list-style:none; color:var(--muted); font-size:12px; }
-.op-stages li + li::before { content:"/"; margin-inline-end:12px; color:var(--faint); }
+.op-stages li { display:inline-flex; align-items:center; gap:4px; }
 .op-stages [aria-current=step] { color:var(--ink); }
+.op-stages [aria-current=step]::before { content:""; width:12px; flex:none; }
+.op-stage-check { width:12px; height:12px; flex:none; fill:none; stroke:var(--success); stroke-width:2; }
 .operation-loading { position:relative; }
 .operation-loading > :not(.operation-loader) { filter:blur(2px); opacity:.5; }
 .operation-loader { position:absolute; inset-inline:0; top:min(50%, 180px); transform:translateY(-50%); display:flex; align-items:center; justify-content:center; gap:10px; padding-inline:16px; pointer-events:none; color:var(--ink); font-size:13px; }

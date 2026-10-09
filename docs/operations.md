@@ -3,6 +3,43 @@
 The panel serializes heavy operations and shows their progress in the operation bar.
 Lifecycle and world archive actions require local Docker/data access.
 
+## Shared operation progress
+
+Manual maintenance actions started by `POST /api/action` use the same serialized
+worker, operation bar, and result history; cancellation acts on the current worker.
+The bar appears while the request is being sent,
+then displays the server's completed and current stages. Only timed waits show a
+countdown; reaching zero does not release the operation lock. Phase diagnostics
+remain available through the operation heading's tooltip and accessible status.
+Editable widgets show the localized operation name while their controls are locked.
+Navigation, logs, events, and mod-update cancellation during its warning period
+remain available. Completion, failure, or cancellation restores the normal controls
+and records one result notification. Request acceptance appears in the bar without
+an extra inbox entry.
+
+| Operations | Progress and completion |
+| --- | --- |
+| Start, stop, restart | Player warning when requested, stopping, launching, game/RCON readiness |
+| Check server/console image | Image comparison; unavailable or inconclusive comparison fails |
+| Update server image | Pull, optional backup, warning, container recreation, game readiness |
+| Update console image | Pull, console recreation, console health; progress survives replacement |
+| Check mods | RCON check, timed wait for fresh log results; an inconclusive result fails |
+| Manual/scheduled mod update | Restart stages and game readiness; scheduled warnings allow cancellation |
+| Manual/scheduled backup | Save/wait or warning/stop, archive, game readiness when restarted |
+| Verify/restore archive | Archive validation; restore also replaces files and verifies game readiness |
+| Apply configuration/prepare Workshop | Optional backup, file write, launch/download, game readiness, configuration verification |
+
+Nested backup completion is not a completed operation stage. Configuration writes
+and post-start verification have explicit stages. An automatic mod restart skipped
+because the server was already stopped or restarted is recorded as cancelled.
+Read-only monitoring, automatic freshness probes, and editor draft/metadata requests
+retain their ordinary local loading feedback; they do not launch a maintenance worker.
+
+Image check actions now return `{"ok":true,"started":"check-update"}` or
+`{"ok":true,"started":"check-dashboard-update"}`, like other worker actions,
+instead of an inline `check` result. Read progress/results from `GET /api/ops` and
+updated image status from `GET /api/overview` or SSE.
+
 ## Dashboard notifications
 
 The bell in the header opens a shared inbox for operation results and toast feedback.

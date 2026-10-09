@@ -34,17 +34,38 @@ def test_update_check_has_persistent_result_and_serializes_requests(page, dashbo
     page.route("**/api/action", lambda route: held.append(route))
     page.goto(dashboard["url"] + "/#/maintenance")
     expect(page.locator("#btnCheckUpd")).to_be_enabled()
+    page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
+    snapshot = {"active": None, "history": []}
+    page.route("**/api/ops", lambda route: route.fulfill(json=snapshot))
     page.locator("#btnCheckUpd").click()
-    page.locator("#btnNotifications").click()
-    expect(page.locator("#notificationList")).to_contain_text("выполняется")
+    expect(page.locator("#opbar")).to_be_visible()
     expect(page.locator("#btnCheckUpd")).to_be_disabled()
     page.evaluate("document.getElementById('btnCheckUpd').click()")
     assert len(held) == 1
-    held[0].fulfill(json={"ok": True, "check": {"available": False}})
-    expect(page.locator("#notificationList")).to_contain_text("образ актуален")
-    page.evaluate("renderOp({active:null,history:[]});location.hash='#/settings'")
+    snapshot["active"] = {"op": "check-update", "phase": "Проверка актуального образа"}
+    held[0].fulfill(json={"ok": True, "started": "check-update"})
+    expect(page.locator("#opPhase")).to_contain_text("Проверка актуального образа")
+    snapshot.update(
+        active=None,
+        history=[
+            {
+                "id": "image-check-result",
+                "op": "check-update",
+                "ok": True,
+                "finishedAt": "2026-10-09T12:00:00Z",
+                "message": "Образ уже актуален",
+            }
+        ],
+    )
+    page.evaluate("refreshOps()")
+    expect(page.locator("#opbar")).to_be_hidden()
+    expect(page.locator("#btnCheckUpd")).to_be_enabled()
     page.locator("#btnNotifications").click()
-    expect(page.locator("#notificationList")).to_contain_text("образ актуален")
+    expect(page.locator("#notificationList")).to_contain_text("Образ уже актуален")
+    page.locator("#notificationClose").click()
+    page.evaluate("location.hash='#/settings'")
+    page.locator("#btnNotifications").click()
+    expect(page.locator("#notificationList")).to_contain_text("Образ уже актуален")
     expect(page.locator(".notification-item")).to_have_count(1)
 
 

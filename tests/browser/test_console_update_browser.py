@@ -41,7 +41,7 @@ def test_console_update_flow_and_mod_timestamp(page, dashboard, language, width)
             route.fulfill(
                 json={
                     "ok": True,
-                    "check": dashboard["overview"]["dashboardUpdate"],
+                    "started": request["op"],
                 }
             )
         else:
