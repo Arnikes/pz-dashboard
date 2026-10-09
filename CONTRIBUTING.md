@@ -99,6 +99,13 @@ tags matching `v*`. It runs quality checks, builds the panel image, and checks
 `/api/health`. Browser failure artifacts are retained. Only a **tag push** publishes
 to GHCR and creates a GitHub Release; branch, pull-request, and manual runs perform checks.
 
+GitHub builds use Docker's official `python:3.12-alpine` image from
+[Amazon ECR Public](https://gallery.ecr.aws/docker/library/python) to avoid
+Docker Hub's anonymous pull quota on shared runners. No registry credentials are
+needed to pull this base image. Local builds default to Docker Hub; use
+`--build-arg PYTHON_BASE_IMAGE=public.ecr.aws/docker/library/python:3.12-alpine`
+with `docker build` to select the same mirror.
+
 For tag pushes, the exact tested image is transferred to the release job instead of
 being rebuilt. The release job uses the automatic `GITHUB_TOKEN` with `packages: write`
 and `contents: write`; no registry password or personal access token is needed.

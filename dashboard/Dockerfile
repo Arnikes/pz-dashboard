@@ -1,5 +1,6 @@
 # PZ Console: Python, Docker CLI, and Compose for the sibling game container.
-FROM python:3.12-alpine
+ARG PYTHON_BASE_IMAGE=python:3.12-alpine
+FROM ${PYTHON_BASE_IMAGE}
 
 # tar creates world backups; tzdata supplies container time; Lua checks syntax.
 RUN apk add --no-cache docker-cli docker-cli-compose tar tzdata lua5.1

@@ -51,11 +51,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build panel image
         env:
+          # Docker's official mirror avoids Docker Hub's shared-runner pull quota.
+          PYTHON_BASE_IMAGE: public.ecr.aws/docker/library/python:3.12-alpine
           SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
           REVISION: ${{ github.sha }}
           VERSION: ${{ github.ref_name }}
         run: |
           docker build -t pz-console:ci \
+            --build-arg "PYTHON_BASE_IMAGE=$PYTHON_BASE_IMAGE" \
             --label "org.opencontainers.image.source=$SOURCE_URL" \
             --label "org.opencontainers.image.revision=$REVISION" \
             --label "org.opencontainers.image.version=$VERSION" \
