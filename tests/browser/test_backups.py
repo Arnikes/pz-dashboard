@@ -46,6 +46,7 @@ def backups_page(page, dashboard):
     page.goto(dashboard["url"] + "/#/backups")
     expect(page.locator("#btnBackup")).to_be_enabled()
     page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
+    page.wait_for_load_state("networkidle")
     page.evaluate(
         """entries => renderBackups({ok:true,journal:entries.slice(0,25),journalHasMore:true,
         autoBackup:{enabled:true,time:'03:00',nextRun:'2026-10-06T03:00:00Z'},items:[

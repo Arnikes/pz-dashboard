@@ -156,7 +156,8 @@ def test_action_restrictions_show_recovery_in_context(page, dashboard):
     page.evaluate("applyOverview({...S.overview,mode:'host',compose:false})")
     expect(page.locator("#maintenanceAvailability")).to_contain_text("docker compose")
     page.evaluate("renderOp({active:{op:'backup',phase:'Архив',message:'Создание'},history:[]})")
-    expect(page.locator("#maintenanceAvailability")).to_contain_text("Дождитесь результата")
+    expect(page.locator("#maintenanceAvailability")).to_be_hidden()
+    expect(page.locator("#sec-updates .operation-loader")).to_be_visible()
     page.evaluate("renderOp({active:null,history:[]});applyOverview({...S.overview,compose:true})")
     expect(page.locator("#maintenanceAvailability")).to_be_hidden()
 
@@ -233,9 +234,11 @@ def test_commands_unavailable_reason_empty_results_and_log_filter(page, dashboar
 def test_operation_visible_on_all_routes_and_result_survives_navigation(page, dashboard, operation):
     page.goto(dashboard["url"])
     expect(page.locator("#btnStop")).to_be_enabled()
+    page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
+    page.wait_for_load_state("networkidle")
     page.evaluate(
         """op => renderOp({active:{op, phase:'Ожидание', message:'Предупреждение игроков',
-        startedAt:new Date(Date.now()-65000).toISOString()},history:[]})""",
+        countdownEndsAt:Date.now()/1000+300},history:[]})""",
         operation,
     )
     for route in [
@@ -252,7 +255,8 @@ def test_operation_visible_on_all_routes_and_result_survives_navigation(page, da
         expect(page.locator(f"#view-{route}")).to_be_visible()
         expect(page.locator("#opbar")).to_be_visible()
         expect(page.locator("#opPhase")).to_contain_text("Ожидание")
-        expect(page.locator("#opElapsed")).to_contain_text("мин")
+        expect(page.locator("#opCountdown")).to_contain_text(":")
+        expect(page.locator("#opElapsed")).to_have_count(0)
         expect(page.locator("#btnCancelMods")).to_be_hidden()
     result = {
         "op": operation,

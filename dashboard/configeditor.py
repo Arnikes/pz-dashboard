@@ -1093,18 +1093,8 @@ def restore_history(data):
 
 
 def wait_ready(timeout=600):
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        if ops.is_running():
-            try:
-                reply = ops.rcon("players", quiet=True)
-                if isinstance(reply, str) and re.search(
-                    r"\bPlayers\s+connected\s*\(\d+\)", reply, re.I
-                ):
-                    return
-            except ops.rconlib.RCONError:
-                pass
-        time.sleep(3)
+    if ops.wait_until_ready(timeout):
+        return
     raise EditorError(
         "PZ/RCON не готов после запуска. Проверьте логи; автоматического повторного рестарта не будет",
         500,
@@ -1433,7 +1423,18 @@ def run(data, prepare=False):
             and not (root / "transaction.json").exists()
             and revision(read_profile(file)) == saved["baseRevision"]
         ):
-            ops._start_container()
+            code, out, err = ops._start_container()
+            try:
+                if code != 0:
+                    raise ops.OpsError(f"Не удалось запустить: {err or out}")
+                wait_ready()
+            except ops.OpsError as recovery_error:
+                message = f"Ошибка операции: {error}. Восстановление сервера: {recovery_error}"
+                state.update(error=message, operationCompletedAt=ops.now_iso())
+                save_json(root / "state.json", state)
+                raise EditorError(message, 500) from error
+            state["operationCompletedAt"] = ops.now_iso()
+            save_json(root / "state.json", state)
         raise
 
 

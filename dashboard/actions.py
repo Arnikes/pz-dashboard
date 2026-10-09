@@ -41,7 +41,7 @@ def dispatch(data):
         "restart": partial(ops._do_restart, warn),
         "apply-update": partial(ops._do_apply_update, warn, "Обновление сервера"),
         "apply-dashboard-update": partial(dashboardupdate.apply, ops._set_phase),
-        "check-mods-update": partial(ops.check_mods_update, source="manual"),
+        "check-mods-update": ops._do_check_mods_update,
         "apply-mods-update": partial(ops._do_apply_mods_update, warn),
         "backup": partial(ops.run_backup_job, "manual", bool(data.get("stopServer", False))),
         "verify-backup": partial(ops.verify_backup, data.get("name") or ""),

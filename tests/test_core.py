@@ -489,6 +489,7 @@ def test_do_restart_guard_aborts_on_manual_restart(monkeypatch):
     monkeypatch.setattr(ops, "graceful_stop", lambda hook=None: "stopped")
     monkeypatch.setattr(dockerlib, "container_start", lambda name: (0, "", ""))
     monkeypatch.setattr(ops, "wait_until_running", lambda timeout=120: True)
+    monkeypatch.setattr(ops, "wait_until_ready", lambda timeout=600: True)
 
     # без защиты рестарт доходит до конца, даже если сервер уже перезапустили
     assert ops._do_restart(600) != "aborted"
@@ -528,6 +529,7 @@ def mods_restart_env(monkeypatch):
     monkeypatch.setattr(ops, "graceful_stop", stop)
     monkeypatch.setattr(dockerlib, "container_start", start)
     monkeypatch.setattr(ops, "wait_until_running", Mock())
+    monkeypatch.setattr(ops, "wait_until_ready", lambda timeout=600: True)
     threads = []
     original_thread = threading.Thread
 
@@ -1842,6 +1844,7 @@ def test_restore_roundtrip_returns_source(tmp_path, monkeypatch):
     (data / "Server" / "test.ini").write_text("ПОРЧА\n", encoding="utf-8")
     monkeypatch.setattr(dockerlib, "container_start", lambda name: (0, "", ""))
     monkeypatch.setattr(ops, "wait_until_running", lambda timeout=120: True)
+    monkeypatch.setattr(ops, "wait_until_ready", lambda timeout=600: True)
     ops._do_restore(res["name"])
     assert (data / "Server" / "test.ini").read_text(encoding="utf-8") == "Mods=\n"
     assert (data / "Maps" / "TestMap" / "region.bin").read_bytes() == b"x" * 2048

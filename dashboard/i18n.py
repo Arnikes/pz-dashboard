@@ -13,6 +13,8 @@ RU_CATALOG = {
 }
 PLACEHOLDER = re.compile(r"{{(\d+)}}")
 NESTED_MESSAGES = {
+    "Ошибка операции: {{0}}. Восстановление сервера: {{1}}": (0, 1),
+    "docker compose up не удался: {{0}}. {{1}}": (1,),
     "Ошибка: {{0}}": (0,),
     "Не удалось: {{0}}": (0,),
     "Внутренняя ошибка: {{0}}": (0,),
@@ -95,7 +97,7 @@ DISPLAY_KEYS = {
     "detail",
     "warning",
 }
-DISPLAY_LISTS = {"errors", "warnings", "problems", "diagnostics", "notes"}
+DISPLAY_LISTS = {"errors", "warnings", "problems", "diagnostics", "notes", "stages"}
 RAW_KEYS = {
     "texts",
     "base",

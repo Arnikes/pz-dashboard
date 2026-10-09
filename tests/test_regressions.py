@@ -74,6 +74,7 @@ def test_failed_backup_restarts_server_and_removes_partial_archive(sandbox, monk
     start = Mock(return_value=(0, "", ""))
     monkeypatch.setattr(dockerlib, "container_start", start)
     monkeypatch.setattr(ops, "wait_until_running", Mock(return_value=True))
+    monkeypatch.setattr(ops, "wait_until_ready", lambda timeout=600: True)
 
     def fail(args, **kwargs):
         Path(args[2]).write_bytes(b"partial archive")

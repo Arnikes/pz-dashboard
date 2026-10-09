@@ -2026,3 +2026,49 @@ def test_changed_field_markers_survive_reload_and_reset_without_leaking_secrets(
     reverted = editor.draft("world.ini")
     assert not next(rec for rec in reverted["fields"] if rec["key"] == "PublicName")["changed"]
     assert not next(rec for rec in reverted["sandboxFields"] if rec["key"] == "Zombies")["changed"]
+
+
+@pytest.mark.parametrize("ready", [True, False])
+def test_failed_prewrite_apply_waits_for_recovery_before_reporting_error(env, monkeypatch, ready):
+    current = change(ini={"PublicName": "Keep draft"})
+    running = [True]
+    monkeypatch.setattr(ops, "is_running", lambda: running[0])
+    monkeypatch.setattr(ops, "run_backup_job", Mock(side_effect=ops.OpsError("Backup unavailable")))
+
+    def stop():
+        running[0] = False
+        return "stopped"
+
+    def start():
+        running[0] = True
+        return 0, "", ""
+
+    def verify():
+        assert running[0]
+        if not ready:
+            raise editor.EditorError("PZ/RCON пока не подтвердил готовность", 500)
+
+    monkeypatch.setattr(ops, "graceful_stop", stop)
+    monkeypatch.setattr(ops, "_start_container", Mock(side_effect=start))
+    monkeypatch.setattr(editor, "wait_ready", Mock(side_effect=verify))
+    with pytest.raises(ops.OpsError, match="Backup unavailable") as failure:
+        editor.run(
+            {
+                "file": "world.ini",
+                "draftRevision": current["draftRevision"],
+                "warnSeconds": 0,
+                "restart": True,
+                "backupBeforeApply": True,
+            }
+        )
+    ops._start_container.assert_called_once()
+    editor.wait_ready.assert_called_once()
+    assert editor.read_profile("world.ini")["ini"] == INI
+    assert editor.draft("world.ini")["state"]["status"] == "error"
+    if not ready:
+        import i18n
+
+        english = i18n.translate(str(failure.value), locale="en")
+        assert (
+            "Server recovery:" in english and "PZ/RCON has not confirmed readiness yet" in english
+        )

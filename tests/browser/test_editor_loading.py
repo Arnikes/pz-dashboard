@@ -75,7 +75,8 @@ def test_settings_loading_preserves_layout(page, dashboard, editing, language, w
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
 
     page.emulate_media(reduced_motion="no-preference")
-    page.evaluate("ConfigEditor.route('overview'); ConfigEditor.route('settings')")
+    with page.expect_request("**/api/config-draft?*"):
+        page.evaluate("ConfigEditor.route('overview'); ConfigEditor.route('settings')")
     expect(progress).to_be_visible()
     assert (
         page.evaluate("getComputedStyle(settingsLoading, '::after').animationName")

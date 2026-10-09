@@ -8,6 +8,7 @@ import uuid
 
 import config
 import dockerlib
+import fileio
 from errors import OpsError
 
 _CHECK = {}
@@ -145,7 +146,7 @@ def _write(path, value):
         json.dump(value, f)
         temporary = Path(f.name)
     try:
-        temporary.replace(path)
+        fileio.replace(temporary, path)
     finally:
         temporary.unlink(missing_ok=True)
 
@@ -271,6 +272,7 @@ def apply(phase):
         "at": time.time(),
         "startedAt": _now(),
         "phase": "Пересоздание контейнера пульта",
+        "stages": ["Скачивание нового образа", "Пересоздание контейнера пульта"],
         "message": "Пульт перезапускается. Соединение восстановится автоматически.",
     }
     _write(_path(), record)
@@ -341,6 +343,9 @@ def run_helper(snapshot, container_name, service, project, image_id):
         )
         if code:
             raise OpsError("Обновление пульта не удалось. Проверьте контейнер и журнал Docker.")
+        record["phase"] = "Проверка готовности пульта"
+        record.setdefault("stages", []).append(record["phase"])
+        _write(_path(), record)
         deadline = time.monotonic() + 180
         while time.monotonic() < deadline:
             container = inspect(container_name)
@@ -349,7 +354,7 @@ def run_helper(snapshot, container_name, service, project, image_id):
                 container
                 and container["Image"] == image_id
                 and status.get("Running")
-                and status.get("Health", {}).get("Status", "healthy") == "healthy"
+                and status.get("Health", {}).get("Status") == "healthy"
             ):
                 record.update(ok=True, message="Контейнер пульта обновлён и запущен")
                 break

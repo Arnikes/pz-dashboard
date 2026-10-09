@@ -64,6 +64,8 @@ def test_console_update_flow_and_mod_timestamp(page, dashboard, language, width)
     )
     page.locator("#modalOk").click()
     expect(page.locator("#modalRoot")).to_be_hidden()
+    # Let the operation-completion refresh settle before injecting a new snapshot.
+    page.wait_for_load_state("networkidle")
     assert requests == [{"op": "check-dashboard-update"}, {"op": "apply-dashboard-update"}]
     page.evaluate(
         "renderOverview({...S.overview,modsCheck:{state:'needs-update',at:'2026-10-08T17:24:00Z'}})"

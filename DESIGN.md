@@ -247,8 +247,15 @@ updates preserve focus on the same action and keep the list's scroll position;
 unread rows use the second surface layer. Filters, read controls, links and toast
 dismiss controls share the visible focus outline. Long lists scroll independently
 of the center's heading, filters and footer.
-All editing routes share operation availability messages and lock mutations from
-request submission through completion. This includes drafts, mod order, player
+All editing routes lock mutations from request submission through completion.
+Busy widgets blur their existing contents and show a centered loading indicator;
+repeated operation availability blocks are hidden. The shared operation bar shows
+completed stages and the current stage, with Countdown for timed waits and no
+Elapsed row. Detailed phase messages remain accessible and available on hover.
+Game launches retain the lock until a valid PZ players response confirms RCON
+readiness, including restarts, updates, restore, stopped-server backups and
+configuration/Workshop application. A readiness timeout reports failure without
+automatically restarting again. This includes drafts, mod order, player
 actions, schedules, watchdog and notification settings. Route navigation, search,
 logs and events remain available, as does mod-update cancellation during countdown.
 Pending input survives locking and failed requests; completion restores each

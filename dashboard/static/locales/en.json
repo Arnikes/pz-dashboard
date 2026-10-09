@@ -1495,5 +1495,15 @@
   "Не удалось запустить обновление пульта.": "Could not start the console update.",
   "Обновление пульта не удалось. Проверьте контейнер и журнал Docker.": "Console update failed. Check the container and Docker logs.",
   "Контейнер пульта обновлён и запущен": "Console container updated and running",
-  "Закрыть уведомление: {{0}}": "Dismiss notification: {{0}}"
+  "Закрыть уведомление: {{0}}": "Dismiss notification: {{0}}",
+  "Загрузка сервера": "Loading server",
+  "PZ/RCON не готов после бэкапа. Проверьте логи сервера": "PZ/RCON is not ready after the backup. Check the server logs",
+  "Стадии операции": "Operation stages",
+  "Обратный отсчёт": "Countdown",
+  "Сервер снова готов к работе, но обновление не подтверждено": "The server is ready again, but the update is unconfirmed",
+  "Готовность сервера не подтверждена — проверьте логи и конфиг": "Server readiness is unconfirmed — check the logs and configuration",
+  "docker compose up не удался: {{0}}. {{1}}": "docker compose up failed: {{0}}. {{1}}",
+  "Проверка готовности пульта": "Checking console readiness",
+  "Ошибка операции: {{0}}. Восстановление сервера: {{1}}": "Operation failed: {{0}}. Server recovery: {{1}}",
+  "Ожидание": "Waiting"
 }

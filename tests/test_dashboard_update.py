@@ -218,17 +218,22 @@ def test_current_image_does_not_restart(deployment):
     assert all("run" not in call.args[0] for call in command.call_args_list)
 
 
-@pytest.mark.parametrize("healthy", [True, False])
+@pytest.mark.parametrize("healthy", [True, False, "missing"])
 def test_helper_only_replaces_console_and_persists_outcome(deployment, monkeypatch, healthy):
     container, _, command = deployment
     updater.apply(Mock())
     snapshot = next(Path(config.CFG["dashboard_dir"]).glob("dashboard-compose-*.json"))
     container["Image"] = NEW
-    if not healthy:
+    if healthy == "missing":
+        container["State"].pop("Health")
+    elif not healthy:
         container["State"]["Health"]["Status"] = "unhealthy"
     ticks = iter([0, 0, 0, 181])
-    monkeypatch.setattr(updater.time, "monotonic", lambda: next(ticks))
-    monkeypatch.setattr(updater.time, "sleep", lambda seconds: None)
+    # Keep the helper clock local so file-sharing retries still sleep on Windows.
+    clock = Mock(wraps=updater.time)
+    clock.monotonic.side_effect = lambda: next(ticks)
+    clock.sleep.side_effect = lambda seconds: None
+    monkeypatch.setattr(updater, "time", clock)
     log = Mock()
     monkeypatch.setattr(ops, "log_event", log)
     updater.run_helper(snapshot, "pz-dashboard", "pz-dashboard", "pz", NEW)
@@ -238,7 +243,7 @@ def test_helper_only_replaces_console_and_persists_outcome(deployment, monkeypat
     assert not snapshot.exists()
     assert not ops.op_busy()
     result = ops.op_state()["history"][0]
-    assert result["ok"] is healthy
+    assert result["ok"] is (healthy is True)
     assert result["finishedAt"]
     log.assert_called_once()
 
@@ -427,7 +432,9 @@ def test_containerd_update_then_check_reports_current(deployment, monkeypatch):
         "digest": running_manifest,
         "platform": {"os": "linux", "architecture": "amd64"},
     }
-    monkeypatch.setattr(updater.time, "sleep", lambda seconds: None)
+    clock = Mock(wraps=updater.time)
+    clock.sleep.side_effect = lambda seconds: None
+    monkeypatch.setattr(updater, "time", clock)
     monkeypatch.setattr(ops, "log_event", Mock())
     updater.run_helper(snapshot, "pz-dashboard", "pz-dashboard", "pz", NEW)
     assert updater.operation()["ok"] is True

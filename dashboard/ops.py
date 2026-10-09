@@ -312,6 +312,8 @@ def rcon_warn_broadcast(seconds, reason, abort_check=None, abort_wait=None):
     abort_wait — прерываемое ожидание шага, возвращающее True при отмене."""
     if seconds <= 0:
         return True
+    with _OP_LOCK:
+        _ACTIVE["countdownEndsAt"] = time.time() + seconds
     locale = player_notification_language()
     reason = i18n.translate(reason, locale=locale)
     thresholds = {30, 10}
@@ -323,10 +325,16 @@ def rcon_warn_broadcast(seconds, reason, abort_check=None, abort_wait=None):
     # шаг 10 с, старт выровнен вниз до кратности: иначе (например 45 с)
     # отсчёт молча пропускает все пороги и сервер останавливается без предупреждения
     start = seconds if seconds < 10 else seconds - (seconds % 10)
+    if seconds > start:
+        if abort_wait is not None:
+            if abort_wait(seconds - start):
+                return False
+        else:
+            time.sleep(seconds - start)
     for left in range(start, 0, -10):
         if abort_check is not None and abort_check():
             return ok
-        if left in thresholds and left != last_sent:
+        if ok and left in thresholds and left != last_sent:
             count = left // 60 if left >= 60 else left
             source = "{{0}} через {{1}} минут" if left >= 60 else "{{0}} через {{1}} секунд"
             text = i18n.message(source, reason, count, locale=locale, count=count)
@@ -335,7 +343,6 @@ def rcon_warn_broadcast(seconds, reason, abort_check=None, abort_wait=None):
                 last_sent = left
             except rconlib.RCONError:
                 ok = False
-                break
         if abort_wait is not None:
             if abort_wait(min(10, left)):
                 return ok
@@ -404,6 +411,31 @@ def wait_until_running(timeout=120):
         time.sleep(4)
         waited += 4
     return is_running()
+
+
+def wait_until_ready(timeout=600):
+    """Keep lifecycle operations active until the game answers, not just Docker."""
+    _set_phase("Загрузка сервера", "Ожидание готовности PZ и RCON; подробности в логах сервера")
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if is_running():
+            try:
+                reply = rcon("players", quiet=True)
+                if isinstance(reply, str) and re.search(
+                    r"\bPlayers\s+connected\s*\(\d+\)", reply, re.I
+                ):
+                    return True
+            except rconlib.RCONError:
+                pass
+        time.sleep(3)
+    return False
+
+
+def _require_ready():
+    if not wait_until_ready():
+        raise OpsError(
+            "PZ/RCON не готов после запуска. Проверьте логи; автоматического повторного рестарта не будет"
+        )
 
 
 def graceful_stop(phase_hook=None):
@@ -475,6 +507,8 @@ _ACTIVE = {
     "startedAt": None,
     "cancellable": False,
     "cancelRequested": False,
+    "countdownEndsAt": None,
+    "stages": [],
 }
 _OP_CANCEL = threading.Event()
 _OP_HISTORY = deque(maxlen=10)
@@ -485,7 +519,7 @@ _NAME_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 def op_state():
     with _OP_LOCK:
         dashboard_op = dashboardupdate.operation()
-        active = dict(_ACTIVE) if _ACTIVE["op"] else None
+        active = {**_ACTIVE, "stages": list(_ACTIVE.get("stages", []))} if _ACTIVE["op"] else None
         history = list(_OP_HISTORY)
         if dashboard_op:
             if dashboard_op.get("active"):
@@ -519,13 +553,21 @@ def cancel_mods_update():
         _ACTIVE["cancellable"] = False
         _ACTIVE["phase"] = "Отмена"
         _ACTIVE["message"] = "Отмена автообновления модов…"
+        _ACTIVE["countdownEndsAt"] = None
+        _ACTIVE.setdefault("stages", []).append("Отмена")
         _OP_CANCEL.set()
 
 
-def _set_phase(phase, message=""):
+def _set_phase(phase, message="", *, countdown_seconds=None):
     with _OP_LOCK:
         _ACTIVE["phase"] = phase
         _ACTIVE["message"] = message
+        _ACTIVE["countdownEndsAt"] = (
+            time.time() + countdown_seconds if countdown_seconds is not None else None
+        )
+        stages = _ACTIVE.setdefault("stages", [])
+        if not stages or stages[-1] != phase:
+            stages.append(phase)
 
 
 def _start_worker(op, fn):
@@ -601,6 +643,8 @@ def _start_worker(op, fn):
                 _ACTIVE["startedAt"] = None
                 _ACTIVE["cancellable"] = False
                 _ACTIVE["cancelRequested"] = False
+                _ACTIVE["countdownEndsAt"] = None
+                _ACTIVE["stages"] = []
                 _OP_CANCEL.clear()
 
     with _OP_LOCK:
@@ -615,6 +659,8 @@ def _start_worker(op, fn):
                 "startedAt": now_iso(),
                 "cancellable": op == "mods-restart",
                 "cancelRequested": False,
+                "countdownEndsAt": None,
+                "stages": ["Подготовка…"],
             }
         )
     t = threading.Thread(target=worker, daemon=True, name=f"op-{op}")
@@ -644,6 +690,7 @@ def _do_start():
         raise OpsError(f"Не удалось запустить: {err or out}")
     if not wait_until_running(150):
         raise OpsError("Сервер не запустился за 150 с — проверьте логи контейнера")
+    _require_ready()
     log_event("start", "Сервер запущен")
     _set_phase("Готово", "Сервер запущен")
 
@@ -723,6 +770,8 @@ def _do_restart(
                 else "Сервер остановлен вручную — авторестарт отменён"
             )
             log_event("auto", msg)
+            if verdict == "restarted":
+                _require_ready()
             _set_phase("Готово", "Авторестарт отменён: сервер уже перезапущен")
             return "aborted"
     _begin_watchdog_grace()
@@ -732,6 +781,7 @@ def _do_restart(
         _begin_watchdog_grace()
         if not wait_until_running(150):
             raise OpsError("Сервер не запустился после рестарта за 150 с")
+        _require_ready()
         log_event("restart", f"Сервер перезапущен ({reason})")
         _set_phase("Готово", "Сервер перезапущен")
         return
@@ -741,6 +791,7 @@ def _do_restart(
         raise OpsError(f"Не удалось запустить после рестарта: {err or out}")
     if not wait_until_running(150):
         raise OpsError("Сервер не запустился после рестарта за 150 с")
+    _require_ready()
     log_event("restart", f"Сервер перезапущен ({reason})")
     _set_phase("Готово", "Сервер перезапущен")
 
@@ -900,14 +951,17 @@ def _do_apply_update(warn_seconds, reason="Обновление сервера")
         code, out, err = dockerlib.compose_up(config.CFG)
         if code != 0:
             # пробуем поднять старый контейнер обратно
-            _start_container()
-            raise OpsError(
-                f"docker compose up не удался: {(err or out)[:200]}. "
-                "Сервер оставлен остановленным — проверьте конфиг"
+            start_code, _, _ = _start_container()
+            recovered = start_code == 0 and wait_until_ready()
+            recovery_message = (
+                "Сервер снова готов к работе, но обновление не подтверждено"
+                if recovered
+                else "Готовность сервера не подтверждена — проверьте логи и конфиг"
             )
-        wait_until_running(180)
-        if not is_running():
+            raise OpsError(f"docker compose up не удался: {(err or out)[:200]}. {recovery_message}")
+        if not wait_until_running(180):
             raise OpsError("Контейнер пересоздан, но не поднялся — проверьте docker logs pzserver")
+        _require_ready()
         check_update(force_event=False)
         log_event("update", f"Сервер обновлён до {image}")
         _set_phase("Готово", "Сервер обновлён и запущен")
@@ -1101,7 +1155,7 @@ def _do_backup(stop_server, trigger="manual", started=None):
                 rcon("save", quiet=True)
             except rconlib.RCONError:
                 log_event("warn", "Не удалось выполнить save через RCON — бэкап без сохранения")
-            _set_phase("Ожидание записи", "10 с на сохранение")
+            _set_phase("Ожидание записи", "10 с на сохранение", countdown_seconds=10)
             time.sleep(10)
     archive_error = None
     try:
@@ -1118,6 +1172,8 @@ def _do_backup(stop_server, trigger="manual", started=None):
                 restart_error = f"Не удалось запустить сервер после бэкапа: {err or out}"
             elif not wait_until_running(150):
                 restart_error = "Сервер не запустился после бэкапа за 150 с"
+            elif not wait_until_ready():
+                restart_error = "PZ/RCON не готов после бэкапа. Проверьте логи сервера"
             if restart_error:
                 message = f"{archive_error}. {restart_error}" if archive_error else restart_error
                 raise OpsError(message) from archive_error
@@ -1275,6 +1331,7 @@ def _restore_prepared(dest, name):
         raise OpsError(f"Данные восстановлены, но запуск не удался: {err or out}")
     if not wait_until_running(180):
         raise OpsError("Данные восстановлены, но сервер не запустился за 180 с")
+    _require_ready()
     log_event("restore", f"Мир восстановлен из {name}")
     _set_phase("Готово", f"Восстановлено из {name}")
 
@@ -1790,6 +1847,8 @@ def _mods_items_from_lines(lines, ws):
 
 def check_mods_update(source="manual", timeout=45):
     """RCON-команда checkModsNeedUpdate + разбор свежих строк лога контейнера."""
+    if source == "manual":
+        _set_phase("Проверка модов", "RCON checkModsNeedUpdate")
     if not docker_ok_cached():
         raise OpsError("Проверка модов требует запуска пульта на хосте сервера")
     if not is_running():
@@ -1799,6 +1858,12 @@ def check_mods_update(source="manual", timeout=45):
         raise OpsError("Логи контейнера недоступны: " + (err or "?"))
     before = Counter(before_text.splitlines())
     rcon("checkModsNeedUpdate", quiet=True)
+    if source == "manual":
+        _set_phase(
+            "Ожидание",
+            "Ожидаем ответ RCON; отмена этой проверки не поддерживается.",
+            countdown_seconds=timeout,
+        )
     deadline = time.time() + timeout
     state, need = None, []
     while time.time() < deadline:
@@ -1831,6 +1896,19 @@ def check_mods_update(source="manual", timeout=45):
     else:
         log_event("warn", "Проверка модов не завершилась — нет ответа сервера")
     return mods_check_state()
+
+
+def _do_check_mods_update():
+    result = check_mods_update(source="manual")
+    if result.get("state") == "inconclusive":
+        raise OpsError(result["error"])
+    message = (
+        f"Моды требуют обновления: {len(result.get('items', []))}"
+        if result.get("state") == "needs-update"
+        else "Моды актуальны"
+    )
+    _set_phase("Готово", message)
+    return result
 
 
 def _do_apply_mods_update(warn_seconds):

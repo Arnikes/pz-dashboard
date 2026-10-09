@@ -869,6 +869,10 @@ async function requestOperation(body, { timeout } = {}) {
   try {
     const res = await api("/api/action", { method: "POST", body, timeout });
     if (res.error || res.ok === false) throw new Error(res.error || I18n.t("Запрос не принят"));
+    // An accepted operation keeps its lock even if the first state refresh fails.
+    if (res.started && !S.op?.active) {
+      renderOp({ active: { op: res.started, phase: I18n.t("Подготовка…"), startedAt: new Date().toISOString() }, history: S.op?.history || [] });
+    }
     await refreshOps();
     return res;
   } finally {
@@ -880,7 +884,7 @@ async function requestOperation(body, { timeout } = {}) {
 async function action(op, extra = {}) {
   try {
     await requestOperation({ op, ...extra });
-    toast(I18n.msg`Операция «${OP_TITLES[op] || op}» запущена`, "ok");
+    toast(I18n.msg`Операция «${OP_TITLES[op] || op}» запущена`, "info");
     return true;
   } catch (e) {
     if (!$("modalRoot").hidden) modal.error(e);
@@ -1126,8 +1130,37 @@ function renderSummaries() {
 
 function setAvailability(id, message) {
   const element = $(id);
+  if (operationBusy()) message = "";
   if (element.textContent !== message) element.textContent = message;
   if (element.hidden !== !message) element.hidden = !message;
+}
+
+function updateOperationWidgets() {
+  const busy = operationBusy();
+  if (!busy) {
+    document.querySelectorAll('[aria-describedby~="opbar"]').forEach(control => {
+      const descriptions = control.getAttribute("aria-describedby").split(/\s+/).filter(id => id && id !== "opbar");
+      if (descriptions.length) setDomAttribute(control, "aria-describedby", descriptions.join(" "));
+      else control.removeAttribute("aria-describedby");
+    });
+  }
+  document.querySelectorAll("#sec-status, #sec-players, #view-settings .editor-card, #view-mods .editor-card, #sec-updates, #sec-dashboard-update, #sec-mods-update, #sec-watchdog, #sec-notify, #sec-bksched, #sec-backups, #sec-console").forEach(widget => {
+    widget.classList.toggle("operation-loading", busy);
+    setDomAttribute(widget, "aria-busy", String(busy));
+    let loader = widget.querySelector(":scope > .operation-loader");
+    if (busy && !loader) {
+      loader = document.createElement("div");
+      loader.className = "operation-loader";
+      const spinner = document.createElement("span");
+      spinner.className = "op-spin";
+      spinner.setAttribute("aria-hidden", "true");
+      const label = document.createElement("span");
+      label.textContent = I18n.t("Загрузка…");
+      loader.append(spinner, label);
+      widget.append(loader);
+    }
+    if (loader) loader.hidden = !busy;
+  });
 }
 
 function updateButtons() {
@@ -1203,6 +1236,7 @@ function updateButtons() {
   $("btnBackup").setAttribute("aria-describedby", "backupAvailability");
   $("consoleInput").setAttribute("aria-describedby", "consoleAvailability");
   window.ConfigEditor?.operationChanged();
+  updateOperationWidgets();
   // The inert startup shell needs no temporary availability descriptions.
   if (document.body.classList.contains("is-booting")) return;
   for (const [view, description] of Object.entries({
@@ -1211,7 +1245,8 @@ function updateButtons() {
   })) {
     document.querySelectorAll(`#view-${view} button:disabled, #view-${view} input:disabled, #view-${view} select:disabled, #view-${view} textarea[readonly]`).forEach(control => {
       const ids = new Set((control.getAttribute("aria-describedby") || "").split(/\s+/).filter(Boolean));
-      ids.add(description);
+      ids.add(operationBusy() ? "opbar" : description);
+      if (!operationBusy()) ids.delete("opbar");
       setDomAttribute(control, "aria-describedby", [...ids].join(" "));
     });
   }
@@ -1223,6 +1258,13 @@ function renderOp(op) {
     $("opbar").hidden = false;
     $("opPhase").textContent = `${OP_TITLES[active.op] || active.op}: ${active.phase}`;
     $("opMsg").textContent = active.message || "";
+    const stages = (active.stages || [active.phase]).filter(stage => !["Подготовка…", I18n.t("Подготовка…"), "Готово", I18n.t("Готово")].includes(stage));
+    const markup = stages.map((stage, index) =>
+      `<li${index === stages.length - 1 ? ' aria-current="step"' : ' data-complete="true"'}>${esc(stage)}</li>`).join("");
+    if (stages.length > 1) $("opPhase").textContent = OP_TITLES[active.op] || active.op;
+    if ($("opStages").innerHTML !== markup) $("opStages").innerHTML = markup;
+    $("opStages").hidden = stages.length < 2;
+    $("opPhase").title = active.message || "";
   } else {
     $("opbar").hidden = true;
   }
@@ -1242,13 +1284,18 @@ function renderOp(op) {
   S.lastOpActive = !!(active);
   S.op = op;
   if (activeView === "backups" && S.backupsItems?.length) renderBackupsPage();
-  updateOperationElapsed();
+  updateOperationCountdown();
   updateButtons();
 }
 
-function updateOperationElapsed() {
-  const started = Date.parse(S.op?.active?.startedAt);
-  $("opElapsed").textContent = Number.isFinite(started) ? I18n.msg`Прошло ${fmtUptime(Math.floor(Math.max(0, (Date.now() - started) / 1000)))}` : "";
+function updateOperationCountdown() {
+  const deadline = Number(S.op?.active?.countdownEndsAt);
+  const available = Number.isFinite(deadline) && deadline > 0;
+  $("opCountdown").hidden = !available;
+  if (available) {
+    const left = Math.max(0, Math.ceil(deadline - Date.now() / 1000));
+    $("opCountdown").textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+  }
 }
 
 /* человеческие названия операций для полосы прогресса и тостов */
@@ -2430,13 +2477,12 @@ $("btnApplyDashboardUpd").addEventListener("click", () => {
 
 $("btnCheckMods").addEventListener("click", async () => {
   if (S.actionPending || S.op?.active) return;
-  S.actionPending = true; updateButtons();
   showLocalResult("pending", I18n.t("Проверка модов — выполняется"), I18n.t("Ожидаем ответ RCON; отмена этой проверки не поддерживается."));
   try {
-    const res = await api("/api/action", { method: "POST", body: { op: "check-mods-update" } });
+    const res = await requestOperation({ op: "check-mods-update" });
     if (res.error || res.ok === false) throw new Error(res.error || I18n.t("Проверка не принята"));
-    showLocalResult("ok", I18n.t("Проверка модов — запрос принят"), I18n.t("Результат сервера появится в разделе «Обслуживание». Принимаемый запрос ещё не подтверждает актуальность пакетов."));
-    toast(I18n.t("Проверка модов запущена — результат появится в карточке"), "ok");
+    showLocalResult("info", I18n.t("Проверка модов — запрос принят"), I18n.t("Результат сервера появится в разделе «Обслуживание». Принимаемый запрос ещё не подтверждает актуальность пакетов."));
+    toast(I18n.t("Проверка модов запущена — результат появится в карточке"), "info");
   } catch (e) {
     showActionError("check-mods-update", e);
   } finally {
@@ -3195,6 +3241,7 @@ document.addEventListener("visibilitychange", () => {
     liveSource = null;
     clearTimeout(sseStartupTimer);
   } else if (!S.demo) {
+    updateOperationCountdown();
     retryConnection();
   }
 });
@@ -3205,8 +3252,8 @@ async function boot() {
   setInterval(() => {
     if (document.hidden) return;
     updateConnectionWarning();
-    updateOperationElapsed();
   }, 5000);
+  setInterval(() => { if (!document.hidden) updateOperationCountdown(); }, 1000);
   consoleBootLine = consoleAppend(I18n.t("Пульт подключается к серверу…"), "c-dim");
   applyRoute();
   let liveReady = false;

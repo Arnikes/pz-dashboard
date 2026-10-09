@@ -127,6 +127,7 @@ def test_manual_restart_arms_grace_before_stop_and_refreshes_at_launch(
     monkeypatch.setattr(ops, "graceful_stop", stop)
     monkeypatch.setattr(dockerlib, "container_start", Mock(side_effect=start))
     monkeypatch.setattr(ops, "wait_until_running", lambda timeout: True)
+    monkeypatch.setattr(ops, "wait_until_ready", lambda timeout=600: True)
     ops._do_restart(0)
     assert ops.watchdog_state()["graceRemainingSec"] == 300
     assert dockerlib.container_start.call_count == (0 if resurrected else 1)
@@ -140,6 +141,7 @@ def test_update_arms_grace_for_compose_launch(watchdog, monkeypatch):
     monkeypatch.setattr(dockerlib, "image_digests", lambda image: "new")
     monkeypatch.setattr(dockerlib, "compose_version", lambda: True)
     monkeypatch.setattr(ops, "wait_until_running", lambda timeout: True)
+    monkeypatch.setattr(ops, "wait_until_ready", lambda timeout=600: True)
     monkeypatch.setattr(ops, "check_update", Mock())
 
     def stop(hook=None):

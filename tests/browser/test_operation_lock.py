@@ -38,7 +38,6 @@ def test_every_mutating_view_locks_and_recovers(page, dashboard, editing, langua
         settingsFeedback('watchdog','error','Retry saving');
     }""")
     page.evaluate("active=>renderOp({active,history:[]})", ACTIVE)
-    expected = "Авторестарт модов" if language == "ru" else "Automatic mod restart"
     controls = {
         "overview": ("operationAvailability", "#btnStop,#btnRestart,#btnSaveWorld"),
         "settings": (
@@ -60,7 +59,16 @@ def test_every_mutating_view_locks_and_recovers(page, dashboard, editing, langua
     for view, (notice, selector) in controls.items():
         page.evaluate("view=>location.hash='#/'+view", view)
         expect(page.locator(f"#view-{view}")).to_be_visible()
-        expect(page.locator(f"#{notice}")).to_contain_text(expected)
+        expect(page.locator(f"#{notice}")).to_be_hidden()
+        widget = page.locator(f"#view-{view} .operation-loading").first
+        expect(widget).to_have_attribute("aria-busy", "true")
+        expect(widget.locator(":scope > .operation-loader")).to_be_visible()
+        assert (
+            widget.locator(":scope > :not(.operation-loader)").first.evaluate(
+                "el=>getComputedStyle(el).filter"
+            )
+            == "blur(2px)"
+        )
         assert page.locator(selector).count() > 0
         assert page.locator(selector).evaluate_all("nodes=>nodes.every(node=>node.disabled)")
         expect(page.locator("#btnCancelMods")).to_be_enabled()
@@ -74,6 +82,8 @@ def test_every_mutating_view_locks_and_recovers(page, dashboard, editing, langua
     expect(page.locator("#view-events")).to_be_visible()
     expect(page.locator('#eventFilters [data-ef="all"]')).to_be_enabled()
     page.evaluate("renderOp({active:null,history:[]})")
+    expect(page.locator(".operation-loading")).to_have_count(0)
+    expect(page.locator(".operation-loader:visible")).to_have_count(0)
     for notice, _ in controls.values():
         expect(page.locator(f"#{notice}")).to_be_hidden()
     for control in (
@@ -106,14 +116,15 @@ def test_pending_editor_launch_locks_other_views_and_rejection_restores_input(
     page.locator("#configApply").click()
     expect(page.locator("#modalRoot")).to_be_visible()
     page.locator("#modalOk").click()
-    expect(page.locator("#settingsAvailability")).to_contain_text("Запрос отправляется")
+    expect(page.locator("#settingsAvailability")).to_be_hidden()
+    expect(page.locator("#view-settings .operation-loader")).to_be_visible()
     for control in ("#configProfile", "#wdRestart", "#tgToken", "#workshopInput", "#btnStop"):
         expect(page.locator(control)).to_be_disabled()
     assert len(held) == 1
     # Workshop validation retains the editor's longer request timeout.
     page.clock.run_for(10000)
     expect(page.locator("#configProfile")).to_be_disabled()
-    expect(page.locator("#settingsAvailability")).to_contain_text("Запрос отправляется")
+    expect(page.locator("#view-settings .operation-loader")).to_be_visible()
     held[0].fulfill(status=409, json={"ok": False, "error": "Rejected launch"})
     expect(page.locator("#modalError")).to_contain_text("Rejected launch")
     expect(page.locator("#configProfile")).to_be_enabled()

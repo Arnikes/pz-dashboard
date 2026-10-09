@@ -142,8 +142,8 @@
   <main class="main" data-od-id="main">
     <section class="opbar" id="opbar" hidden aria-label="Текущая операция" role="status">
       <span class="op-spin" aria-hidden="true"></span>
-      <div class="op-text"><strong id="opPhase"></strong><span id="opMsg"></span></div>
-      <span class="mono" id="opElapsed" aria-label="Длительность операции"></span>
+      <div class="op-text"><strong id="opPhase"></strong><ol id="opStages" class="op-stages" aria-label="Стадии операции" hidden></ol><span id="opMsg" class="sr-only"></span></div>
+      <span class="mono op-countdown" id="opCountdown" aria-label="Обратный отсчёт" aria-live="off" hidden></span>
       <a class="btn" href="#/console">Логи</a>
       <button class="btn" id="btnCancelMods" hidden>Отменить обновление модов</button>
     </section>

@@ -2027,3 +2027,19 @@ body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--footer-height)
 /* Keep the command and session controls aligned with the profile selector. */
 .top-right { align-items:start; }
 @media (max-width:740px) { #btnCommands { align-self:start; } }
+
+/* Operations keep unavailable widgets recognizable without repeated notices. */
+.op-countdown { font-size:16px; font-variant-numeric:tabular-nums; color:var(--warn); }
+.op-stages { display:flex; flex-wrap:wrap; gap:4px 12px; padding:0; margin:3px 0 0; list-style:none; color:var(--muted); font-size:12px; }
+.op-stages li + li::before { content:"/"; margin-inline-end:12px; color:var(--faint); }
+.op-stages [aria-current=step] { color:var(--ink); }
+.operation-loading { position:relative; }
+.operation-loading > :not(.operation-loader) { filter:blur(2px); opacity:.5; }
+.operation-loader { position:absolute; inset-inline:0; top:min(50%, 180px); transform:translateY(-50%); display:flex; align-items:center; justify-content:center; gap:10px; pointer-events:none; color:var(--ink); font-size:13px; }
+.operation-loader .op-spin { border-top-color:var(--ink); }
+@media (prefers-reduced-motion:reduce) { .op-spin { animation:none; } }
+@media (forced-colors:active) {
+  .operation-loading > :not(.operation-loader) { filter:none; opacity:1; }
+  .operation-loader { background:Canvas; color:CanvasText; }
+  .op-spin { border-color:GrayText; border-top-color:CanvasText; }
+}
