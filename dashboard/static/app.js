@@ -582,10 +582,11 @@ const showToast = (() => {
 const modal = (() => {
   const root = $("modalRoot");
   let onOk = null;
+  let onSecondary = null;
   let returnFocus = null;
   let submitting = false;
 
-  function open({ title, bodyHTML, okLabel = I18n.t("Подтвердить"), danger = false, onConfirm }) {
+  function open({ title, bodyHTML, okLabel = I18n.t("Подтвердить"), danger = false, onConfirm, secondaryAction }) {
     if (submitting) return;
     returnFocus = document.activeElement;
     $("modalTitle").textContent = title;
@@ -596,9 +597,14 @@ const modal = (() => {
     okBtn.disabled = false;
     okBtn.textContent = okLabel;
     okBtn.className = "btn " + (danger ? "solid-danger" : "primary");
+    const cancelBtn = $("modalCancel");
+    cancelBtn.hidden = secondaryAction === null;
+    cancelBtn.textContent = secondaryAction?.label || I18n.t("Отмена");
+    cancelBtn.className = "btn" + (secondaryAction?.danger ? " danger" : "");
+    onSecondary = secondaryAction?.onClick || null;
     onOk = onConfirm || null;
     root.hidden = false;
-    (danger ? $("modalCancel") : okBtn).focus();
+    (danger && !cancelBtn.hidden ? cancelBtn : okBtn).focus();
   }
 
   function close() {
@@ -606,12 +612,18 @@ const modal = (() => {
     root.hidden = true;
     $("modalBody").innerHTML = "";
     onOk = null;
+    onSecondary = null;
     if (returnFocus?.isConnected && !returnFocus.disabled) returnFocus.focus({ preventScroll: true });
     else if (document.activeElement === document.body || root.contains(document.activeElement)) document.querySelector(`#view-${activeView}`)?.focus({ preventScroll: true });
     returnFocus = null;
   }
 
-  $("modalCancel").addEventListener("click", close);
+  $("modalCancel").addEventListener("click", () => {
+    if (submitting) return;
+    const action = onSecondary;
+    close();
+    action?.();
+  });
   $("modalBackdrop").addEventListener("click", close);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !root.hidden) close(); });
   // фокус не покидает открытую модалку (Tab зациклен по её элементам)

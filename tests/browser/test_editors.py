@@ -209,7 +209,7 @@ def test_configuration_stages_keep_draft_and_only_navigate(page, dashboard, edit
     expect(page.locator("#flowLaunch")).not_to_have_text("Подтверждён")
     page.locator('[data-flow="files"]').click()
     expect(page.get_by_role("alertdialog")).to_contain_text("Staged draft")
-    page.locator("#modalCancel").click()
+    page.locator("#modalOk").click()
     page.locator('[data-flow="launch"]').click()
     expect(page.locator("#configApply")).to_be_focused()
     expect(page.get_by_role("alertdialog")).to_be_hidden()
@@ -538,7 +538,7 @@ def test_short_phone_diff_keeps_confirmation_buttons_reachable(page, dashboard, 
     button = page.locator("#modalCancel").bounding_box()
     assert dialog["y"] >= 0 and dialog["y"] + dialog["height"] <= 568
     assert button["y"] + button["height"] <= 568
-    page.locator("#modalCancel").click()
+    page.locator("#modalOk").click()
     assert dashboard["actions"] == []
 
 
@@ -644,9 +644,138 @@ def test_diff_without_conflict_has_close_action(page, dashboard, editing):
     expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
     page.locator("#configDiff").click()
     expect(page.locator("#modalOk")).to_have_text("Закрыть")
+    expect(page.locator("#modalCancel")).to_have_text("Сбросить изменения…")
+    expect(page.get_by_role("button", name="Отмена", exact=True)).to_have_count(0)
     page.locator("#modalOk").click()
     expect(page.locator("#modalRoot")).to_be_hidden()
+    expect(page.locator("#configDiff")).to_be_focused()
     assert editor.draft("world.ini")["changed"] and dashboard["actions"] == []
+
+
+@pytest.mark.parametrize("language", ["ru", "en"])
+@pytest.mark.parametrize("width", [320, 1440])
+@pytest.mark.parametrize("entry", ["settings", "mods"])
+def test_diff_discard_confirms_and_reloads_both_editors(
+    page, dashboard, editing, language, width, entry
+):
+    data, _ = editing
+    path = data / "Server/world.ini"
+    current = editor.draft("world.ini")
+    editor.patch(
+        {
+            "file": "world.ini",
+            "draftRevision": current["draftRevision"],
+            "ini": {"PublicName": "Review draft"},
+            "mods": {"selected": ["library"]},
+        }
+    )
+    page.add_init_script(f"localStorage.setItem('pz-language', '{language}')")
+    page.set_viewport_size({"width": width, "height": 568})
+    page.goto(dashboard["url"] + f"/#/{entry}")
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    page.locator("#configDiff").click()
+    close = "Закрыть" if language == "ru" else "Close"
+    reset = "Сбросить изменения" if language == "ru" else "Discard changes"
+    cancel = "Отмена" if language == "ru" else "Cancel"
+    expect(page.locator("#modalOk")).to_have_text(close)
+    expect(page.locator("#modalOk")).to_be_focused()
+    expect(page.locator("#modalCancel")).to_have_text(reset + "…")
+    expect(page.get_by_role("alertdialog")).not_to_contain_text("topsecret")
+    expect(page.get_by_role("alertdialog")).not_to_contain_text("hidden-token")
+    page.keyboard.press("Tab")
+    expect(page.locator("#modalCancel")).to_be_focused()
+    assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
+    for button in ("#modalCancel", "#modalOk"):
+        bounds = page.locator(button).bounding_box()
+        assert bounds["y"] + bounds["height"] <= 568
+    page.screenshot(path=str(data.parent / f"draft-review-{language}-{width}-{entry}.png"))
+    page.locator("#modalCancel").click()
+    expect(page.locator("#modalOk")).to_have_text(reset)
+    expect(page.locator("#modalOk")).to_have_class("btn solid-danger")
+    expect(page.locator("#modalCancel")).to_have_text(cancel)
+    expect(page.locator("#modalCancel")).to_be_focused()
+    assert editor.draft("world.ini")["changed"]
+    page.screenshot(path=str(data.parent / f"draft-discard-{language}-{width}-{entry}.png"))
+    page.locator("#modalCancel").click()
+    expect(page.locator("#modalRoot")).to_be_hidden()
+    expect(page.locator("#configDiff")).to_be_focused()
+    assert editor.draft("world.ini")["changed"]
+    assert path.read_bytes() == INI.encode()
+    page.locator("#configDiff").click()
+    expect(page.locator("#modalRoot")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator("#modalRoot")).to_be_hidden()
+    assert editor.draft("world.ini")["changed"]
+    page.locator("#configDiff").click()
+    expect(page.locator("#modalRoot")).to_be_visible()
+    page.locator("#modalBackdrop").click(position={"x": 1, "y": 1})
+    expect(page.locator("#modalRoot")).to_be_hidden()
+    assert editor.draft("world.ini")["changed"]
+    page.locator("#configDiff").click()
+    expect(page.locator("#modalRoot")).to_be_visible()
+    page.locator("#modalCancel").click()
+    external = INI.replace("Сервер", "Current disk name")
+    path.write_bytes(external.encode())
+    page.locator("#modalOk").click()
+    expect(page.locator("#modalRoot")).to_be_hidden()
+    expect(page.locator("#draftBar")).to_be_hidden()
+    navigate(page, "settings", width <= 740)
+    expect(page.locator('[data-key="PublicName"]')).to_have_value("Current disk name")
+    navigate(page, "mods", width <= 740)
+    expect(page.locator('[data-modid="plugin"]')).to_be_checked()
+    assert not editor.draft("world.ini")["changed"]
+    assert path.read_bytes() == external.encode() and dashboard["actions"] == []
+
+
+def test_clean_diff_has_one_close_and_restores_cancel_in_confirmation(page, dashboard, editing):
+    page.goto(dashboard["url"] + "/#/settings")
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    page.locator('[data-flow="files"]').click()
+    expect(page.locator("#modalCancel")).to_be_hidden()
+    expect(page.locator("#modalOk")).to_have_text("Закрыть")
+    expect(page.locator("#modalOk")).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(page.locator("#modalOk")).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(page.locator("#modalRoot")).to_be_hidden()
+    navigate(page, "overview")
+    page.locator("#btnStop").click()
+    expect(page.locator("#modalCancel")).to_be_visible()
+    expect(page.locator("#modalCancel")).to_have_text("Отмена")
+    page.locator("#modalCancel").click()
+    expect(page.locator("#modalRoot")).to_be_hidden()
+    assert not editor.draft("world.ini")["changed"] and dashboard["actions"] == []
+
+
+def test_diff_discard_failure_keeps_draft_for_retry(page, dashboard, editing):
+    data, _ = editing
+    page.goto(dashboard["url"] + "/#/settings")
+    expect(page.locator('[data-key="PublicName"]')).to_be_enabled()
+    page.locator('[data-key="PublicName"]').fill("Keep on failed discard")
+    page.locator("#configDiff").click()
+    expect(page.get_by_role("alertdialog")).to_contain_text("Keep on failed discard")
+    page.locator("#modalCancel").click()
+
+    def reject_discard(route):
+        if route.request.method == "POST" and route.request.post_data_json.get("discard"):
+            route.fulfill(status=500, json={"ok": False, "error": "Сброс временно недоступен"})
+        else:
+            route.fallback()
+
+    page.route("**/api/config-draft", reject_discard)
+    page.locator("#modalOk").click()
+    expect(page.locator("#modalError")).to_contain_text("Сброс временно недоступен")
+    expect(page.locator("#modalOk")).to_be_enabled()
+    expect(page.locator("#modalCancel")).to_be_enabled()
+    expect(page.locator('[data-key="PublicName"]')).to_have_value("Keep on failed discard")
+    assert editor.draft("world.ini")["changed"]
+    page.unroute("**/api/config-draft", reject_discard)
+    page.locator("#modalOk").click()
+    expect(page.locator("#modalRoot")).to_be_hidden()
+    expect(page.locator('[data-key="PublicName"]')).to_have_value("Сервер")
+    assert not editor.draft("world.ini")["changed"]
+    assert (data / "Server/world.ini").read_bytes() == INI.encode()
+    assert dashboard["actions"] == []
 
 
 @pytest.mark.parametrize("width", [390, 1440])
@@ -2266,7 +2395,7 @@ def test_map_and_server_field_share_one_review_draft(page, dashboard, map_editin
     page.locator("#configDiff").click()
     expect(page.get_by_role("alertdialog")).to_contain_text("+Map=TestTown;Muldraugh, KY")
     expect(page.get_by_role("alertdialog")).to_contain_text("+PublicName=Shared map draft")
-    page.locator("#modalCancel").click()
+    page.locator("#modalOk").click()
     navigate(page, "mods")
     expect(page.locator("#modMapEditor ol")).to_contain_text("TestTown")
     assert "Mods=\\library;\\plugin\r\n" in editor.draft("world.ini")["texts"]["ini"]

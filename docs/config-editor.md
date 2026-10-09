@@ -43,7 +43,10 @@ The stage bar distinguishes draft preparation, file writes, and startup verifica
 Selecting a stage opens a review or focuses an action; it does not itself restart the server.
 Use `Ctrl/Cmd+K` to find sections, settings, and load-order entries.
 
-“View changes” shows validation and masked diffs. “Write files” requires a stopped server.
+“View changes” shows validation and masked diffs. “Close” keeps the draft;
+“Discard changes…” asks for confirmation before reloading the current files from disk
+into both Settings and Mods. If there are no draft changes, the review only offers “Close”.
+“Write files” requires a stopped server.
 “Apply with restart” warns players, stops the server, checks revisions, writes files,
 starts the server, and waits for PZ/RCON readiness. The confirmation offers a world
 backup: off by default for ordinary settings, on for mod changes and Workshop preparation.

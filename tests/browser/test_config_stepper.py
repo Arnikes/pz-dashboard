@@ -62,7 +62,7 @@ def test_stepper_keeps_statuses_and_draft_actions(
     page.screenshot(path=str(data.parent / f"stepper-{language}-{width}-mods-draft.png"))
     page.locator('[data-flow="files"]').click()
     expect(page.get_by_role("alertdialog")).to_contain_text("New stepper draft")
-    page.locator("#modalCancel").click()
+    page.locator("#modalOk").click()
     page.locator('[data-flow="launch"]').click()
     expect(page.locator("#configApply")).to_be_focused()
     assert (data / "Server/world.ini").read_bytes() == original

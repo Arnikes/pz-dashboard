@@ -240,6 +240,9 @@ pending operations, saved drafts, and verified startup results. Editors load sna
 on entry and explicit actions; live updates do not refresh their contents. External
 changes appear in diff review and are overwritten when the browser writes files.
 Use inline errors with a retry action and concise success notifications.
+The configuration diff review offers Close to keep the draft and a quiet destructive
+Discard changes action that opens the shared discard confirmation. A clean review
+only offers Close. Discard confirmation focuses Cancel and names its destructive action.
 Toast reading time scales with message length from 5.2 to 20 seconds, unless a
 caller supplies an explicit duration. Hover, keyboard focus and background tabs
 pause the remaining time. Dismiss controls name their message. Notification

@@ -1012,7 +1012,7 @@ window.ConfigEditor = (() => {
   $("configDiff").addEventListener("click", async () => {
     try {
       const result = await validate();
-      modal.open({ title: I18n.t("Изменения конфигурации"), okLabel: I18n.t("Закрыть"), bodyHTML: diffHtml(result) });
+      modal.open({ title: I18n.t("Изменения конфигурации"), okLabel: I18n.t("Закрыть"), bodyHTML: diffHtml(result), secondaryAction: draft.changed && !$("configDiscard").disabled ? { label: I18n.t("Сбросить изменения…"), danger: true, onClick: confirmDiscard } : null });
     } catch (e) { error(e.message); }
   });
   $("configRebase").addEventListener("click", async () => {
@@ -1023,7 +1023,11 @@ window.ConfigEditor = (() => {
     } catch (e) { error(e.message); }
   });
   $("draftRetry").addEventListener("click", () => flushFields().then(() => patch({})).catch(e => error(e.message)));
-  $("configDiscard").addEventListener("click", () => modal.open({ title: I18n.t("Отменить черновик?"), bodyHTML: I18n.t("Будет загружена текущая конфигурация с диска. Уже записанные настройки и скачанные пакеты сохранятся."), onConfirm: async () => { unsaved = []; await patch({ discard: true }); pendingFields.clear(); sourceDirty = false; renderFields(); renderSources(); renderMods(); } }));
+  function confirmDiscard() {
+    if (!draft || $("configDiscard").disabled) return;
+    modal.open({ title: I18n.t("Отменить черновик?"), okLabel: I18n.t("Сбросить изменения"), danger: true, bodyHTML: I18n.t("Будет загружена текущая конфигурация с диска. Уже записанные настройки и скачанные пакеты сохранятся."), onConfirm: async () => { unsaved = []; await patch({ discard: true }); pendingFields.clear(); sourceDirty = false; renderFields(); renderSources(); renderMods(); } });
+  }
+  $("configDiscard").addEventListener("click", confirmDiscard);
   $("configSave").addEventListener("click", () => confirmApply(false, false));
   $("configApply").addEventListener("click", () => confirmApply(false, true));
   async function verifyRunning() {
