@@ -440,6 +440,7 @@
   "Идёт запись конфигурации: дождитесь завершения операции": "Configuration write in progress: wait for the operation to finish",
   "Идёт операция": "Operation in progress",
   "Идёт операция:": "Operation in progress:",
+  "Идёт операция: {{0}}": "Operation in progress: {{0}}",
   "Изменение конфигурации": "Configuration change",
   "Изменение состава доступно после остановки сервера": "Composition changes are available after stopping the server",
   "Изменения заблокированы на время операции. Дождитесь результата, показанного над разделом.": "Changes are locked during the operation. Wait for the result shown above this section.",

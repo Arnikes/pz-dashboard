@@ -2035,8 +2035,9 @@ body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--footer-height)
 .op-stages [aria-current=step] { color:var(--ink); }
 .operation-loading { position:relative; }
 .operation-loading > :not(.operation-loader) { filter:blur(2px); opacity:.5; }
-.operation-loader { position:absolute; inset-inline:0; top:min(50%, 180px); transform:translateY(-50%); display:flex; align-items:center; justify-content:center; gap:10px; pointer-events:none; color:var(--ink); font-size:13px; }
-.operation-loader .op-spin { border-top-color:var(--ink); }
+.operation-loader { position:absolute; inset-inline:0; top:min(50%, 180px); transform:translateY(-50%); display:flex; align-items:center; justify-content:center; gap:10px; padding-inline:16px; pointer-events:none; color:var(--ink); font-size:13px; }
+.operation-loader .op-spin { flex-shrink:0; border-top-color:var(--ink); }
+.operation-label { min-width:0; overflow-wrap:anywhere; text-align:center; }
 @media (prefers-reduced-motion:reduce) { .op-spin { animation:none; } }
 @media (forced-colors:active) {
   .operation-loading > :not(.operation-loader) { filter:none; opacity:1; }

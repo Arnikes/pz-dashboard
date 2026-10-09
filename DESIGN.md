@@ -248,7 +248,8 @@ unread rows use the second surface layer. Filters, read controls, links and toas
 dismiss controls share the visible focus outline. Long lists scroll independently
 of the center's heading, filters and footer.
 All editing routes lock mutations from request submission through completion.
-Busy widgets blur their existing contents and show a centered loading indicator;
+Busy widgets blur their existing contents and show a centered loading indicator
+labeled "Operation in progress: <operation name>" in the selected language;
 repeated operation availability blocks are hidden. The shared operation bar shows
 completed stages and the current stage, with Countdown for timed waits and no
 Elapsed row. Detailed phase messages remain accessible and available on hover.

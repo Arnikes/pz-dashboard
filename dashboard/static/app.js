@@ -667,6 +667,7 @@ const S = {
   opsLoaded: false,
   localResultId: null,
   actionPending: false,
+  pendingOperation: null,
   settingsVersion: null,
   serverSettings: null,
   logsLevel: "all",
@@ -865,6 +866,7 @@ async function api(path, opts = {}) {
 async function requestOperation(body, { timeout } = {}) {
   if (operationBusy()) throw new Error(operationAvailabilityReason());
   S.actionPending = true;
+  S.pendingOperation = body.op;
   updateButtons();
   try {
     const res = await api("/api/action", { method: "POST", body, timeout });
@@ -877,6 +879,7 @@ async function requestOperation(body, { timeout } = {}) {
     return res;
   } finally {
     S.actionPending = false;
+    S.pendingOperation = null;
     updateButtons();
   }
 }
@@ -1137,6 +1140,8 @@ function setAvailability(id, message) {
 
 function updateOperationWidgets() {
   const busy = operationBusy();
+  const operation = S.op?.active?.op || S.pendingOperation;
+  const loadingLabel = operation ? I18n.msg`Идёт операция: ${OP_TITLES[operation] || operation}` : I18n.t("Идёт операция");
   if (!busy) {
     document.querySelectorAll('[aria-describedby~="opbar"]').forEach(control => {
       const descriptions = control.getAttribute("aria-describedby").split(/\s+/).filter(id => id && id !== "opbar");
@@ -1155,11 +1160,15 @@ function updateOperationWidgets() {
       spinner.className = "op-spin";
       spinner.setAttribute("aria-hidden", "true");
       const label = document.createElement("span");
-      label.textContent = I18n.t("Загрузка…");
+      label.className = "operation-label";
       loader.append(spinner, label);
       widget.append(loader);
     }
-    if (loader) loader.hidden = !busy;
+    if (loader) {
+      loader.hidden = !busy;
+      const label = loader.querySelector(".operation-label");
+      if (busy && label.textContent !== loadingLabel) label.textContent = loadingLabel;
+    }
   });
 }
 
@@ -2420,7 +2429,7 @@ $("btnSaveWorld").addEventListener("click", async () => {
 });
 $("btnCheckUpd").addEventListener("click", async () => {
   if (S.actionPending || S.op?.active) return;
-  S.actionPending = true; updateButtons();
+  S.actionPending = true; S.pendingOperation = "check-update"; updateButtons();
   showLocalResult("pending", I18n.t("Проверка обновлений — выполняется"), I18n.t("Сверяем образ. Дождитесь ответа; отмена этой проверки не поддерживается."));
   try {
     const res = await api("/api/action", { method: "POST", body: { op: "check-update" }, timeout: 25000 });
@@ -2432,7 +2441,7 @@ $("btnCheckUpd").addEventListener("click", async () => {
   } catch (e) {
     showActionError("check-update", e);
   } finally {
-    S.actionPending = false; updateButtons();
+    S.actionPending = false; S.pendingOperation = null; updateButtons();
   }
 });
 $("btnApplyUpd").addEventListener("click", () => {
@@ -2452,7 +2461,7 @@ $("btnApplyUpd").addEventListener("click", () => {
 
 $("btnCheckDashboardUpd").addEventListener("click", async () => {
   if (operationBusy()) return;
-  S.actionPending = true; updateButtons();
+  S.actionPending = true; S.pendingOperation = "check-dashboard-update"; updateButtons();
   showLocalResult("pending", I18n.t("Проверка обновлений пульта"), I18n.t("Сверяем образ. Дождитесь ответа; отмена этой проверки не поддерживается."));
   try {
     const res = await api("/api/action", { method: "POST", body: { op: "check-dashboard-update" }, timeout: 65000 });
@@ -2463,7 +2472,7 @@ $("btnCheckDashboardUpd").addEventListener("click", async () => {
   } catch (e) {
     showActionError("check-dashboard-update", e);
   } finally {
-    S.actionPending = false; updateButtons();
+    S.actionPending = false; S.pendingOperation = null; updateButtons();
   }
 });
 $("btnApplyDashboardUpd").addEventListener("click", () => {
