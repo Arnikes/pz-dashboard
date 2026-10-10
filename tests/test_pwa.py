@@ -1,6 +1,7 @@
 """PWA metadata, public endpoints and content-derived worker revision."""
 
 import json
+import re
 import struct
 from pathlib import Path
 
@@ -8,7 +9,7 @@ import pytest
 
 import app
 import pwa
-from test_auth import auth_server as auth_server, request
+from test_auth import auth_server as auth_server, request, sign_in
 
 
 def test_public_pwa_endpoints_and_private_html(auth_server):
@@ -54,6 +55,32 @@ def test_manifest_icons_and_entrypoints():
         assert 'href="/static/icons/apple-touch-icon.png"' in html
         assert 'src="/static/pwa.js"' in html
         assert 'src="/static/alerts.js"' in html
+
+
+@pytest.mark.parametrize("path", ["/", "/index.html", "/static/index.html", "/login"])
+def test_live_html_versions_every_script_and_stylesheet(auth_server, path):
+    cookie = sign_in(auth_server) if path != "/login" else None
+    status, headers, body = request(auth_server, "GET", path, cookie=cookie)
+    assert status == 200 and headers["Cache-Control"] == "no-store"
+    urls = re.findall(rb'(?:src|href)="([^" ]+\.(?:js|css)[^" ]*)"', body)
+    assert len(urls) >= 9
+    for url in urls:
+        url = url.decode()
+        assert re.fullmatch(r"/static/[^?]+\?v=[a-f0-9]{20}", url)
+        assert request(auth_server, "GET", url)[0] == 200
+
+
+def test_html_asset_version_changes_only_for_modified_content(tmp_path):
+    (tmp_path / "app.js").write_text("old")
+    (tmp_path / "style.css").write_text("style")
+    html = b'<script src="static/app.js"></script><link href="/static/style.css"><a href="/login">'
+    before = pwa.versioned_html(html, tmp_path)
+    assert pwa.versioned_html(html, tmp_path) == before
+    (tmp_path / "app.js").write_text("new")
+    after = pwa.versioned_html(html, tmp_path)
+    assert re.search(rb'src="([^"]+)"', before)[1] != re.search(rb'src="([^"]+)"', after)[1]
+    assert re.search(rb'href="([^"]+)"', before)[1] == re.search(rb'href="([^"]+)"', after)[1]
+    assert b'<a href="/login">' in after
 
 
 @pytest.mark.parametrize(

@@ -28,6 +28,25 @@ def pwa_server(monkeypatch, tmp_path, page):
 
         def do_GET(self):
             path = urlparse(self.path).path
+            # Model a reverse proxy that retains each CSS/JS URL across releases.
+            asset_cache = getattr(self.server, "asset_cache", None)
+            if (
+                asset_cache is not None
+                and path.startswith("/static/")
+                and path.endswith((".js", ".css"))
+            ):
+                body = asset_cache.setdefault(
+                    self.path, (root / path.removeprefix("/static/")).read_bytes()
+                )
+                self.send_response(200)
+                self.send_header(
+                    "Content-Type", "text/javascript" if path.endswith(".js") else "text/css"
+                )
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "max-age=86400")
+                self.end_headers()
+                self.wfile.write(body)
+                return
             if path == "/static/offline.html" and hasattr(self.server, "precache_gate"):
                 self.server.precache_gate.wait(timeout=5)
             if path == "/static/offline.html" and getattr(self.server, "shell_unavailable", False):

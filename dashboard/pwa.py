@@ -6,6 +6,22 @@ import re
 from pathlib import Path
 
 
+def versioned_html(body, static_dir):
+    """Keep dashboard/login assets in sync even behind a caching reverse proxy."""
+    root = Path(static_dir)
+
+    def version(match):
+        asset = match["url"].removeprefix("/").removeprefix("static/")
+        digest = hashlib.sha256((root / asset).read_bytes()).hexdigest()[:20]
+        return f"{match['prefix']}/static/{asset}?v={digest}{match['quote']}"
+
+    return re.sub(
+        r"(?P<prefix>\b(?:src|href)=[\"'])(?P<url>/?static/[^\"'?#]+\.(?:css|js))(?P<quote>[\"'])",
+        version,
+        body.decode("utf-8"),
+    ).encode("utf-8")
+
+
 def service_worker(static_dir):
     root = Path(static_dir)
     # Include every shipped UI file in the revision, including private HTML.

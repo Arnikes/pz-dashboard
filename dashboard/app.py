@@ -169,6 +169,8 @@ class Handler(BaseHTTPRequestHandler):
             body = f.read()
         if safe == "manifest.webmanifest":
             body = i18n.manifest(body)
+        elif safe in ("index.html", "login.html"):
+            body = pwa.versioned_html(body, STATIC_DIR)
         self.send_response(200)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))

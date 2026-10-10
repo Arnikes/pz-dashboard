@@ -212,6 +212,12 @@ offline cache. Commands are not queued for later execution. Review the current s
 before retrying an operation after reconnection. Unsaved input survives only in the
 open window; server-saved drafts return after reconnecting.
 
+Dashboard and login HTML use content-derived version URLs for styles and scripts,
+so a browser or reverse proxy cannot reuse an older asset URL after that file changes.
+Reverse proxies must preserve query strings in their cache keys and honor `no-store`
+for HTML and API responses. The offline shell keeps its assets in the worker's
+separate content-derived cache.
+
 An available PWA update appears in a floating alert below the header (above the
 bottom controls on mobile) without shifting the page. It can be dismissed for
 that version; a newer release
