@@ -956,7 +956,7 @@
   "Проверка модов — выполняется": "Mod check — running",
   "Проверка модов — запрос принят": "Mod check — request accepted",
   "Проверка не принята": "Check request rejected",
-  "Проверка не удалась: tar не уложился в таймаут (900 с)": "Check failed: tar timed out (900 s)",
+  "Проверка не удалась: архив не уложился в таймаут (900 с)": "Check failed: archive validation timed out (900 s)",
   "Проверка обновлений": "Checking updates",
   "Проверка обновлений — выполняется": "Update check — running",
   "Проверка обновлений — готово": "Update check — complete",

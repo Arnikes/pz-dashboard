@@ -3,6 +3,7 @@
 планировщик автообновления. Всё на стандартной библиотеке."""
 
 import json
+import gzip
 import math
 import os
 import re
@@ -15,6 +16,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+import zlib
 from collections import Counter, deque
 from contextvars import ContextVar
 from copy import deepcopy
@@ -1052,28 +1054,37 @@ def list_backups():
     bdir = config.CFG["backup_dir"]
     items = []
     try:
-        for name in os.listdir(bdir):
-            path = os.path.join(bdir, name)
-            if not name.endswith(".tar.gz") or not os.path.isfile(path):
-                continue
-            st = os.stat(path)
-            items.append(
-                (
-                    st.st_mtime_ns,
-                    {
-                        "name": name,
-                        "size": st.st_size,
-                        "sizeText": fmt_size(st.st_size),
-                        "mtime": datetime.fromtimestamp(st.st_mtime)
-                        .astimezone()
-                        .isoformat(timespec="seconds"),
-                    },
+        with os.scandir(bdir) as entries:
+            for entry in entries:
+                if not entry.name.endswith(".tar.gz") or not entry.is_file():
+                    continue
+                st = entry.stat()
+                items.append(
+                    (
+                        st.st_mtime_ns,
+                        {
+                            "name": entry.name,
+                            "size": st.st_size,
+                            "sizeText": fmt_size(st.st_size),
+                            "mtime": datetime.fromtimestamp(st.st_mtime)
+                            .astimezone()
+                            .isoformat(timespec="seconds"),
+                        },
+                    )
                 )
-            )
     except OSError:
         return []
     items.sort(key=lambda x: x[0], reverse=True)
     return [item for _, item in items]
+
+
+def count_backups():
+    """Count fresh archive entries without allocating, formatting or sorting a list."""
+    try:
+        with os.scandir(config.CFG["backup_dir"]) as entries:
+            return sum(entry.name.endswith(".tar.gz") and entry.is_file() for entry in entries)
+    except OSError:
+        return 0
 
 
 def _prune_backups(max_keep):
@@ -1241,6 +1252,15 @@ def _validate_backup_name(name):
     return real
 
 
+def _validate_backup_gzip(path, timeout=900):
+    """Check CRCs and trailers with fixed-size reads, including concatenated gzip."""
+    deadline = time.monotonic() + timeout
+    with gzip.open(path, "rb") as compressed:
+        while compressed.read(64 * 1024):
+            if time.monotonic() >= deadline:
+                raise OpsError("Проверка не удалась: архив не уложился в таймаут (900 с)")
+
+
 def _extract_backup(path, dest):
     """Проверить весь gzip и распаковать только безопасные члены архива."""
 
@@ -1250,23 +1270,15 @@ def _extract_backup(path, dest):
         return safe.replace(uid=member.uid, gid=member.gid, uname=None, gname=None)
 
     try:
-        proc = subprocess.run(
-            ["tar", "-tzf", path],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=900,
-        )
-        if proc.returncode != 0:
-            raise OpsError(f"Архив повреждён: {(proc.stderr or proc.stdout)[:200]}")
+        # Validate the entire gzip, including its CRC/trailer, before extraction.
+        # A tar listing buffers every filename and some tar implementations stop
+        # at the tar end marker without checking the gzip trailer.
+        _validate_backup_gzip(path)
         with tarfile.open(path, "r:gz") as archive:
             archive.extractall(dest, filter=backup_filter)
         if not any(files for _, _, files in os.walk(dest)):
             raise OpsError("Архив пуст — восстанавливаться из него нечем")
-    except subprocess.TimeoutExpired as error:
-        raise OpsError("Проверка не удалась: tar не уложился в таймаут (900 с)") from error
-    except (tarfile.TarError, OSError, EOFError, ValueError) as error:
+    except (tarfile.TarError, OSError, EOFError, ValueError, zlib.error) as error:
         raise OpsError(f"Архив повреждён или небезопасен: {error}") from error
 
 
@@ -1927,7 +1939,7 @@ def overview(*, state_provider=None):
         # фактический образ контейнера (в remote — из конфига); ключ один,
         # без дублей: в литерале ниже его уже не повторять
         "image": image,
-        "backupsCount": len(list_backups()),
+        "backupsCount": count_backups(),
         "now": now_iso(),
     }
 

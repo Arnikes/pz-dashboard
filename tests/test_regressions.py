@@ -37,12 +37,14 @@ def sandbox(tmp_path, monkeypatch):
     return world
 
 
-@pytest.mark.parametrize("kind", ["broken", "empty", "traversal", "symlink"])
+@pytest.mark.parametrize("kind", ["broken", "deflate", "trailer", "empty", "traversal", "symlink"])
 @pytest.mark.parametrize("operation", ["restore", "verify"])
 def test_bad_archive_does_not_stop_or_wipe_server(sandbox, monkeypatch, kind, operation):
     archive = Path(config.CFG["backup_dir"]) / "bad.tar.gz"
     if kind == "broken":
         archive.write_bytes(b"not gzip")
+    elif kind == "deflate":
+        archive.write_bytes(b"\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\x07")
     else:
         with tarfile.open(archive, "w:gz") as tar:
             if kind == "traversal":
@@ -54,6 +56,14 @@ def test_bad_archive_does_not_stop_or_wipe_server(sandbox, monkeypatch, kind, op
                 member.type = tarfile.SYMTYPE
                 member.linkname = "../escaped"
                 tar.addfile(member)
+            elif kind == "trailer":
+                member = tarfile.TarInfo("world.bin")
+                member.size = 3
+                tar.addfile(member, io.BytesIO(b"bad"))
+        if kind == "trailer":
+            content = bytearray(archive.read_bytes())
+            content[-8] ^= 1  # Damage the gzip CRC after valid tar contents.
+            archive.write_bytes(content)
     monkeypatch.setattr(ops, "is_running", lambda: True)
     stop = Mock(return_value="stopped")
     monkeypatch.setattr(ops, "graceful_stop", stop)
@@ -164,7 +174,6 @@ def test_rotation_keeps_newest_backup_within_the_same_second(sandbox, monkeypatc
     base = 1_790_816_000_000_000_000
     os.utime(older, ns=(base, base))
     os.utime(newer, ns=(base + 100_000_000, base + 100_000_000))
-    monkeypatch.setattr(ops.os, "listdir", lambda path: [older.name, newer.name])
     assert ops.list_backups()[0]["name"] == newer.name
     assert ops._prune_backups(1) == 1
     assert newer.exists() and not older.exists()

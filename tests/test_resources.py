@@ -3,6 +3,7 @@
 import io
 import json
 import subprocess
+import tarfile
 import threading
 from collections import OrderedDict, deque
 from concurrent.futures import ThreadPoolExecutor
@@ -200,7 +201,7 @@ def test_stream_reuses_container_inspection_and_stats_without_caching_controls(m
     monkeypatch.setattr(ops, "docker_ok_cached", lambda: True)
     monkeypatch.setattr(ops, "compose_ok_cached", lambda: True)
     monkeypatch.setattr(ops, "local_digest_cached", lambda **_kwargs: None)
-    monkeypatch.setattr(ops, "list_backups", lambda: [])
+    monkeypatch.setattr(ops, "count_backups", lambda: 0)
     cache = payloads.StreamCache()
     for language in ("en", "ru"):
         token = i18n.LANGUAGE.set(language)
@@ -316,7 +317,7 @@ def test_overview_uses_one_inspection_and_updates_digest_on_image_change(monkeyp
     monkeypatch.setattr(dockerlib, "image_digests", digest)
     monkeypatch.setattr(ops, "_LOCAL_DIGEST", {"digest": None, "image": None, "at": 0})
     monkeypatch.setattr(ops, "docker_ok_cached", lambda: False)
-    monkeypatch.setattr(ops, "list_backups", lambda: [])
+    monkeypatch.setattr(ops, "count_backups", lambda: 0)
     assert ops.overview()["update"]["local"] == "sha256:old"
     state.assert_called_once()
     state.return_value = {**state.return_value, "image": "repo/server:new"}
@@ -383,3 +384,104 @@ def test_authenticated_stream_checks_revocation_and_expiry_without_decrypting(mo
     manager._sessions[session_id] = auth.time.time() - 1
     assert not manager.is_active(session_id)
     assert session_id not in manager._sessions
+
+
+def test_backup_count_is_fresh_and_does_not_build_full_rows(tmp_path, monkeypatch):
+    monkeypatch.setitem(config.CFG, "backup_dir", str(tmp_path))
+    first = tmp_path / "first.tar.gz"
+    first.write_bytes(b"archive")
+    (tmp_path / "ignored.txt").write_text("other file")
+    (tmp_path / "directory.tar.gz").mkdir()
+    assert ops.count_backups() == len(ops.list_backups()) == 1
+    monkeypatch.setattr(ops, "list_backups", Mock(side_effect=AssertionError("full list")))
+    monkeypatch.setattr(ops, "fmt_size", Mock(side_effect=AssertionError("format size")))
+    monkeypatch.setattr(ops, "docker_ok_cached", lambda: False)
+    monkeypatch.setattr(ops, "container_state", lambda: None)
+    monkeypatch.setattr(ops, "local_digest_cached", lambda **_kwargs: None)
+    assert ops.overview()["backupsCount"] == 1
+    (tmp_path / "new.tar.gz").write_bytes(b"new archive")
+    assert ops.overview()["backupsCount"] == 2
+    first.unlink()
+    assert ops.overview()["backupsCount"] == 1
+    monkeypatch.setitem(config.CFG, "backup_dir", str(tmp_path / "missing"))
+    assert ops.count_backups() == 0
+
+
+@pytest.mark.parametrize("failure", ["none", "crc", "timeout"])
+def test_archive_validation_reads_bounded_blocks_before_extraction(tmp_path, monkeypatch, failure):
+    path = tmp_path / "world.tar.gz"
+    with tarfile.open(path, "w:gz") as archive:
+        member = tarfile.TarInfo("world.bin")
+        member.size = 5
+        archive.addfile(member, io.BytesIO(b"world"))
+    clock = [0.0]
+    monkeypatch.setattr(ops.time, "monotonic", lambda: clock[0])
+    reads = []
+
+    class Compressed:
+        closed = False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            self.closed = True
+
+        def read(self, size):
+            assert size == 64 * 1024
+            reads.append(size)
+            if len(reads) == 3:
+                if failure == "crc":
+                    raise ops.gzip.BadGzipFile("invalid CRC")
+                return b""
+            if failure == "timeout":
+                clock[0] = 900
+            return b"block"
+
+    compressed = Compressed()
+    monkeypatch.setattr(ops.gzip, "open", lambda *_args: compressed)
+    run = Mock(side_effect=AssertionError("archive listing subprocess"))
+    monkeypatch.setattr(ops.subprocess, "run", run)
+    if failure != "none":
+        with pytest.raises(ops.OpsError, match="CRC" if failure == "crc" else "таймаут"):
+            ops._extract_backup(str(path), str(tmp_path / "extract"))
+        assert not (tmp_path / "extract").exists()
+    else:
+        ops._extract_backup(str(path), str(tmp_path / "extract"))
+        assert (tmp_path / "extract/world.bin").read_bytes() == b"world"
+    assert compressed.closed
+    assert len(reads) == (1 if failure == "timeout" else 3)
+    run.assert_not_called()
+
+
+def test_workshop_walk_reads_only_small_metadata(tmp_path, monkeypatch):
+    folder = tmp_path / "123/mods/Example/42/media/lua/shared/Translate/RU"
+    folder.mkdir(parents=True)
+    (folder / "Sandbox_RU.txt").write_text("\ufeffрусский текст", encoding="utf-8")
+    (folder / "texture.png").write_bytes(b"asset")
+    (folder / "mod.info").write_bytes(b"x" * 512001)
+    (folder / "Sandbox_FR.txt").write_text("ignored")
+    root = tmp_path / "123"
+    (root / "mod.info").write_text("name=Example")
+    (root / "map.info").mkdir()
+    monkeypatch.setattr(workshop, "roots", lambda: [tmp_path])
+    assert workshop.local_files(["123", "missing"]) == {
+        "123/mod.info": "name=Example",
+        "123/mods/Example/42/media/lua/shared/Translate/RU/Sandbox_RU.txt": "русский текст",
+    }
+
+
+def test_workshop_walk_does_not_follow_directory_or_metadata_links(tmp_path, monkeypatch):
+    root = tmp_path / "123"
+    root.mkdir()
+    (root / "mod.info").write_text("name=Example")
+    monkeypatch.setattr(workshop, "roots", lambda: [tmp_path])
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "sandbox-options.txt").write_text("external data")
+    try:
+        (root / "linked-directory").symlink_to(outside, target_is_directory=True)
+        (root / "Sandbox_EN.txt").symlink_to(outside / "sandbox-options.txt")
+    except OSError:
+        pytest.skip("Creating symlinks is unavailable on this host")
+    assert workshop.local_files(["123"]) == {"123/mod.info": "name=Example"}

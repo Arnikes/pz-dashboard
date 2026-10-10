@@ -166,25 +166,32 @@ def local_files(items):
             folder = root / wid
             if not folder.is_dir():
                 continue
-            for path in folder.rglob("*"):
-                if path.name not in (
-                    "mod.info",
-                    "sandbox-options.txt",
-                    "map.info",
-                    "Sandbox.json",
-                ) and not re.fullmatch(r"Sandbox_(RU|EN)\.txt", path.name):
-                    continue
-                if (
-                    path.is_symlink()
-                    or not path.is_file()
-                    or not path.resolve().is_relative_to(folder.resolve())
-                ):
-                    continue
-                if path.stat().st_size > 512_000:
-                    continue
-                files[f"{wid}/{path.relative_to(folder).as_posix()}"] = path.read_text(
-                    encoding="utf-8-sig", errors="replace"
-                )
+            resolved_folder = folder.resolve()
+            # Walk directory names, creating Paths only for metadata. Mod assets
+            # can number in the tens of thousands; never follow directory links.
+            for directory, _, names in os.walk(folder, followlinks=False):
+                for name in names:
+                    if name not in (
+                        "mod.info",
+                        "sandbox-options.txt",
+                        "map.info",
+                        "Sandbox.json",
+                        "Sandbox_RU.txt",
+                        "Sandbox_EN.txt",
+                    ):
+                        continue
+                    path = Path(directory) / name
+                    if (
+                        path.is_symlink()
+                        or not path.is_file()
+                        or not path.resolve().is_relative_to(resolved_folder)
+                    ):
+                        continue
+                    if path.stat().st_size > 512_000:
+                        continue
+                    files[f"{wid}/{path.relative_to(folder).as_posix()}"] = path.read_text(
+                        encoding="utf-8-sig", errors="replace"
+                    )
     return files
 
 

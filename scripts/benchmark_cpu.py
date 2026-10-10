@@ -135,7 +135,7 @@ def monitoring_calls(locales, optimized):
             (ops, "docker_ok_cached", lambda: True),
             (ops, "compose_ok_cached", lambda: True),
             (ops, "local_digest_cached", lambda **_kwargs: None),
-            (ops, "list_backups", lambda: []),
+            (ops, "count_backups", lambda: 0),
             (ops, "record_stats_sample", lambda _stats: None),
         ):
             stack.enter_context(patch.object(target, name, value))
