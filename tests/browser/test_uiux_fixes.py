@@ -181,7 +181,11 @@ def test_player_sanctions_have_visible_names_and_confirmation(page, dashboard, w
     ban = page.locator('[data-p="ban"]')
     expect(kick).to_have_text("Кикнуть" if language == "ru" else "Kick")
     expect(ban).to_have_text("Забанить" if language == "ru" else "Ban")
-    assert kick.bounding_box()["height"] >= (44 if width <= 740 else 30)
+    minimum_height = 44 if width <= 740 else 30
+    # Chromium can report 43.999969px for a 44px box during view translation.
+    # Allow only subpixel arithmetic noise, preserving the touch target gate.
+    for button in (kick, ban):
+        assert button.bounding_box()["height"] >= minimum_height - 0.001
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     screenshot(page, f"players-{language}-{width}")
     kick.click()
