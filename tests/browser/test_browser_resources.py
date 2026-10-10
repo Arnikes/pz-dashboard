@@ -161,7 +161,13 @@ def test_logs_refresh_only_on_visible_console_without_overlaps(page, dashboard, 
     if transport == "polling":
         page.add_init_script("window.EventSource = undefined;")
     held = []
-    page.route("**/api/logs**", lambda route: held.append(route))
+
+    def hold_logs(route):
+        held.append(route)
+        # logsPollRunning becomes true before Python receives the request.
+        page.evaluate("count => window.testHeldLogsCount = count", len(held))
+
+    page.route("**/api/logs**", hold_logs)
     page.goto(dashboard["url"])
     if transport == "sse":
         page.wait_for_function("window.testStream")
@@ -177,6 +183,7 @@ def test_logs_refresh_only_on_visible_console_without_overlaps(page, dashboard, 
     page.evaluate("location.hash='#/console'")
     expect(page.locator("#view-console")).to_be_visible()
     page.wait_for_function("logsPollRunning")
+    page.wait_for_function("window.testHeldLogsCount === 1")
     page.clock.run_for(6000)
     assert len(held) == 1
     held[0].fulfill(json={"ok": True, "text": "INFO fresh console data"})
@@ -192,6 +199,7 @@ def test_logs_refresh_only_on_visible_console_without_overlaps(page, dashboard, 
         document.dispatchEvent(new Event('visibilitychange'));
     }""")
     page.wait_for_function("logsPollRunning")
+    page.wait_for_function("window.testHeldLogsCount === 2")
     assert len(held) == 2
     held[1].fulfill(json={"ok": True, "text": "INFO resumed console data"})
     expect(page.locator("#logsOut")).to_contain_text("resumed console data")
