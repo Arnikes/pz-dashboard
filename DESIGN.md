@@ -243,6 +243,9 @@ Use inline errors with a retry action and concise success notifications.
 The configuration diff review offers Close to keep the draft and a quiet destructive
 Discard changes action that opens the shared discard confirmation. A clean review
 only offers Close. Discard confirmation focuses Cancel and names its destructive action.
+The draft bar exposes only View changes and Apply with restart, plus save retry when
+needed. It has no overflow menu, operation-log shortcut, or separate Write files action.
+Mobile gives both actions equal-width columns; desktop keeps them beside the draft status.
 Toast reading time scales with message length from 5.2 to 20 seconds, unless a
 caller supplies an explicit duration. Hover, keyboard focus and background tabs
 pause the remaining time. Dismiss controls name their message. Notification

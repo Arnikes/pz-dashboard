@@ -87,12 +87,7 @@ window.ConfigEditor = (() => {
     setDomProperty($("configStatus"), "textContent", statuses[draft.status] || I18n.t("Конфигурация"));
     setDomProperty($("configStatus").dataset, "state", draft.conflict || draft.status === "error" ? "bad" : draft.changed || draft.status !== "applied" ? "warn" : "ok");
     setDomProperty($("configApply"), "disabled", busy || !draft.canApply || !draft.canWrite || S.demo || loading || !needsAction);
-    setDomProperty($("configSave"), "disabled", busy || !draft.canWrite || running !== false || S.demo || loading);
-    setDomProperty($("configDiscard"), "disabled", busy || S.demo || loading);
-    setDomProperty($("configRebase"), "hidden", true);
-    setDomProperty($("configRebase"), "disabled", busy || S.demo || loading || fieldDirty);
     setDomProperty($("configApply"), "title", draft.canApply ? "" : I18n.t("Выбран неактивный или неподтверждённый профиль"));
-    setDomProperty($("configSave"), "title", running === true ? I18n.t("Сначала остановите сервер") : running === false ? "" : I18n.t("Состояние сервера ещё не получено"));
     const reason = S.demo ? I18n.t("Демо: запись файлов и применение отключены.")
       : busy ? operationAvailabilityReason()
       : !draft.canWrite ? (draft.dataDiagnostic || I18n.t("Запись недоступна. Проверьте общий каталог конфигурации и права записи по руководству."))
@@ -100,11 +95,8 @@ window.ConfigEditor = (() => {
       : running === undefined ? I18n.t("Состояние сервера ещё не получено. Проверьте подключение перед записью файлов.")
       : "";
     setAvailability("configActionHelp", busy ? "" : reason);
-    for (const id of ["configApply", "configSave", "configDiscard"]) {
-      const relevant = id === "configApply" || busy || loading || S.demo || id === "configSave" && (!draft.canWrite || running === undefined);
-      if (reason && relevant) setDomAttribute($(id), "aria-describedby", busy ? (activeView === "mods" ? "modsAvailability" : "settingsAvailability") : "configActionHelp");
-      else $(id).removeAttribute("aria-describedby");
-    }
+    if (reason) setDomAttribute($("configApply"), "aria-describedby", busy ? (activeView === "mods" ? "modsAvailability" : "settingsAvailability") : "configActionHelp");
+    else $("configApply").removeAttribute("aria-describedby");
     setDomProperty($("configVerifyHelp"), "hidden", !draft.canApply || !draft.state?.savedRevision || !S.overview?.containerInfo?.running);
     setDomProperty($("configVerify"), "disabled", busy || S.demo || loading);
     if (busy) setDomProperty($("draftSaved"), "textContent", S.op?.active ? `${S.op.active.phase || I18n.t("Операция")} · ${S.op.active.message || ""}` : operationAvailabilityReason());
@@ -511,20 +503,6 @@ window.ConfigEditor = (() => {
   }
   function diffHtml(result) {
     return `${(result.errors || []).map(e => `<p class="editor-error">${esc(e.message)}</p>`).join("")}${(result.warnings || []).some(e => e.existing) ? I18n.html('<p class="hint">Состав модов не меняется. Его существующие проблемы не блокируют сохранение других настроек.</p>') : ""}${(result.warnings || []).map(e => `<p class="hint">${esc(e.message)}</p>`).join("")}${Object.entries(result.conflictDiff || {}).map(([kind, diff]) => I18n.msg`<h4>Изменения на диске · ${esc(kind)}</h4><pre class="config-diff">${esc(diff || I18n.t("Нет изменений"))}</pre>`).join("")}${Object.entries(result.diff || {}).map(([kind, diff]) => I18n.msg`<h4>Ваш черновик · ${esc(kind)}</h4><pre class="config-diff">${esc(diff || I18n.t("Нет изменений"))}</pre>`).join("")}`;
-  }
-  function showConflict(result, compact = false) {
-    const canRebase = result.rebaseAvailable;
-    const reviewed = result.draftRevision;
-    const explanation = canRebase
-      ? I18n.html('<p>«Обновить основу черновика» устранит конфликт с диском и сохранит ваши непересекающиеся правки. Это действие обновляет только черновик. Файлы сервера и его состояние останутся без изменений. Затем отдельно сохраните или примените настройки.</p>')
-      : `<p class="editor-error">${esc(result.rebaseError || I18n.t("Загрузите профиль заново для проверки конфликта."))}</p>`;
-    const preview = canRebase ? Object.entries(result.rebaseDiff || {}).map(([kind, diff]) => I18n.msg`<h4>Правки после объединения · ${esc(kind)}</h4><pre class="config-diff">${esc(diff || I18n.t("Нет пользовательских правок"))}</pre>`).join("") : "";
-    modal.open({ title: I18n.t("Обновление основы черновика"), okLabel: canRebase ? I18n.t("Обновить основу черновика") : I18n.t("Закрыть"), bodyHTML: `${explanation}${compact ? "" : diffHtml(result)}${preview}`, onConfirm: canRebase ? async () => {
-      if (draft.draftRevision !== reviewed || sourceDirty || fieldDirty || pendingFields.size || unsaved.length) throw new Error(I18n.t("Черновик изменился после просмотра. Проверьте объединение заново."));
-      draft = await call("/api/config-draft", { file, draftRevision: reviewed, currentRevision: result.currentRevision, rebase: true });
-      clearError(); renderFields(); renderSources(); await loadMods(); updateBar();
-      toast(I18n.t("Основа черновика обновлена. Теперь можно проверить и сохранить настройки."), "ok");
-    } : undefined });
   }
   async function confirmApply(prepare = false, restart = true) {
     if (!draft || S.demo) return;
@@ -1012,23 +990,15 @@ window.ConfigEditor = (() => {
   $("configDiff").addEventListener("click", async () => {
     try {
       const result = await validate();
-      modal.open({ title: I18n.t("Изменения конфигурации"), okLabel: I18n.t("Закрыть"), bodyHTML: diffHtml(result), secondaryAction: draft.changed && !$("configDiscard").disabled ? { label: I18n.t("Сбросить изменения…"), danger: true, onClick: confirmDiscard } : null });
-    } catch (e) { error(e.message); }
-  });
-  $("configRebase").addEventListener("click", async () => {
-    try {
-      const result = await validate();
-      if (!result.rebaseAvailable) throw new Error(result.rebaseError || I18n.t("Нет конфликта для объединения. Загрузите профиль заново."));
-      showConflict(result, true);
+      modal.open({ title: I18n.t("Изменения конфигурации"), okLabel: I18n.t("Закрыть"), bodyHTML: diffHtml(result), secondaryAction: draft.changed && canDiscardChanges() ? { label: I18n.t("Сбросить изменения…"), danger: true, onClick: confirmDiscard } : null });
     } catch (e) { error(e.message); }
   });
   $("draftRetry").addEventListener("click", () => flushFields().then(() => patch({})).catch(e => error(e.message)));
+  function canDiscardChanges() { return !!draft && !operationBusy() && !S.demo && !loading; }
   function confirmDiscard() {
-    if (!draft || $("configDiscard").disabled) return;
+    if (!canDiscardChanges()) return;
     modal.open({ title: I18n.t("Отменить черновик?"), okLabel: I18n.t("Сбросить изменения"), danger: true, bodyHTML: I18n.t("Будет загружена текущая конфигурация с диска. Уже записанные настройки и скачанные пакеты сохранятся."), onConfirm: async () => { unsaved = []; await patch({ discard: true }); pendingFields.clear(); sourceDirty = false; renderFields(); renderSources(); renderMods(); } });
   }
-  $("configDiscard").addEventListener("click", confirmDiscard);
-  $("configSave").addEventListener("click", () => confirmApply(false, false));
   $("configApply").addEventListener("click", () => confirmApply(false, true));
   async function verifyRunning() {
     if (S.demo || operationBusy() || loading) return;
@@ -1046,21 +1016,6 @@ window.ConfigEditor = (() => {
   }
   $("configVerify").addEventListener("click", verifyRunning);
   $("installNotice").addEventListener("click", e => { if (e.target.closest("[data-verify-running]")) verifyRunning(); });
-  function operationLogs() {
-    S.logsProfile = file;
-    S.logsSince = Date.parse(draft?.state?.operationStartedAt || "") || 0;
-    S.logsUntil = Date.parse(draft?.state?.operationCompletedAt || "") || 0;
-    renderLogsFiltered(); location.hash = "#/console";
-    refreshLogs();
-  }
-  $("editorLogs").addEventListener("click", operationLogs);
-  $("draftMore").addEventListener("click", () => {
-    const open = $("draftMore").getAttribute("aria-expanded") !== "true";
-    $("draftMore").setAttribute("aria-expanded", String(open));
-    $("draftExtra").dataset.open = String(open);
-  });
-  document.addEventListener("click", e => { if (!e.target.closest("#draftExtra, #draftMore")) { $("draftExtra").dataset.open = "false"; $("draftMore").setAttribute("aria-expanded", "false"); } });
-  document.addEventListener("keydown", e => { if (e.key === "Escape" && $("draftExtra").dataset.open === "true") { $("draftExtra").dataset.open = "false"; $("draftMore").setAttribute("aria-expanded", "false"); $("draftMore").focus(); } });
   function restoreHistory(id) {
     const profile = file;
     modal.open({ title: I18n.t("Восстановить версию в черновик?"), bodyHTML: I18n.msg`Профиль <strong>${esc(profile)}</strong>. Текущий черновик будет заменён. После загрузки просмотрите различия и отдельно примените изменения.`, onConfirm: async () => {

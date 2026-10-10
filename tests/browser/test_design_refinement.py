@@ -44,10 +44,10 @@ def test_draft_stays_reachable(page, dashboard, editing, width):  # noqa: F811
             page.locator("#configFlow").bounding_box()["y"]
             > page.locator(".page-heading:visible").bounding_box()["y"]
         )
-    page.locator("#draftMore").click()
-    expect(page.locator("#configDiscard")).to_be_visible()
+    page.locator("#configDiff").click()
+    expect(page.locator("#modalCancel")).to_have_text("Сбросить изменения…")
     page.keyboard.press("Escape")
-    expect(page.locator("#draftMore")).to_be_focused()
+    expect(page.locator("#configDiff")).to_be_focused()
     page.reload()
     expect(page.locator('[data-key="PublicName"]')).to_have_value("Review season")
     expect(page.locator(".config-field[data-changed=true] .config-change")).to_have_text("Изменено")

@@ -156,12 +156,15 @@ def test_source_save_preserves_selection_and_updates_after_hidden_field_edit(
     assert dashboard["actions"] == []
 
 
-def test_explicit_file_save_overwrites_external_changes_and_reloads_once(
+def test_explicit_apply_overwrites_external_changes_and_reloads_once(
     page,
     dashboard,
     editing,  # noqa: F811 (imported fixture)
+    monkeypatch,
 ):
     data, _ = editing
+    monkeypatch.setattr(editor.ops, "_start_container", lambda: (0, "", ""))
+    monkeypatch.setattr(editor, "wait_ready", lambda: None)
     reads = []
     page.on(
         "request",
@@ -189,12 +192,11 @@ def test_explicit_file_save_overwrites_external_changes_and_reloads_once(
     path = data / "Server/world.ini"
     path.write_bytes(path.read_bytes().replace(b"Unknown=preserve", b"Unknown=external"))
     page.evaluate("renderOverview({...S.overview,containerInfo:{running:false,status:'exited'}})")
-    page.locator("#draftMore").click()
-    page.locator("#configSave").click()
+    page.locator("#configApply").click()
     expect(page.get_by_role("alertdialog")).to_contain_text("Unknown=external")
     before = len(reads)
     page.locator("#modalOk").click()
-    expect(page.locator("#configStatus")).to_have_text("Сохранено, требуется запуск")
+    expect(page.locator("#configStatus")).to_have_text("Применено")
     expect(page.locator("#configProfile")).to_be_enabled()
     assert "Page wins" in path.read_text(encoding="utf-8")
     assert "Unknown=preserve" in path.read_text(encoding="utf-8")

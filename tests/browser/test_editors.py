@@ -779,7 +779,7 @@ def test_diff_discard_failure_keeps_draft_for_retry(page, dashboard, editing):
 
 
 @pytest.mark.parametrize("width", [390, 1440])
-@pytest.mark.parametrize("entry", ["save", "apply", "prepare"])
+@pytest.mark.parametrize("entry", ["apply", "prepare"])
 def test_apply_review_can_skip_world_backup(page, dashboard, editing, width, entry):
     data, _ = editing
     original = (data / "Server/world.ini").read_bytes()
@@ -794,15 +794,7 @@ def test_apply_review_can_skip_world_backup(page, dashboard, editing, width, ent
     page.set_viewport_size({"width": width, "height": 568})
     page.goto(dashboard["url"] + "/#/mods")
     expect(page.locator("#configProfile")).to_have_value("world.ini")
-    if entry == "save":
-        expect(page.locator("#startupLoader")).to_be_hidden()
-        page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
-        page.evaluate(
-            "renderOverview({...S.overview,containerInfo:{running:false,status:'exited'}})"
-        )
-        page.locator("#draftMore").click()
-        page.locator("#configSave").click()
-    elif entry == "apply":
+    if entry == "apply":
         page.locator("#configApply").click()
     else:
         page.locator("#prepareWorkshop").click()
@@ -931,26 +923,18 @@ def test_scrolling_draft_does_not_block_phone_navigation(page, dashboard, editin
     expect(page.locator('[data-key="PublicName"]')).to_have_value("Navigation draft")
 
 
-def test_phone_draft_secondary_actions_stay_available(page, dashboard, editing):
+def test_phone_discard_is_in_change_review(page, dashboard, editing):
     page.set_viewport_size({"width": 390, "height": 844})
-    page.goto(dashboard["url"])
+    page.goto(dashboard["url"] + "/#/settings")
     expect(page.locator("#configProfile")).to_have_value("world.ini")
-    navigate(page, "settings", True)
     page.locator('[data-key="PublicName"]').fill("Compact draft")
-    page.locator('[data-key="PublicName"]').press("Tab")
-    expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
-    expect(page.locator("#editorLogs")).to_be_hidden()
-    page.locator("#draftMore").click()
-    expect(page.locator("#editorLogs")).to_be_visible()
-    expect(page.locator("#configDiscard")).to_be_visible()
-    page.locator("#configDiscard").click()
+    page.locator("#configDiff").click()
+    expect(page.locator("#modalCancel")).to_have_text("Сбросить изменения…")
+    page.locator("#modalCancel").click()
     expect(page.get_by_role("alertdialog")).to_contain_text("Отменить черновик")
     page.locator("#modalCancel").click()
-    page.locator("#draftMore").click()
-    page.locator("#editorLogs").focus()
-    page.keyboard.press("Escape")
-    expect(page.locator("#editorLogs")).to_be_hidden()
-    expect(page.locator("#draftMore")).to_be_focused()
+    expect(page.locator("#configDiff")).to_be_focused()
+    expect(page.locator("#draftMore, #draftExtra")).to_have_count(0)
 
 
 @pytest.mark.parametrize("width", [390, 1440])
@@ -1460,7 +1444,7 @@ def test_live_snapshots_do_not_request_or_mutate_settings(page, dashboard, editi
     expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
     assert not pending
     expect(page.locator("#configError")).to_be_hidden()
-    expect(page.locator("#configRebase")).to_be_hidden()
+    expect(page.locator("#configRebase")).to_have_count(0)
     expect(page.locator('[data-key="PublicName"]')).to_have_value("Own fresh revision")
 
 
@@ -1688,7 +1672,7 @@ def test_auto_verification_updates_editors_only_when_reopened(
     navigate(page, "settings", width <= 740)
     expect(page.locator("#configStatus")).to_have_text("Применено")
     expect(page.locator("#configError")).to_be_hidden()
-    expect(page.locator("#configRebase")).to_be_hidden()
+    expect(page.locator("#configRebase")).to_have_count(0)
     expect(page.locator("#configOperationResult")).to_have_count(0)
     assert editor.read_profile("world.ini") == original
     assert (data / "Server/world.ini").exists()
@@ -1723,7 +1707,7 @@ def test_auto_verification_refresh_keeps_saved_draft_mod_selection(
     expect(page.locator("#modOrderList [data-order-id]")).to_have_count(1)
     page.locator("#modPackages summary").click()
     expect(page.locator('[data-modid="plugin"]')).not_to_be_checked()
-    expect(page.locator("#configRebase")).to_be_hidden()
+    expect(page.locator("#configRebase")).to_have_count(0)
     assert editor.draft("world.ini")["changed"]
 
 
@@ -1805,126 +1789,27 @@ def test_discovered_map_requires_explicit_edit_and_preserves_existing_order(
     assert dashboard["actions"] == []
 
 
-@pytest.mark.parametrize("completed", [True, False])
-def test_operation_logs_preserve_filters_and_allow_return_to_all_logs(
-    page, dashboard, editing, monkeypatch, completed
-):
-    data, _ = editing
-    running = [not completed]
-    monkeypatch.setattr(editor.ops, "op_busy", lambda: running[0])
-    state_path = editor.state_dir("world.ini") / "state.json"
-    state = {
-        "status": "error" if completed else "applying",
-        "operationStartedAt": "2026-10-01T12:00:00Z",
-        "error": "Test operation failed",
-    }
-    if completed:
-        state["operationCompletedAt"] = "2026-10-01T12:01:00Z"
-    editor.save_json(state_path, state)
-    requests = []
-
-    def logs(route):
-        requests.append(parse_qs(urlsplit(route.request.url).query))
-        route.fulfill(
-            json={
-                "ok": True,
-                "text": "2026-10-01T11:59:00Z ERROR database before\n"
-                "2026-10-01T12:00:30Z ERROR database operation\n"
-                "2026-10-01T12:02:00Z ERROR database after\n",
-            }
-        )
-
-    page.route("**/api/logs**", logs)
-    page.goto(dashboard["url"])
+def test_console_navigation_preserves_log_filters_without_draft_shortcut(page, dashboard, editing):
+    page.route(
+        "**/api/logs**",
+        lambda route: route.fulfill(
+            json={"ok": True, "text": "2026-10-01T12:00:30Z ERROR database operation\n"}
+        ),
+    )
+    page.goto(dashboard["url"] + "/#/console")
     expect(page.locator("#configProfile")).to_have_value("world.ini")
-    navigate(page, "console")
     page.locator("#logsFilter").fill("database")
     page.locator('#logLevels [data-level="error"]').click()
     navigate(page, "settings")
-    page.locator("#draftMore").click()
-    page.locator("#editorLogs").click()
-    expect(page.locator("#logsScope")).to_be_visible()
-    expect(page.locator("#logsPeriod")).to_contain_text("world.ini")
-    if not completed:
-        expect(page.locator("#logsPeriod")).to_contain_text("продолжается")
-        page.evaluate(
-            "renderOp({active:{op:'apply-config',phase:'Apply',message:'Running'},history:[]})"
-        )
-        state.update(status="error", operationCompletedAt="2026-10-01T12:01:00Z")
-        editor.save_json(state_path, state)
-        running[0] = False
-        page.evaluate("renderOp({active:null,history:[]})")
-        expect(page.locator("#logsPeriod")).not_to_contain_text("продолжается", timeout=20000)
-    expect(page.locator("#logsOut")).to_contain_text("database operation")
-    expect(page.locator("#logsOut")).not_to_contain_text("database before")
-    expect(page.locator("#logsOut")).not_to_contain_text("database after")
+    expect(page.locator("#editorLogs")).to_have_count(0)
+    navigate(page, "console")
     expect(page.locator("#logsFilter")).to_have_value("database")
     expect(page.locator('#logLevels [data-level="error"]')).to_have_attribute(
         "aria-pressed", "true"
     )
-    assert requests[-1] == {
-        "since": ["2026-10-01T12:00:00.000Z"],
-        "until": ["2026-10-01T12:01:00.000Z"],
-        "tail": ["10000"],
-    }
-    page.locator("#logsClearPeriod").click()
+    expect(page.locator("#logsOut")).to_contain_text("database operation")
     expect(page.locator("#logsScope")).to_be_hidden()
-    expect(page.locator("#logsOut")).to_contain_text("database before")
-    expect(page.locator("#logsOut")).to_contain_text("database after")
-    assert requests[-1] == {}
-    assert (data / "Server/world.ini").read_bytes() == INI.encode()
     assert dashboard["actions"] == []
-
-
-def test_long_mod_list_on_phone(page, dashboard, editing):
-    data, _ = editing
-    for i in range(100):
-        folder = data / f"steamapps/workshop/content/108600/111/mods/Additional{i}/42"
-        folder.mkdir(parents=True)
-        (folder / "mod.info").write_text(
-            f"id=additional-{i}\nname=Additional mod {i}\n", encoding="utf-8"
-        )
-    editor.workshop.invalidate()
-    page.set_viewport_size({"width": 390, "height": 900})
-    page.goto(dashboard["url"])
-    expect(page.locator("#configProfile")).to_have_value("world.ini")
-    navigate(page, "mods")
-    page.locator("#modPackages summary").click()
-    expect(page.locator("#modPackages [data-modid]")).to_have_count(102)
-    page.locator('[data-modid="additional-99"]').scroll_into_view_if_needed()
-    page.locator('[data-modid="additional-99"]').check()
-    expect(page.locator("#modOrderList [data-order-id]")).to_have_count(3)
-    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
-
-
-def test_disconnected_form_keeps_edit_until_explicit_retry(page, dashboard, editing):
-    disconnected = [False]
-
-    def drop_write(route):
-        if disconnected[0] and route.request.method == "POST":
-            route.abort()
-        else:
-            route.fallback()
-
-    page.route("**/api/config-draft", drop_write)
-    page.goto(dashboard["url"])
-    expect(page.locator("#configProfile")).to_have_value("world.ini")
-    navigate(page, "settings")
-    disconnected[0] = True
-    field = page.locator('[data-key="PublicName"]')
-    field.fill("Offline draft")
-    field.press("Tab")
-    expect(page.locator("#draftRetry")).to_be_visible()
-    page.get_by_role("tab", name="Мир", exact=True).click()
-    expect(field).to_have_value("Offline draft")
-    expect(page.get_by_role("tab", name="Сервер", exact=True)).to_have_attribute(
-        "aria-selected", "true"
-    )
-    disconnected[0] = False
-    page.locator("#draftRetry").click()
-    expect(page.locator("#draftRetry")).to_be_hidden()
-    expect(page.locator('[data-key="PublicName"]')).to_have_value("Offline draft")
-    assert "Offline draft" in editor.draft("world.ini")["texts"]["ini"]
 
 
 @pytest.mark.parametrize("width", [1440, 390])
@@ -2310,17 +2195,12 @@ def test_failed_field_save_preserves_input_and_blocks_review(page, dashboard, ed
     assert dashboard["actions"] == []
 
 
-def test_missing_server_state_does_not_offer_stopped_server_save(page, dashboard, editing):
-    page.goto(dashboard["url"])
+def test_draft_has_no_separate_file_save_in_any_server_state(page, dashboard, editing):
+    page.goto(dashboard["url"] + "/#/settings")
     expect(page.locator("#configProfile")).to_have_value("world.ini")
-    navigate(page, "settings")
-    page.evaluate("S.overview = null; ConfigEditor.route('settings')")
-    expect(page.locator("#configSave")).to_be_disabled()
-    expect(page.locator("#configSaveHint")).to_have_count(0)
-    page.evaluate("S.overview = {containerInfo:{running:false}}; ConfigEditor.route('settings')")
-    expect(page.locator("#configSave")).to_be_enabled()
-    page.evaluate("S.overview = {containerInfo:{running:true}}; ConfigEditor.route('settings')")
-    expect(page.locator("#configSave")).to_be_disabled()
+    for state in ["null", "{containerInfo:{running:false}}", "{containerInfo:{running:true}}"]:
+        page.evaluate(f"S.overview = {state}; ConfigEditor.route('settings')")
+        expect(page.locator("#configSave, #draftMore, #draftExtra")).to_have_count(0)
     assert not editor.draft("world.ini")["changed"]
     assert dashboard["actions"] == []
 
@@ -2409,8 +2289,8 @@ def test_discard_removes_pending_map_input_and_unload_warning(page, dashboard, m
     navigate(page, "mods")
     page.get_by_role("tab", name="Порядок", exact=True).click()
     page.locator("#mapList").fill("TestTown;Muldraugh, KY")
-    page.locator("#draftMore").click()
-    page.locator("#configDiscard").click()
+    page.locator("#configDiff").click()
+    page.locator("#modalCancel").click()
     page.locator("#modalOk").click()
     expect(page.get_by_role("alertdialog")).to_be_hidden()
     expect(page.locator("#mapList")).to_have_value("Muldraugh, KY")

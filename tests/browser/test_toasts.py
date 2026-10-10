@@ -12,6 +12,7 @@ def open_toasts(page, dashboard):
     page.clock.install(time=datetime(2030, 1, 1, tzinfo=timezone.utc))
     page.clock.pause_at(datetime(2030, 1, 1, 0, 1, tzinfo=timezone.utc))
     page.goto(dashboard["url"])
+    expect(page.locator("#startupLoader")).to_be_hidden()
     page.mouse.move(0, 0)
     page.evaluate("""() => {
       window.toastWindowFocused = true;
