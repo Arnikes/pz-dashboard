@@ -175,6 +175,11 @@ beside either sidebar state on wide and ultrawide screens. Banners, draft action
 Mobile uses Overview, Settings, Mods, and More in the bottom bar. All four items
 share the same-size icon and label treatment. More
 remains a button that exposes its expanded and current-section states.
+Its overflow opens as a 248px popover, eight pixels above the bottom bar and
+aligned to its trailing gutter. It temporarily overlays the footer and draft
+actions rather than moving away from its trigger. The links reuse sidebar icons,
+provide 48px touch targets, and highlight the current section. The menu scrolls
+in short viewports and closes when crossing the mobile breakpoint.
 The independent offline shell groups its 36px brand icon and name in a header
 beside the same globe-and-language control used by login and the dashboard,
 with 24px separation before the page title. Shared language-control styling

@@ -95,3 +95,46 @@ def test_sidebar_works_without_browser_storage_in_english(page, dashboard):
     page.set_viewport_size({"width": 1440, "height": 900})
     page.set_viewport_size({"width": 1024, "height": 900})
     expect(page.locator("#navToggle")).to_have_attribute("aria-expanded", "true")
+
+
+@pytest.mark.parametrize("language", ["ru", "en"])
+@pytest.mark.parametrize("width,height", [(320, 568), (390, 844), (740, 240)])
+def test_mobile_more_menu_stays_at_trigger_and_tracks_current_route(
+    page, dashboard, language, width, height
+):
+    page.context.add_cookies([{"name": "pz_language", "value": language, "url": dashboard["url"]}])
+    page.set_viewport_size({"width": width, "height": height})
+    page.goto(dashboard["url"] + "/#/players")
+    trigger = page.locator("#navMore")
+    menu = page.locator("#moreMenu")
+    trigger.click()
+    expect(menu.locator('[data-route="players"]')).to_have_attribute("aria-current", "page")
+    box = menu.bounding_box()
+    nav = page.locator(".nav").bounding_box()
+    assert box["x"] >= 0 and box["y"] >= 0
+    assert box["x"] + box["width"] <= width
+    assert abs(nav["y"] - box["y"] - box["height"] - 8) <= 1
+    for link in menu.locator("a").all():
+        assert link.bounding_box()["height"] >= 48
+    # Draft actions must not detach the temporary navigation from its trigger.
+    before, after = page.evaluate("""() => {
+        const menu = document.getElementById('moreMenu');
+        const before = menu.getBoundingClientRect().bottom;
+        document.getElementById('draftBar').hidden = false;
+        return [before, menu.getBoundingClientRect().bottom];
+    }""")
+    assert before == after
+    menu.locator('[data-route="console"]').click()
+    expect(page.locator("#view-console")).to_be_visible()
+    expect(menu).to_be_hidden()
+    trigger.click()
+    expect(menu.locator('[data-route="console"]')).to_have_attribute("aria-current", "page")
+    expect(menu.locator('[data-route="players"]')).not_to_have_attribute("aria-current", "page")
+    page.locator(".page-heading:visible").click()
+    expect(menu).to_be_hidden()
+    trigger.click()
+    page.set_viewport_size({"width": 834, "height": 900})
+    expect(menu).to_be_hidden()
+    expect(trigger).to_have_attribute("aria-expanded", "false")
+    page.set_viewport_size({"width": width, "height": height})
+    expect(menu).to_be_hidden()

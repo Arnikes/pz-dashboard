@@ -129,10 +129,13 @@
       <span>Ещё</span>
     </button>
   </nav>
-  <div id="moreMenu" class="more-menu" hidden>
-    <a href="#/players">Игроки</a><a href="#/maintenance">Обслуживание</a>
-    <a href="#/backups">Бэкапы</a><a href="#/events">События</a><a href="#/console">Консоль</a>
-  </div>
+  <nav id="moreMenu" class="more-menu" aria-labelledby="navMore" hidden>
+    <a href="#/players" data-route="players"><span>Игроки</span></a>
+    <a href="#/maintenance" data-route="maintenance"><span>Обслуживание</span></a>
+    <a href="#/backups" data-route="backups"><span>Бэкапы</span></a>
+    <a href="#/events" data-route="events"><span>События</span></a>
+    <a href="#/console" data-route="console"><span>Консоль</span></a>
+  </nav>
 
   <div class="banner banner-demo" id="demoBanner" hidden>
     Демо: вымышленные данные, операции отключены.

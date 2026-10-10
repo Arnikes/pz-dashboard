@@ -2694,6 +2694,10 @@ const layoutObserver = new ResizeObserver(() => {
 });
 for (const selector of [".topbar", ".nav", "#draftBar", ".site-footer"]) layoutObserver.observe(document.querySelector(selector));
 const mobileLayout = matchMedia("(max-width: 740px)");
+mobileLayout.addEventListener("change", () => {
+  $("moreMenu").hidden = true;
+  $("navMore").setAttribute("aria-expanded", "false");
+});
 const tabletLayout = matchMedia("(max-width: 1180px)");
 // Keep independent preferences so opening the desktop sidebar does not expand
 // it on a tablet. Without a preference, tablets start with an icon rail.
@@ -2778,6 +2782,10 @@ const primaryNav = document.querySelector(".nav");
 for (const route of ["overview", "settings", "mods", "players", "maintenance", "backups", "events", "console"]) {
   primaryNav.insertBefore(primaryNav.querySelector(`[data-route="${route}"]`), $("navMore"));
 }
+// Reuse the sidebar icons so secondary mobile routes share its visual language.
+for (const link of $("moreMenu").querySelectorAll("a[data-route]")) {
+  link.prepend(primaryNav.querySelector(`[data-route="${link.dataset.route}"] svg`).cloneNode(true));
+}
 
 let activeView = null;
 let consoleBootLine = null;
@@ -2792,7 +2800,7 @@ function applyRoute() {
   if (r === activeView) return;
   activeView = r;
   document.querySelectorAll(".view").forEach((v) => { v.hidden = v.id !== "view-" + r; });
-  document.querySelectorAll(".nav a").forEach((a) => {
+  document.querySelectorAll(".nav a, .more-menu a").forEach((a) => {
     if (a.dataset.route === r) a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
   });

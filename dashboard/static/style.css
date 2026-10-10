@@ -1370,8 +1370,13 @@ select { cursor: pointer; }
 .profile-label select option { color:var(--ink); background:var(--bg-deep); }
 .config-context { min-width:0; }
 .nav-more, .nav-toggle { display:none; }
-.more-menu { position:fixed; right:12px; bottom:calc(var(--footer-height) + var(--nav-height) + 12px); z-index:70; padding:12px; max-height:calc(100dvh - var(--footer-height) - var(--nav-height) - 24px); overflow:auto; border:1px solid var(--line-strong); border-radius:12px; background:var(--surface-2); box-shadow:0 12px 40px #0008; }
-.more-menu a { display:block; padding:12px 18px; text-decoration:none; }
+.more-menu { position:fixed; right:8px; bottom:calc(var(--nav-height) + 8px); z-index:70; width:min(248px, calc(100% - 16px)); padding:8px; max-height:calc(100dvh - var(--nav-height) - 16px); overflow:auto; overscroll-behavior:contain; border-radius:var(--r-dialog); background:var(--surface-2); scrollbar-width:thin; scrollbar-color:var(--muted) var(--surface-2); }
+.more-menu a { display:flex; align-items:center; gap:12px; min-height:48px; padding:12px; border-radius:var(--r-control); color:var(--muted); font:400 14.5px/1.5 var(--font-body); text-decoration:none; }
+.more-menu a svg { flex:none; width:20px; height:20px; }
+.more-menu a:hover, .more-menu a:focus-visible, .more-menu a[aria-current=page] { color:var(--ink); background:var(--surface-3); }
+.more-menu a[aria-current=page] { font-weight:500; }
+.more-menu a:focus-visible { outline:2px solid var(--focus); outline-offset:-2px; }
+@media (min-width:741px) { .more-menu { display:none; } }
 .editor-card { position:relative; grid-column:1 / -1; min-width:0; }
 .editor-loading { position:absolute; inset:0; overflow:hidden; border-radius:inherit; pointer-events:none; }
 .editor-loading::before { content:""; position:absolute; inset:0 0 auto; height:3px; background:var(--line); }
@@ -1683,7 +1688,6 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--footer-heig
 @media (forced-colors:active) { .help-content { border:1px solid CanvasText; } }
 #quickCmds [data-cmd], #logLevels [data-level=warn], #logLevels [data-level=error] { font-family:var(--font-mono); }
 .tab-scroll-help { display:none; color:var(--muted); font-size:12px; margin:16px 0 -8px; }
-body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--footer-height) + var(--nav-height) + var(--draft-height) + 24px); max-height:calc(100dvh - var(--footer-height) - var(--nav-height) - var(--draft-height) - 40px); }
 @media (max-width:740px) {
   #view-settings .editor-card > .card-head { display:none; }
   .editor-card .card-head { border:0; padding:0; margin-bottom:8px; }
@@ -1712,7 +1716,8 @@ body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--footer-height)
   .source-editor pre { display:none; }
   .source-editor textarea { color:CanvasText; caret-color:CanvasText; }
   .source-editor textarea::selection { color:HighlightText; background:Highlight; }
-  .nav a[aria-current=page], .nav-more[aria-current=page], .nav-more[aria-expanded=true], .editor-tabs button[aria-selected=true], .config-flow button[aria-current=step] { outline:2px solid Highlight; outline-offset:-2px; }
+  .more-menu { outline:1px solid CanvasText; }
+  .nav a[aria-current=page], .nav-more[aria-current=page], .nav-more[aria-expanded=true], .more-menu a[aria-current=page], .editor-tabs button[aria-selected=true], .config-flow button[aria-current=step] { outline:2px solid Highlight; outline-offset:-2px; }
   .config-flow .flow-connector { background:CanvasText; }
   .config-flow button[aria-current=step] .flow-indicator { border-color:Highlight; }
 }
@@ -1724,7 +1729,6 @@ body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--footer-height)
   .draft-bar { position:relative; z-index:auto; margin:12px var(--page-gutter) 24px; width:auto; max-width:none; bottom:auto; left:auto; right:auto; }
   body:has(.draft-bar:not([hidden])) .main { padding-bottom:26px; }
   .toasts { bottom:calc(var(--footer-height) + var(--nav-height) + 22px); }
-  body:has(.draft-bar:not([hidden])) .more-menu { bottom:calc(var(--footer-height) + var(--nav-height) + 12px); max-height:calc(100dvh - var(--footer-height) - var(--nav-height) - 24px); }
 }
 @media (max-height:600px) and (min-width:741px) {
   .draft-bar { width:calc(100% - var(--sidebar-width) - 2 * var(--page-gutter)); max-width:calc(var(--content-width) - 2 * var(--page-gutter)); margin-left:calc(var(--workspace-start) + var(--page-gutter)); }
