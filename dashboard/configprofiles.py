@@ -5,7 +5,14 @@ import hashlib
 import json
 import re
 
-from configformats import edit_ini, ini_entries, literal_table, preserve_newlines
+from configformats import (
+    edit_ini,
+    ini_entries,
+    literal_table,
+    mask_ini,
+    mask_lua,
+    preserve_newlines,
+)
 from errors import EditorError
 
 
@@ -13,6 +20,21 @@ def revision(texts):
     return hashlib.sha256(
         json.dumps(texts, ensure_ascii=False, sort_keys=True).encode()
     ).hexdigest()
+
+
+def profile_diff(before, after, fromfile, tofile):
+    """Build reviewable INI/Lua diffs without exposing secrets from either side."""
+    return {
+        kind: "".join(
+            difflib.unified_diff(
+                mask(before[kind]).splitlines(keepends=True),
+                mask(after[kind]).splitlines(keepends=True),
+                fromfile=fromfile,
+                tofile=tofile,
+            )
+        )
+        for kind, mask in (("ini", mask_ini), ("sandbox", mask_lua))
+    }
 
 
 def merge_source(base, desired, current):

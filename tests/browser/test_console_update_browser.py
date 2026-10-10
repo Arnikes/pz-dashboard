@@ -64,12 +64,11 @@ def test_console_update_flow_and_mod_timestamp(page, dashboard, language, width)
     )
     page.locator("#modalOk").click()
     expect(page.locator("#modalRoot")).to_be_hidden()
-    # Let the operation-completion refresh settle before injecting a new snapshot.
-    page.wait_for_load_state("networkidle")
+    page.wait_for_function("!S.actionPending")
     assert requests == [{"op": "check-dashboard-update"}, {"op": "apply-dashboard-update"}]
-    page.evaluate(
-        "renderOverview({...S.overview,modsCheck:{state:'needs-update',at:'2026-10-08T17:24:00Z'}})"
-    )
+    # Keep completion refreshes and polling consistent with the asserted snapshot.
+    dashboard["overview"]["modsCheck"]["state"] = "needs-update"
+    page.evaluate("refreshOverview()")
     expect(page.locator("#modsCheckNote")).to_have_text(
         "Restart required to download updates."
         if language == "en"

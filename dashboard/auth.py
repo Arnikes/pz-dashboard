@@ -6,7 +6,6 @@ import json
 import math
 import os
 import secrets
-import tempfile
 import threading
 import time
 from collections import OrderedDict, deque
@@ -129,23 +128,10 @@ class Auth:
                 }
             ).encode("utf-8")
         )
-        temporary = None
         try:
-            self._sessions_file.parent.mkdir(parents=True, exist_ok=True)
-            fd, temporary = tempfile.mkstemp(prefix=".auth-", dir=self._sessions_file.parent)
-            with os.fdopen(fd, "wb") as target:
-                target.write(data)
-                target.flush()
-                os.fsync(target.fileno())
-            fileio.replace(temporary, self._sessions_file)
+            fileio.atomic_write(self._sessions_file, data, prefix=".auth-")
         except OSError:
             raise SessionStorageError("Не удалось сохранить сессию. Повторите попытку") from None
-        finally:
-            if temporary is not None:
-                try:
-                    os.unlink(temporary)
-                except FileNotFoundError:
-                    pass
 
     def _hash(self, password):
         return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), self._salt, 600_000)

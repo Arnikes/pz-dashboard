@@ -17,6 +17,7 @@ import urllib.request
 import uuid
 from collections import Counter, deque
 from contextvars import ContextVar
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from itertools import islice
 
@@ -155,7 +156,7 @@ def get_events(limit=100):
 
 _SET_LOCK = threading.RLock()
 # рабочая копия настроек: мутируется в рантайме, _DEFAULTS остаётся эталоном
-_SETTINGS = json.loads(json.dumps(_DEFAULTS))
+_SETTINGS = deepcopy(_DEFAULTS)
 _SETTINGS_VERSION = {"epoch": uuid.uuid4().hex, "revision": 0}
 
 
@@ -183,26 +184,16 @@ def _load_settings():
 
 def _save_settings():
     with _SET_LOCK:
-        temporary = None
         try:
-            directory = os.path.dirname(config.CFG["settings_file"]) or "."
-            os.makedirs(directory, exist_ok=True)
-            fd, temporary = tempfile.mkstemp(prefix=".settings-", dir=directory)
-            with os.fdopen(fd, "w", encoding="utf-8") as stream:
-                json.dump(_SETTINGS, stream, ensure_ascii=False, indent=2)
-                stream.flush()
-                os.fsync(stream.fileno())
-            fileio.replace(temporary, config.CFG["settings_file"])
+            fileio.atomic_write(
+                config.CFG["settings_file"],
+                json.dumps(_SETTINGS, ensure_ascii=False, indent=2).encode("utf-8"),
+                prefix=".settings-",
+            )
         except OSError as error:
             raise OpsError(
                 "Не удалось сохранить настройки пульта. Проверьте место и права записи"
             ) from error
-        finally:
-            if temporary is not None and os.path.exists(temporary):
-                try:
-                    os.unlink(temporary)
-                except OSError:
-                    pass
 
 
 def _set_schedule(key, value):
@@ -218,7 +209,7 @@ def _set_schedule(key, value):
 
 def get_settings():
     with _SET_LOCK:
-        data = json.loads(json.dumps(_SETTINGS))
+        data = deepcopy(_SETTINGS)
         data["version"] = dict(_SETTINGS_VERSION)
     # полный токен бота не покидает сервер — наружу только маска
     tg = data.get("telegram")
@@ -235,7 +226,7 @@ def telegram_settings_raw():
     уведомления и кнопка «Проверить» читали маску с пустым botToken и
     считали токен незаданным, хотя он был сохранён."""
     with _SET_LOCK:
-        return json.loads(json.dumps(_SETTINGS.get("telegram") or {}))
+        return deepcopy(_SETTINGS.get("telegram") or {})
 
 
 def patch_settings(patch):

@@ -22,6 +22,7 @@ from errors import EditorError as EditorError
 from configprofiles import (
     PZ_RESET_COMMENT as PZ_RESET_COMMENT,
     revision as revision,
+    profile_diff,
     merge_source as merge_source,
     merge_profile as merge_profile,
     merge_verified_profile,
@@ -89,24 +90,11 @@ def durable_unlink(path):
 
 def atomic(path, data, mode=0o600, owner=None):
     durable_directory(path.parent)
-    fd, temporary = tempfile.mkstemp(prefix=".pz-", dir=path.parent)
-    try:
-        with os.fdopen(fd, "wb") as stream:
-            stream.write(data)
-            stream.flush()
-            os.chmod(temporary, mode)
-            if hasattr(os, "chown"):
-                if owner is None and path.exists():
-                    stat = path.stat()
-                    owner = (stat.st_uid, stat.st_gid)
-                if owner is not None:
-                    os.chown(temporary, *owner)
-            os.fsync(stream.fileno())
-        fileio.replace(temporary, path)
-        sync_directory(path.parent)
-    finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
+    if hasattr(os, "chown") and owner is None and path.exists():
+        stat = path.stat()
+        owner = (stat.st_uid, stat.st_gid)
+    fileio.atomic_write(path, data, mode=mode, owner=owner)
+    sync_directory(path.parent)
 
 
 def save_json(path, value):
@@ -898,48 +886,18 @@ def validate(file, include_mods=True, prepare=False, draft_revision=None, *, ove
                 "message": "Версия B42 неизвестна: укажите PZ_VERSION или дождитесь определения из логов"
             }
         )
-    before, after = {}, {}
-    for kind in ("ini", "sandbox"):
-        before[kind] = mask_ini(base[kind]) if kind == "ini" else mask_lua(base[kind])
-        after[kind] = mask_ini(texts[kind]) if kind == "ini" else mask_lua(texts[kind])
-    diffs = {
-        kind: "".join(
-            difflib.unified_diff(
-                (before[kind] or "").splitlines(True),
-                (after[kind] or "").splitlines(True),
-                fromfile="До",
-                tofile="После",
-            )
-        )
-        for kind in before
-    }
+    diffs = profile_diff(base, texts, "До", "После")
     current = read_profile(file)
     conflict_diff = {}
     rebase_available, rebase_error, rebase_diff = False, None, {}
     if revision(current) != saved["baseRevision"]:
-        for kind in before:
-            latest = mask_ini(current[kind]) if kind == "ini" else mask_lua(current[kind])
-            conflict_diff[kind] = "".join(
-                difflib.unified_diff(
-                    (before[kind] or "").splitlines(True),
-                    (latest or "").splitlines(True),
-                    fromfile="Исходная ревизия",
-                    tofile="Сейчас на диске",
-                )
-            )
+        conflict_diff = profile_diff(base, current, "Исходная ревизия", "Сейчас на диске")
         try:
             merged = merge_profile(saved, current)
             rebase_available = True
-            for kind in before:
-                mask = mask_ini if kind == "ini" else mask_lua
-                rebase_diff[kind] = "".join(
-                    difflib.unified_diff(
-                        mask(current[kind]).splitlines(True),
-                        mask(merged[kind]).splitlines(True),
-                        fromfile="Сейчас на диске",
-                        tofile="После объединения (черновик)",
-                    )
-                )
+            rebase_diff = profile_diff(
+                current, merged, "Сейчас на диске", "После объединения (черновик)"
+            )
         except EditorError as merge_error:
             rebase_error = str(merge_error)
     return {
@@ -1346,32 +1304,21 @@ def run(data, prepare=False):
                     }
                 )
             lua = literal_table(texts["sandbox"])
-            if lua:
-                for records in discovered.values():
-                    for rec in records:
-                        if rec.get("modId") not in selected:
-                            continue
-                        for option in rec.get("options", []):
-                            entry = lua.values.get(tuple(option["key"].split(".")))
-                            if entry:
-                                option_errors = []
-                                check_field(option, entry["value"], option_errors, lua=True)
-                                issues.extend(
-                                    dict(
-                                        error,
-                                        severity="warning"
-                                        if not result["modChanges"]
-                                        and any(
-                                            previous.get("key") == error.get("key")
-                                            and previous.get("message") == error.get("message")
-                                            for previous in result["warnings"]
-                                        )
-                                        else "error",
-                                        code="sandbox",
-                                        modId=rec["modId"],
-                                    )
-                                    for error in option_errors
-                                )
+            for error in configschema.mod_option_errors(lua, discovered, selected):
+                issues.append(
+                    dict(
+                        error,
+                        severity="warning"
+                        if not result["modChanges"]
+                        and any(
+                            previous.get("key") == error.get("key")
+                            and previous.get("message") == error.get("message")
+                            for previous in result["warnings"]
+                        )
+                        else "error",
+                        code="sandbox",
+                    )
+                )
             state["verificationProblems"] = issues
             failures = [
                 issue
@@ -1574,15 +1521,7 @@ def verify_running(data, *, automatic=False):
                 "Состав модов не подтверждён: " + "; ".join(p["message"] for p in failures), 409
             )
         sandbox = literal_table(current["sandbox"]) if current["sandbox"] else None
-        if sandbox:
-            for records in discovered.values():
-                for rec in records:
-                    if rec.get("modId") not in current_mods["mods"]:
-                        continue
-                    for option in rec.get("options", []):
-                        entry = sandbox.values.get(tuple(option["key"].split(".")))
-                        if entry:
-                            check_field(option, entry["value"], failures, lua=True)
+        failures.extend(configschema.mod_option_errors(sandbox, discovered, current_mods["mods"]))
         if failures:
             raise EditorError(
                 "Настройки модов не подтверждены: " + "; ".join(p["message"] for p in failures), 409

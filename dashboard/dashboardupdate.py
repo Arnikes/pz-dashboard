@@ -2,7 +2,6 @@
 
 import json
 from pathlib import Path
-import tempfile
 import time
 import uuid
 
@@ -139,16 +138,7 @@ def _path():
 
 
 def _write(path, value):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(
-        mode="w", encoding="utf-8", dir=path.parent, delete=False
-    ) as f:
-        json.dump(value, f)
-        temporary = Path(f.name)
-    try:
-        fileio.replace(temporary, path)
-    finally:
-        temporary.unlink(missing_ok=True)
+    fileio.atomic_write(path, json.dumps(value).encode("utf-8"))
 
 
 def operation():

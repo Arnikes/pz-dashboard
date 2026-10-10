@@ -534,3 +534,22 @@ def check_field(field, value, errors, lua=False):
             errors.append({"key": field["key"], "message": "Число вне допустимого диапазона"})
     elif kind in ("string", "multiline", "list") and not isinstance(value, str):
         errors.append({"key": field["key"], "message": "Нужен текст"})
+
+
+def mod_option_errors(sandbox, discovered, selected):
+    """Validate present Sandbox values against every selected mod's declarations."""
+    errors = []
+    if sandbox is None:
+        return errors
+    selected = set(selected)
+    for records in discovered.values():
+        for rec in records:
+            if rec.get("modId") not in selected:
+                continue
+            for option in rec.get("options", []):
+                entry = sandbox.values.get(tuple(option["key"].split(".")))
+                if entry:
+                    option_errors = []
+                    check_field(option, entry["value"], option_errors, lua=True)
+                    errors.extend({**error, "modId": rec["modId"]} for error in option_errors)
+    return errors

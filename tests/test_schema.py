@@ -26,6 +26,43 @@ pytestmark = pytest.mark.usefixtures("profile_env")
 NATIVE_READER = workshop.vanilla_translations
 
 
+def test_mod_option_errors_check_all_active_providers_without_mutating_metadata():
+    sandbox = LuaTable("SandboxVars = { Mod = { Count = 2, Enabled = false } }")
+    count = {"key": "Mod.Count", "type": "integer", "min": 1, "max": 1}
+    enabled = {"key": "Mod.Enabled", "type": "integer"}
+    missing = {"key": "Mod.Absent", "type": "integer", "min": 1}
+    discovered = {
+        "111": [{"modId": "active", "options": [count, enabled, missing]}],
+        "222": [{"modId": "active", "options": [count]}],
+        "333": [{"modId": "disabled", "options": [count]}],
+    }
+    errors = configschema.mod_option_errors(sandbox, discovered, ["active"])
+    assert [(error["key"], error["modId"]) for error in errors] == [
+        ("Mod.Count", "active"),
+        ("Mod.Enabled", "active"),
+        ("Mod.Count", "active"),
+    ]
+    assert count == {"key": "Mod.Count", "type": "integer", "min": 1, "max": 1}
+    assert configschema.mod_option_errors(None, discovered, ["active"]) == []
+    assert configschema.mod_option_errors(sandbox, discovered, []) == []
+
+
+def test_failed_workshop_cache_publication_keeps_previous_disk_cache(monkeypatch):
+    data = Path(config.CFG["data_dir"])
+    workshop.scan(["111"], "42.15.1", refresh=True)
+    directory = Path(config.CFG["dashboard_dir"]) / "workshop-index"
+    cache = next(directory.glob("*.json"))
+    before = cache.read_bytes()
+    info = data / "steamapps/workshop/content/108600/111/mods/PluginFolder/42/mod.info"
+    info.write_text("id=plugin\nname=Updated plugin\nrequire=\\library\n", encoding="utf-8")
+    monkeypatch.setattr(workshop.fileio, "replace", Mock(side_effect=OSError("disk full")))
+
+    index = workshop.scan(["111"], "42.15.1", refresh=True)
+    assert any(rec.get("name") == "Updated plugin" for rec in index["111"])
+    assert cache.read_bytes() == before
+    assert list(directory.iterdir()) == [cache]
+
+
 def test_generated_profile_schema_is_versioned_and_attached_to_correct_field():
     ini = "# Min: 1 Max: 200\r\nMaxPlayers=120\r\n# Keep secret out\r\nPassword=secret\r\n"
     sandbox = """SandboxVars = {

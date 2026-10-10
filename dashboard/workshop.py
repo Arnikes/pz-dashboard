@@ -5,7 +5,6 @@ import hashlib
 import re
 import shlex
 import threading
-import tempfile
 import time
 import urllib.parse
 import urllib.request
@@ -15,6 +14,7 @@ from pathlib import Path
 
 import config
 import dockerlib
+import fileio
 import i18n
 from configformats import FormatError, SECRET_KEY, decode_string, normalize_mod
 
@@ -115,15 +115,7 @@ def vanilla_translations(version, allow_container=False):
     )
     if result:
         try:
-            cache_path.parent.mkdir(parents=True, exist_ok=True)
-            fd, temporary = tempfile.mkstemp(dir=cache_path.parent)
-            try:
-                with os.fdopen(fd, "w", encoding="utf-8") as target:
-                    json.dump(result, target, ensure_ascii=False)
-                os.replace(temporary, cache_path)
-            finally:
-                if os.path.exists(temporary):
-                    os.unlink(temporary)
+            fileio.atomic_write(cache_path, json.dumps(result, ensure_ascii=False).encode("utf-8"))
         except OSError:
             pass
     else:
@@ -456,11 +448,7 @@ def scan(items, version, refresh=False):
     )
     if files:
         try:
-            cache_path.parent.mkdir(parents=True, exist_ok=True)
-            fd, temporary = tempfile.mkstemp(dir=cache_path.parent)
-            with os.fdopen(fd, "w", encoding="utf-8") as output:
-                json.dump(index, output, ensure_ascii=False)
-            os.replace(temporary, cache_path)
+            fileio.atomic_write(cache_path, json.dumps(index, ensure_ascii=False).encode("utf-8"))
         except OSError:
             pass
     elif cache_path.is_file():

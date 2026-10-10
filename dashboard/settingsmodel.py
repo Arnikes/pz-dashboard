@@ -1,8 +1,8 @@
 """Settings normalization and validation, without persistence or shared state."""
 
-import json
 import math
 import re
+from copy import deepcopy
 
 
 DEFAULTS = {
@@ -147,8 +147,8 @@ def prepare_patch(current, patch, next_daily_run):
     """
     if not isinstance(patch, dict):
         return None, "неверный формат настроек"
-    patch = json.loads(json.dumps(patch))
-    updated = json.loads(json.dumps(current))
+    patch = deepcopy(patch)
+    updated = deepcopy(current)
     for section in (*RULES, "telegram"):
         values = patch.get(section)
         if values is None:
