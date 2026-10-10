@@ -30,8 +30,8 @@ These files remain subject to the repository's existing checks.
 
 The INI regression checks still cover Workshop values, unrelated sections,
 appending missing fields, and continuation lines. The unknown-metadata toggle
-check now calls `configeditor.legacy_toggle` directly and still verifies that
-the server INI remains unchanged after rejection.
+check initially called `configeditor.legacy_toggle`; the follow-up below removes
+that route and retains unknown-mod validation in the live draft editor.
 
 ## Refactoring and integration
 
@@ -92,3 +92,66 @@ development versions match every pin in `requirements-dev.txt` and
   Its historical performance comparison is not a measurement of this audit's
   refactoring speedup.
 - `git diff --check` passed.
+
+## Legacy removal follow-up
+
+A second October 10 audit traced the remaining legacy paths through Graphify and
+repository-wide references, then inspected the actual browser and HTTP callers.
+The current Mods page always uses `ConfigEditor`; the old `sec-mods` card was
+permanently hidden and its renderer returned immediately when that editor existed.
+Its mutation handler therefore belonged to a superseded interface.
+
+Removed:
+
+- The hidden mod list, its search/filter/sort controls, switches, restart dialog,
+  renderer, state, event handlers and dedicated CSS.
+- `POST /api/mods-config`, `configeditor.legacy_toggle` and its separate
+  profile `disabled.json` writer. Mod selection now goes through draft patching,
+  review and `apply-config`, with remembered order managed by the existing editor.
+- The `mods` SSE provider, listener and fallback polling. No active interface used
+  those background snapshots. All remaining SSE channels collect once across
+  EN/RU subscribers and cache their translated frames separately.
+- Constant legacy mod-response fields (`paired`, `pairs`, `mappingSource`,
+  `canManage`), the unused ModID-to-Workshop table in update reporting, and
+  obsolete `configeditor` re-exports. Source-merge tests now call `configprofiles`
+  directly.
+- `KEEP_BACKUPS`, which was parsed but never read. Retention continues to use
+  `backup.maxBackups` from settings.
+- Russo One and duplicate weight-specific Golos Text/JetBrains Mono assets.
+  The two active families use four variable font files for Latin/Cyrillic;
+  they continue to serve every declared weight locally. Their licenses remain.
+- 23 translation keys used exclusively by removed controls and errors, with both
+  locale catalogs and the generated browser bundle updated together.
+
+The old write endpoint now returns 404; external clients must use the documented
+[editor API](config-editor.md#editor-api). The stream no longer emits `mods` events;
+explicit `GET /api/mods` remains available. This is an intentional removal of the
+superseded interface, rather than a promise of compatibility with old clients.
+
+### Retained data and recovery
+
+The read-only `modsDisabled` recovery notice remains: its historical records have
+no reliable profile ownership, so automatic migration could restore IDs into the
+wrong profile. Only an explicit user selection copies those records into a draft.
+Existing settings, profile state, history and recovery files are not deleted by
+this change. Persisted-settings normalization, startup verification of older state,
+clipboard fallback and network recovery also remain because they protect current
+supported workflows, rather than implementing a second interface.
+
+### Follow-up validation
+
+The full repository gate passed after the final Python edit. Tests now exercise disable/
+re-enable and operation-slot behavior through the live draft editor. Browser
+snapshot checks use active overview frames, and clipboard feedback is checked in
+the current mod-update list. A removed-route regression confirms that the old
+endpoint cannot queue work or change game files. Local-font checks still load
+Latin and Cyrillic at every UI weight.
+
+Final follow-up checks used Python 3.12.10 from the checkout's `.venv` and Node.js
+24.21.0. Repository-wide `ruff format .`, `ruff check .` and `ruff format --check .`
+passed. `python scripts/check.py` passed dependency consistency, generated catalogs,
+all JavaScript syntax checks and **1,525 tests passed, 3 skipped**, including
+Chromium tests. The affected backend/browser run passed all 343 tests. Eight
+removed weight-specific font assets were byte-for-byte duplicates of the four
+retained variable fonts. `graphify update . --force` refreshed the local AST graph
+without model API calls. `git diff --check` passed.

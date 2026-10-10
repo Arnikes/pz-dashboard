@@ -20,16 +20,12 @@ import configschema
 from configschema import check_field as check_field
 from errors import EditorError as EditorError
 from configprofiles import (
-    PZ_RESET_COMMENT as PZ_RESET_COMMENT,
     revision as revision,
     profile_diff,
-    merge_source as merge_source,
     merge_profile as merge_profile,
     merge_verified_profile,
-    issue_identity as issue_identity,
     preserve_existing_issues as preserve_existing_issues,
     startup_profile_matches as startup_profile_matches,
-    adopt_startup_comment as adopt_startup_comment,
     adopt_startup_ini as adopt_startup_ini,
     same_lua_value as same_lua_value,
     startup_sandbox_defaults as startup_sandbox_defaults,
@@ -482,10 +478,6 @@ def mod_state(file, texts=None, refresh=False):
         "mods": selected,
         "maps": split_list(entries.get("Map", {}).get("value", "")),
         "problems": issues,
-        "paired": False,
-        "pairs": [],
-        "mappingSource": "metadata",
-        "canManage": True,
         "unbound": [p["modId"] for p in issues if p["code"] == "unknown"],
         "installation": load_json(state_dir(file) / "state.json").get("installation"),
     }
@@ -1635,57 +1627,6 @@ def queue(data, prepare=False):
     operation = "prepare-workshop" if prepare else "apply-config"
     ops.start_op(operation, lambda: run(dict(data, file=file), prepare))
     return {"ok": True, "operation": operation}
-
-
-def legacy_toggle(data):
-    if type(data.get("enable")) is not bool:
-        raise EditorError("enable должен быть boolean")
-    confirmed_container()
-    if ops.op_busy() or ops.is_running():
-        raise EditorError("Изменение состава доступно после остановки сервера", 409)
-    file = choose(data.get("file"))
-    wid = data.get("workshopId")
-    if not isinstance(wid, str) or not wid.isdigit():
-        raise EditorError("Workshop ID должен быть числом")
-    with LOCK:
-        current = draft(file)
-        if current["changed"]:
-            raise EditorError("Есть черновик: используйте редактор модов", 409)
-        mods = mod_state(file)
-        index = workshop.scan(
-            list(dict.fromkeys([w["workshopId"] for w in mods["workshop"]] + [wid])),
-            context()["version"],
-        )
-        mids = [r["modId"] for r in index.get(wid, []) if r.get("modId")]
-        if not mids:
-            raise EditorError("Сначала загрузите пакет и определите его ModID")
-        items = [w["workshopId"] for w in mods["workshop"]]
-        selected = list(mods["mods"])
-        legacy = load_json(state_dir(file) / "disabled.json")
-        if data["enable"]:
-            if wid not in items:
-                items.append(wid)
-            selected.extend(
-                mid for mid in legacy.get(wid, []) if mid in mids and mid not in selected
-            )
-        else:
-            subset = [mid for mid in selected if mid in mids]
-            if subset or wid not in legacy:
-                legacy[wid] = subset
-            selected = [mid for mid in selected if mid not in mids]
-        changed = patch(
-            {
-                "file": file,
-                "draftRevision": current["draftRevision"],
-                "mods": {"items": items, "selected": selected, "preserveOrder": True},
-            }
-        )
-        result = validate(file)
-        if not result["valid"]:
-            raise EditorError("; ".join(e["message"] for e in result["errors"]))
-        queued = queue({"file": file, "draftRevision": changed["draftRevision"], "restart": False})
-        save_json(state_dir(file) / "disabled.json", legacy)
-        return {**queued, "draftRevision": changed["draftRevision"]}
 
 
 def modpack(data):

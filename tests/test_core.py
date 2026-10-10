@@ -201,11 +201,10 @@ def test_list_mods_reads_server_ini(tmp_path, monkeypatch):
     assert res["ok"] and res["file"] == "servertest.ini"
     assert res["mods"] == ["tsarslib", "my mod", "SoloMod"]
     assert [w["workshopId"] for w in res["workshop"]] == ["111111111", "222222222"]
-    assert res["paired"] is False and res["mappingSource"] == "metadata"
     assert res["workshop"][0]["url"].endswith("id=111111111")
 
 
-def test_mods_paired(tmp_path, monkeypatch):
+def test_equal_mod_and_workshop_counts_do_not_guess_mapping(tmp_path, monkeypatch):
     """Равные количества без метаданных не дают соответствия по порядку."""
     config.CFG["data_dir"] = str(tmp_path)
     monkeypatch.setattr(ops, "_WS_TITLES", {"111": "Mod A", "222": "Mod B"})
@@ -214,8 +213,7 @@ def test_mods_paired(tmp_path, monkeypatch):
     server_dir.mkdir()
     (server_dir / "srv.ini").write_text("Mods=modA;modB\nWorkshopItems=111;222\n", encoding="utf-8")
     res = ops.list_mods("srv.ini")
-    assert res["paired"] is False and res["mappingSource"] == "metadata"
-    assert res["pairs"] == []
+    assert [packet["mods"] for packet in res["workshop"]] == [[], []]
     assert res["unbound"] == ["modA", "modB"]
 
 
@@ -234,10 +232,8 @@ def test_mods_disk_mapping(tmp_path, monkeypatch):
     (ws_dir / "plug" / "42").mkdir(parents=True)
     (ws_dir / "plug" / "42" / "mod.info").write_text("id=pluginB\n", encoding="utf-8")
     res = ops.list_mods("srv.ini")
-    assert res["mappingSource"] == "metadata"
     assert sorted(res["workshop"][0]["mods"]) == ["libA", "pluginB"]
     assert res["unbound"] == ["localMod"]
-    assert res["paired"] is False
 
 
 # ───────────────────────── фейковый RCON-сервер ─────────────────────────
@@ -438,7 +434,7 @@ def test_check_mods_update_flow(monkeypatch):
     monkeypatch.setattr(ops, "rcon", lambda cmd, quiet=False: "Checking started.")
     monkeypatch.setattr(ops, "docker_ok_cached", lambda ttl=60: True)
     monkeypatch.setattr(ops, "is_running", lambda: True)
-    monkeypatch.setattr(ops, "_mods_registry", lambda: ({}, {}))
+    monkeypatch.setattr(ops, "_mods_registry", lambda: {})
     res = ops.check_mods_update(source="manual", timeout=10)
     assert res["state"] == "up-to-date"
     assert res["error"] is None
@@ -1094,34 +1090,6 @@ def test_ini_edits_preserve_unrelated_content():
     text = "Mods=aaa;\n  bbb;\n  ccc\nWorkshopItems=1\n"
     out = edit_ini(text, {"Mods": "one"})
     assert out == "Mods=one\nWorkshopItems=1\n"
-
-
-def test_mods_toggle_blocked_without_mapping(tmp_path, monkeypatch):
-    """Unknown metadata cannot activate a guessed ModID."""
-    server_dir = tmp_path / "Server"
-    server_dir.mkdir()
-    (server_dir / "servertest.ini").write_text(INI, encoding="utf-8")
-    monkeypatch.setitem(config.CFG, "data_dir", str(tmp_path))
-    monkeypatch.setitem(config.CFG, "dashboard_dir", str(tmp_path / "panel"))
-    monkeypatch.setattr(ops, "is_running", lambda: False)
-    monkeypatch.setattr(ops, "op_busy", lambda: False)
-    monkeypatch.setattr(workshop, "scan", lambda *args, **kwargs: {})
-    monkeypatch.setattr(
-        configeditor,
-        "context",
-        lambda refresh=False: {
-            "activeFile": "servertest.ini",
-            "version": "42.15",
-            "versionKnown": True,
-            "owners": {},
-            "generatesSettings": False,
-        },
-    )
-    with pytest.raises(ops.OpsError):
-        configeditor.legacy_toggle(
-            {"file": "servertest.ini", "workshopId": "999999", "enable": True}
-        )
-    assert (server_dir / "servertest.ini").read_text(encoding="utf-8") == INI
 
 
 # ─────────────────────── регресс: SSE-поток ───────────────────────

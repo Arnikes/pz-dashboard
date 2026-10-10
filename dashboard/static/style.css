@@ -358,7 +358,6 @@ a.sum-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .c-updates   { grid-column: span 6; }
 .c-watchdog  { grid-column: span 6; }
 .c-players   { grid-column: 1 / -1; }
-.c-mods      { grid-column: span 7; }
 .c-backups   { grid-column: 1 / -1; }
 .c-bksched   { grid-column: 1 / -1; }
 .c-bkjournal { grid-column: 1 / -1; }
@@ -370,7 +369,7 @@ a.sum-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 /* Планшет: широкие карточки во всю ширину страницы */
 @media (max-width: 1180px) {
   .c-status, .c-metrics, .c-sumupd, .c-recent, .c-updates, .c-watchdog,
-  .c-mods, .c-console, .c-logs, .c-notify { grid-column: 1 / -1; }
+  .c-console, .c-logs, .c-notify { grid-column: 1 / -1; }
 }
 
 @media (max-width: 740px) {
@@ -882,67 +881,9 @@ select { cursor: pointer; }
   margin-top: 4px;
 }
 
-/* игроки и моды прокручиваются внутри; история событий использует пагинацию */
+/* игроки прокручиваются внутри; история событий использует пагинацию */
 .c-players .list { max-height: 230px; overflow: auto; }
 .c-events .list  { max-height: none; overflow: visible; }
-.c-mods .list    { max-height: 330px; overflow: auto; }
-
-/* моды */
-.mod-row {
-  display: flex; align-items: center; gap: 10px; padding: 7px 0;
-  border-bottom: 1px solid var(--line); font-size: 12.5px;
-}
-.mod-row:last-child { border-bottom: none; }
-.mod-row .m-idx { color: var(--faint); width: 20px; flex: none; text-align: right; }
-.mod-row .m-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
-.mod-row .m-ws { flex: none; display: inline-flex; align-items: center; gap: 6px; max-width: 48%; min-width: 0; }
-.mod-row .switch, .ws-head .switch, .mod-line .switch { margin-left: auto; flex: none; }
-.switch-sm .switch-track { width: 32px; height: 18px; }
-.switch-sm .switch-track::after { width: 12px; height: 12px; }
-.switch-sm input:checked + .switch-track::after { transform: translateX(13px); }
-.disabled-row .m-name, .disabled-row .m-ws { opacity: 0.55; }
-.mods-manage { align-items: center; }
-.mods-manage .hint { flex: 1; margin: 0; }
-.mod-row .m-ws a {
-  color: var(--muted); text-decoration: none; display: inline-flex;
-  align-items: center; gap: 6px; min-width: 0; font-size: 12px;
-}
-.mod-row .m-ws a:hover { color: var(--ink); }
-.mod-row .m-ws a .ws-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
-.mod-row .m-ws svg { width: 14px; height: 14px; flex: none; }
-.mod-row .m-ws .wid { color: var(--muted); }
-.mods-tools { display: flex; align-items: center; gap: 10px; }
-.mods-tools select { max-width: 220px; }
-
-/* моды: панель поиска и фильтров */
-.mods-toolbar {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  margin-bottom: 10px;
-}
-.mods-toolbar input[type="search"] {
-  flex: 1 1 170px; min-width: 0;
-}
-.mods-toolbar input[type="search"]::placeholder { color: var(--faint); }
-.mods-toolbar select { min-width: 0; }
-
-/* страница модов — список во всю высоту страницы, без внутреннего скролла */
-#view-mods .c-mods .list { max-height: none; overflow: visible; }
-
-/* компактная сетка Workshop-элементов без модов на диске */
-.mods-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 1px 18px;
-  margin: 2px 0;
-}
-.mod-line {
-  display: flex; align-items: baseline; gap: 8px; min-width: 0;
-  font-size: 12.5px; padding: 4px 0; border-bottom: 1px solid var(--line);
-}
-.mod-line .m-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
-.mod-line a.m-t { color: var(--muted); text-decoration: none; }
-.mod-line a.m-t:hover { color: var(--ink); }
-.mod-line .wid { color: var(--muted); font-size: 11px; flex: none; cursor: copy; }
 
 /* обновления модов (карточка «Обновления модов») */
 .mods-need { max-height: 220px; margin-top: 8px; border: 1px solid var(--line); border-radius: var(--r-sm); padding: 4px 10px; background: var(--surface-2); }
@@ -955,27 +896,6 @@ select { cursor: pointer; }
 .mod-need-row .m-title a { color: var(--muted); text-decoration: none; }
 .mod-need-row .m-title a:hover { color: var(--ink); }
 .mod-need-row .wid { color: var(--muted); flex: none; }
-
-.mods-note {
-  margin: 10px 0 6px; font-size: 11.5px; letter-spacing: 0.04em; text-transform: uppercase;
-  color: var(--faint);
-}
-.mods-note:first-child { margin-top: 0; }
-.ws-card {
-  padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--r-sm);
-  background: var(--surface-2); margin-bottom: 6px;
-}
-.ws-head { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; }
-.ws-head a {
-  color: var(--muted); text-decoration: none; display: inline-flex;
-  align-items: center; gap: 6px; font-size: 12.5px; min-width: 0; flex: 1;
-}
-.ws-head a:hover { color: var(--ink); }
-.ws-head a .ws-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ws-head .wid { flex: none; }
-.ws-head svg { width: 14px; height: 14px; flex: none; }
-.ws-mods { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.mods-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 
 .net-row dt { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); margin-bottom: 2px; }
 .net-row dd { margin: 0; font-size: 12.5px; color: var(--muted); }

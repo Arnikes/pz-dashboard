@@ -157,10 +157,12 @@ or auto-restart. Operation failures are still recorded. Set zero to disable the 
 
 A shared SSE snapshot gathers each monitoring channel once per interval across
 English and Russian subscribers, then localizes/encodes once per language.
-Workshop metadata retains separate language-specific snapshots. Overview, players
-and stats share one container inspection for up to three seconds. Ordinary API
-reads remain direct; lifecycle actions, watchdog checks and stop/start waits do
-not use the monitoring cache.
+Overview, players and stats share one container inspection for up to three seconds.
+Ordinary API reads remain direct; lifecycle actions, watchdog checks and stop/start
+waits do not use the monitoring cache.
+The browser requests Workshop metadata when the configuration editor opens or is
+explicitly refreshed, without background polling or SSE mod snapshots. Server-side
+startup verification and mod-update operations still inspect metadata as needed.
 Hidden tabs close SSE and suspend polling; server schedulers and operations continue.
 Returning to the tab reconnects. Fallback polling avoids overlapping requests.
 The browser connects to `/api/stream?logs=0` and polls container logs only on a

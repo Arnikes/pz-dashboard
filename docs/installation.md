@@ -128,7 +128,6 @@ These are application defaults; the Compose examples explicitly set some values.
 | `SERVER_FILES_DIR` | `/server-files` | Mounted game files/Workshop metadata |
 | `WORKSHOP_DIR` | Auto-detected | Explicit Workshop content directory |
 | `LOG_LINES` | `250` | Default log tail length |
-| `KEEP_BACKUPS` | `10` | Legacy setting; configure retention in the UI |
 
 `TZ` configures container time; examples use UTC. `SERVER_NAME`, `SERVER_BRANCH`,
 `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `MEMORY_XMX_GB`, and `MAX_PLAYERS` are

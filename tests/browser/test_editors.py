@@ -1092,9 +1092,7 @@ def test_background_refresh_preserves_profile_focus_and_draft(page, dashboard, e
     field.press("Tab")
     expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
     field.focus()
-    page.evaluate(
-        "renderMods({ok:true,file:'world.ini',files:['world.ini','another.ini'],mods:[],workshop:[]})"
-    )
+    page.evaluate("applyOverview(S.overview)")
     expect(field).to_be_focused()
     expect(field).to_have_value("Other draft")
     expect(page.locator("#configProfile")).to_have_value("another.ini")
@@ -1433,7 +1431,7 @@ def test_live_snapshots_do_not_request_or_mutate_settings(page, dashboard, editi
         window.settingsMutations = [];
         window.settingsObserver = new MutationObserver(r => settingsMutations.push(...r));
         settingsObserver.observe(document.getElementById('configFields'), {subtree:true, childList:true, attributes:true});
-        for (let i = 0; i < 60; i++) renderMods({ok:true,file:'world.ini',mods:[],workshop:[]});
+        for (let i = 0; i < 60; i++) applyOverview(S.overview);
     }""")
     page.evaluate("() => new Promise(resolve => requestAnimationFrame(resolve))")
     assert not pending
@@ -1662,7 +1660,7 @@ def test_auto_verification_updates_editors_only_when_reopened(
     navigate(page, "mods")
     expect(page.locator("#installNotice")).to_contain_text("Загрузка требует проверки")
     editor.auto_verify_running()
-    page.evaluate("renderMods({ok:true,file:'world.ini',mods:[],workshop:[]})")
+    page.evaluate("applyOverview(S.overview)")
     expect(page.locator("#installNotice")).to_contain_text("Загрузка требует проверки")
     navigate(page, "overview")
     navigate(page, "mods")
@@ -1723,7 +1721,7 @@ def test_auto_verification_background_does_not_overwrite_unsaved_source(
     pending = source.input_value().replace("PublicName=Сервер", "PublicName=Local unsaved edit")
     source.fill(pending)
     editor.auto_verify_running()
-    page.evaluate("renderMods({ok:true,file:'world.ini',mods:[],workshop:[]})")
+    page.evaluate("applyOverview(S.overview)")
     navigate(page, "overview")
     navigate(page, "settings")
     expect(source).to_have_value(pending)
@@ -1746,7 +1744,7 @@ def test_stale_page_overwrites_later_draft_from_another_tab_on_save(
             "ini": {"PublicName": "Another tab", "Unknown": "Other tab change"},
         }
     )
-    page.evaluate("renderMods({ok:true,file:'world.ini',mods:[],workshop:[]})")
+    page.evaluate("applyOverview(S.overview)")
     expect(page.locator('[data-key="PublicName"]')).to_have_value("Сервер")
     page.locator('[data-key="PublicName"]').fill("This page wins")
     page.locator('[data-key="PublicName"]').press("Tab")

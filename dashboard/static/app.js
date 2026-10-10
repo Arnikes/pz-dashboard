@@ -136,7 +136,6 @@ function fmtBytes(n) {
 }
 
 const shortDigest = (d) => (d ? d.replace("sha256:", "").slice(0, 12) : "—");
-const shortWsId = (id) => (id && String(id).length > 8 ? String(id).slice(0, 7) + "…" : String(id || "—"));
 
 function relTime(iso) {
   if (!iso) return "";
@@ -1568,263 +1567,6 @@ function setBar(id, pct) {
   bar.className = pct >= 85 ? "hot" : pct >= 60 ? "warm" : "";
 }
 
-/* ───────────────────────── моды сервера ───────────────────────── */
-
-/* переключатель в строке мода (управление составом) */
-const _wsSwitch = (wsId, checked, title) => `
-  <label class="switch switch-sm" title="${esc(title)}">
-    <input type="checkbox" role="switch" data-ws="${esc(wsId)}"${checked ? " checked" : ""} />
-    <span class="switch-track" aria-hidden="true"></span>
-  </label>`;
-
-function _renderMods(data) {
-  if (window.ConfigEditor) return; // Editors load their snapshot on entry and explicit actions.
-  const body = $("modsBody");
-  const sel = $("modsFile");
-  if (!data.ok) {
-    body.dataset.state = "error";
-    setStaticMarkup(body, `<p class="list-error">${esc(data.error || I18n.t("нет данных"))}</p>`);
-    $("modsCount").textContent = "–";
-    sel.hidden = true;
-    return;
-  }
-  const files = data.files || [];
-  if (files.length > 1) {
-    sel.hidden = false;
-    if (sel.dataset.current !== data.file) {
-      sel.innerHTML = files.map((f) => `<option value="${esc(f)}"${f === data.file ? " selected" : ""}>${esc(f)}</option>`).join("");
-      sel.dataset.current = data.file;
-    }
-  } else {
-    sel.hidden = true;
-  }
-  const mods = data.mods || [];
-  const ws = data.workshop || [];
-  const canManage = !!data.canManage && !S.demo;
-  const bar = $("modsManageBar");
-  if (bar) bar.hidden = !canManage;
-  const total = data.paired && (data.pairs || []).length
-    ? data.pairs.length
-    : (ws.length || mods.length);
-  $("modsCount").textContent = String(total);
-  if (!mods.length && !ws.length) {
-    body.dataset.state = "empty";
-    setStaticMarkup(body, I18n.msg`<p class="list-empty"><strong>Модов нет.</strong> Параметры Mods= и WorkshopItems= в конфиге пустые.</p>`);
-    return;
-  }
-
-  let html = "";
-  const disabledList = (data.disabled || []);
-  if (canManage) {
-    const note = data.mappingSource === "container"
-      ? I18n.t("Состав модов из конфига; названия модов читаются внутри контейнера.")
-      : I18n.t("Выключатель убирает мод из конфига; изменения применяются рестартом.");
-    html += `<p class="mods-note">${esc(note)}</p>`;
-  }
-  if (data.paired && (data.pairs || []).length) {
-    // 1:1 — моды соответствуют Workshop-элементам по порядку
-    html += I18n.msg`<p class="mods-note">Моды соответствуют Workshop-элементам по порядку.</p>`;
-    html += data.pairs.map((p, i) => `
-      <div class="mod-row">
-        <span class="m-idx mono">${i + 1}</span>
-        ${copyValue(p.mod, { className: "m-name mono" })}
-        <span class="m-ws">
-          ${p.url
-            ? `<a href="${esc(p.url)}" target="_blank" rel="noopener" title="Steam Workshop · ${esc(p.workshopId)}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M10 5H5v14h14v-5"/></svg>
-                <span class="ws-title">${esc(p.title || p.workshopId)}</span>
-              </a>
-              ${copyValue(p.workshopId, { className: "wid mono", title: `Workshop ID: ${p.workshopId}` })}`
-            : `<span class="wid mono">${esc(p.workshopId || "—")}</span>`}
-        </span>
-        ${canManage ? _wsSwitch(p.workshopId, true, I18n.t("Выключить мод в конфиге")) : ""}
-      </div>`).join("");
-  } else {
-    // Общий случай: один Workshop-элемент может содержать несколько модов
-    if (ws.length) {
-      html += I18n.msg`<p class="mods-note">Workshop-элементы — ${ws.length}</p>`;
-      if (ws.every((w) => !(w.mods || []).length)) {
-        // у элементов нет модов на диске — компактная сетка строк вместо карточек
-        html += `<div class="mods-grid">` + ws.map((w) => `
-          <div class="mod-line">
-            ${w.url
-              ? `<a class="m-t" href="${esc(w.url)}" target="_blank" rel="noopener" title="${esc(w.title || w.workshopId)}">${esc(w.title || w.workshopId)}</a>`
-              : `<span class="m-t">${esc(w.title || w.workshopId)}</span>`}
-            ${copyValue(w.workshopId, { className: "wid mono", text: shortWsId(w.workshopId), title: `Workshop ID: ${w.workshopId}` })}
-            ${canManage ? _wsSwitch(w.workshopId, true, I18n.t("Выключить мод в конфиге")) : ""}
-          </div>`).join("") + `</div>`;
-      } else {
-        html += ws.map((w) => `
-        <div class="ws-card">
-          <div class="ws-head">
-            ${w.url
-              ? `<a href="${esc(w.url)}" target="_blank" rel="noopener" title="Steam Workshop · ${esc(w.workshopId)}">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M10 5H5v14h14v-5"/></svg>
-                  <span class="ws-title">${esc(w.title || w.workshopId)}</span>
-                </a>`
-              : `<span class="wid mono">${esc(w.workshopId)}</span>`}
-            ${w.title ? copyValue(w.workshopId, { className: "wid mono", title: `Workshop ID: ${w.workshopId}` }) : ""}
-            ${canManage ? _wsSwitch(w.workshopId, true, I18n.t("Выключить мод в конфиге")) : ""}
-          </div>
-          ${(w.mods || []).length
-            ? `<div class="ws-mods">${w.mods.map((m) => copyValue(m, { className: "chip mono" })).join("")}</div>`
-            : ""}
-        </div>`).join("");
-      }
-    }
-    if (mods.length) {
-      html += I18n.msg`<p class="mods-note">Моды из конфига (Mods=) — ${mods.length}</p>`;
-      html += `<div class="mods-chips">${mods.map((m) => copyValue(m, { className: "chip mono" })).join("")}</div>`;
-    }
-    if ((data.unbound || []).length && data.mappingSource === "disk") {
-      html += I18n.msg`<p class="mods-note">Без привязки к Workshop — ${data.unbound.length}</p>`;
-      html += `<div class="mods-chips">${data.unbound.map((m) => copyValue(m, { className: "chip mono" })).join("")}</div>`;
-    }
-    if (!ws.length) {
-      html += I18n.msg`<p class="mods-note">Один Workshop-элемент может содержать несколько модов — сопоставление по конфигу невозможно.</p>`;
-    }
-  }
-  if (disabledList.length) {
-    html += I18n.msg`<p class="mods-note">Выключенные — ${disabledList.length}</p>`;
-    html += disabledList.map((d) => `
-      <div class="mod-row disabled-row">
-        ${copyValue((d.modIds || [])[0] || d.workshopId, { className: "m-name mono", text: d.title || d.workshopId, title: (d.modIds || []).join(", ") })}
-        <span class="m-ws">
-          ${copyValue(d.workshopId, { className: "wid mono", text: shortWsId(d.workshopId), title: `Workshop ID: ${d.workshopId}` })}
-        </span>
-        ${canManage ? _wsSwitch(d.workshopId, false, I18n.t("Включить мод обратно")) : ""}
-      </div>`).join("");
-  }
-  body.dataset.state = "ok";
-  setStaticMarkup(body, html);
-}
-
-/* реестр модов: SSE кладёт данные в кэш, отрисовка — только на активной странице
-   и с учётом активных поиска/фильтра/сортировки */
-let modsData = null;
-let modsPending = false;
-let modsQuery = "";
-let modsFilter = "all";
-let modsSort = "config";
-
-const modsFilterActive = () => !!(modsQuery.trim() || modsFilter !== "all" || modsSort !== "config");
-
-function renderMods(data) {
-  modsData = data;
-  if (!data.ok) { _renderMods(data); return; }
-  const mods = data.mods || [];
-  const ws = data.workshop || [];
-  if (!mods.length && !ws.length) { _renderMods(data); return; }
-  if (activeView !== "mods") { modsPending = true; return; }
-  if (modsFilterActive()) { renderModsFiltered(); return; }
-  _renderMods(data);
-}
-
-function renderModsFiltered() {
-  const data = modsData;
-  if (!data || !data.ok) return;
-  modsPending = false;
-  const q = modsQuery.trim().toLowerCase();
-  const matchQ = (...vals) => !q || vals.some((v) => String(v || "").toLowerCase().includes(q));
-  const cmp = (a, b) => modsSort === "title"
-    ? String(a.title || a.workshopId || "").localeCompare(String(b.title || b.workshopId || ""), I18n.locale)
-    : String(a.workshopId || "").localeCompare(String(b.workshopId || ""));
-  const view = { ...data };
-  let shown = null;
-
-  if (data.paired && (data.pairs || []).length) {
-    let pairs = data.pairs.filter((p) => matchQ(p.mod, p.title, p.workshopId));
-    if (modsSort !== "config") pairs = [...pairs].sort(cmp);
-    shown = [pairs.length, data.pairs.length];
-    view.pairs = pairs;
-  } else {
-    let list = (data.workshop || []).filter((w) =>
-      matchQ(w.title, w.workshopId, ...(w.mods || [])) &&
-      (modsFilter === "all" ||
-        (modsFilter === "disk" ? (w.mods || []).length > 0 : !(w.mods || []).length)));
-    if (modsSort !== "config") list = [...list].sort(cmp);
-    shown = [list.length, (data.workshop || []).length];
-    view.workshop = list;
-    view.mods = (data.mods || []).filter((m) => matchQ(m));
-    view.unbound = (data.unbound || []).filter((m) => matchQ(m));
-  }
-
-  _renderMods(view);
-
-  const totalRaw = data.paired && (data.pairs || []).length
-    ? data.pairs.length
-    : ((data.workshop || []).length || (data.mods || []).length);
-  $("modsCount").textContent = String(totalRaw);
-
-  const note = $("modsShown");
-  if (note) {
-    if (modsFilterActive() && shown && shown[0] !== shown[1]) {
-      note.hidden = false;
-      note.textContent = I18n.msg`Показано ${shown[0]} из ${shown[1]}`;
-    } else {
-      note.hidden = true;
-    }
-  }
-
-  if (shown && shown[0] === 0 && !(view.mods || []).length) {
-    const body = $("modsBody");
-    body.dataset.state = "empty";
-    body.innerHTML = I18n.msg`<p class="list-empty"><strong>Ничего не найдено.</strong> Измените запрос или сбросьте фильтр.</p>`;
-  }
-}
-
-$("modsSearch").addEventListener("input", () => {
-  modsQuery = $("modsSearch").value;
-  renderModsFiltered();
-});
-
-/* переключатель состава модов: выключение/включение Workshop-элемента */
-$("modsBody").addEventListener("change", async (e) => {
-  const sw = e.target.closest("input[data-ws]");
-  if (!sw || sw.disabled) return;
-  const ws = sw.dataset.ws;
-  const enable = sw.checked;
-  const file = (modsData && modsData.file) || "";
-  sw.disabled = true;
-  try {
-    const res = await api("/api/mods-config", { method: "POST", body: { file, workshopId: ws, enable } });
-    if (res.ok === false || res.error) throw new Error(res.error || I18n.t("не удалось изменить конфиг"));
-    toast(enable ? I18n.t("Мод включён в конфиг — заработает после рестарта")
-                 : I18n.t("Мод выключен из конфига — заработает после рестарта"), "ok");
-    refreshMods(file);
-  } catch (err) {
-    toast(err.message || String(err), "error");
-    sw.checked = !enable;
-  } finally {
-    sw.disabled = false;
-  }
-});
-$("modsFilters").addEventListener("click", (e) => {
-  const btn = e.target.closest(".chip[data-mf]");
-  if (!btn) return;
-  modsFilter = btn.dataset.mf;
-  document.querySelectorAll("#modsFilters .chip").forEach((c) => c.setAttribute("aria-pressed", String(c === btn)));
-  renderModsFiltered();
-});
-$("modsSort").addEventListener("change", () => {
-  modsSort = $("modsSort").value;
-  renderModsFiltered();
-});
-
-async function refreshMods(file) {
-  try {
-    file = file || window.ConfigEditor?.file;
-    const q = file ? `?file=${encodeURIComponent(file)}` : "";
-    renderMods(await api(`/api/mods${q}`));
-  } catch (e) { /* тихо */ }
-}
-
-$("modsFile").addEventListener("change", () => {
-  const sel = $("modsFile");
-  sel.dataset.current = "";
-  refreshMods(sel.value);
-});
-
 /* ───────────────────────── бэкапы ───────────────────────── */
 
 const backupsPager = { page: 0, size: 10 };
@@ -2492,20 +2234,6 @@ $("btnApplyMods").addEventListener("click", () => {
   });
 });
 
-/* рестарт после правок состава модов */
-$("btnModsRestart").addEventListener("click", () => {
-  modal.open({
-    title: I18n.t("Перезапустить сервер?"),
-    okLabel: I18n.t("Перезапустить"),
-    bodyHTML: I18n.msg`
-      <p>Состав модов, включённый в конфиге, заработает после рестарта: игрокам
-      придёт предупреждение, мир сохранится (RCON <span class="mono">quit</span>).</p>
-      ${WARN_OPTIONS}
-    `,
-    onConfirm: async () => action("restart", { warnSeconds: Number($("warnSel").value) }),
-  });
-});
-
 /* ───────────────────────── настройки автообновления ───────────────────────── */
 
 const SETTING_GROUPS = {
@@ -2847,7 +2575,6 @@ function applyStats(data) { renderStats(data); renderKpis(); }
 const applyOps = renderOp;
 const applyBackups = renderBackups;
 const applyEvents = renderEvents;
-const applyMods = renderMods;
 
 function applyLogs(data) {
   renderLogs(data);
@@ -2893,7 +2620,7 @@ async function refreshOps() {
 }
 
 function refreshAll() {
-  refreshOverview(); refreshPlayers(); refreshStats(); refreshBackups(); refreshEvents(); refreshPlayersHistory(); refreshStatsHistory(); refreshMods();
+  refreshOverview(); refreshPlayers(); refreshStats(); refreshBackups(); refreshEvents(); refreshPlayersHistory(); refreshStatsHistory();
 }
 
 /* Try recovery silently before exposing stale data as a connection notice. */
@@ -2931,7 +2658,6 @@ function startPolling(initial = true) {
     [refreshOverview, 3000], [refreshPlayers, 5000], [refreshStats, 5000],
     [refreshBackups, 10000], [refreshEvents, 12000],
     [refreshOps, 1500], [refreshPlayersHistory, 60000], [refreshStatsHistory, 30000],
-    [refreshMods, 60000],
   ]) {
     let running = false;
     const poll = async () => {
@@ -3077,7 +2803,6 @@ function applyRoute() {
   window.scrollTo(0, 0);
   const view = $("view-" + r);
   if (view && !document.body.classList.contains("is-booting")) view.focus({ preventScroll: true });
-  if (r === "mods" && modsPending) renderModsFiltered();
   window.ConfigEditor?.route(r);
   pollVisibleLogs();
 }
@@ -3208,7 +2933,6 @@ function startSse() {
   bind("ops", applyOps);
   bind("stats-history", (d) => renderStatsHistory(d.points || []));
   bind("players-history", (d) => renderPlayersHistory(d.points || []));
-  bind("mods", applyMods);
   // браузер сам переподключается; откат на опрос — если поток так и не ожил
   // или умер уже после того, как работал
   es.onerror = () => {

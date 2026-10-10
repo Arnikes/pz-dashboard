@@ -10,6 +10,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "dashboard"))
 import config  # noqa: E402
+import configprofiles  # noqa: E402
 import configeditor as editor  # noqa: E402
 import ops  # noqa: E402
 import workshop  # noqa: E402
@@ -414,7 +415,7 @@ def test_rebase_rejects_overlapping_edits_and_stale_disk_or_draft_revision(env):
 def test_rebase_line_merge_preserves_insertions_deletions_and_newlines(
     base, pending, current, expected
 ):
-    assert editor.merge_source(base, pending, current) == expected
+    assert configprofiles.merge_source(base, pending, current) == expected
 
 
 def test_rebase_is_atomic_across_ini_and_sandbox_conflicts(env):
@@ -656,7 +657,6 @@ def test_b42_index_uses_id_and_effective_version_only():
 
 def test_one_item_multiple_ids_no_position_mapping(env):
     state = editor.mod_state("world.ini")
-    assert state["paired"] is False
     assert state["workshop"][0]["mods"] == ["library", "plugin"]
     assert state["workshop"][0]["title"] == "Package name differs"
     change(mods={"selected": ["library"]})
@@ -991,15 +991,6 @@ def test_steam_collection_items_are_verified(monkeypatch):
     ]
 
 
-def test_legacy_toggle_requires_actual_boolean_and_stop(env, monkeypatch):
-    with pytest.raises(editor.EditorError, match="boolean"):
-        editor.legacy_toggle({"file": "world.ini", "workshopId": "111", "enable": "false"})
-    monkeypatch.setattr(ops, "is_running", lambda: True)
-    with pytest.raises(editor.EditorError) as failure:
-        editor.legacy_toggle({"file": "world.ini", "workshopId": "111", "enable": False})
-    assert failure.value.status == 409
-
-
 def test_raw_lua_literals_masked_and_restored_without_execution(env, monkeypatch):
     data, _ = env
     text = 'SandboxVars={VERSION=5, Password="computed-secret" .. tostring(2)}\n'
@@ -1138,14 +1129,15 @@ def test_explicit_order_changes_update_remembered_positions(env):
     assert "Mods=\\third;\\plugin;\\library\r\n" in restored["texts"]["ini"]
 
 
-def test_legacy_disabled_subset_keeps_item_and_original_order(env, monkeypatch):
+def test_draft_disabled_subset_keeps_item_and_original_order(env):
     current = change(mods={"selected": ["library"]})
     editor.run({"file": "world.ini", "draftRevision": current["draftRevision"]})
-    monkeypatch.setattr(ops, "start_op", lambda name, work: work())
-    editor.legacy_toggle({"file": "world.ini", "workshopId": "111", "enable": False})
+    disabled = change(mods={"selected": []})
+    editor.run({"file": "world.ini", "draftRevision": disabled["draftRevision"]})
     assert editor.mod_state("world.ini")["mods"] == []
     assert len(editor.mod_state("world.ini")["workshop"]) == 1
-    editor.legacy_toggle({"file": "world.ini", "workshopId": "111", "enable": True})
+    enabled = change(mods={"selected": ["library"], "preserveOrder": True})
+    editor.run({"file": "world.ini", "draftRevision": enabled["draftRevision"]})
     assert editor.mod_state("world.ini")["mods"] == ["library"]
 
 
@@ -1540,10 +1532,11 @@ def test_steam_manifest_and_corrupt_option_are_data_only():
     )
 
 
-def test_legacy_toggle_uses_shared_operation_slot(env, monkeypatch):
+def test_mod_draft_uses_shared_operation_slot(env, monkeypatch):
     start = Mock()
     monkeypatch.setattr(ops, "start_op", start)
-    result = editor.legacy_toggle({"file": "world.ini", "workshopId": "111", "enable": False})
+    current = change(mods={"selected": []})
+    result = editor.queue({"file": "world.ini", "draftRevision": current["draftRevision"]})
     assert result["operation"] == "apply-config"
     ops.run_backup_job.assert_not_called()
     start.call_args.args[1]()

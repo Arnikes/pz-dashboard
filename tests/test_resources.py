@@ -154,7 +154,7 @@ def test_stream_skips_unsubscribed_logs_and_sleeps_until_due(monkeypatch, logs, 
     handler._serve_stream(logs=logs)
     assert ("logs" in collected) is (logs and not empty)
     assert {name for name, _ in payloads.STREAM_PLAN} - {"logs"} <= set(collected)
-    assert sleeps == pytest.approx([1.0 if empty else 1.02 - (0.2 if logs else 0.18)])
+    assert sleeps == pytest.approx([1.0 if empty else 1.02 - 0.02 * len(collected)])
     assert chunks[-1] == b"event: auth-expired\ndata: {}\n\n"
 
 
@@ -168,10 +168,8 @@ def test_stream_collection_errors_are_localized_inside_cache(monkeypatch):
     assert json.loads(frame.decode().split("data: ")[1])["error"] == "Server stopped"
 
 
-@pytest.mark.parametrize("channel,collections", [("players", 1), ("mods", 2)])
-def test_monitoring_collection_is_shared_across_languages_except_workshop(
-    monkeypatch, channel, collections
-):
+@pytest.mark.parametrize("channel", [name for name, _ in payloads.STREAM_PLAN])
+def test_monitoring_collection_is_shared_across_languages(monkeypatch, channel):
     provider = Mock(return_value={"ok": False, "error": "Сервер остановлен", "names": ["Игрок"]})
     monkeypatch.setattr(payloads, "stream_payload", provider)
     cache = payloads.StreamCache()
@@ -182,7 +180,7 @@ def test_monitoring_collection_is_shared_across_languages_except_workshop(
             frames[language] = cache.frame(channel, 5).decode()
         finally:
             i18n.LANGUAGE.reset(token)
-    assert provider.call_count == collections
+    assert provider.call_count == 1
     assert "Server stopped" in frames["en"]
     assert "Сервер остановлен" in frames["ru"]
     assert "Игрок" in frames["ru"] and "Игрок" in frames["en"]

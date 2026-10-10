@@ -44,9 +44,7 @@ replacement.
   invalid legacy types to defaults. Their different compatibility rules are
   intentional and remain explicit in `settingsmodel`.
 - `configformats` provides strict lossless editing and secret masking. The older
-  INI helpers in `ops` are permissive compatibility utilities with different
-  whitespace and newline behavior; merging them would require a separate contract
-  change.
+  INI helpers in `ops` were subsequently removed; see the [code audit](code-audit.md).
 - `payloads` already shares providers between polling and streaming. Telemetry
   caching deliberately does not control lifecycle waits or mutations.
 - Frontend draft queues, revision checks and settings feedback represent different

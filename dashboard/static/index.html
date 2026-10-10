@@ -345,35 +345,6 @@
           <div id="modMapEditor"></div>
         </div><div id="modProblems" hidden></div>
       </section>
-      <section class="card c-mods" id="sec-mods" data-od-id="mods" aria-labelledby="hMods" hidden>
-        <header class="card-head">
-          <h2 id="hMods">Моды сервера</h2>
-          <div class="mods-tools">
-            <select id="modsFile" aria-label="Файл конфигурации" hidden></select>
-            <span class="count mono" id="modsCount">–</span>
-          </div>
-        </header>
-        <div class="mods-toolbar">
-          <input type="search" id="modsSearch" placeholder="поиск по названию или ID…" aria-label="Поиск модов" />
-          <div class="chips" id="modsFilters" role="group" aria-label="Фильтр модов">
-            <button class="chip" type="button" data-mf="all" aria-pressed="true">Все</button>
-            <button class="chip" type="button" data-mf="disk" aria-pressed="false">На диске</button>
-            <button class="chip" type="button" data-mf="wsonly" aria-pressed="false">Только Workshop</button>
-          </div>
-          <select id="modsSort" aria-label="Сортировка модов">
-            <option value="config">как в конфиге</option>
-            <option value="title">по названию</option>
-            <option value="id">по Workshop ID</option>
-          </select>
-        </div>
-        <div class="actions mods-manage" id="modsManageBar" hidden>
-          <button class="btn" id="btnModsRestart">Перезапустить…</button>
-        </div>
-        <p class="mods-note" id="modsShown" hidden></p>
-        <div id="modsBody" class="list" data-state="loading">
-          <p class="skeleton-line"></p><p class="skeleton-line short"></p>
-        </div>
-      </section>
 
     </div>
 

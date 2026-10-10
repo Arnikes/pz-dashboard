@@ -115,33 +115,24 @@ def test_long_copy_values_keep_the_icon_visible_and_copy_exact_content(page, das
     assert page.evaluate("copiedValue") == value
 
 
-@pytest.mark.parametrize("surface", ["updates", "mods"])
-def test_dynamic_copy_field_feedback_survives_unchanged_data(page, dashboard, surface):
+def test_dynamic_copy_field_feedback_survives_unchanged_data(page, dashboard):
     open_fields(page, dashboard)
     page.evaluate(
-        """surface => {
+        """() => {
         navigator.clipboard.writeText=async()=>{};
-        const host=document.getElementById('sec-updates');
-        if (surface==='updates') {
-            host.append(document.getElementById('modsNeedList'));
-            window.refreshCopyField=()=>renderOverview({...S.overview,modsCheck:{
-                state:'needs-update',items:[{workshopId:'1234567890',raw:'Обновление'}]}});
-        } else {
-            window.ConfigEditor=null;
-            host.append(document.getElementById('modsBody'));
-            window.refreshCopyField=()=>_renderMods({ok:true,mods:['ModID'],workshop:[]});
-        }
+        document.getElementById('sec-updates').append(document.getElementById('modsNeedList'));
+        window.refreshCopyField=()=>renderOverview({...S.overview,modsCheck:{
+            state:'needs-update',items:[{workshopId:'1234567890',raw:'Обновление'}]}});
         refreshCopyField();
-    }""",
-        surface,
+    }"""
     )
-    selector = {"updates": "#modsNeedList", "mods": "#modsBody"}[surface]
-    field = page.locator(f"{selector} .copy-value").first
+    field = page.locator("#modsNeedList .copy-value").first
     field.click()
     expect(field).to_have_attribute("data-copied", "true")
     page.evaluate("refreshCopyField()")
     expect(field).to_have_attribute("data-copied", "true")
     expect(field).to_be_focused()
-    if surface == "mods":
-        page.evaluate("_renderMods({ok:true,mods:[],workshop:[]});refreshCopyField()")
-        expect(field.locator(".copy-icon-default")).to_be_visible()
+    page.evaluate(
+        "renderOverview({...S.overview,modsCheck:{state:'up-to-date',items:[]}});refreshCopyField()"
+    )
+    expect(field.locator(".copy-icon-default")).to_be_visible()

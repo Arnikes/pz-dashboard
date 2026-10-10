@@ -542,8 +542,6 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({"ok": True})
             else:
                 self._send_json({"ok": False, "error": err})
-        elif path == "/api/mods-config":
-            self._editor_request(lambda: configeditor.legacy_toggle(data))
         elif path == "/api/config-draft":
             self._editor_request(lambda: configeditor.patch(data))
         elif path == "/api/config-validate":

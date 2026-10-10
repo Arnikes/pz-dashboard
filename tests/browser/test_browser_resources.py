@@ -108,7 +108,7 @@ def test_polling_has_no_overlapping_requests_and_pauses_hidden_tab(page, dashboa
         window.testPolls[0]();
         window.testPolls[0]();
     }""")
-    assert page.evaluate("window.testPolls.length") == 9
+    assert page.evaluate("window.testPolls.length") == 8
     assert page.evaluate("window.overviewCalls") == 1
     page.evaluate("window.finishOverview()")
     page.evaluate("""() => {

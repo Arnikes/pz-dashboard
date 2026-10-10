@@ -1666,10 +1666,7 @@ def list_mods(filename=None):
             "file": filename,
             "workshop": [],
             "mods": [],
-            "pairs": [],
-            "paired": False,
             "unbound": [],
-            "mappingSource": None,
         }
 
 
@@ -1721,12 +1718,12 @@ def _parse_mods_check(lines):
 
 
 def _mods_registry():
-    """workshop id → title и mod id → workshop id (для подписи результата)."""
-    ws, mods = {}, {}
+    """Workshop IDs, titles and links for update results."""
+    ws = {}
     try:
         data = list_mods(None)
     except Exception:  # noqa: BLE001 — реестр нужен только для подписей
-        return ws, mods
+        return ws
     for w in data.get("workshop") or []:
         wid = str(w.get("workshopId") or "")
         if wid:
@@ -1735,9 +1732,7 @@ def _mods_registry():
                 "url": w.get("url")
                 or f"https://steamcommunity.com/sharedfiles/filedetails/?id={wid}",
             }
-            for m in w.get("mods") or []:
-                mods.setdefault(str(m).strip().lower(), wid)
-    return ws, mods
+    return ws
 
 
 def _mods_items_from_lines(lines, ws):
@@ -1787,7 +1782,7 @@ def check_mods_update(source="manual", timeout=45):
         state, need = _parse_mods_check(_fresh_lines(before, text))
         if state:
             break
-    ws, _mods = _mods_registry()
+    ws = _mods_registry()
     result = {
         "at": now_iso(),
         "source": source,

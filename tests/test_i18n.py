@@ -225,7 +225,7 @@ def test_simultaneous_languages_keep_stream_caches_isolated(monkeypatch):
     def frame(locale):
         token = i18n.LANGUAGE.set(locale)
         try:
-            return cache.frame("mods", 60).decode("utf-8")
+            return cache.frame("overview", 3).decode("utf-8")
         finally:
             i18n.LANGUAGE.reset(token)
 

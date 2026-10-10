@@ -20,7 +20,7 @@ def test_startup_populates_mod_status_without_scheduled_updates(startup, monkeyp
     monkeypatch.setattr(ops, "_LAST_MODS_CHECK", dict.fromkeys(ops._LAST_MODS_CHECK))
     settings = Mock(return_value={"modsUpdate": {"enabled": False}})
     monkeypatch.setattr(ops, "get_settings", settings)
-    monkeypatch.setattr(ops, "_mods_registry", lambda: ({}, {}))
+    monkeypatch.setattr(ops, "_mods_registry", lambda: {})
     ticks = count(0, 10)
     monkeypatch.setattr(ops.time, "time", lambda: next(ticks))
     result_line = {

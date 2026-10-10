@@ -33,7 +33,6 @@ CFG = {
     "backup_dir": os.getenv("BACKUP_DIR", "/backups"),
     "dashboard_dir": os.getenv("DASHBOARD_DIR", "/dashboard-data"),
     "server_name": os.getenv("PZ_SERVER_NAME", "Project Zomboid"),
-    "keep_backups": _int("KEEP_BACKUPS", 10),
     "log_lines": _int("LOG_LINES", 250),
 }
 

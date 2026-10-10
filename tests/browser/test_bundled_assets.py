@@ -18,7 +18,7 @@ def assert_fonts_loaded(page):
     faces = page.evaluate(
         """async () => {
             const families = [['Golos Text', [400, 500, 600]],
-                ['JetBrains Mono', [400, 500, 700]], ['Russo One', [400]]];
+                ['JetBrains Mono', [400, 500, 700]]];
             for (const [family, weights] of families) {
                 for (const weight of weights) {
                     const faces = await document.fonts.load(`${weight} 16px "${family}"`,
@@ -32,7 +32,7 @@ def assert_fonts_loaded(page):
             return [...document.fonts].map(face => face.status);
         }"""
     )
-    assert len(faces) == 6
+    assert len(faces) == 4
     assert set(faces) == {"loaded"}
 
 
@@ -94,7 +94,7 @@ def test_all_pages_and_fonts_load_without_external_requests(
     assert "/static/fonts/fonts.css" in requested
     assert {f"/static/fonts/{font.name}" for font in FONTS.glob("*400-*.woff2")} <= requested
     assert not any("-500-" in url or "-600-" in url or "-700-" in url for url in requested)
-    # Old URLs remain valid for previously cached CSS and external integrations.
+    # Every shipped font is served locally.
     for font in FONTS.glob("*.woff2"):
         assert page.request.get(login_url + f"/static/fonts/{font.name}").status == 200
     assert not external, f"External UI requests: {external}"

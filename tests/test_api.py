@@ -177,11 +177,23 @@ def test_config_http_running_and_boolean_errors(api, editor_env, monkeypatch):  
     assert (
         api(
             "POST",
-            "/api/mods-config",
-            {"file": "world.ini", "workshopId": "111", "enable": "false"},
+            "/api/config-draft",
+            {"file": "world.ini", "overwrite": "false"},
         )[0]
         == 400
     )
+
+
+def test_removed_mod_toggle_route_cannot_write_files(api, editor_env, monkeypatch):  # noqa: F811
+    original = configeditor.read_profile("world.ini")
+    start = Mock()
+    monkeypatch.setattr(ops, "start_op", start)
+    status, _ = api(
+        "POST", "/api/mods-config", {"file": "world.ini", "workshopId": "111", "enable": False}
+    )
+    assert status == 404
+    start.assert_not_called()
+    assert configeditor.read_profile("world.ini") == original
 
 
 def test_config_http_snapshot_refresh_and_overwrite(api, editor_env, monkeypatch):  # noqa: F811
@@ -371,13 +383,11 @@ def test_parameterized_routes(api, monkeypatch):
     mods = Mock(return_value={"ok": True, "settings": {}})
     monkeypatch.setattr(ops, "get_events", events)
     monkeypatch.setattr(configeditor, "mod_response", mods)
-    monkeypatch.setattr(ops, "list_mods", lambda filename: {"ok": True, "items": []})
     for query, limit in (("", 100), ("?limit=0", 1), ("?limit=999", 200), ("?limit=x", 100)):
         assert api("GET", "/api/events" + query) == (200, {"ok": True, "items": []})
         events.assert_called_with(limit)
     assert api("GET", "/api/mods?file=world.ini") == (200, {"ok": True, "settings": {}})
     mods.assert_called_once_with("world.ini", draft_mode=False, refresh=False)
-    assert payloads.stream_payload("mods") == {"ok": True, "items": []}
     assert payloads.stream_payload("unknown")["ok"] is False
 
 

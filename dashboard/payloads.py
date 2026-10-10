@@ -79,24 +79,18 @@ STREAM_PLAN = (
     ("events", 12.0),
     ("stats-history", 30.0),
     ("players-history", 60.0),
-    ("mods", 60.0),
 )
 
 
 class StreamCache:
     """Bounded monitoring snapshots and localized frames per HTTP server.
 
-    Locale-neutral collectors are shared across EN/RU subscribers; Workshop
-    metadata keeps its language-specific collection. Control actions and direct
-    HTTP reads never use the short-lived container inspection snapshot.
+    Locale-neutral collectors are shared across EN/RU subscribers. Control actions
+    and direct HTTP reads never use the short-lived container inspection snapshot.
     """
 
     def __init__(self):
-        self._channels = {
-            (name, language): [threading.Lock(), None, 0.0, {}]
-            for name, _ in STREAM_PLAN
-            for language in (("en", "ru") if name == "mods" else (None,))
-        }
+        self._channels = {name: [threading.Lock(), None, 0.0, {}] for name, _ in STREAM_PLAN}
         self._state_lock = threading.Lock()
         self._state = None
         self._state_container = None
@@ -115,7 +109,7 @@ class StreamCache:
 
     def frame(self, name, interval):
         language = i18n.language()
-        channel = self._channels[name, language if name == "mods" else None]
+        channel = self._channels[name]
         with channel[0]:
             refreshed = channel[1] is None or time.monotonic() >= channel[2]
             if refreshed:
@@ -168,8 +162,6 @@ PAYLOADS = {
     "ops": operation_payload,
     "stats-history": stats_history_payload,
     "players-history": players_history_payload,
-    # SSE sends the registry; GET /api/mods also includes editable settings.
-    "mods": lambda: ops.list_mods(None),
 }
 
 GET_CHANNELS = {

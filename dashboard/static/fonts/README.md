@@ -6,18 +6,16 @@ Shared `@font-face` rules live in `fonts.css`, loaded before `style.css`.
 
 | Family | Weights | Character sets | License |
 | --- | --- | --- | --- |
-| Golos Text | 400, 500, 600 | Latin, Cyrillic | [SIL OFL 1.1](golostext-OFL.txt) |
-| JetBrains Mono | 400, 500, 700 | Latin, Cyrillic | [SIL OFL 1.1](jetbrainsmono-OFL.txt) |
-| Russo One | 400 | Latin, Cyrillic | [SIL OFL 1.1](russoone-OFL.txt) |
+| Golos Text | Variable 400–900 | Latin, Cyrillic | [SIL OFL 1.1](golostext-OFL.txt) |
+| JetBrains Mono | Variable 400–800 | Latin, Cyrillic | [SIL OFL 1.1](jetbrainsmono-OFL.txt) |
 
-Golos Text and JetBrains Mono are used by the current UI. Russo One is retained
-for compatibility with the earlier design and is loaded only when used.
-Preserve license copies and font filenames.
+Each family uses one variable font per character set. The `400` filenames supply
+every declared weight; separate files for 500, 600 and 700 are unnecessary.
+Preserve the license copies alongside the fonts.
 
 Font sources and license provenance:
 [Golos Text](https://github.com/google/fonts/tree/main/ofl/golostext),
-[JetBrains Mono](https://github.com/google/fonts/tree/main/ofl/jetbrainsmono),
-[Russo One](https://github.com/google/fonts/tree/main/ofl/russoone).
+[JetBrains Mono](https://github.com/google/fonts/tree/main/ofl/jetbrainsmono).
 These are reference links; the running application does not request them.
 
 `tests/browser/test_bundled_assets.py` blocks external requests, opens all application

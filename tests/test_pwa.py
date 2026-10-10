@@ -116,6 +116,6 @@ def test_public_shell_only_precaches_font_sources_used_by_current_css():
     worker = pwa.service_worker(app.STATIC_DIR).decode()
     assets = json.loads(worker.split("const ASSETS = ", 1)[1].split(";", 1)[0])
     fonts = [path for path in assets if path.endswith(".woff2")]
-    assert len(fonts) == 6
+    assert len(fonts) == 4
     assert all("-400-" in path for path in fonts)
     assert all((Path(app.STATIC_DIR) / path.removeprefix("/static/")).is_file() for path in fonts)
