@@ -49,17 +49,34 @@ def visibility(page, hidden):
     )
 
 
+def hold_overviews(page):
+    held = []
+
+    def hold(route):
+        held.append(route)
+        # The attempt starts before fetch reaches Python's route callback.
+        # Publish receipt so browser waits also pump the interception handler.
+        page.evaluate("count => window.testHeldOverviewCount = count", len(held))
+
+    page.route("**/api/overview", hold)
+    return held
+
+
+def wait_for_overviews(page, count):
+    page.wait_for_function("count => window.testHeldOverviewCount === count", arg=count)
+
+
 @pytest.mark.parametrize("transport", ["sse", "polling"])
 def test_foreground_checks_fresh_data_without_flashing_notice(page, dashboard, transport):
     open_connection(page, dashboard, transport)
-    held = []
-    page.route("**/api/overview", lambda route: held.append(route))
+    held = hold_overviews(page)
     visibility(page, True)
     page.clock.run_for(60000)
     assert not held
     expect(page.locator("#connBanner")).to_be_hidden()
     visibility(page, False)
     page.wait_for_function("!!connectionAttempt")
+    wait_for_overviews(page, 1)
     expect(page.locator("#connBanner")).to_be_hidden()
     assert len(held) == 1
     # Repeated foreground signals must share the same recovery attempt.
@@ -79,11 +96,11 @@ def test_foreground_checks_fresh_data_without_flashing_notice(page, dashboard, t
 @pytest.mark.parametrize("language", ["ru", "en"])
 def test_failed_recovery_countdown_manual_retry_and_success(page, dashboard, transport, language):
     open_connection(page, dashboard, transport, language)
-    held = []
-    page.route("**/api/overview", lambda route: held.append(route))
+    held = hold_overviews(page)
     visibility(page, True)
     visibility(page, False)
     page.wait_for_function("!!connectionAttempt")
+    wait_for_overviews(page, 1)
     expect(page.locator("#connBanner")).to_be_hidden()
     held[0].fulfill(status=503, json={"ok": False, "error": "Unavailable"})
     notice = page.locator("#connBanner")
@@ -101,6 +118,7 @@ def test_failed_recovery_countdown_manual_retry_and_success(page, dashboard, tra
     assert len(held) == 1
     page.locator("#connRetry").click()
     page.wait_for_function("!!connectionAttempt")
+    wait_for_overviews(page, 2)
     expect(page.locator("#connRetry")).to_be_disabled()
     expect(notice).to_have_attribute("aria-busy", "true")
     assert len(held) == 2
@@ -111,6 +129,7 @@ def test_failed_recovery_countdown_manual_retry_and_success(page, dashboard, tra
     with page.expect_request("**/api/overview"):
         page.clock.run_for(100)
     page.wait_for_function("!!connectionAttempt")
+    wait_for_overviews(page, 3)
     assert len(held) == 3
     held[2].fulfill(json=dashboard["overview"])
     expect(notice).to_be_hidden()
@@ -120,10 +139,10 @@ def test_failed_recovery_countdown_manual_retry_and_success(page, dashboard, tra
 
 def test_hidden_window_discards_failed_inflight_attempt(page, dashboard):
     open_connection(page, dashboard)
-    held = []
-    page.route("**/api/overview", lambda route: held.append(route))
+    held = hold_overviews(page)
     page.evaluate("void retryConnection()")
     page.wait_for_function("!!connectionAttempt")
+    wait_for_overviews(page, 1)
     visibility(page, True)
     held[0].abort()
     page.clock.run_for(30000)
@@ -131,6 +150,7 @@ def test_hidden_window_discards_failed_inflight_attempt(page, dashboard):
     assert page.evaluate("connectionTimer === null && connectionAttempt === null")
     visibility(page, False)
     page.wait_for_function("!!connectionAttempt")
+    wait_for_overviews(page, 2)
     assert len(held) == 2
     held[1].fulfill(json=dashboard["overview"])
     expect(page.locator("#connBanner")).to_be_hidden()
@@ -138,15 +158,16 @@ def test_hidden_window_discards_failed_inflight_attempt(page, dashboard):
 
 def test_fresh_stream_cancels_probe_and_invalid_frames_do_not_hide_notice(page, dashboard):
     open_connection(page, dashboard)
-    held = []
-    page.route("**/api/overview", lambda route: held.append(route))
+    held = hold_overviews(page)
     page.evaluate("void retryConnection()")
     page.wait_for_function("!!connectionAttempt")
+    wait_for_overviews(page, 1)
     send_overview(page, dashboard)
     held[0].abort()
     expect(page.locator("#connBanner")).to_be_hidden()
     page.evaluate("void retryConnection()")
     page.wait_for_function("!!connectionAttempt")
+    wait_for_overviews(page, 2)
     held[1].abort()
     expect(page.locator("#connBanner")).to_be_visible()
     page.evaluate("""() => {
@@ -160,10 +181,10 @@ def test_fresh_stream_cancels_probe_and_invalid_frames_do_not_hide_notice(page, 
 
 def test_failed_boot_health_checks_overview_before_notice(page, dashboard):
     page.route("**/api/health", lambda route: route.abort())
-    held = []
-    page.route("**/api/overview", lambda route: held.append(route))
+    held = hold_overviews(page)
     page.goto(dashboard["url"])
     page.wait_for_function("!!connectionAttempt")
+    wait_for_overviews(page, 1)
     expect(page.locator("#connBanner")).to_be_hidden()
     assert len(held) == 1
     held[0].abort()
@@ -172,10 +193,10 @@ def test_failed_boot_health_checks_overview_before_notice(page, dashboard):
 
 def test_silent_probe_timeout_and_hidden_countdown(page, dashboard):
     open_connection(page, dashboard)
-    held = []
-    page.route("**/api/overview", lambda route: held.append(route))
+    held = hold_overviews(page)
     page.evaluate("void retryConnection()")
     page.wait_for_function("!!connectionAttempt")
+    wait_for_overviews(page, 1)
     page.clock.run_for(4999)
     expect(page.locator("#connBanner")).to_be_hidden()
     page.clock.run_for(1)
