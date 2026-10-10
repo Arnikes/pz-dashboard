@@ -162,3 +162,182 @@ def test_touch_can_expand_stack_and_outside_tap_resumes_timer(browser, dashboard
         expect(page.locator(".toast")).to_have_count(1)
     finally:
         context.close()
+
+
+def toast_motion_frame(page, time):
+    return page.locator("#toasts").evaluate(
+        """(root, time) => {
+          for (const animation of root.getAnimations({subtree: true})) {
+            animation.pause();
+            animation.currentTime = time;
+          }
+          return [...root.children].map(node => node.getBoundingClientRect().toJSON());
+        }""",
+        time,
+    )
+
+
+def freeze_next_toast_transition(page, event):
+    # Pause in the event's own task: under parallel load the transition can finish
+    # before the next Playwright command reaches the browser.
+    page.locator("#toasts").evaluate(
+        """(root, event) => root.addEventListener(event, () => {
+          const animations = root.getAnimations({subtree: true});
+          document.querySelectorAll('.toast-exit').forEach(box => animations.push(...box.getAnimations()));
+          animations.forEach(animation => { animation.pause(); animation.currentTime = 0; });
+        }, {once: true})""",
+        event,
+    )
+
+
+@pytest.mark.parametrize("width", [390, 1440])
+def test_expansion_moves_up_from_stack_and_keeps_front_anchored(page, dashboard, width):
+    page.set_viewport_size({"width": width, "height": 900})
+    open_toasts(page, dashboard)
+    page.evaluate("""() => {
+      toast('Длинное старое сообщение. '.repeat(8), 'warning');
+      toast('Короткое сообщение', 'ok');
+      toast('Самое новое сообщение', 'info');
+    }""")
+    collapsed = settled_toast_boxes(page)
+    freeze_next_toast_transition(page, "focusin")
+    page.locator('.toast[data-front="true"] button').focus()
+    start = toast_motion_frame(page, 0)
+    middle = toast_motion_frame(page, 100)
+    end = toast_motion_frame(page, 240)
+    for before, after in zip(collapsed, start):
+        for coordinate in ("x", "y", "width", "height"):
+            assert abs(before[coordinate] - after[coordinate]) < 1
+    for index in range(2):
+        assert end[index]["bottom"] < middle[index]["bottom"] < start[index]["bottom"]
+    assert all(
+        abs(boxes[-1]["bottom"] - collapsed[-1]["bottom"]) < 1 for boxes in (start, middle, end)
+    )
+    assert all(a["bottom"] <= b["top"] for a, b in zip(end, end[1:]))
+    page.screenshot(path=f".tmp-toast-evidence/motion-expanded-{width}.png")
+
+
+def test_interrupted_expansion_and_collapse_keep_current_position(page, dashboard):
+    open_toasts(page, dashboard)
+    page.evaluate("for (let i = 0; i < 5; i++) toast(`Сообщение ${i}`, 'info')")
+    settled_toast_boxes(page)
+    freeze_next_toast_transition(page, "focusin")
+    page.locator('.toast[data-front="true"] button').focus()
+    before = toast_motion_frame(page, 70)
+    freeze_next_toast_transition(page, "keydown")
+    page.keyboard.press("Escape")
+    after = toast_motion_frame(page, 0)
+    # The visible rear cards reverse direction without jumping to either endpoint.
+    for index in (2, 3, 4):
+        assert abs(before[index]["y"] - after[index]["y"]) < 1
+        assert abs(before[index]["width"] - after[index]["width"]) < 1
+    before = toast_motion_frame(page, 70)
+    freeze_next_toast_transition(page, "focusin")
+    page.locator('.toast[data-front="true"] button').focus()
+    after = toast_motion_frame(page, 0)
+    for index in (2, 3, 4):
+        assert abs(before[index]["y"] - after[index]["y"]) < 1
+
+
+def test_overflowing_stack_opens_at_newest_and_can_scroll_to_oldest(page, dashboard):
+    page.set_viewport_size({"width": 390, "height": 600})
+    open_toasts(page, dashboard)
+    page.evaluate("for (let i = 0; i < 12; i++) toast(`Сообщение ${i}`, 'info')")
+    settled_toast_boxes(page)
+    page.locator('.toast[data-front="true"] button').focus()
+    settled_toast_boxes(page)
+    measurements = page.locator("#toasts").evaluate("""root => {
+      const bounds = root.getBoundingClientRect();
+      const front = root.lastElementChild.getBoundingClientRect();
+      return {top: bounds.top, bottom: bounds.bottom, frontTop: front.top, frontBottom: front.bottom,
+        scroll: root.scrollTop, scrollHeight: root.scrollHeight, height: root.clientHeight};
+    }""")
+    assert measurements["scrollHeight"] > measurements["height"]
+    assert measurements["scroll"] > 0
+    assert measurements["top"] <= measurements["frontTop"]
+    assert measurements["frontBottom"] <= measurements["bottom"] + 1
+    assert measurements["top"] >= page.locator(".topbar").bounding_box()["height"]
+    page.evaluate("toast('Новое сообщение в раскрытой стопке', 'ok')")
+    settled_toast_boxes(page)
+    expect(page.locator('.toast[data-front="true"] .toast-close')).to_be_in_viewport()
+    page.locator("#toasts").evaluate("root => root.scrollTop = 0")
+    page.evaluate("toast('Новое сообщение во время чтения старых', 'info')")
+    settled_toast_boxes(page)
+    assert page.locator("#toasts").evaluate("root => root.scrollTop") == 0
+    expect(page.locator(".toast-close").first).to_be_in_viewport()
+
+
+def test_dismissing_scrolled_out_message_does_not_flash_outside_stack(page, dashboard):
+    page.set_viewport_size({"width": 390, "height": 600})
+    open_toasts(page, dashboard)
+    page.evaluate("for (let i = 0; i < 12; i++) toast(`Сообщение ${i}`, 'info')")
+    settled_toast_boxes(page)
+    page.locator('.toast[data-front="true"] button').focus()
+    settled_toast_boxes(page)
+    assert (
+        page.locator(".toast").first.bounding_box()["y"]
+        < page.locator("#toasts").bounding_box()["y"]
+    )
+    page.locator(".toast-close").first.evaluate("button => button.click()")
+    expect(page.locator(".toast-exit")).to_have_count(0)
+    expect(page.locator(".toast")).to_have_count(11)
+
+
+def test_escape_returns_focus_and_resumes_remaining_reading_time(page, dashboard):
+    open_toasts(page, dashboard)
+    page.locator("#btnCommands").focus()
+    page.evaluate("toast('Первое', 'info', 1000); toast('Второе', 'ok', 1000)")
+    page.clock.run_for(400)
+    page.locator('.toast[data-front="true"] button').focus()
+    page.clock.run_for(10000)
+    page.keyboard.press("Escape")
+    expect(page.locator("#btnCommands")).to_be_focused()
+    expect(page.locator("#toasts")).to_have_attribute("data-expanded", "false")
+    page.clock.run_for(599)
+    expect(page.locator(".toast")).to_have_count(2)
+    page.clock.run_for(1)
+    expect(page.locator(".toast")).to_have_count(1)
+
+
+@pytest.mark.parametrize("motion", ["no-preference", "reduce"])
+def test_dismissal_reflows_remaining_cards_and_exit_cannot_receive_input(page, dashboard, motion):
+    page.emulate_media(reduced_motion=motion)
+    open_toasts(page, dashboard)
+    page.locator("#btnCommands").focus()
+    page.evaluate("toast('Первое', 'info'); toast('Второе', 'ok'); toast('Третье', 'warning')")
+    page.locator('.toast[data-front="true"] button').focus()
+    before = settled_toast_boxes(page)
+    freeze_next_toast_transition(page, "click")
+    page.keyboard.press("Enter")
+    expect(page.locator(".toast")).to_have_count(2)
+    expect(page.locator('.toast[data-front="true"] button')).to_be_focused()
+    if motion == "no-preference":
+        start = toast_motion_frame(page, 0)
+        assert abs(start[0]["y"] - before[0]["y"]) < 1
+        assert page.locator(".toast-exit").evaluate(
+            "box => box.inert && box.getAttribute('aria-hidden') === 'true'"
+        )
+        page.locator(".toast-exit").evaluate(
+            "box => box.getAnimations().forEach(animation => animation.finish())"
+        )
+    else:
+        assert (
+            page.locator("#toasts").evaluate("root => root.getAnimations({subtree: true}).length")
+            == 0
+        )
+    expect(page.locator(".toast-exit")).to_have_count(0)
+
+
+def test_single_toast_touch_does_not_pause_until_an_outside_tap(browser, dashboard):
+    context = browser.new_context(has_touch=True, viewport={"width": 390, "height": 900})
+    page = context.new_page()
+    page.route("**/api/**", lambda route: route.fulfill(json={"ok": True, "items": []}))
+    try:
+        open_toasts(page, dashboard)
+        page.evaluate("toast('Сообщение', 'info', 1000)")
+        page.locator(".toast-message").tap()
+        expect(page.locator("#toasts")).to_have_attribute("data-expanded", "false")
+        page.clock.run_for(1000)
+        expect(page.locator(".toast")).to_have_count(0)
+    finally:
+        context.close()

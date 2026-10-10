@@ -254,6 +254,14 @@ Mobile gives both actions equal-width columns; desktop keeps them beside the dra
 Toast reading time scales with message length from 5.2 to 20 seconds, unless a
 caller supplies an explicit duration. Hover, keyboard focus and background tabs
 pause the remaining time. Dismiss controls name their message. Notification
+stacks unfold upward from each card's rendered position over 240ms, with the
+newest card anchored at the bottom. Reversing direction keeps the current position;
+new cards enter over 180ms and dismissed cards fade out over 130ms while leaving
+focus and hit testing immediately. Reduced motion skips spatial transitions.
+Overflowing stacks open at the newest end and scroll to older messages. New arrivals
+keep that end pinned unless the reader has scrolled to older messages. Touch
+toggles multi-card stacks; a single message keeps its reading timer. Escape
+collapses a focused stack and returns focus to its previous control. Notification
 updates preserve focus on the same action and keep the list's scroll position;
 unread rows use the second surface layer. Filters, read controls, links and toast
 dismiss controls share the visible focus outline. Long lists scroll independently

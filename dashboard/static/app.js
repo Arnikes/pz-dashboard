@@ -443,7 +443,28 @@ const showToast = (() => {
   const root = $("toasts");
   const entries = [];
   let focused = document.hasFocus(), hovered = false, keyboard = false, expandedByTouch = false;
-  let returnFocus = null;
+  let returnFocus = null, movingFocus = false;
+  let layoutKey = "";
+  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+
+  const snapshot = () => new Map(entries.map(entry => [entry, entry.box.getBoundingClientRect()]));
+
+  function exit(box, rect) {
+    const bounds = root.getBoundingClientRect();
+    if (reducedMotion.matches || getComputedStyle(box).visibility === "hidden" ||
+        (root.dataset.expanded !== "true" && box.dataset.front !== "true") ||
+        (root.dataset.expanded === "true" && (rect.top < bounds.top - 1 || rect.bottom > bounds.bottom + 1)) ||
+        rect.bottom <= 0 || rect.top >= innerHeight) { box.remove(); return; }
+    // Leave the live region and hit testing immediately, keeping only the visual exit.
+    box.className = "toast-exit";
+    box.inert = true;
+    box.setAttribute("aria-hidden", "true");
+    Object.assign(box.style, { position: "fixed", left: `${rect.left}px`, top: `${rect.top}px`,
+      width: `${rect.width}px`, height: `${rect.height}px`, transform: "none", zIndex: "80" });
+    document.body.append(box);
+    box.animate([{ opacity: 1, translate: "0 0" }, { opacity: 0, translate: "0 6px" }],
+      { duration: 130, easing: "ease-out" }).finished.then(() => box.remove(), () => box.remove());
+  }
 
   function pause(entry) {
     if (entry.startedAt === null) return;
@@ -455,33 +476,67 @@ const showToast = (() => {
   function dismiss(entry, read = false) {
     const index = entries.indexOf(entry);
     if (index < 0) return;
+    const previous = snapshot();
     const hadFocus = entry.box.contains(document.activeElement);
     pause(entry);
     entries.splice(index, 1);
-    entry.box.remove();
-    if (read) Notifications.markRead([entry.id]);
-    if (!entries.length) expandedByTouch = false;
-    sync();
+    entry.motion?.cancel();
+    exit(entry.box, previous.get(entry));
+    resize.unobserve(entry.box);
+    if (!entries.length) { expandedByTouch = false; hovered = false; }
     if (hadFocus) {
+      movingFocus = true;
       const next = entries[Math.min(index, entries.length - 1)];
       if (next) next.close.focus({ preventScroll: true });
       else if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
+      movingFocus = false;
     }
+    sync(previous);
+    if (read) Notifications.markRead([entry.id]);
   }
 
-  function sync() {
+  function sync(previous, revealNewest = false) {
     keyboard = root.contains(document.activeElement);
     const expanded = hovered || keyboard || expandedByTouch;
-    root.dataset.expanded = String(expanded);
     const front = entries.at(-1);
-    if (front) root.style.setProperty("--toast-height", `${front.box.offsetHeight}px`);
-    entries.forEach((entry, index) => {
-      const depth = entries.length - index - 1;
-      entry.box.style.setProperty("--toast-depth", Math.min(depth, 2));
-      entry.box.style.zIndex = index + 1;
-      entry.box.dataset.front = String(entry === front);
-      entry.box.dataset.hidden = String(!expanded && depth > 2);
-      entry.box.inert = !expanded && entry !== front;
+    const key = () => `${expanded}:${root.clientWidth}:${entries.map(entry => `${entry.id}:${entry.box.offsetHeight}`).join("|")}`;
+    if (layoutKey !== key()) {
+      previous ||= snapshot();
+      const opening = expanded && root.dataset.expanded !== "true";
+      entries.forEach(entry => entry.motion?.cancel());
+      root.dataset.expanded = String(expanded);
+      if (front) root.style.setProperty("--toast-height", `${front.box.offsetHeight}px`);
+      entries.forEach((entry, index) => {
+        const depth = entries.length - index - 1;
+        entry.box.style.setProperty("--toast-depth", Math.min(depth, 2));
+        entry.box.style.zIndex = index + 1;
+        entry.box.dataset.front = String(entry === front);
+        entry.box.dataset.hidden = String(!expanded && depth > 2);
+        entry.box.inert = !expanded && entry !== front;
+        entry.box.style.transform = "none";
+      });
+      // Reveal the newest end of an overflowing list, keeping the front toast anchored.
+      if (opening || (expanded && revealNewest)) root.scrollTop = root.scrollHeight;
+      const targets = entries.map(entry => entry.box.getBoundingClientRect());
+      entries.forEach(entry => entry.box.style.removeProperty("transform"));
+      const transforms = entries.map(entry => getComputedStyle(entry.box).transform);
+      if (!reducedMotion.matches) entries.forEach((entry, index) => {
+        if (entry.box.dataset.hidden === "true") return;
+        const before = previous.get(entry), target = targets[index];
+        const transform = transforms[index];
+        let frames;
+        if (before) {
+          // FLIP from the rendered position, including an interrupted transition.
+          const x = before.x + before.width / 2 - target.x - target.width / 2;
+          const y = before.bottom - target.bottom;
+          const start = `translate(${x}px, ${y}px) scale(${before.width / target.width}, ${before.height / target.height})`;
+          frames = [{ transform: start }, { transform }];
+        } else frames = [{ transform, opacity: 0, translate: "0 6px" }, { transform, opacity: 1, translate: "0 0" }];
+        entry.motion = entry.box.animate(frames, { duration: before ? 240 : 180, easing: "cubic-bezier(0.2, 0, 0, 1)" });
+      });
+      layoutKey = key();
+    }
+    entries.forEach(entry => {
       // Covered messages wait their turn; interacting with the stack pauses reading time.
       const running = focused && !document.hidden && !expanded && entry === front;
       if (!running) pause(entry);
@@ -509,24 +564,35 @@ const showToast = (() => {
     if (event.pointerType === "mouse") { hovered = false; sync(); }
   });
   root.addEventListener("focusin", event => {
+    if (movingFocus) return;
     if (event.relatedTarget && !root.contains(event.relatedTarget)) returnFocus = event.relatedTarget;
     sync();
   });
   root.addEventListener("focusout", () => queueMicrotask(sync));
+  root.addEventListener("keydown", event => {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    event.stopPropagation();
+    expandedByTouch = false;
+    hovered = false;
+    if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
+    else document.activeElement.blur();
+    sync();
+  });
   document.addEventListener("pointerdown", event => {
     if (!root.contains(event.target)) {
       expandedByTouch = false;
       sync();
-    } else if (event.pointerType === "touch" && !event.target.closest("button")) {
+    } else if (event.pointerType === "touch" && !event.target.closest("button, a") && entries.length > 1) {
       expandedByTouch = !expandedByTouch;
       sync();
     }
   });
-  const resize = new ResizeObserver(() => {
-    const front = entries.at(-1);
-    if (front) root.style.setProperty("--toast-height", `${front.box.offsetHeight}px`);
-  });
+  const resize = new ResizeObserver(() => sync());
   resize.observe(root);
+  reducedMotion.addEventListener("change", () => {
+    if (reducedMotion.matches) entries.forEach(entry => entry.motion?.cancel());
+  });
 
   const show = (notification, ms) => {
     const { id, title, message: text, kind, operation } = notification;
@@ -567,9 +633,12 @@ const showToast = (() => {
     box.append(icon, message, close);
     const entry = { id, box, close, remaining: duration, startedAt: null, timer: null };
     close.addEventListener("click", () => dismiss(entry, true));
+    const previous = snapshot();
+    const atEnd = root.scrollTop + root.clientHeight >= root.scrollHeight - 1;
     entries.push(entry);
     root.appendChild(box);
-    sync();
+    sync(previous, atEnd);
+    resize.observe(box);
   };
   show.dismissIds = ids => entries.slice().forEach(entry => { if (ids.has(entry.id)) dismiss(entry); });
   show.clear = () => entries.slice().forEach(entry => dismiss(entry));
