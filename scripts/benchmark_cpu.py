@@ -59,6 +59,20 @@ class PreviousStreamCache:
             return channel[1]
 
 
+def previous_stream_frame(frame):
+    """Historical subscriber-local translation, kept outside runtime code."""
+    if i18n.language() != "en" and not i18n.RU_CATALOG:
+        return frame
+    event, payload = frame.decode("utf-8").split("\ndata: ", 1)
+    translated = i18n.present(json.loads(payload))
+    return (
+        event
+        + "\ndata: "
+        + json.dumps(translated, ensure_ascii=False, separators=(",", ":"))
+        + "\n\n"
+    ).encode("utf-8")
+
+
 def snapshots(subscribers, *, optimized):
     clock = [0.0]
     cache = payloads.StreamCache() if optimized else PreviousStreamCache()
@@ -73,7 +87,7 @@ def snapshots(subscribers, *, optimized):
                 if not optimized:
                     # Previously every subscriber parsed/localized/encoded
                     # the raw frame after retrieving it from the shared cache.
-                    last = i18n.stream_frame(last)
+                    last = previous_stream_frame(last)
                 size += len(last)
             clock[0] += 13
     return size, last

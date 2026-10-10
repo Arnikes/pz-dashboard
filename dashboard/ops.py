@@ -25,20 +25,12 @@ import config
 import i18n
 import fileio
 import settingsmodel
-from settingsmodel import (
-    DEFAULTS as _DEFAULTS,
-    valid_hhmm as _valid_hhmm,
-    norm_hhmm as _norm_hhmm,
-)
+from settingsmodel import DEFAULTS as _DEFAULTS
 from errors import OpsError as OpsError, OpsErrorReported as OpsErrorReported
 import dockerlib
 import dashboardupdate
 import notify as notifylib
 import rcon as rconlib
-
-# Keep the previous helpers available to callers while the model owns the rules.
-_clamp_int = settingsmodel.clamp_int
-_TIME_RE = settingsmodel.TIME_RE
 
 # ─────────────────────────── утилиты времени ───────────────────────────
 
@@ -162,7 +154,11 @@ _SETTINGS_VERSION = {"epoch": uuid.uuid4().hex, "revision": 0}
 
 def _next_daily_run(time_str, now=None):
     """Следующий суточный запуск в «ЧЧ:ММ» по локальному времени пульта."""
-    hh, mm = _norm_hhmm(time_str).split(":") if _valid_hhmm(time_str) else ("3", "0")
+    hh, mm = (
+        settingsmodel.norm_hhmm(time_str).split(":")
+        if settingsmodel.valid_hhmm(time_str)
+        else ("3", "0")
+    )
     base = datetime.fromtimestamp(now if now is not None else time.time())
     run = base.replace(hour=int(hh), minute=int(mm), second=0, microsecond=0)
     if run <= base:
@@ -1611,8 +1607,6 @@ def full_logs(destination):
 
 # ─────────────────────────── моды сервера ───────────────────────────
 
-import re as _re  # noqa: E402
-
 _WS_TITLES = {}  # workshop id -> title
 _WS_FAIL = {}  # workshop id -> ts последней неудачи (повтор через 10 мин)
 _WS_TTL = 600.0
@@ -1625,56 +1619,6 @@ def list_server_inis():
         return sorted(f for f in os.listdir(server_dir) if f.lower().endswith(".ini"))
     except OSError:
         return []
-
-
-def _ini_value(text, key):
-    """Значение ключа ini. Если строка заканчивается на ';' и следующая начинается
-    с отступа — это перенос длинного значения, доклеиваем."""
-    pattern = _re.compile(rf"^\s*{_re.escape(key)}\s*=(.*)$", _re.IGNORECASE)
-    lines = text.splitlines()
-    for i, line in enumerate(lines):
-        m = pattern.match(line)
-        if not m:
-            continue
-        value = m.group(1).strip()
-        j = i + 1
-        while value.endswith(";") and j < len(lines) and lines[j][:1] in (" ", "\t"):
-            value += lines[j].strip()
-            j += 1
-        return value
-    return ""
-
-
-def _split_list(raw):
-    return [x.strip() for x in (raw or "").split(";") if x.strip()]
-
-
-def parse_mods_ini(filename):
-    """Читает ini и возвращает два списка: mod ID (Mods=) и Workshop ID (WorkshopItems=).
-    Один Workshop-элемент может содержать несколько модов — соответствие не по индексу."""
-    if os.path.basename(filename) != filename:
-        return None
-    path = os.path.join(config.CFG["data_dir"], "Server", filename)
-    if not os.path.isfile(path):
-        return None
-    with open(path, encoding="utf-8", errors="replace") as f:
-        text = f.read()
-    return {
-        "mods": _split_list(_ini_value(text, "Mods")),
-        "items": _split_list(_ini_value(text, "WorkshopItems")),
-    }
-
-
-def _workshop_map(items):
-    import configeditor
-    import workshop
-
-    index = workshop.scan(items, configeditor.context()["version"])
-    return {
-        wid: [rec["modId"] for rec in records if rec.get("modId")]
-        for wid, records in index.items()
-        if records
-    }
 
 
 def _ws_titles(ids):
@@ -1727,52 +1671,6 @@ def list_mods(filename=None):
             "unbound": [],
             "mappingSource": None,
         }
-
-
-# ───────────────────── управление составом модов ─────────────────────
-
-_MODS_LOCK = threading.Lock()
-
-
-def mods_config_state(filename=None):
-    return list_mods(filename)
-
-
-def _ini_replace_value(text, key, values):
-    """Заменяет строку Key=… (с глотанием строк-продолжений) или дописывает в конец.
-    Написание ключа в файле сохраняется, разделитель — ';' как в PZ."""
-    lines = text.splitlines()
-    pat = _re.compile(rf"^\s*{_re.escape(key)}\s*=", _re.IGNORECASE)
-    key_written = key
-    for ln in lines:
-        if pat.match(ln):
-            key_written = ln.split("=", 1)[0].strip()
-            break
-    val = ";".join(values)
-    out, replaced, i = [], False, 0
-    while i < len(lines):
-        ln = lines[i]
-        if not replaced and pat.match(ln):
-            out.append(f"{key_written}={val}")
-            replaced = True
-            orig = ln
-            i += 1
-            # строки-продолжения длинного значения (отступ + предыдущее оканчивалось ';')
-            while orig.rstrip().endswith(";") and i < len(lines) and lines[i][:1] in (" ", "\t"):
-                orig = lines[i]
-                i += 1
-            continue
-        out.append(ln)
-        i += 1
-    if not replaced:
-        out.append(f"{key}={val}")
-    return "\n".join(out) + ("\n" if text.endswith("\n") else "")
-
-
-def set_mod_enabled(filename, ws_id, enable):
-    import configeditor
-
-    return configeditor.legacy_toggle({"file": filename, "workshopId": ws_id, "enable": enable})
 
 
 # ─────────────────────── обновления модов (RCON) ───────────────────────

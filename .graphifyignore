@@ -1,0 +1,4 @@
+# Audit application, tests, and tooling rather than vendored assistant skills.
+.agents/
+.codex/
+graphify-out/

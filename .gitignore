@@ -60,3 +60,6 @@ Desktop.ini
 # Impeccable: local reports, preview state and platform engine cache
 /.impeccable/
 /.agents/skills/impeccable/scripts/bin/
+
+# Local Graphify graph, extraction cache, and reports
+/graphify-out/

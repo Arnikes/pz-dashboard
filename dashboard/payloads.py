@@ -183,17 +183,13 @@ GET_CHANNELS = {
     "/api/ops": "ops",
 }
 
+TELEMETRY_CHANNELS = frozenset(("overview", "players", "stats"))
+
 
 def stream_payload(name, *, telemetry=None):
-    if telemetry is not None:
-        monitoring = {
-            "overview": overview_payload,
-            "players": players_payload,
-            "stats": stats_payload,
-        }
-        if name in monitoring:
-            return monitoring[name](state_provider=telemetry.container_state)
     provider = PAYLOADS.get(name)
     if provider is None:
         return {"ok": False, "error": "нет такого потока"}
+    if telemetry is not None and name in TELEMETRY_CHANNELS:
+        return provider(state_provider=telemetry.container_state)
     return provider()

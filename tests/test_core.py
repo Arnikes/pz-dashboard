@@ -184,7 +184,7 @@ def test_local_digest_cache(monkeypatch):
     assert ops._LOCAL_DIGEST["image"].endswith(":latest")
 
 
-def test_parse_mods_ini(tmp_path, monkeypatch):
+def test_list_mods_reads_server_ini(tmp_path, monkeypatch):
     config.CFG["data_dir"] = str(tmp_path)
     monkeypatch.setattr(ops, "_ws_titles", lambda ids: {})
     server_dir = tmp_path / "Server"
@@ -197,9 +197,6 @@ def test_parse_mods_ini(tmp_path, monkeypatch):
         encoding="utf-8",
     )
     assert ops.list_server_inis() == ["servertest.ini"]
-    parsed = ops.parse_mods_ini("servertest.ini")
-    assert parsed["mods"] == ["tsarslib", "my mod", "SoloMod"]
-    assert parsed["items"] == ["111111111", "222222222"]
     res = ops.list_mods("servertest.ini")
     assert res["ok"] and res["file"] == "servertest.ini"
     assert res["mods"] == ["tsarslib", "my mod", "SoloMod"]
@@ -1083,17 +1080,19 @@ Key=1
 """
 
 
-def test_ini_replace_value():
-    """Замена значения с сохранением написания ключа; дописывание отсутствующего."""
-    out = ops._ini_replace_value(INI, "WorkshopItems", ["111"])
+def test_ini_edits_preserve_unrelated_content():
+    """Exercise the live lossless editor rather than the obsolete ops helper."""
+    from configformats import edit_ini
+
+    out = edit_ini(INI, {"WorkshopItems": "111"})
     assert "WorkshopItems=111\n" in out and "[Other]" in out
-    out = ops._ini_replace_value(INI, "mods", ["a", "b"])  # регистр ключа файла
+    out = edit_ini(INI, {"Mods": "a;b"})
     assert "Mods=a;b\n" in out and "Mods=" in out
-    out = ops._ini_replace_value(INI, "ClientMods", ["x"])  # нет строки — в конец
+    out = edit_ini(INI, {"ClientMods": "x"})
     assert out.rstrip().endswith("ClientMods=x")
     # многострочное значение (перенос с отступом) глотается целиком
     text = "Mods=aaa;\n  bbb;\n  ccc\nWorkshopItems=1\n"
-    out = ops._ini_replace_value(text, "Mods", ["one"])
+    out = edit_ini(text, {"Mods": "one"})
     assert out == "Mods=one\nWorkshopItems=1\n"
 
 
@@ -1119,7 +1118,9 @@ def test_mods_toggle_blocked_without_mapping(tmp_path, monkeypatch):
         },
     )
     with pytest.raises(ops.OpsError):
-        ops.set_mod_enabled("servertest.ini", "999999", enable=True)
+        configeditor.legacy_toggle(
+            {"file": "servertest.ini", "workshopId": "999999", "enable": True}
+        )
     assert (server_dir / "servertest.ini").read_text(encoding="utf-8") == INI
 
 

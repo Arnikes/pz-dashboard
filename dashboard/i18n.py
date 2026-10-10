@@ -258,19 +258,6 @@ def present(value, *, field=""):
     return value
 
 
-def stream_frame(frame):
-    if language() != "en" and not RU_CATALOG:
-        return frame
-    event, payload = frame.decode("utf-8").split("\ndata: ", 1)
-    translated = present(json.loads(payload))
-    return (
-        event
-        + "\ndata: "
-        + json.dumps(translated, ensure_ascii=False, separators=(",", ":"))
-        + "\n\n"
-    ).encode("utf-8")
-
-
 def manifest(body):
     data = json.loads(body)
     if language() == "en":

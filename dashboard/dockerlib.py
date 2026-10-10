@@ -304,7 +304,3 @@ def image_pull(image, timeout=1500):
 def compose_up(cfg, timeout=600):
     """Пересоздать сервис из compose (подхватывает новый образ)."""
     return sh(_compose_prefix(cfg) + ["up", "-d", cfg["pz_service"]], timeout=timeout)
-
-
-def compose_pull(cfg, timeout=1500):
-    return sh(_compose_prefix(cfg) + ["pull", cfg["pz_service"]], timeout=timeout)

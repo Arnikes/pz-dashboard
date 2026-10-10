@@ -76,6 +76,40 @@ When changing configuration or Workshop behavior, cover revisions, secret maskin
 and failed operations with isolated tests. Real integration uses the
 [separate acceptance stack](docs/acceptance-b42.md).
 
+## Graphify code audits
+
+Graphify is optional development tooling, installed separately from the pinned
+runtime/test environment. The project includes its Codex skill and navigation
+instructions. Install the version pinned in `requirements-graphify.txt`:
+
+```powershell
+uv tool install --python 3.12 --constraints requirements-graphify.txt graphifyy
+```
+
+The equivalent command works on Linux/WSL. Build a local code graph without an
+API key or semantic extraction of documents/images:
+
+```bash
+graphify extract . --code-only --no-cluster --max-workers 4
+graphify diagnose multigraph
+graphify cluster-only . --no-label --no-viz
+graphify export html
+graphify query "StreamCache"
+graphify affected "dashboard_ops_list_mods"
+```
+
+Results are in ignored `graphify-out/`: `graph.json`, `GRAPH_REPORT.md`, and
+`graph.html`. `.graphifyignore` excludes bundled assistant skills; application,
+test, and maintenance code remains in scope. After code edits, run
+`graphify update . --force` when intentionally deleting code. This AST-only
+update makes no model API calls. Run `graphify export html` to refresh the view.
+
+Use graph findings to select candidates, then verify source references,
+framework callbacks, and tests before deleting anything. A missing incoming
+edge does not prove dead code. Clustering can collapse multiple relations
+between the same endpoints; diagnose the unclustered graph first when auditing
+individual call sites. See the [audit record](docs/code-audit.md).
+
 ## Repository map
 
 | Path | Purpose |
