@@ -1510,5 +1510,6 @@
   "S3: скачивание не уложилось в таймаут (2400 с)": "S3: download exceeded the timeout (2400 s)",
   "S3: скачанный бэкап не прошёл проверку SHA-256": "S3: downloaded backup failed SHA-256 verification",
   "S3: скачивание бэкапа не удалось ({{0}})": "S3: backup download failed ({{0}})",
-  "S3: удаление бэкапа не удалось ({{0}})": "S3: backup deletion failed ({{0}})"
+  "S3: удаление бэкапа не удалось ({{0}})": "S3: backup deletion failed ({{0}})",
+  "Проверьте AWS_ACCESS_KEY_ID и AWS_SECRET_ACCESS_KEY в контейнере панели или настройку IAM-роли; AWS_SESSION_TOKEN не заменяет секретный ключ ({{0}})": "Check AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in the panel container or its IAM role configuration; AWS_SESSION_TOKEN does not replace the secret key ({{0}})"
 }

@@ -157,6 +157,24 @@ parameters, or fragments. Credentials are read through the SDK credential chain,
 never stored in panel settings or returned by its API. For an IAM workload role,
 omit access keys and configure role access on the host/container as appropriate.
 
+If the backup catalog reports `NoCredentialsError` or `PartialCredentialsError`,
+check the environment of the **panel container**. Both `AWS_ACCESS_KEY_ID` and
+`AWS_SECRET_ACCESS_KEY` must be present when using explicit credentials.
+`AWS_SESSION_TOKEN` is an additional field for temporary credentials, not a
+replacement for `AWS_SECRET_ACCESS_KEY`. `WS_ACCESS_KEY_ID` is not a recognized
+variable. Custom or older Compose files must forward the AWS variables to
+`pz-dashboard`; adding them to `.env` alone does not forward them automatically.
+Recreate the panel after editing its environment (include both `-f` arguments for
+an overlay):
+
+```bash
+docker compose up -d --build pz-dashboard
+```
+
+S3 failures are returned as a structured error in the backup catalog. The server
+overview continues working without requesting S3; its backup count is unknown
+until a successful catalog refresh, and while that snapshot is older than 30 seconds.
+
 Grant the panel `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject`, and
 `s3:AbortMultipartUpload` for its object prefix, plus `s3:ListBucket` on the bucket
 (restrict listing to that prefix). The bucket must already exist; the panel does

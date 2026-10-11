@@ -1093,9 +1093,22 @@ def list_backups():
 
 
 def count_backups():
-    """Count fresh archive entries without allocating, formatting or sorting a list."""
+    """Count local archives and a fresh S3 snapshot; None means the total is unknown."""
     if config.CFG.get("backup_s3_enabled", False):
-        return len(list_backups())
+        remote = backups3.cached_archives(config.CFG)
+        if remote is None:
+            return None
+        names = {item["name"] for item in remote}
+        try:
+            with os.scandir(config.CFG["backup_dir"]) as entries:
+                names.update(
+                    entry.name
+                    for entry in entries
+                    if entry.name.endswith(".tar.gz") and entry.is_file()
+                )
+        except OSError:
+            pass
+        return len(names)
     try:
         with os.scandir(config.CFG["backup_dir"]) as entries:
             return sum(entry.name.endswith(".tar.gz") and entry.is_file() for entry in entries)

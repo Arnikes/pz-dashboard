@@ -9,6 +9,7 @@ import config
 import dockerlib
 import ops
 import rcon
+from errors import OpsError
 
 
 def players_payload(*, state_provider=None):
@@ -51,11 +52,15 @@ def backup_journal_payload(limit=25, offset=0):
 
 
 def backups_payload():
+    try:
+        items = ops.list_backups()
+    except OpsError as error:
+        return {"ok": False, "error": str(error)}
     s = ops.get_settings()
     journal = backup_journal_payload()
     return {
         "ok": True,
-        "items": ops.list_backups(),
+        "items": items,
         "maxBackups": s["backup"]["maxBackups"],
         "settingsVersion": s.get("version"),
         "autoBackup": ops.auto_backup_state(),

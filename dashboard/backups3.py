@@ -12,7 +12,12 @@ from urllib.parse import urlsplit
 import boto3
 from boto3.s3.transfer import TransferConfig
 from botocore.config import Config
-from botocore.exceptions import BotoCoreError, ClientError
+from botocore.exceptions import (
+    BotoCoreError,
+    ClientError,
+    NoCredentialsError,
+    PartialCredentialsError,
+)
 from boto3.exceptions import S3UploadFailedError
 
 from errors import OpsError
@@ -50,10 +55,8 @@ def invalidate():
         _CACHE.clear()
 
 
-def list_archives(cfg):
-    """Enumerate only this panel's archive namespace, caching monitoring reads."""
-    validate(cfg)
-    signature = tuple(
+def _signature(cfg):
+    return tuple(
         cfg.get(key)
         for key in (
             "backup_s3_bucket",
@@ -63,9 +66,40 @@ def list_archives(cfg):
             "backup_s3_addressing_style",
         )
     )
+
+
+def _error_detail(error):
+    if isinstance(error, (NoCredentialsError, PartialCredentialsError)):
+        return (
+            "Проверьте AWS_ACCESS_KEY_ID и AWS_SECRET_ACCESS_KEY в контейнере панели "
+            f"или настройку IAM-роли; AWS_SESSION_TOKEN не заменяет секретный ключ ({type(error).__name__})"
+        )
+    # SDK exception text can contain credentials or endpoint URLs.
+    return type(error).__name__
+
+
+def cached_archives(cfg):
+    """Return a fresh catalog or None, without network I/O or waiting for a refresh."""
+    if not _CACHE_LOCK.acquire(blocking=False):
+        return None
+    try:
+        cached = _CACHE.get(_signature(cfg))
+        if not cached or time.monotonic() - cached[0] >= 30 or cached[2]:
+            return None
+        return [dict(item) for item in cached[1]]
+    finally:
+        _CACHE_LOCK.release()
+
+
+def list_archives(cfg):
+    """Enumerate this panel's archives; share successful and failed reads for 30 s."""
+    validate(cfg)
+    signature = _signature(cfg)
     with _CACHE_LOCK:
         cached = _CACHE.get(signature)
         if cached and time.monotonic() - cached[0] < 30:
+            if cached[2]:
+                raise OpsError(cached[2])
             return [dict(item) for item in cached[1]]
         items = []
         prefix = _prefix(cfg)
@@ -88,9 +122,11 @@ def list_archives(cfg):
                             }
                         )
         except (BotoCoreError, ClientError, OSError, ValueError) as error:
-            raise OpsError(f"S3: список бэкапов недоступен ({type(error).__name__})") from error
+            message = f"S3: список бэкапов недоступен ({_error_detail(error)})"
+            _CACHE[signature] = time.monotonic(), [], message
+            raise OpsError(message) from error
         items.sort(key=lambda item: item["mtime"], reverse=True)
-        _CACHE[signature] = time.monotonic(), items
+        _CACHE[signature] = time.monotonic(), items, None
         return [dict(item) for item in items]
 
 
@@ -127,7 +163,7 @@ def download(name, dest, cfg, phase):
             if received != response["ContentLength"] or digest.hexdigest() != expected:
                 raise OpsError("S3: скачанный бэкап не прошёл проверку SHA-256")
     except (BotoCoreError, ClientError, OSError, ValueError) as error:
-        raise OpsError(f"S3: скачивание бэкапа не удалось ({type(error).__name__})") from error
+        raise OpsError(f"S3: скачивание бэкапа не удалось ({_error_detail(error)})") from error
 
 
 def delete(name, cfg):
@@ -136,7 +172,7 @@ def delete(name, cfg):
         with _client(cfg) as client:
             client.delete_object(Bucket=cfg["backup_s3_bucket"], Key=key)
     except (BotoCoreError, ClientError, OSError, ValueError) as error:
-        raise OpsError(f"S3: удаление бэкапа не удалось ({type(error).__name__})") from error
+        raise OpsError(f"S3: удаление бэкапа не удалось ({_error_detail(error)})") from error
     invalidate()
 
 
@@ -227,9 +263,9 @@ def upload_verified(path, cfg, phase):
                     "S3: контрольная сумма бэкапа не совпадает, локальная копия сохранена"
                 )
     except (BotoCoreError, ClientError, S3UploadFailedError, OSError, ValueError) as error:
-        # SDK errors may include endpoint URLs or credentials. Report only the type.
+        # Keep SDK text private; add only our own credential configuration hint.
         raise OpsError(
-            f"S3: выгрузка не завершена, локальная копия сохранена ({type(error).__name__})"
+            f"S3: выгрузка не завершена, локальная копия сохранена ({_error_detail(error)})"
         ) from error
     invalidate()
     phase("Удаление локальной копии бэкапа", name)

@@ -11,14 +11,17 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import Mock
 from urllib.parse import parse_qs, urlsplit
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
-from botocore.exceptions import ClientError, NoCredentialsError
+from botocore.exceptions import ClientError, NoCredentialsError, PartialCredentialsError
 
 import backups3
 import config
 import i18n
 import ops
+import payloads
+from test_api import api as api  # noqa: F401
 
 
 @pytest.fixture
@@ -118,6 +121,103 @@ def s3_client(monkeypatch):
     client = Client()
     monkeypatch.setattr(backups3.boto3, "client", Mock(return_value=client))
     return client
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+@pytest.mark.parametrize(
+    "error", [NoCredentialsError(), PartialCredentialsError(provider="env", cred_var="secret_key")]
+)
+def test_missing_s3_credentials_return_json_without_breaking_overview(
+    api, backup_env, s3_client, monkeypatch, language, error
+):
+    paginator = Mock(side_effect=error)
+    monkeypatch.setattr(s3_client, "get_paginator", paginator)
+    monkeypatch.setattr(ops, "docker_ok_cached", lambda: False)
+    monkeypatch.setattr(ops, "container_state", lambda: None)
+    monkeypatch.setattr(ops, "local_digest_cached", lambda **kwargs: None)
+    headers = {"x-pz-language": language}
+    status, overview = api("GET", "/api/overview", headers=headers)
+    assert status == 200 and overview["ok"] and overview["backupsCount"] is None
+    paginator.assert_not_called()
+    for _ in range(2):
+        status, catalog = api("GET", "/api/backups", headers=headers)
+        assert status == 200 and not catalog["ok"]
+        assert "AWS_SECRET_ACCESS_KEY" in catalog["error"]
+        assert type(error).__name__ in catalog["error"]
+        assert (
+            "Check AWS_ACCESS_KEY_ID" if language == "en" else "Проверьте AWS_ACCESS_KEY_ID"
+        ) in catalog["error"]
+    assert paginator.call_count == 1
+    token = i18n.LANGUAGE.set(language)
+    try:
+        frame = payloads.StreamCache().frame("backups", 10).decode()
+    finally:
+        i18n.LANGUAGE.reset(token)
+    assert json.loads(frame.split("data: ", 1)[1])["error"] == catalog["error"]
+    status, overview = api("GET", "/api/overview", headers=headers)
+    assert status == 200 and overview["ok"] and overview["backupsCount"] is None
+    assert paginator.call_count == 1
+
+
+def test_s3_catalog_recovers_after_failed_cache_expires(backup_env, s3_client, monkeypatch):
+    _, cfg = backup_env
+    clock = [10.0]
+    monkeypatch.setattr(backups3.time, "monotonic", lambda: clock[0])
+    paginator = Mock(side_effect=[NoCredentialsError(), Mock(paginate=Mock(return_value=[]))])
+    monkeypatch.setattr(s3_client, "get_paginator", paginator)
+    for _ in range(2):
+        with pytest.raises(ops.OpsError, match="AWS_SECRET_ACCESS_KEY"):
+            backups3.list_archives(cfg)
+    assert paginator.call_count == 1 and ops.count_backups() is None
+    clock[0] += 30
+    assert backups3.list_archives(cfg) == []
+    assert paginator.call_count == 2 and ops.count_backups() == 0
+    clock[0] += 30
+    assert ops.count_backups() is None
+    assert paginator.call_count == 2
+
+
+def test_s3_count_does_not_wait_for_slow_catalog_refresh(backup_env, s3_client, monkeypatch):
+    _, cfg = backup_env
+    entered, release = threading.Event(), threading.Event()
+
+    def paginate(**kwargs):
+        entered.set()
+        assert release.wait(5)
+        return []
+
+    monkeypatch.setattr(s3_client, "get_paginator", lambda operation: Mock(paginate=paginate))
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        refresh = executor.submit(backups3.list_archives, cfg)
+        try:
+            assert entered.wait(2)
+            assert executor.submit(ops.count_backups).result(timeout=2) is None
+        finally:
+            release.set()
+        assert refresh.result(timeout=2) == []
+    assert ops.count_backups() == 0
+
+
+def test_s3_count_merges_fresh_local_files_without_duplicate_names(backup_env, s3_client):
+    _, cfg = backup_env
+    name = "pz-backup-20261010-030000-" + "a" * 32 + ".tar.gz"
+    s3_client.pages = [
+        {
+            "Contents": [
+                {"Key": "server-one/" + name, "Size": 7, "LastModified": datetime.now(timezone.utc)}
+            ]
+        }
+    ]
+    backups3.list_archives(cfg)
+    local = Path(cfg["backup_dir"])
+    local.mkdir()
+    (local / name).write_bytes(b"archive")
+    assert ops.count_backups() == 1
+    extra = local / "retained-local.tar.gz"
+    extra.write_bytes(b"retained")
+    assert ops.count_backups() == 2
+    extra.unlink()
+    assert ops.count_backups() == 1
 
 
 @pytest.mark.parametrize("trigger", ["manual", "scheduled", "update", "config"])
