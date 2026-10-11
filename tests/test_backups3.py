@@ -469,6 +469,20 @@ def test_real_sdk_upload_and_readback_on_loopback(tmp_path, monkeypatch, multipa
 
         def do_GET(self):
             methods.append("GET")
+            if parse_qs(urlsplit(self.path).query).get("list-type") == ["2"]:
+                key = next(iter(objects)).split("/", 2)[-1]
+                content = next(iter(objects.values()))
+                self.respond(
+                    (
+                        '<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
+                        "<IsTruncated>false</IsTruncated><Contents>"
+                        f"<Key>{key}</Key><Size>{len(content)}</Size>"
+                        '<ETag>"test-object"</ETag>'
+                        "<LastModified>2026-10-10T03:00:00.987Z</LastModified>"
+                        "</Contents></ListBucketResult>"
+                    ).encode()
+                )
+                return
             content = objects[urlsplit(self.path).path]
             self.respond(
                 content,
@@ -516,7 +530,13 @@ def test_real_sdk_upload_and_readback_on_loopback(tmp_path, monkeypatch, multipa
         identity = backups3.download(remote_name, str(downloaded), cfg, Mock())
         assert downloaded.read_bytes() == content
         assert backupverify.lookup(remote_name, "s3", identity, cfg, backupverify.receipts(cfg))
+        catalog = backups3.list_archives(cfg)
+        assert catalog[0]["name"] == remote_name
+        assert backupverify.lookup(
+            remote_name, "s3", catalog[0]["identity"], cfg, backupverify.receipts(cfg)
+        )
     finally:
+        backups3.invalidate()
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
@@ -749,12 +769,16 @@ def remote_catalog(s3_client, name, cfg):
     backups3.invalidate()
 
 
+@pytest.mark.parametrize("microseconds", [0, 987000])
 def test_export_receipt_survives_cache_reset_and_does_not_require_another_download(
-    backup_env, s3_client, monkeypatch
+    backup_env, s3_client, monkeypatch, microseconds
 ):
     root, cfg = backup_env
     exported = ops.run_backup_job("manual", False)
     remote_catalog(s3_client, exported["name"], cfg)
+    s3_client.pages[0]["Contents"][0]["LastModified"] = s3_client.modified.replace(
+        microsecond=microseconds
+    )
     monkeypatch.setattr(s3_client, "get_object", Mock(side_effect=AssertionError("no readback")))
     receipt = ops.list_backups()[0]["verification"]
     assert receipt["files"] == 2 and receipt["hasMapData"] and receipt["hasServerIni"]
@@ -787,15 +811,21 @@ def test_remote_receipt_does_not_trust_changed_objects_or_storage(backup_env, s3
     assert ops.list_backups()[0]["verification"] is None
 
 
+@pytest.mark.parametrize("microseconds", [0, 987000])
 def test_old_remote_backup_can_be_checked_once_and_failed_recheck_revokes_receipt(
-    backup_env, s3_client
+    backup_env, s3_client, microseconds
 ):
     _, cfg = backup_env
     exported = ops.run_backup_job("manual", False)
     backupverify.forget(exported["name"], "s3", cfg)
     remote_catalog(s3_client, exported["name"], cfg)
+    s3_client.pages[0]["Contents"][0]["LastModified"] = s3_client.modified.replace(
+        microsecond=microseconds
+    )
     assert ops.list_backups()[0]["verification"] is None
     ops.verify_backup(exported["name"])
+    assert ops.list_backups()[0]["verification"]
+    backups3.invalidate()
     assert ops.list_backups()[0]["verification"]
     s3_client.corrupt = True
     with pytest.raises(ops.OpsError, match="SHA-256"):

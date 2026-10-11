@@ -24,14 +24,18 @@ def local_identity(path):
 
 
 def s3_identity(obj):
-    """ETag identifies content; modification time also catches metadata replacement."""
+    """Compare GET and LIST metadata at their shared timestamp precision.
+
+    GET's HTTP Last-Modified header has whole seconds, while LIST's XML may
+    include fractions. ETag and size still detect content changes within a second.
+    """
     modified = obj.get("LastModified")
     if not obj.get("ETag") or not isinstance(modified, datetime):
         return None
     return {
         "size": obj.get("Size", obj.get("ContentLength")),
         "etag": obj["ETag"],
-        "mtime": modified.astimezone(timezone.utc).isoformat(),
+        "mtime": modified.astimezone(timezone.utc).isoformat(timespec="seconds"),
     }
 
 
