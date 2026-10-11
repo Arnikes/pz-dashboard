@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Ядро пульта: события, настройки, операции (старт/стоп/бэкапы/обновления),
-планировщик автообновления. Всё на стандартной библиотеке."""
+"""Panel events, settings, server operations, backups and schedulers."""
 
 import json
 import gzip
@@ -19,6 +18,7 @@ import uuid
 import zlib
 from collections import Counter, deque
 from contextvars import ContextVar
+from contextlib import contextmanager
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from itertools import islice
@@ -27,6 +27,7 @@ import config
 import i18n
 import fileio
 import settingsmodel
+import backups3
 from settingsmodel import DEFAULTS as _DEFAULTS
 from errors import OpsError as OpsError, OpsErrorReported as OpsErrorReported
 import dockerlib
@@ -1073,13 +1074,28 @@ def list_backups():
                     )
                 )
     except OSError:
-        return []
+        pass
     items.sort(key=lambda x: x[0], reverse=True)
-    return [item for _, item in items]
+    local = [item for _, item in items]
+    if config.CFG.get("backup_s3_enabled", False):
+        names = {item["name"] for item in local}
+        remote = [
+            dict(item, sizeText=fmt_size(item["size"]), mtime=_iso_ts(item["mtime"]))
+            for item in backups3.list_archives(config.CFG)
+            if item["name"] not in names
+        ]
+        return sorted(
+            local + remote,
+            key=lambda item: datetime.fromisoformat(item["mtime"]).timestamp(),
+            reverse=True,
+        )
+    return local
 
 
 def count_backups():
     """Count fresh archive entries without allocating, formatting or sorting a list."""
+    if config.CFG.get("backup_s3_enabled", False):
+        return len(list_backups())
     try:
         with os.scandir(config.CFG["backup_dir"]) as entries:
             return sum(entry.name.endswith(".tar.gz") and entry.is_file() for entry in entries)
@@ -1154,6 +1170,8 @@ def _create_backup_archive(bdir, ddir):
 
 
 def _do_backup(stop_server, trigger="manual", started=None):
+    s3_cfg = dict(config.CFG)
+    backups3.validate(s3_cfg)
     bdir, ddir = _backup_paths()
     started = started if started is not None else time.time()
     os.makedirs(bdir, exist_ok=True)
@@ -1199,7 +1217,30 @@ def _do_backup(stop_server, trigger="manual", started=None):
             if restart_error:
                 message = f"{archive_error}. {restart_error}" if archive_error else restart_error
                 raise OpsError(message) from archive_error
-    pruned = _prune_backups(get_settings()["backup"]["maxBackups"])
+    pruned = 0
+    if s3_cfg.get("backup_s3_enabled", False):
+        try:
+            verify_backup(name)
+            dest = backups3.upload_verified(dest, s3_cfg, _set_phase)
+        except (OpsError, OSError) as error:
+            _journal_append(
+                {
+                    "trigger": trigger,
+                    "name": name,
+                    "size": size,
+                    "path": dest,
+                    "status": "error",
+                    "error": str(error)[:300],
+                    "duration": round(time.time() - started, 1),
+                }
+            )
+            label = "по расписанию" if trigger == "scheduled" else "вручную"
+            log_event("error", f"Бэкап ({label}) не удался: {error}")
+            raise OpsErrorReported(str(error)) from error
+        log_event("backup", f"Бэкап сохранён в S3: {dest}")
+        name = dest.rsplit("/", 1)[-1]
+    else:
+        pruned = _prune_backups(get_settings()["backup"]["maxBackups"])
     label = "по расписанию" if trigger == "scheduled" else "вручную"
     log_event("backup", f"Бэкап создан ({label}): {name} ({fmt_size(size)})")
     _journal_append(
@@ -1215,7 +1256,12 @@ def _do_backup(stop_server, trigger="manual", started=None):
     if pruned:
         log_event("backup-delete", f"Удалено старых бэкапов: {pruned}")
     _set_phase("Готово", f"Бэкап {name} создан")
-    return {"name": name, "size": size}
+    return {
+        "name": name,
+        "size": size,
+        "path": dest,
+        "storage": "s3" if s3_cfg.get("backup_s3_enabled", False) else "local",
+    }
 
 
 def run_backup_job(trigger, stop_server):
@@ -1226,6 +1272,8 @@ def run_backup_job(trigger, stop_server):
     started = time.time()
     try:
         return _do_backup(stop_server, trigger=trigger, started=started)
+    except OpsErrorReported:
+        raise
     except (OpsError, OSError) as e:
         label = "по расписанию" if trigger == "scheduled" else "вручную"
         _journal_append(
@@ -1240,16 +1288,39 @@ def run_backup_job(trigger, stop_server):
         raise OpsErrorReported(str(e)) from e
 
 
-def _validate_backup_name(name):
+def _backup_local_candidate(name):
     if not isinstance(name, str) or not _NAME_RE.fullmatch(name) or not name.endswith(".tar.gz"):
         raise OpsError("Некорректное имя бэкапа")
     path = os.path.join(config.CFG["backup_dir"], name)
     real = os.path.realpath(path)
     if not real.startswith(os.path.realpath(config.CFG["backup_dir"]) + os.sep):
         raise OpsError("Некорректный путь бэкапа")
+    return real
+
+
+def _validate_backup_name(name):
+    real = _backup_local_candidate(name)
     if not os.path.isfile(real):
         raise OpsError("Файл бэкапа не найден")
     return real
+
+
+@contextmanager
+def backup_source(name, *, report_phase=True):
+    """Yield a local archive or a private S3 download, cleaned up on every exit."""
+    cfg = dict(config.CFG)
+    if not cfg.get("backup_s3_enabled", False):
+        yield backup_download_path(name)
+        return
+    path = _backup_local_candidate(name)
+    if os.path.isfile(path):
+        yield path
+        return
+    os.makedirs(cfg["backup_dir"], exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".s3-download-", dir=cfg["backup_dir"]) as temp:
+        path = os.path.join(temp, "archive.tar.gz")
+        backups3.download(name, path, cfg, _set_phase if report_phase else lambda *args: None)
+        yield path
 
 
 def _validate_backup_gzip(path, timeout=900):
@@ -1360,14 +1431,16 @@ def _restore_prepared(dest, name):
 
 
 def _do_restore(name):
-    path = _validate_backup_name(name)
     if not os.path.isdir(config.CFG["data_dir"]):
         raise OpsError("Каталог данных PZ не смонтирован")
     os.makedirs(config.CFG["dashboard_dir"], exist_ok=True)
     try:
-        with tempfile.TemporaryDirectory(
-            prefix="restore-tmp-", dir=config.CFG["dashboard_dir"]
-        ) as dest:
+        with (
+            backup_source(name) as path,
+            tempfile.TemporaryDirectory(
+                prefix="restore-tmp-", dir=config.CFG["dashboard_dir"]
+            ) as dest,
+        ):
             _set_phase("Проверка архива перед восстановлением", name)
             _extract_backup(path, dest)
             _restore_prepared(dest, name)
@@ -1376,8 +1449,13 @@ def _do_restore(name):
 
 
 def delete_backup(name):
-    path = _validate_backup_name(name)
-    os.remove(path)
+    path = _backup_local_candidate(name)
+    if os.path.isfile(path):
+        os.remove(path)
+    elif config.CFG.get("backup_s3_enabled", False):
+        backups3.delete(name, config.CFG)
+    else:
+        raise OpsError("Файл бэкапа не найден")
     log_event("backup-delete", f"Бэкап удалён: {name}")
 
 
@@ -1388,7 +1466,11 @@ def backup_download_path(name):
 def verify_backup(name):
     """Контрольная проверка архива: целостность gzip/tar и распаковка во
     временную папку с подсчётом файлов. Данные сервера не затрагивает."""
-    path = _validate_backup_name(name)
+    with backup_source(name) as path:
+        return _verify_backup_path(name, path)
+
+
+def _verify_backup_path(name, path):
     started = time.time()
     _set_phase("Проверка и распаковка в песочницу", name)
     os.makedirs(config.CFG["dashboard_dir"], exist_ok=True)

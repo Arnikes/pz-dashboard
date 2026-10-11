@@ -135,6 +135,37 @@ game-image variables in the full example. See the
 [upstream image reference](https://github.com/indifferentbroccoli/projectzomboid-server-docker)
 for additional game settings. A blank `SERVER_BRANCH` selects the default Steam branch.
 
+## Optional S3 backup export
+
+The panel includes the pinned AWS SDK and supports AWS S3 and S3-compatible endpoints.
+Export is disabled by default. Set these variables in `.env` for either supplied
+Compose example, then recreate the panel:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `BACKUP_S3_ENABLED` | `false` | Set `true` or `1` to export every new world backup |
+| `BACKUP_S3_BUCKET` | Empty | Existing destination bucket; required when enabled |
+| `BACKUP_S3_ENDPOINT_URL` | Empty | Optional HTTP/HTTPS S3 endpoint; empty selects AWS |
+| `BACKUP_S3_REGION` | `us-east-1` | Signing region |
+| `BACKUP_S3_PREFIX` | `pz-backups` | Object prefix; distinct per server; empty uses bucket root |
+| `BACKUP_S3_ADDRESSING_STYLE` | `auto` | `auto`, `path` (e.g. MinIO), or `virtual` |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Empty | SDK access credentials, forwarded only to the panel |
+| `AWS_SESSION_TOKEN` | Empty | Optional token for temporary credentials |
+
+Use HTTPS for a remote provider. Endpoint URLs must not contain credentials, query
+parameters, or fragments. Credentials are read through the SDK credential chain,
+never stored in panel settings or returned by its API. For an IAM workload role,
+omit access keys and configure role access on the host/container as appropriate.
+
+Grant the panel `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject`, and
+`s3:AbortMultipartUpload` for its object prefix, plus `s3:ListBucket` on the bucket
+(restrict listing to that prefix). The bucket must already exist; the panel does
+not create buckets. Provider encryption policies may
+require additional KMS permissions. Each upload uses a unique key and confirms
+its content by a full read-back before local deletion. Reserve enough local space
+for both the compressed archive and temporary verification extraction. See
+[export behavior and automatic S3 restore](operations.md#optional-s3-export).
+
 ## Updates
 
 Rebuild the panel after changing code:

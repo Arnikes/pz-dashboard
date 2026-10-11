@@ -78,6 +78,50 @@ Keep a separate copy of important backups. For a recovery rehearsal, restore int
 a separate game instance with its own volumes and confirm that the world and configuration
 load. Archive verification alone does not prove the world behaves correctly in-game.
 
+### Optional S3 export
+
+Set `BACKUP_S3_ENABLED=true` and `BACKUP_S3_BUCKET` in the panel environment.
+The supplied Compose examples forward these variables from `.env`; recreate the
+panel after changing them. See [S3 configuration](installation.md#optional-s3-backup-export).
+Local storage remains the default. Export applies to every newly created world
+backup, including manual, scheduled, pre-update, and pre-configuration backups.
+
+Each export creates the local archive, verifies the entire gzip stream and safely
+extracts the tar into a temporary directory, uploads it, then reads the complete
+S3 object back and compares its size and SHA-256 with the local archive. Only then
+is the local archive deleted. Verification cannot be disabled for S3. Backups using
+the stop-server option restart the game after archive creation, before verification
+and network transfer. Configuration application may keep the server stopped across
+its nested backup and subsequent file changes.
+
+Unique object keys prevent same-second backups or multiple panel instances from
+overwriting previous exports. Successful journal entries contain the `s3://` object
+location. Verification, upload, read-back, or local-deletion failures fail the backup
+operation and retain the local archive; dependent updates/configuration changes
+do not proceed. S3 diagnostics omit SDK error details that could expose credentials.
+Transfer and read-back share a 2400-second deadline, checked between chunks, with
+10-second connection and 60-second read timeouts and up to three request attempts.
+Read-back downloads the full archive and incurs storage-provider bandwidth charges.
+
+When S3 is enabled, the archive list combines local archives and exported objects
+in the configured bucket/prefix. Remote listings are cached for 30 seconds and
+invalidated after panel uploads/deletions. Download, verification, restore, and
+deletion work directly from the panel. Before restore, the panel downloads the
+selected S3 object into a private temporary directory, checks its size and stored
+SHA-256, then validates and extracts the gzip/tar before stopping the game or
+replacing world files. Any download or validation failure leaves the live world
+untouched. Temporary downloads are removed after success or failure; local source
+archives and remote objects remain available after restore. Remote object names
+include their UUID, so same-second backups are independently selectable. Only
+panel-generated archive names directly under the configured prefix are listed;
+unrelated objects and nested prefixes are excluded. Existing local archives are not
+exported automatically. If S3 is disabled, only local backups are accessible.
+While S3 is enabled, local retention is skipped so failed exports remain available;
+monitor disk space and retry or remove them manually. Manage remote retention with
+bucket lifecycle rules; `backup.maxBackups` applies only in local mode.
+Configure a lifecycle rule to abort incomplete multipart uploads after a suitable
+interval to clean up transfers interrupted by process termination.
+
 ## Image and Workshop updates
 
 Image checks compare the running container's local digest with the registry digest.

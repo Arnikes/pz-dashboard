@@ -31,6 +31,12 @@ CFG = {
     "compose_project": os.getenv("COMPOSE_PROJECT_NAME", ""),
     "data_dir": os.getenv("DATA_DIR", "/data"),  # смонтированные данные PZ
     "backup_dir": os.getenv("BACKUP_DIR", "/backups"),
+    "backup_s3_enabled": os.getenv("BACKUP_S3_ENABLED", "false").lower() in ("true", "1"),
+    "backup_s3_bucket": os.getenv("BACKUP_S3_BUCKET", "").strip(),
+    "backup_s3_endpoint": os.getenv("BACKUP_S3_ENDPOINT_URL", "").strip(),
+    "backup_s3_region": os.getenv("BACKUP_S3_REGION", "us-east-1").strip(),
+    "backup_s3_prefix": os.getenv("BACKUP_S3_PREFIX", "pz-backups").strip().strip("/"),
+    "backup_s3_addressing_style": os.getenv("BACKUP_S3_ADDRESSING_STYLE", "auto").strip(),
     "dashboard_dir": os.getenv("DASHBOARD_DIR", "/dashboard-data"),
     "server_name": os.getenv("PZ_SERVER_NAME", "Project Zomboid"),
     "log_lines": _int("LOG_LINES", 250),

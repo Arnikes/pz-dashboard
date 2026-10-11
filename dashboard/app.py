@@ -206,10 +206,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def _serve_backup(self, name):
         try:
-            path = ops.backup_download_path(name)
+            with ops.backup_source(name, report_phase=False) as path:
+                self._serve_backup_path(path)
         except ops.OpsError as e:
             self._send_error_json(400, str(e))
-            return
+        except OSError:
+            self._send_error_json(404, "Файл бэкапа не найден")
+
+    def _serve_backup_path(self, path):
         try:
             source = open(path, "rb")
         except OSError:
