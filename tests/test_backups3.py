@@ -17,6 +17,7 @@ import pytest
 from botocore.exceptions import ClientError, NoCredentialsError, PartialCredentialsError
 
 import backups3
+import backupverify
 import config
 import i18n
 import ops
@@ -77,6 +78,7 @@ def s3_client(monkeypatch):
         missing_checksum = False
         pages = []
         body = None
+        modified = datetime(2026, 10, 10, 3, tzinfo=timezone.utc)
 
         def __enter__(self):
             return self
@@ -104,6 +106,8 @@ def s3_client(monkeypatch):
             self.body = io.BytesIO(stored)
             return {
                 "ContentLength": len(stored) + int(self.wrong_size),
+                "ETag": '"' + hashlib.md5(self.stored).hexdigest() + '"',
+                "LastModified": self.modified,
                 "Body": self.body,
                 "Metadata": {}
                 if self.missing_checksum
@@ -299,7 +303,9 @@ def test_invalid_archive_never_contacts_s3(backup_env, s3_client, monkeypatch, b
     assert not (root / "escape").exists()
 
 
-@pytest.mark.parametrize("failure", ["upload", "credentials", "read", "checksum", "size", "delete"])
+@pytest.mark.parametrize(
+    "failure", ["upload", "credentials", "read", "checksum", "metadata", "size", "delete"]
+)
 def test_export_failures_keep_current_and_previous_archives(
     backup_env, s3_client, monkeypatch, failure
 ):
@@ -318,6 +324,8 @@ def test_export_failures_keep_current_and_previous_archives(
         s3_client.read_error = secret_error
     elif failure == "checksum":
         s3_client.corrupt = True
+    elif failure == "metadata":
+        s3_client.missing_checksum = True
     elif failure == "size":
         s3_client.wrong_size = True
     else:
@@ -410,7 +418,7 @@ def test_deadline_retains_local_archive(backup_env, s3_client, monkeypatch):
     root, cfg = backup_env
     ticks = iter([0, 2401])
     monkeypatch.setattr(backups3.time, "monotonic", lambda: next(ticks))
-    path = root / "archive.tar.gz"
+    path = root / "pz-backup-20261010-030000.tar.gz"
     path.write_bytes(b"bytes")
     with pytest.raises(ops.OpsError, match="2400"):
         backups3.upload_verified(str(path), cfg, Mock())
@@ -462,7 +470,14 @@ def test_real_sdk_upload_and_readback_on_loopback(tmp_path, monkeypatch, multipa
         def do_GET(self):
             methods.append("GET")
             content = objects[urlsplit(self.path).path]
-            self.respond(content, **{"x-amz-meta-sha256": hashlib.sha256(content).hexdigest()})
+            self.respond(
+                content,
+                **{
+                    "x-amz-meta-sha256": hashlib.sha256(content).hexdigest(),
+                    "ETag": '"test-object"',
+                    "Last-Modified": "Sat, 10 Oct 2026 03:00:00 GMT",
+                },
+            )
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -479,9 +494,17 @@ def test_real_sdk_upload_and_readback_on_loopback(tmp_path, monkeypatch, multipa
         "backup_s3_prefix": "",
         "backup_s3_endpoint": f"http://127.0.0.1:{server.server_port}",
         "backup_s3_addressing_style": "path",
+        "dashboard_dir": str(tmp_path / "panel"),
     }
     try:
-        location = backups3.upload_verified(str(path), cfg, Mock())
+        verification = {
+            "files": 1,
+            "totalSize": len(content),
+            "hasServerIni": True,
+            "hasMapData": True,
+            "identity": backupverify.local_identity(path),
+        }
+        location = backups3.upload_verified(str(path), cfg, Mock(), verification=verification)
         assert location.startswith("s3://test-backups/pz-backup-20261010-030000-")
         assert list(objects.values()) == [content]
         assert not path.exists()
@@ -490,8 +513,9 @@ def test_real_sdk_upload_and_readback_on_loopback(tmp_path, monkeypatch, multipa
         downloaded = tmp_path / "downloaded.tar.gz"
         # Fetch the actual exported object through the same streaming SDK path as restore.
         remote_name = location.rsplit("/", 1)[-1]
-        backups3.download(remote_name, str(downloaded), cfg, Mock())
+        identity = backups3.download(remote_name, str(downloaded), cfg, Mock())
         assert downloaded.read_bytes() == content
+        assert backupverify.lookup(remote_name, "s3", identity, cfg, backupverify.receipts(cfg))
     finally:
         server.shutdown()
         server.server_close()
@@ -559,7 +583,9 @@ def test_restore_downloads_and_checks_s3_before_stopping_or_replacing_world(
     assert s3_client.stored and s3_client.body.closed
 
 
-@pytest.mark.parametrize("failure", ["network", "size", "checksum", "metadata", "gzip", "unsafe"])
+@pytest.mark.parametrize(
+    "failure", ["network", "size", "oversize", "checksum", "metadata", "gzip", "unsafe"]
+)
 def test_failed_s3_restore_never_stops_server_or_touches_world(
     backup_env, s3_client, monkeypatch, failure
 ):
@@ -573,6 +599,8 @@ def test_failed_s3_restore_never_stops_server_or_touches_world(
         )
     elif failure == "size":
         s3_client.wrong_size = True
+    elif failure == "oversize":
+        s3_client.wrong_size = -1
     elif failure == "checksum":
         s3_client.corrupt = True
     elif failure == "metadata":
@@ -701,3 +729,194 @@ def test_delete_failure_retains_remote_catalog_entry(backup_env, s3_client):
     with pytest.raises(ops.OpsError, match="NoCredentialsError"):
         ops.delete_backup(exported["name"])
     assert not hasattr(s3_client, "deleted")
+
+
+def remote_catalog(s3_client, name, cfg):
+    response = s3_client.get_object()
+    response["Body"].close()
+    s3_client.pages = [
+        {
+            "Contents": [
+                {
+                    "Key": cfg["backup_s3_prefix"].strip("/") + "/" + name,
+                    "Size": response["ContentLength"],
+                    "ETag": response["ETag"],
+                    "LastModified": response["LastModified"],
+                }
+            ]
+        }
+    ]
+    backups3.invalidate()
+
+
+def test_export_receipt_survives_cache_reset_and_does_not_require_another_download(
+    backup_env, s3_client, monkeypatch
+):
+    root, cfg = backup_env
+    exported = ops.run_backup_job("manual", False)
+    remote_catalog(s3_client, exported["name"], cfg)
+    monkeypatch.setattr(s3_client, "get_object", Mock(side_effect=AssertionError("no readback")))
+    receipt = ops.list_backups()[0]["verification"]
+    assert receipt["files"] == 2 and receipt["hasMapData"] and receipt["hasServerIni"]
+    assert receipt["verifiedAt"]
+    assert (root / "panel/backup-verifications.json").is_file()
+    backups3.invalidate()
+    assert ops.list_backups()[0]["verification"] == receipt
+
+
+@pytest.mark.parametrize("change", ["etag", "size", "mtime", "endpoint", "region", "missing-etag"])
+def test_remote_receipt_does_not_trust_changed_objects_or_storage(backup_env, s3_client, change):
+    _, cfg = backup_env
+    exported = ops.run_backup_job("manual", False)
+    remote_catalog(s3_client, exported["name"], cfg)
+    assert ops.list_backups()[0]["verification"]
+    obj = s3_client.pages[0]["Contents"][0]
+    if change == "etag":
+        obj["ETag"] = '"changed"'
+    elif change == "size":
+        obj["Size"] += 1
+    elif change == "mtime":
+        obj["LastModified"] = datetime(2026, 10, 11, tzinfo=timezone.utc)
+    elif change == "missing-etag":
+        del obj["ETag"]
+    else:
+        cfg["backup_s3_" + change] = (
+            "https://other.example.test" if change == "endpoint" else "other"
+        )
+    backups3.invalidate()
+    assert ops.list_backups()[0]["verification"] is None
+
+
+def test_old_remote_backup_can_be_checked_once_and_failed_recheck_revokes_receipt(
+    backup_env, s3_client
+):
+    _, cfg = backup_env
+    exported = ops.run_backup_job("manual", False)
+    backupverify.forget(exported["name"], "s3", cfg)
+    remote_catalog(s3_client, exported["name"], cfg)
+    assert ops.list_backups()[0]["verification"] is None
+    ops.verify_backup(exported["name"])
+    assert ops.list_backups()[0]["verification"]
+    s3_client.corrupt = True
+    with pytest.raises(ops.OpsError, match="SHA-256"):
+        ops.verify_backup(exported["name"])
+    assert ops.list_backups()[0]["verification"] is None
+
+
+def test_local_receipt_survives_history_and_is_revoked_after_same_size_replacement(
+    backup_env, s3_client
+):
+    _, cfg = backup_env
+    cfg["backup_s3_enabled"] = False
+    exported = ops.run_backup_job("manual", False)
+    assert ops.list_backups()[0]["verification"] is None
+    ops.verify_backup(exported["name"])
+    assert ops.list_backups()[0]["verification"]["files"] == 2
+    original = Path(exported["path"])
+    stat = original.stat()
+    replacement = original.with_suffix(".replacement")
+    replacement.write_bytes(b"x" * stat.st_size)
+    os.utime(replacement, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    os.replace(replacement, original)
+    assert ops.list_backups()[0]["verification"] is None
+
+
+@pytest.mark.parametrize("damage", ["broken json", "[]", "{}"])
+def test_missing_or_damaged_receipts_do_not_break_catalog(backup_env, s3_client, damage):
+    root, cfg = backup_env
+    exported = ops.run_backup_job("manual", False)
+    remote_catalog(s3_client, exported["name"], cfg)
+    (root / "panel/backup-verifications.json").write_text(damage, encoding="utf-8")
+    assert ops.list_backups()[0]["verification"] is None
+
+
+def test_receipt_write_failure_retains_local_backup(backup_env, s3_client, monkeypatch):
+    root, cfg = backup_env
+    remember = backupverify.remember
+
+    def fail_remote(name, storage, *args):
+        if storage == "s3":
+            raise OSError("fictional private path")
+        remember(name, storage, *args)
+
+    monkeypatch.setattr(backupverify, "remember", fail_remote)
+    with pytest.raises(ops.OpsErrorReported, match="локальная копия сохранена") as caught:
+        ops.run_backup_job("manual", False)
+    assert "fictional private path" not in str(caught.value)
+    assert len(list((root / "backups").glob("*.tar.gz"))) == 1
+    remote_catalog(s3_client, s3_client.keys[0].rsplit("/", 1)[-1], cfg)
+    items = ops.list_backups()
+    assert next(item for item in items if item["storage"] == "local")["verification"]
+    assert next(item for item in items if item["storage"] == "s3")["verification"] is None
+
+
+def test_changed_local_archive_is_not_exported_as_verified(backup_env, s3_client, monkeypatch):
+    root, cfg = backup_env
+    original = ops.verify_backup
+
+    def changed(name):
+        result = original(name)
+        (root / "backups" / name).write_bytes(b"changed after archive verification")
+        return result
+
+    monkeypatch.setattr(ops, "verify_backup", changed)
+    with pytest.raises(ops.OpsErrorReported, match="изменился"):
+        ops.run_backup_job("manual", False)
+    assert not s3_client.keys and list((root / "backups").glob("*.tar.gz"))
+
+
+@pytest.mark.parametrize("prefix", ["/server-one/", "server-one", ""])
+def test_upload_and_download_use_the_same_normalized_prefix(backup_env, s3_client, prefix):
+    _, cfg = backup_env
+    cfg["backup_s3_prefix"] = prefix
+    exported = ops.run_backup_job("manual", False)
+    assert s3_client.keys == [backups3._key(exported["name"], cfg)]
+    assert ops.verify_backup(exported["name"])["hasMapData"]
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_s3_outage_keeps_retained_local_archives_accessible(
+    backup_env, s3_client, monkeypatch, language
+):
+    root, cfg = backup_env
+    local = root / "backups/retained.tar.gz"
+    local.parent.mkdir()
+    local.write_bytes(b"retained archive")
+    monkeypatch.setattr(s3_client, "get_paginator", Mock(side_effect=NoCredentialsError()))
+    monkeypatch.setattr(ops, "auto_backup_state", lambda: {})
+    payload = payloads.backups_payload()
+    assert payload["ok"] and payload["items"][0]["name"] == local.name
+    assert "AWS_SECRET_ACCESS_KEY" in payload["storageError"]
+    token = i18n.LANGUAGE.set(language)
+    try:
+        presented = i18n.present(payload)
+    finally:
+        i18n.LANGUAGE.reset(token)
+    assert (
+        "Check AWS_ACCESS_KEY_ID" if language == "en" else "Проверьте AWS_ACCESS_KEY_ID"
+    ) in presented["storageError"]
+
+
+def test_catalog_identity_cannot_be_mutated_through_returned_snapshots(backup_env, s3_client):
+    _, cfg = backup_env
+    exported = ops.run_backup_job("manual", False)
+    remote_catalog(s3_client, exported["name"], cfg)
+    catalog = backups3.list_archives(cfg)
+    original = dict(catalog[0]["identity"])
+    catalog[0]["identity"]["etag"] = '"changed"'
+    snapshot = backups3.cached_archives(cfg)
+    assert snapshot[0]["identity"] == original
+    snapshot[0]["identity"]["etag"] = '"changed-again"'
+    assert backups3.list_archives(cfg)[0]["identity"] == original
+
+
+def test_receipt_cleanup_failure_does_not_report_deleted_archive_as_failed(
+    backup_env, s3_client, monkeypatch
+):
+    _, cfg = backup_env
+    exported = ops.run_backup_job("manual", False)
+    monkeypatch.setattr(backupverify, "forget", Mock(side_effect=PermissionError("private path")))
+    ops.delete_backup(exported["name"])
+    assert s3_client.deleted["Key"] == s3_client.keys[0]
+    ops.log_event.assert_any_call("backup-delete", f"Бэкап удалён: {exported['name']}")
+    assert "private path" not in str(ops.log_event.call_args_list)

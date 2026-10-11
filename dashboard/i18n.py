@@ -81,6 +81,7 @@ MESSAGES = _compile_messages(CATALOG)
 RU_MESSAGES = _compile_messages(RU_CATALOG)
 DISPLAY_KEYS = {
     "error",
+    "storageError",
     "message",
     "phase",
     "label",

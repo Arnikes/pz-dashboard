@@ -28,6 +28,7 @@ import i18n
 import fileio
 import settingsmodel
 import backups3
+import backupverify
 from settingsmodel import DEFAULTS as _DEFAULTS
 from errors import OpsError as OpsError, OpsErrorReported as OpsErrorReported
 import dockerlib
@@ -1051,9 +1052,10 @@ def _backup_paths():
     return config.CFG["backup_dir"], config.CFG["data_dir"]
 
 
-def list_backups():
+def list_backups(*, s3_errors=None):
     bdir = config.CFG["backup_dir"]
     items = []
+    receipts = backupverify.receipts(config.CFG)
     try:
         with os.scandir(bdir) as entries:
             for entry in entries:
@@ -1067,6 +1069,14 @@ def list_backups():
                             "name": entry.name,
                             "size": st.st_size,
                             "sizeText": fmt_size(st.st_size),
+                            "storage": "local",
+                            "verification": backupverify.lookup(
+                                entry.name,
+                                "local",
+                                backupverify.local_identity(entry.path),
+                                config.CFG,
+                                receipts,
+                            ),
                             "mtime": datetime.fromtimestamp(st.st_mtime)
                             .astimezone()
                             .isoformat(timespec="seconds"),
@@ -1079,9 +1089,23 @@ def list_backups():
     local = [item for _, item in items]
     if config.CFG.get("backup_s3_enabled", False):
         names = {item["name"] for item in local}
+        try:
+            archives = backups3.list_archives(config.CFG)
+        except OpsError as error:
+            if s3_errors is None:
+                raise
+            s3_errors.append(str(error))
+            archives = []
         remote = [
-            dict(item, sizeText=fmt_size(item["size"]), mtime=_iso_ts(item["mtime"]))
-            for item in backups3.list_archives(config.CFG)
+            dict(
+                item,
+                sizeText=fmt_size(item["size"]),
+                mtime=_iso_ts(item["mtime"]),
+                verification=backupverify.lookup(
+                    item["name"], "s3", item["identity"], config.CFG, receipts
+                ),
+            )
+            for item in archives
             if item["name"] not in names
         ]
         return sorted(
@@ -1233,8 +1257,8 @@ def _do_backup(stop_server, trigger="manual", started=None):
     pruned = 0
     if s3_cfg.get("backup_s3_enabled", False):
         try:
-            verify_backup(name)
-            dest = backups3.upload_verified(dest, s3_cfg, _set_phase)
+            verification = verify_backup(name)
+            dest = backups3.upload_verified(dest, s3_cfg, _set_phase, verification=verification)
         except (OpsError, OSError) as error:
             _journal_append(
                 {
@@ -1319,20 +1343,29 @@ def _validate_backup_name(name):
 
 
 @contextmanager
-def backup_source(name, *, report_phase=True):
+def backup_source(name, *, report_phase=True, source=None):
     """Yield a local archive or a private S3 download, cleaned up on every exit."""
     cfg = dict(config.CFG)
     if not cfg.get("backup_s3_enabled", False):
-        yield backup_download_path(name)
+        path = backup_download_path(name)
+        if source is not None:
+            source.update(storage="local", identity=backupverify.local_identity(path), cfg=cfg)
+        yield path
         return
     path = _backup_local_candidate(name)
     if os.path.isfile(path):
+        if source is not None:
+            source.update(storage="local", identity=backupverify.local_identity(path), cfg=cfg)
         yield path
         return
     os.makedirs(cfg["backup_dir"], exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=".s3-download-", dir=cfg["backup_dir"]) as temp:
         path = os.path.join(temp, "archive.tar.gz")
-        backups3.download(name, path, cfg, _set_phase if report_phase else lambda *args: None)
+        identity = backups3.download(
+            name, path, cfg, _set_phase if report_phase else lambda *args: None
+        )
+        if source is not None:
+            source.update(storage="s3", identity=identity, cfg=cfg)
         yield path
 
 
@@ -1465,10 +1498,16 @@ def delete_backup(name):
     path = _backup_local_candidate(name)
     if os.path.isfile(path):
         os.remove(path)
+        storage = "local"
     elif config.CFG.get("backup_s3_enabled", False):
         backups3.delete(name, config.CFG)
+        storage = "s3"
     else:
         raise OpsError("Файл бэкапа не найден")
+    try:
+        backupverify.forget(name, storage, config.CFG)
+    except OSError:
+        log_event("warn", "Бэкап удалён, но результат проверки удалить не удалось")
     log_event("backup-delete", f"Бэкап удалён: {name}")
 
 
@@ -1479,8 +1518,25 @@ def backup_download_path(name):
 def verify_backup(name):
     """Контрольная проверка архива: целостность gzip/tar и распаковка во
     временную папку с подсчётом файлов. Данные сервера не затрагивает."""
-    with backup_source(name) as path:
-        return _verify_backup_path(name, path)
+    candidate = _backup_local_candidate(name)
+    storage = "local" if os.path.isfile(candidate) else "s3"
+    try:
+        # Revoke the previous receipt before rechecking, including failed downloads.
+        backupverify.forget(name, storage, config.CFG)
+        source = {}
+        with backup_source(name, source=source) as path:
+            result = _verify_backup_path(name, path)
+            if source["storage"] == "local" and source["identity"] != backupverify.local_identity(
+                path
+            ):
+                raise OpsError("Бэкап изменился во время проверки; повторите проверку")
+            backupverify.remember(
+                name, source["storage"], source["identity"], result, source["cfg"]
+            )
+            result["identity"] = source["identity"]
+            return result
+    except OSError as error:
+        raise OpsError("Не удалось сохранить результат проверки бэкапа") from error
 
 
 def _verify_backup_path(name, path):

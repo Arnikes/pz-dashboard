@@ -7,6 +7,7 @@ import time
 import threading
 import uuid
 from contextlib import closing
+from copy import deepcopy
 from urllib.parse import urlsplit
 
 import boto3
@@ -20,6 +21,7 @@ from botocore.exceptions import (
 )
 from boto3.exceptions import S3UploadFailedError
 
+import backupverify
 from errors import OpsError
 
 ARCHIVE_NAME = re.compile(r"pz-backup-\d{8}-\d{6}(?:-\d+)?-[0-9a-f]{32}\.tar\.gz")
@@ -86,7 +88,7 @@ def cached_archives(cfg):
         cached = _CACHE.get(_signature(cfg))
         if not cached or time.monotonic() - cached[0] >= 30 or cached[2]:
             return None
-        return [dict(item) for item in cached[1]]
+        return deepcopy(cached[1])
     finally:
         _CACHE_LOCK.release()
 
@@ -100,7 +102,7 @@ def list_archives(cfg):
         if cached and time.monotonic() - cached[0] < 30:
             if cached[2]:
                 raise OpsError(cached[2])
-            return [dict(item) for item in cached[1]]
+            return deepcopy(cached[1])
         items = []
         prefix = _prefix(cfg)
         try:
@@ -119,6 +121,7 @@ def list_archives(cfg):
                                 "size": obj["Size"],
                                 "mtime": obj["LastModified"].isoformat(),
                                 "storage": "s3",
+                                "identity": backupverify.s3_identity(obj),
                             }
                         )
         except (BotoCoreError, ClientError, OSError, ValueError) as error:
@@ -127,7 +130,7 @@ def list_archives(cfg):
             raise OpsError(message) from error
         items.sort(key=lambda item: item["mtime"], reverse=True)
         _CACHE[signature] = time.monotonic(), items, None
-        return [dict(item) for item in items]
+        return deepcopy(items)
 
 
 def _key(name, cfg):
@@ -155,13 +158,16 @@ def download(name, dest, cfg, phase):
                     while chunk := body.read(1024 * 1024):
                         if time.monotonic() >= deadline:
                             raise OpsError("S3: скачивание не уложилось в таймаут (2400 с)")
-                        archive.write(chunk)
                         received += len(chunk)
+                        if received > response["ContentLength"]:
+                            raise OpsError("S3: скачанный бэкап не прошёл проверку SHA-256")
+                        archive.write(chunk)
                         digest.update(chunk)
             if time.monotonic() >= deadline:
                 raise OpsError("S3: скачивание не уложилось в таймаут (2400 с)")
             if received != response["ContentLength"] or digest.hexdigest() != expected:
                 raise OpsError("S3: скачанный бэкап не прошёл проверку SHA-256")
+            return backupverify.s3_identity(response)
     except (BotoCoreError, ClientError, OSError, ValueError) as error:
         raise OpsError(f"S3: скачивание бэкапа не удалось ({_error_detail(error)})") from error
 
@@ -204,7 +210,7 @@ def validate(cfg):
             raise OpsError("S3: BACKUP_S3_ENDPOINT_URL должен быть URL без пароля и параметров")
 
 
-def upload_verified(path, cfg, phase):
+def upload_verified(path, cfg, phase, *, verification=None):
     """Upload a previously verified archive; leave it intact on every failure.
 
     UUID keys prevent overwriting earlier exports after the local file is removed.
@@ -215,7 +221,7 @@ def upload_verified(path, cfg, phase):
     bucket = cfg["backup_s3_bucket"]
     name = os.path.basename(path)
     object_name = f"{name[:-7]}-{uuid.uuid4().hex}.tar.gz"
-    key = "/".join(filter(None, (cfg.get("backup_s3_prefix", "pz-backups"), object_name)))
+    key = _key(object_name, cfg)
     location = f"s3://{bucket}/{key}"
     deadline = time.monotonic() + 2400
 
@@ -224,12 +230,17 @@ def upload_verified(path, cfg, phase):
             raise OpsError("S3: загрузка и проверка не уложились в таймаут (2400 с)")
 
     try:
+        identity = backupverify.local_identity(path)
+        if verification is not None and verification.get("identity") != identity:
+            raise OpsError("Бэкап изменился во время проверки; повторите проверку")
         digest = hashlib.sha256()
         with open(path, "rb") as archive:
             while chunk := archive.read(1024 * 1024):
                 check_deadline()
                 digest.update(chunk)
         size = os.path.getsize(path)
+        if backupverify.local_identity(path) != identity:
+            raise OpsError("Бэкап изменился во время проверки; повторите проверку")
         with _client(cfg) as client:
             phase("Выгрузка бэкапа в S3", name)
             client.upload_file(
@@ -249,6 +260,10 @@ def upload_verified(path, cfg, phase):
             remote_digest = hashlib.sha256()
             received = 0
             with closing(response["Body"]) as body:
+                if response.get("Metadata", {}).get("sha256") != digest.hexdigest():
+                    raise OpsError(
+                        "S3: контрольная сумма бэкапа не совпадает, локальная копия сохранена"
+                    )
                 if response["ContentLength"] != size:
                     raise OpsError(
                         "S3: размер загруженного бэкапа не совпадает, локальная копия сохранена"
@@ -256,11 +271,21 @@ def upload_verified(path, cfg, phase):
                 while chunk := body.read(1024 * 1024):
                     check_deadline()
                     received += len(chunk)
+                    if received > size:
+                        raise OpsError(
+                            "S3: размер загруженного бэкапа не совпадает, локальная копия сохранена"
+                        )
                     remote_digest.update(chunk)
             check_deadline()
             if received != size or remote_digest.digest() != digest.digest():
                 raise OpsError(
                     "S3: контрольная сумма бэкапа не совпадает, локальная копия сохранена"
+                )
+            if backupverify.local_identity(path) != identity:
+                raise OpsError("Бэкап изменился во время проверки; повторите проверку")
+            if verification is not None:
+                backupverify.remember(
+                    object_name, "s3", backupverify.s3_identity(response), verification, cfg
                 )
     except (BotoCoreError, ClientError, S3UploadFailedError, OSError, ValueError) as error:
         # Keep SDK text private; add only our own credential configuration hint.

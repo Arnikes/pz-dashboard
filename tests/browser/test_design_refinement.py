@@ -1,4 +1,4 @@
-"""Approved editor layout retains real drafts and archive operation results."""
+"""Approved editor layout retains real drafts and persistent archive check results."""
 
 import pytest
 from playwright.sync_api import expect
@@ -69,6 +69,12 @@ def test_archive_result_is_specific_and_schedule_distinguishes_time_zones(page, 
     page.evaluate("""() => renderOp({active:null,history:[{op:'verify-backup',ok:true,
         finishedAt:'2026-10-06T01:00:00Z',message:'OK',archive:{name:'first.tar.gz',
         files:3,hasServerIni:true,hasMapData:true}}]})""")
+    # Operation history alone must not certify an archive that may have changed.
+    expect(page.locator(".backup-result:visible")).to_have_count(0)
+    page.evaluate("""() => renderBackups({ok:true,items:[
+        {name:'first.tar.gz',size:10,mtime:'2026-10-06T00:00:00Z',verification:{
+         verifiedAt:'2026-10-06T01:00:00Z',files:3,hasServerIni:true,hasMapData:true}},
+        {name:'second.tar.gz',size:20,mtime:'2026-10-05T00:00:00Z',verification:null}]})""")
     expect(page.locator(".backup-row").first.locator(".backup-result")).to_contain_text("файлов: 3")
     expect(page.locator(".backup-row").nth(1).locator(".backup-result")).to_be_hidden()
     assert dashboard["actions"] == []

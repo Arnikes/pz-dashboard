@@ -52,15 +52,19 @@ def backup_journal_payload(limit=25, offset=0):
 
 
 def backups_payload():
+    s3_errors = []
     try:
-        items = ops.list_backups()
+        items = ops.list_backups(s3_errors=s3_errors)
     except OpsError as error:
         return {"ok": False, "error": str(error)}
+    if s3_errors and not items:
+        return {"ok": False, "error": s3_errors[0]}
     s = ops.get_settings()
     journal = backup_journal_payload()
     return {
         "ok": True,
         "items": items,
+        "storageError": s3_errors[0] if s3_errors else None,
         "maxBackups": s["backup"]["maxBackups"],
         "settingsVersion": s.get("version"),
         "autoBackup": ops.auto_backup_state(),

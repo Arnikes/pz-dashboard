@@ -1912,6 +1912,7 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--footer-heig
 .backup-actions { display:flex; align-items:center; gap:8px; }
 .backup-action { width:auto; gap:6px; padding:6px 10px; font:12px var(--font-body); white-space:nowrap; }
 .backup-action svg { width:16px; }
+.backup-action[data-verified=true]:disabled { color:var(--ok); opacity:1; border-color:var(--ok); background:var(--success-tint); cursor:default; }
 #bkScheduleContext { margin:12px 0; font-size:12px; }
 @media (max-width:1000px) and (min-width:741px) {
   .backup-row { grid-template-columns:minmax(0,1fr) 9ch; }

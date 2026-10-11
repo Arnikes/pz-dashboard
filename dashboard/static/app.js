@@ -1298,7 +1298,7 @@ function updateButtons() {
   $("logsDownload").style.display = (remote || S.demo) ? "none" : "";
   $("logsFilter").disabled = remote || S.demo;
   document.querySelectorAll("#playersBody .p-actions .icon-btn").forEach((b) => { if (b.disabled !== !consoleLive) b.disabled = !consoleLive; });
-  document.querySelectorAll("#backupsBody .icon-btn").forEach((b) => { const disabled = busy || S.demo || remote; if (b.disabled !== disabled) b.disabled = disabled; });
+  document.querySelectorAll("#backupsBody .icon-btn").forEach((b) => { const disabled = busy || S.demo || remote || b.dataset.verified === "true"; if (b.disabled !== disabled) b.disabled = disabled; });
   document.querySelectorAll("#quickCmds .chip").forEach((b) => { b.disabled = !consoleLive; });
   $("consoleInput").disabled = !consoleLive;
   $("consoleForm").querySelector("button").disabled = !consoleLive;
@@ -1642,7 +1642,10 @@ const backupsPager = { page: 0, size: 10 };
 
 function renderBackups(data) {
   const body = $("backupsBody");
+  setDomProperty($("backupsStorageError"), "textContent", data.ok ? data.storageError || "" : "");
+  setDomProperty($("backupsStorageError"), "hidden", !data.ok || !data.storageError);
   if (!data.ok) {
+    S.backupsItems = [];
     setDomProperty($("backupsPager"), "hidden", true);
     setListMessage(body, "error", `<p class="list-error">${esc(data.error || I18n.t("нет данных"))}</p>`);
     return;
@@ -1698,13 +1701,18 @@ function renderBackupsPage() {
     if (age.title !== dateTitle) age.title = dateTitle;
     const title = `${b.name} — ${dateTitle}`;
     if (name.title !== title) name.title = title;
-    const verified = S.op?.history?.find(h => h.op === "verify-backup" && h.ok && h.archive?.name === b.name);
+    const verified = b.verification;
+    const verifyButton = row.querySelector('[data-b="verify"]');
+    setDomAttribute(verifyButton, "data-verified", verified ? "true" : "false");
+    setDomProperty(verifyButton.querySelector("span"), "textContent", I18n.t(verified ? "Проверен" : "Проверить"));
+    setDomProperty(verifyButton, "title", verified ? I18n.msg`Проверен ${fmtTime(verified.verifiedAt)} · файлов: ${verified.files}` : I18n.t("Проверить архив"));
+    setDomAttribute(verifyButton, "aria-label", verified ? `${I18n.t("Проверен")}: ${b.name}` : I18n.msg`Проверить ${b.name}`);
     const result = row.querySelector(".backup-result");
     setDomProperty(result, "hidden", !verified);
     const notes = [];
-    if (verified && !verified.archive.hasServerIni) notes.push(I18n.t("Нет конфигурации сервера (Server/*.ini)"));
-    if (verified && !verified.archive.hasMapData) notes.push(I18n.t("Нет данных мира"));
-    setDomProperty(result, "textContent", verified ? [I18n.msg`Проверен ${fmtTime(verified.finishedAt)} · файлов: ${verified.archive.files}`, ...notes].join(" · ") : "");
+    if (verified && !verified.hasServerIni) notes.push(I18n.t("Нет конфигурации сервера (Server/*.ini)"));
+    if (verified && !verified.hasMapData) notes.push(I18n.t("Нет данных мира"));
+    setDomProperty(result, "textContent", verified ? [I18n.msg`Проверен ${fmtTime(verified.verifiedAt)} · файлов: ${verified.files}`, ...notes].join(" · ") : "");
   });
   updateButtons();
 }

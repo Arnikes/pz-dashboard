@@ -241,9 +241,10 @@ def test_verified_archive_explains_missing_contents_inline(page, dashboard, widt
     result = page.locator(".backup-result")
     for has_ini, has_map in [(False, True), (True, False), (True, True), (False, False)]:
         page.evaluate(
-            """([ini,map]) => renderOp({active:null,history:[{op:'verify-backup',ok:true,
-            finishedAt:'2026-10-08T01:00:00Z',archive:{
-            name:'world-with-a-very-long-name.tar.gz',files:3,
+            """([ini,map]) => renderBackups({ok:true,items:[{
+            name:'world-with-a-very-long-name.tar.gz',size:123456789,
+            mtime:'2026-10-08T00:00:00Z', verification:{
+            verifiedAt:'2026-10-08T01:00:00Z',files:3,
             hasServerIni:ini,hasMapData:map}}]})""",
             [has_ini, has_map],
         )
@@ -269,3 +270,80 @@ def test_verified_archive_explains_missing_contents_inline(page, dashboard, widt
             ),
             full_page=True,
         )
+
+
+@pytest.mark.parametrize("width", [320, 768, 1440])
+@pytest.mark.parametrize("language", ["ru", "en"])
+def test_verified_s3_status_survives_history_refresh_and_prevents_repeat_checks(
+    page, dashboard, width, language
+):
+    page.set_viewport_size({"width": width, "height": 900})
+    page.add_init_script(f"localStorage.setItem('pz-language', '{language}')")
+    page.goto(dashboard["url"] + "/#/backups")
+    expect(page.locator("#startupLoader")).to_be_hidden()
+    page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
+    items = [
+        {
+            "name": "pz-backup-20261010-030000-" + "a" * 32 + ".tar.gz",
+            "size": 123456789,
+            "storage": "s3",
+            "mtime": "2026-10-10T03:00:00Z",
+            "verification": {
+                "verifiedAt": "2026-10-10T03:01:00Z",
+                "files": 14,
+                "hasServerIni": True,
+                "hasMapData": True,
+            },
+        },
+        {
+            "name": "retained-local.tar.gz",
+            "size": 9876543,
+            "storage": "local",
+            "mtime": "2026-10-09T03:00:00Z",
+            "verification": None,
+        },
+    ]
+    page.evaluate("items => renderBackups({ok:true,items})", items)
+    buttons = page.locator('#backupsBody [data-b="verify"]')
+    expect(buttons.first).to_be_disabled()
+    expect(buttons.first).to_have_text("Проверен" if language == "ru" else "Verified")
+    expect(buttons.nth(1)).to_be_enabled()
+    expect(page.locator(".backup-result").first).to_contain_text(
+        "файлов: 14" if language == "ru" else "files: 14"
+    )
+    assert buttons.first.evaluate("el=>getComputedStyle(el).color") != buttons.nth(1).evaluate(
+        "el=>getComputedStyle(el).color"
+    )
+    page.evaluate("renderOp({active:null,history:[]});updateButtons()")
+    expect(buttons.first).to_be_disabled()
+    assert dashboard["actions"] == []
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    if os.getenv("PZ_BACKUP_AUDIT_EVIDENCE"):
+        page.locator("#view-backups .c-backups").screenshot(
+            path=str(
+                Path(os.environ["PZ_BACKUP_AUDIT_EVIDENCE"]) / f"verified-{language}-{width}.png"
+            )
+        )
+    items[0]["verification"] = None
+    page.evaluate("items => renderBackups({ok:true,items})", items)
+    expect(buttons.first).to_be_enabled()
+    expect(buttons.first).to_have_text("Проверить" if language == "ru" else "Check")
+    expect(page.locator(".backup-result").first).to_be_hidden()
+    buttons.first.click()
+    expect(page.locator("#toasts")).to_contain_text("Тест: сервер занят")
+
+
+def test_s3_error_preserves_local_actions_and_catalog_errors_do_not_resurrect_stale_rows(
+    page, backups_page
+):
+    page.evaluate("""renderBackups({ok:true,storageError:'S3: недоступен',items:[{
+        name:'retained.tar.gz',size:7,mtime:'2026-10-10T03:00:00Z',verification:null
+    }]})""")
+    expect(page.locator("#backupsStorageError")).to_contain_text("S3: недоступен")
+    expect(page.locator('#backupsBody [data-b="verify"]')).to_be_enabled()
+    page.evaluate(
+        "renderBackups({ok:false,error:'Ошибка каталога'});renderOp({active:null,history:[]})"
+    )
+    expect(page.locator("#backupsBody")).to_contain_text("Ошибка каталога")
+    expect(page.locator("#backupsBody button")).to_have_count(0)
+    expect(page.locator("#backupsStorageError")).to_be_hidden()

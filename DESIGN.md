@@ -333,7 +333,9 @@ Backup archives use aligned name, size, date, and action columns, sharing deskto
 column widths with their headings; mobile places them on separate rows.
 Download, verify and restore actions have visible labels;
 delete retains a named icon and confirmation. Show verified archive results
-only from operation history, with missing server configuration or world data
+from persistent receipts bound to the current archive identity. A verified archive's
+shield control reads "Verified" in olive and is disabled; the date, file count,
+and missing server configuration or world data remain
 identified beside the archive. Show scheduled times with the server offset and
 the next run in browser-local time. Archive pages contain ten items. The run journal uses
 25/50/100-item pages and preserves the current page during refresh. Journal dates

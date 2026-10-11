@@ -74,6 +74,17 @@ Archive verification extracts into an isolated temporary directory without stopp
 the live server. Restore verifies and prepares the archive, warns players, stops the
 server, replaces the data, and starts it again. Explicit replacement confirmation is required.
 
+Successful manual checks and automatic S3 export checks appear as an olive
+"Verified" shield, with the check date, file count, and any missing world/configuration
+notes beside the archive. The check control is disabled for a verified archive.
+Receipts persist in `dashboard-data/backup-verifications.json`, independently of
+operation history. Local receipts match file size, modification/change times, and
+file identity; S3 receipts match the endpoint, bucket, region, prefix, ETag, size,
+and modification time returned by the provider. Changed or unknown archives remain
+checkable. Providers that omit ETag or modification time cannot retain verified status.
+Archives exported before receipts were introduced need one manual check.
+Restore always downloads and validates the current bytes, even with a receipt.
+
 Keep a separate copy of important backups. For a recovery rehearsal, restore into
 a separate game instance with its own volumes and confirm that the world and configuration
 load. Archive verification alone does not prove the world behaves correctly in-game.
@@ -88,7 +99,9 @@ backup, including manual, scheduled, pre-update, and pre-configuration backups.
 
 Each export creates the local archive, verifies the entire gzip stream and safely
 extracts the tar into a temporary directory, uploads it, then reads the complete
-S3 object back and compares its size and SHA-256 with the local archive. Only then
+S3 object back and compares its size, SHA-256 bytes, and stored SHA-256 metadata
+with the local archive. It also confirms the local archive has not changed since
+verification and saves the verification receipt before deleting the local file. Only then
 is the local archive deleted. Verification cannot be disabled for S3. Backups using
 the stop-server option restart the game after archive creation, before verification
 and network transfer. Configuration application may keep the server stopped across
@@ -106,7 +119,9 @@ Read-back downloads the full archive and incurs storage-provider bandwidth charg
 When S3 is enabled, the archive list combines local archives and exported objects
 in the configured bucket/prefix. Remote listings are cached for 30 seconds and
 invalidated after panel uploads/deletions. Download, verification, restore, and
-deletion work directly from the panel. Before restore, the panel downloads the
+deletion work directly from the panel. If S3 listing fails, any retained local
+archives stay accessible with the storage error displayed beside the catalog.
+Before restore, the panel downloads the
 selected S3 object into a private temporary directory, checks its size and stored
 SHA-256, then validates and extracts the gzip/tar before stopping the game or
 replacing world files. Any download or validation failure leaves the live world
