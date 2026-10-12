@@ -1573,7 +1573,8 @@ function renderPlayersHistory(points) {
     const tip = $("phTip");
     tip.hidden = false;
     tip.textContent = I18n.msg`${fmtTime(best.ts)} · ${best.count} игр.`;
-    tip.style.left = Math.max(60, Math.min(rect.width - 10, ev.clientX - rect.left)) + "px";
+    const halfWidth = tip.getBoundingClientRect().width / 2;
+    tip.style.left = Math.max(halfWidth, Math.min(rect.width - halfWidth, ev.clientX - rect.left)) + "px";
   });
   spark.addEventListener("mouseleave", () => { $("phTip").hidden = true; });
 })();

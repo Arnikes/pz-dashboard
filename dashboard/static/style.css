@@ -1235,9 +1235,10 @@ select { cursor: pointer; }
 .ph-wrap { position: relative; }
 .ph-tip {
   position: absolute; top: -24px; transform: translateX(-50%);
+  width: max-content; max-width: 100%;
   background: var(--surface-3); border: 1px solid var(--line-strong);
   border-radius: 6px; padding: 3px 7px; font-size: 11px; color: var(--ink);
-  white-space: nowrap; pointer-events: none;
+  overflow-wrap: anywhere; pointer-events: none;
 }
 .ph-labels { display: flex; justify-content: space-between; margin-top: 4px; font-size: 10.5px; color: var(--faint); }
 .ph-block:has(#phEmpty:not([hidden])) :is(.ph-wrap, .ph-labels) { display: none; }
