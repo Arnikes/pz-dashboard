@@ -139,28 +139,42 @@ def prepare(container):
         mounts = sorted(
             container.get("Mounts", []), key=lambda item: len(item["Destination"]), reverse=True
         )
-        for definition in model["services"].values():
-            for volume in definition.get("volumes", []):
+        for candidate in model["services"].values():
+            for volume in candidate.get("volumes", []):
                 if volume.get("type") != "bind":
                     continue
-                source = volume["source"]
-                for mount in mounts:
-                    target = mount["Destination"].rstrip("/")
-                    if mount["Type"] == "bind" and (
-                        source == target or source.startswith(target + "/")
-                    ):
-                        volume["source"] = mount["Source"].rstrip("/") + source[len(target) :]
-                        break
-                else:
-                    # Compose can already contain an absolute host path. The
-                    # console service's existing binds must match live mounts.
-                    live = next((m for m in mounts if m["Destination"] == volume["target"]), None)
-                    if definition is model["services"][service] and (
-                        not live or source != live["Source"]
-                    ):
-                        raise OpsError(
-                            "Не удалось сопоставить пути Compose с хостом. Проверьте подключения пульта."
-                        )
+                volume["source"] = dockerlib.host_bind_source(volume["source"], mounts)
+        for kind in ("configs", "secrets"):
+            for record in model.get(kind, {}).values():
+                if record.get("file"):
+                    record["file"] = dockerlib.host_bind_source(record["file"], mounts)
+        state_mount = next(
+            (
+                mount
+                for mount in mounts
+                if config.CFG["dashboard_dir"] == mount["Destination"]
+                or config.CFG["dashboard_dir"].startswith(mount["Destination"].rstrip("/") + "/")
+            ),
+            None,
+        )
+        if (
+            not state_mount
+            or state_mount["Type"] not in ("bind", "volume")
+            or not state_mount["RW"]
+            or not any(
+                volume["target"] == state_mount["Destination"]
+                and volume.get("type", "volume") in ("bind", "volume")
+                and not volume.get("read_only", False)
+                for volume in definition.get("volumes", [])
+            )
+        ):
+            raise OpsError(
+                "Для обновления пульта подключите постоянный каталог DASHBOARD_DIR с правом записи."
+            )
+        if not dockerlib.preserve_mounts(container, model, service):
+            raise OpsError(
+                "Не удалось сопоставить пути Compose с хостом. Проверьте подключения пульта."
+            )
         return model
     except (ValueError, KeyError, TypeError) as error:
         raise OpsError(
@@ -182,17 +196,6 @@ def apply(phase):
     ):
         raise OpsError("Контейнер пульта изменился. Повторите проверку.")
     model = prepare(container)
-    if not any(
-        m["RW"]
-        and (
-            config.CFG["dashboard_dir"] == m["Destination"]
-            or config.CFG["dashboard_dir"].startswith(m["Destination"].rstrip("/") + "/")
-        )
-        for m in container.get("Mounts", [])
-    ):
-        raise OpsError(
-            "Для обновления пульта подключите постоянный каталог DASHBOARD_DIR с правом записи."
-        )
     phase("Скачивание нового образа", current["image"])
     code, _, _ = dockerlib.image_pull(current["image"])
     if code:

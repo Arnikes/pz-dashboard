@@ -51,12 +51,29 @@ def _read_json(handler):
         return {}
     body = handler.rfile.read(length)
     handler.body_read = True
+    if len(body) != length:
+        raise ValueError("Некорректный JSON")
     try:
         data = json.loads(body.decode("utf-8"))
-    except (ValueError, UnicodeDecodeError):
+    except (ValueError, UnicodeDecodeError, RecursionError):
         raise ValueError("Некорректный JSON") from None
     if not isinstance(data, dict):
         raise ValueError("JSON должен быть объектом")
+    # JSON decoding accepts deeper trees than later deepcopy and presentation.
+    # Walk iteratively so malformed input cannot overflow those consumers.
+    containers = [(iter(data.values()), 1)]
+    while containers:
+        children, depth = containers[-1]
+        try:
+            child = next(children)
+        except StopIteration:
+            containers.pop()
+            continue
+        if isinstance(child, (dict, list)):
+            if depth >= 64:
+                raise ValueError("Некорректный JSON")
+            values = child.values() if isinstance(child, dict) else child
+            containers.append((iter(values), depth + 1))
     return data
 
 
@@ -129,14 +146,18 @@ class Handler(BaseHTTPRequestHandler):
         # A custom header cannot be sent by cross-origin forms or fetch without a
         # CORS preflight. This server deliberately does not grant CORS permissions.
         origin = self.headers.get("Origin")
-        parsed = urllib.parse.urlparse(origin or "")
+        try:
+            parsed = urllib.parse.urlparse(origin or "")
+        except ValueError:
+            parsed = None
         if (
             self.headers.get("X-PZ-Request") != "1"
             or self.headers.get("Sec-Fetch-Site") == "cross-site"
             or (
                 origin
                 and (
-                    parsed.scheme not in ("http", "https")
+                    parsed is None
+                    or parsed.scheme not in ("http", "https")
                     or parsed.netloc != self.headers.get("Host")
                 )
             )
@@ -148,13 +169,20 @@ class Handler(BaseHTTPRequestHandler):
 
     def _static_file(self, rel_path):
         safe = posixpath.normpath(urllib.parse.unquote(rel_path)).lstrip("/\\")
+        try:
+            root = os.path.realpath(STATIC_DIR)
+            full = os.path.realpath(os.path.join(root, safe))
+        except (OSError, ValueError):
+            self._send_error_json(403, "Запрещено")
+            return
+        if not os.path.normcase(full).startswith(os.path.normcase(root) + os.sep):
+            self._send_error_json(403, "Запрещено")
+            return
+        # Authorize the resolved file, including native separators and symlink aliases.
+        safe = os.path.normcase(os.path.relpath(full, root)).replace(os.sep, "/")
         if safe.rstrip(". ").casefold() == "index.html":
             if not self._require_auth():
                 return
-        full = os.path.realpath(os.path.join(STATIC_DIR, safe))
-        if not full.startswith(os.path.realpath(STATIC_DIR) + os.sep):
-            self._send_error_json(403, "Запрещено")
-            return
         if not os.path.isfile(full):
             self._send_error_json(404, "Файл не найден")
             return

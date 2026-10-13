@@ -950,3 +950,36 @@ def test_receipt_cleanup_failure_does_not_report_deleted_archive_as_failed(
     assert s3_client.deleted["Key"] == s3_client.keys[0]
     ops.log_event.assert_any_call("backup-delete", f"Бэкап удалён: {exported['name']}")
     assert "private path" not in str(ops.log_event.call_args_list)
+
+
+def test_export_preserves_local_archive_replaced_before_deletion(backup_env, s3_client):
+    root, cfg = backup_env
+    local = root / "backups/pz-backup-20261010-030000.tar.gz"
+    local.parent.mkdir()
+    local.write_bytes(b"original verified archive")
+
+    def phase(message, name):
+        if message == "Удаление локальной копии бэкапа":
+            local.write_bytes(b"replacement archive that was never exported")
+
+    with pytest.raises(ops.OpsError, match="изменился"):
+        backups3.upload_verified(str(local), cfg, phase)
+    assert local.read_bytes() == b"replacement archive that was never exported"
+    assert s3_client.stored == b"original verified archive"
+
+
+def test_deeply_nested_receipts_are_ignored_and_repaired(backup_env):
+    root, cfg = backup_env
+    receipts = root / "panel/backup-verifications.json"
+    receipts.parent.mkdir()
+    receipts.write_text('{"nested":' + "[" * 15000 + "0" + "]" * 15000 + "}", encoding="utf-8")
+    assert backupverify.receipts(cfg) == {}
+    result = {"files": 1, "totalSize": 7, "hasServerIni": True, "hasMapData": False}
+    identity = {"size": 7}
+    backupverify.remember("archive.tar.gz", "local", identity, result, cfg)
+    assert (
+        backupverify.lookup("archive.tar.gz", "local", identity, cfg, backupverify.receipts(cfg))[
+            "files"
+        ]
+        == 1
+    )

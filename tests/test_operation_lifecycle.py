@@ -27,6 +27,36 @@ def lifecycle(monkeypatch):
     monkeypatch.setattr(dockerlib, "container_start", Mock(return_value=(0, "", "")))
 
 
+@pytest.mark.parametrize("failure_at", ["construct", "start"])
+def test_failed_worker_launch_releases_operation_slot(lifecycle, monkeypatch, failure_at):
+    previous = deepcopy(ops._ACTIVE)
+    work = Mock()
+    real_thread = threading.Thread
+    failure = RuntimeError("cannot start a new thread")
+    fake_thread = Mock(start=Mock(side_effect=failure))
+    monkeypatch.setattr(
+        ops.threading,
+        "Thread",
+        Mock(side_effect=failure) if failure_at == "construct" else Mock(return_value=fake_thread),
+    )
+    with pytest.raises(ops.OpsError, match="Не удалось запустить"):
+        ops.start_op("apply-update", work)
+    assert ops._ACTIVE == previous
+    assert not ops.op_busy()
+    assert not ops._OP_CANCEL.is_set()
+    assert ops.op_state()["history"] == []
+    work.assert_not_called()
+    monkeypatch.setattr(ops.threading, "Thread", real_thread)
+    finished = threading.Event()
+    ops.start_op("check-update", finished.set)
+    assert finished.wait(3)
+    for thread in threading.enumerate():
+        if thread.name == "op-check-update":
+            thread.join(3)
+    assert not ops.op_busy()
+    assert ops.op_state()["history"][0]["ok"] is True
+
+
 @pytest.mark.parametrize("result", ["ready", "timeout"])
 @pytest.mark.parametrize(
     "operation",

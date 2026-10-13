@@ -128,6 +128,7 @@ def deployment(monkeypatch, tmp_path, request):
             {"Type": "bind", "Destination": "/compose", "Source": "/srv/pz", "RW": False},
             {
                 "Type": "volume",
+                "Name": "production_console",
                 "Destination": str(tmp_path),
                 "Source": "/volumes/console",
                 "RW": True,
@@ -141,10 +142,14 @@ def deployment(monkeypatch, tmp_path, request):
                 "image": request.param,
                 "container_name": "pz-dashboard",
                 "environment": {"TOKEN": "fictional-secret"},
-                "volumes": [{"type": "bind", "source": "/compose", "target": "/compose"}],
+                "volumes": [
+                    {"type": "bind", "source": "/compose", "target": "/compose", "read_only": True},
+                    {"type": "volume", "source": "console", "target": str(tmp_path)},
+                ],
             },
             "pzserver": {"image": "example/game:latest"},
         },
+        "volumes": {"console": {"name": "production_console"}},
     }
     monkeypatch.setattr(updater, "inspect", lambda name: copy.deepcopy(container))
     monkeypatch.setattr(dockerlib, "image_digests", lambda image: OLD)
@@ -179,6 +184,101 @@ def test_detached_handoff_preserves_host_paths_and_secrets(deployment):
     dockerlib.image_pull.assert_called_once_with(deployment[0]["Config"]["Image"])
     assert ops.op_busy()
     assert ops.op_state()["active"]["op"] == "apply-dashboard-update"
+
+
+def test_console_update_rejects_changed_bind_inside_mapped_host_mount(deployment):
+    container, model, command = deployment
+    model["services"]["pz-dashboard"]["volumes"][0]["source"] = "/compose/replacement"
+    with pytest.raises(ops.OpsError, match="пути Compose"):
+        updater.apply(Mock())
+    dockerlib.image_pull.assert_not_called()
+    assert not updater.operation()
+    assert all("run" not in call.args[0] for call in command.call_args_list)
+
+
+@pytest.mark.parametrize(
+    "change", ["removed-bind", "removed-volume", "named-volume", "readonly", "tmpfs"]
+)
+def test_console_update_rejects_changed_persistent_mounts_before_pull(deployment, change):
+    container, model, command = deployment
+    definition = model["services"]["pz-dashboard"]
+    if change == "removed-bind":
+        definition["volumes"].pop(0)
+    elif change == "removed-volume":
+        definition["volumes"].pop()
+    elif change == "named-volume":
+        model["volumes"]["console"]["name"] = "replacement_console"
+    elif change == "readonly":
+        definition["volumes"][-1]["read_only"] = True
+    else:
+        definition["volumes"][-1] = {"type": "tmpfs", "target": config.CFG["dashboard_dir"]}
+    with pytest.raises(ops.OpsError):
+        updater.apply(Mock())
+    dockerlib.image_pull.assert_not_called()
+    assert not updater.operation()
+    assert all("run" not in call.args[0] for call in command.call_args_list)
+
+
+def test_console_update_requires_persistent_explicit_state_mount(deployment):
+    container, model, _ = deployment
+    container["Mounts"][-1]["Type"] = "tmpfs"
+    model["services"]["pz-dashboard"]["volumes"][-1]["type"] = "tmpfs"
+    with pytest.raises(ops.OpsError, match="постоянный каталог"):
+        updater.apply(Mock())
+    dockerlib.image_pull.assert_not_called()
+
+
+@pytest.mark.parametrize("kind,rw", [("bind", False), ("tmpfs", True)])
+def test_console_update_rejects_shadowed_state_storage(deployment, monkeypatch, kind, rw):
+    container, model, _ = deployment
+    state = config.CFG["dashboard_dir"] + "/state"
+    monkeypatch.setitem(config.CFG, "dashboard_dir", state)
+    container["Mounts"].append(
+        {"Type": kind, "Destination": state, "Source": "/srv/state", "RW": rw}
+    )
+    model["services"]["pz-dashboard"]["volumes"].append(
+        {"type": kind, "source": "/srv/state", "target": state, "read_only": not rw}
+    )
+    with pytest.raises(ops.OpsError, match="постоянный каталог"):
+        updater.apply(Mock())
+    dockerlib.image_pull.assert_not_called()
+
+
+def test_console_update_retains_implicit_image_volume_and_file_mounts(deployment):
+    container, model, command = deployment
+    container["Config"]["Volumes"] = {"/cache": {}}
+    container["Mounts"].extend(
+        [
+            {
+                "Type": "volume",
+                "Name": "c" * 64,
+                "Source": "/volumes/cache",
+                "Destination": "/cache",
+                "RW": True,
+            },
+            {
+                "Type": "bind",
+                "Source": "/srv/pz/password",
+                "Destination": "/run/secrets/password",
+                "RW": False,
+            },
+            {"Type": "bind", "Source": "/srv/pz/settings", "Destination": "/settings", "RW": False},
+        ]
+    )
+    definition = model["services"]["pz-dashboard"]
+    definition["secrets"] = [{"source": "password"}]
+    definition["configs"] = [{"source": "settings", "target": "/settings"}]
+    model["secrets"] = {"password": {"file": "/compose/password"}}
+    model["configs"] = {"settings": {"file": "/compose/settings"}}
+    assert updater.apply(Mock()) == "handoff"
+    launch = command.call_args.args[0]
+    snapshot = Path(launch[launch.index("/app/dashboardupdate.py") + 1])
+    frozen = json.loads(snapshot.read_text())
+    assert {volume["target"] for volume in frozen["services"]["pz-dashboard"]["volumes"]} >= {
+        "/cache"
+    }
+    assert frozen["secrets"]["password"]["file"] == "/srv/pz/password"
+    assert frozen["configs"]["settings"]["file"] == "/srv/pz/settings"
 
 
 @pytest.mark.parametrize("failure", ["pull", "helper", "config", "changed-image", "missing-volume"])

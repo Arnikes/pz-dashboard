@@ -7,6 +7,7 @@
 
 import re
 import json
+import posixpath
 import queue
 import subprocess
 import threading
@@ -20,6 +21,93 @@ def normalize_image(image):
     if "@" not in image and ":" not in image.rsplit("/", 1)[-1]:
         return image + ":latest"
     return image
+
+
+def host_bind_source(source, mounts):
+    """Translate paths visible inside the panel into the Docker host's paths."""
+    for mount in sorted(mounts, key=lambda item: len(item["Destination"]), reverse=True):
+        target = mount["Destination"].rstrip("/")
+        if mount["Type"] == "bind" and (source == target or source.startswith(target + "/")):
+            return mount["Source"].rstrip("/") + source[len(target) :]
+    return source
+
+
+def preserve_mounts(container, model, service):
+    """Validate both declared and removed persistent mounts before recreation.
+
+    File-backed Compose configs and secrets also appear as binds in inspect.
+    Implicit image volumes get an anonymous declaration so Compose inherits the
+    existing data even when the next image removes its VOLUME instruction.
+    """
+    definition = model["services"][service]
+    expected = {volume["target"]: volume for volume in definition.get("volumes", [])}
+    for kind, prefix in (("configs", "/"), ("secrets", "/run/secrets/")):
+        for reference in definition.get(kind, []):
+            source = reference["source"]
+            target = posixpath.join(prefix, reference.get("target") or source)
+            record = model.get(kind, {}).get(source, {})
+            # Inline/environment-backed files have generated host paths. Their
+            # declared targets are retained without treating them as world storage.
+            expected.setdefault(
+                target,
+                {
+                    "type": "bind",
+                    "source": record.get("file"),
+                    "read_only": True,
+                    "generated": not record.get("file"),
+                },
+            )
+    mounts = {mount["Destination"]: mount for mount in container.get("Mounts", [])}
+    for target, live in mounts.items():
+        if live["Type"] not in ("bind", "volume") or target in expected:
+            continue
+        name = live.get("Name", "")
+        if (
+            live["Type"] != "volume"
+            or target not in (container.get("Config", {}).get("Volumes") or {})
+            or not re.fullmatch(r"[0-9a-f]{64}", name)
+        ):
+            return False
+        volume = {"type": "volume", "target": target, "read_only": not live.get("RW", True)}
+        definition.setdefault("volumes", []).append(volume)
+        expected[target] = volume
+    for target, volume in expected.items():
+        kind = volume.get("type", "volume")
+        live = mounts.get(target)
+        if kind not in ("bind", "volume"):
+            if live and live["Type"] in ("bind", "volume"):
+                return False
+            continue
+        if (
+            not live
+            or live["Type"] != kind
+            or live.get("RW", True) != (not volume.get("read_only", False))
+        ):
+            return False
+        source = volume.get("source")
+        if kind == "bind":
+            if not volume.get("generated") and posixpath.normpath(source) != posixpath.normpath(
+                live["Source"]
+            ):
+                return False
+        elif source:
+            name = model.get("volumes", {}).get(source, {}).get("name")
+            if not name or name != live.get("Name"):
+                return False
+        if kind == "volume":
+            configured = next(
+                (
+                    mount
+                    for mount in (container.get("HostConfig", {}).get("Mounts") or [])
+                    if mount.get("Target") == target
+                ),
+                {},
+            )
+            if (volume.get("volume") or {}).get("subpath", "") != (
+                configured.get("VolumeOptions") or {}
+            ).get("Subpath", ""):
+                return False
+    return True
 
 
 def registry_digests(image, image_id, descriptor=None):

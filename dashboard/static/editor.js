@@ -3,6 +3,7 @@
 window.ConfigEditor = (() => {
   let file = "", draft = null, mods = null, configTab = "server", modTab = "composition";
   let chain = Promise.resolve(), loading = false, sourceDirty = false, fieldDirty = false;
+  let sourceFlush = null;
   let previousOp = false, pendingPatches = 0;
   let orderDrag = null;
   const orderAnimations = new Map();
@@ -296,7 +297,7 @@ window.ConfigEditor = (() => {
       return `<select ${attrs}>${unknown ? I18n.msg`<option value="${esc(rec.value)}">${esc(rec.value)} · вне схемы</option>` : ""}${rec.choices.map(c => `<option value="${esc(c.value)}" ${Number(c.value) === Number(rec.value) ? "selected" : ""}>${esc(c.label)}</option>`).join("")}</select>`;
     }
     const numeric = ["integer", "double"].includes(rec.type);
-    return `<input ${attrs} type="${rec.secret ? "password" : numeric ? "number" : "text"}" value="${rec.secret ? "" : esc(rec.value)}" ${rec.secret ? I18n.t('placeholder="Сохранённый пароль скрыт" autocomplete="new-password"') : ""} ${numeric ? `step="${rec.type === "integer" ? "1" : "any"}"` : ""} ${rec.min !== undefined ? `min="${esc(rec.min)}"` : ""} ${rec.max !== undefined ? `max="${esc(rec.max)}"` : ""} />`;
+    return `<input ${attrs} type="${rec.secret ? "password" : numeric ? "number" : "text"}" value="${rec.secret ? "" : esc(rec.value)}" ${rec.secret ? I18n.t('placeholder="Сохранённый пароль скрыт" autocomplete="new-password"') : ""} ${numeric ? `required step="${rec.type === "integer" ? "1" : "any"}"` : ""} ${rec.min !== undefined ? `min="${esc(rec.min)}"` : ""} ${rec.max !== undefined ? `max="${esc(rec.max)}"` : ""} />`;
   }
   function formValue(field) {
     if (field.dataset.type === "map-list") return field.value.split(";").map(v => v.trim()).filter(Boolean);
@@ -413,14 +414,23 @@ window.ConfigEditor = (() => {
     }
   }
   async function flushSources() {
+    if (sourceFlush) return sourceFlush;
     if (!sourceDirty || !draft) return;
-    const texts = { ini: $("iniSource").value };
-    if (!$("sandboxSource").disabled) texts.sandbox = $("sandboxSource").value;
-    await patch({ texts }, false);
-    sourceDirty = false;
-    renderFields();
-    renderSources();
-    await loadMods();
+    sourceFlush = (async () => {
+      while (sourceDirty) {
+        do {
+          const texts = { ini: $("iniSource").value };
+          if (!$("sandboxSource").disabled) texts.sandbox = $("sandboxSource").value;
+          await patch({ texts }, false);
+          // Inputs remain editable during requests; only clear the saved snapshot.
+          sourceDirty = Object.entries(texts).some(([kind, text]) => $(kind + "Source").value !== text);
+        } while (sourceDirty);
+        renderFields();
+        renderSources();
+        await loadMods();
+      }
+    })().finally(() => { sourceFlush = null; updateBar(); });
+    return sourceFlush;
   }
   function packetVisible(packet) {
     const query = $("modQuery").value.toLowerCase();

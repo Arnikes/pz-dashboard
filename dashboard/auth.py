@@ -110,7 +110,15 @@ class Auth:
                 if now < expires <= now + REMEMBER_SECONDS
             )
             self._remembered.update(self._sessions)
-        except (InvalidToken, ValueError, UnicodeError, KeyError, AttributeError, TypeError):
+        except (
+            InvalidToken,
+            ValueError,
+            UnicodeError,
+            KeyError,
+            AttributeError,
+            TypeError,
+            RecursionError,
+        ):
             # A rotated key or damaged store never grants access; replace it with an empty store.
             return
 

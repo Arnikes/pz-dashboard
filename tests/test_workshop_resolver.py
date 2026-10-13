@@ -137,3 +137,25 @@ def test_invalid_child_id_is_rejected(steam, child):
     steam[1]["1"] = [child]
     with pytest.raises(ValueError, match="некорректный Workshop ID"):
         workshop.resolve("1")
+
+
+@pytest.mark.parametrize("cyclic", [False, True])
+def test_dependency_validation_handles_long_chains_without_recursion(cyclic):
+    selected = [f"mod{i}" for i in range(sys.getrecursionlimit() + 20)]
+    index = {
+        "123": [
+            {
+                "workshopId": "123",
+                "modId": mid,
+                "require": selected[i + 1 : i + 2] or ([selected[0]] if cyclic else []),
+                "incompatible": [],
+                "after": [],
+                "before": [],
+                "versionMin": "",
+                "versionMax": "",
+            }
+            for i, mid in enumerate(selected)
+        ]
+    }
+    issues = workshop.problems(index, selected, "42.15")
+    assert [issue["code"] for issue in issues] == (["cycle"] if cyclic else [])

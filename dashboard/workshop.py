@@ -600,20 +600,24 @@ def problems(index, selected, version):
                         "message": f"{mid}: ограничение {prop}={rec[prop]}",
                     }
                 )
-    visiting, visited = set(), set()
+    # Iteratively remove satisfied nodes so large valid mod lists do not exhaust
+    # Python's recursion limit while detecting dependency and ordering cycles.
+    remaining = {mid: len(deps) for mid, deps in edges.items()}
+    dependents = {mid: set() for mid in edges}
+    for mid, deps in edges.items():
+        for dep in deps:
+            dependents[dep].add(mid)
+    ready = [mid for mid, count in remaining.items() if count == 0]
+    resolved = 0
+    while ready:
+        mid = ready.pop()
+        resolved += 1
+        for dependent in dependents[mid]:
+            remaining[dependent] -= 1
+            if remaining[dependent] == 0:
+                ready.append(dependent)
 
-    def visit(mid):
-        if mid in visiting:
-            return True
-        if mid in visited:
-            return False
-        visiting.add(mid)
-        cycle = any(visit(dep) for dep in edges[mid])
-        visiting.remove(mid)
-        visited.add(mid)
-        return cycle
-
-    if any(visit(mid) for mid in edges):
+    if resolved != len(edges):
         result.append(
             {
                 "severity": "error",

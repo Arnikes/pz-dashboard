@@ -662,6 +662,7 @@ def _start_worker(op, fn):
     with _OP_LOCK:
         if _ACTIVE["op"] or (dashboardupdate.operation() or {}).get("active"):
             raise OpsError("Уже выполняется другая операция, подождите")
+        previous_active = dict(_ACTIVE)
         _OP_CANCEL.clear()
         _ACTIVE.update(
             {
@@ -675,8 +676,15 @@ def _start_worker(op, fn):
                 "stages": ["Подготовка…"],
             }
         )
-    t = threading.Thread(target=worker, daemon=True, name=f"op-{op}")
-    t.start()
+    try:
+        t = threading.Thread(target=worker, daemon=True, name=f"op-{op}")
+        t.start()
+    except Exception as error:  # noqa: BLE001 — roll back the reserved slot on launch failure
+        with _OP_LOCK:
+            _ACTIVE.clear()
+            _ACTIVE.update(previous_active)
+            _OP_CANCEL.clear()
+        raise OpsError(f"Не удалось запустить: {error}") from error
 
 
 def start_op(op, fn):

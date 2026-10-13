@@ -1,9 +1,12 @@
 """Authentication boundaries tested through real HTTP and encrypted sessions."""
 
 import http.client
+import io
 import json
+import os
 import threading
 from http.server import ThreadingHTTPServer
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -257,6 +260,26 @@ def test_pages_health_and_static_alias_cannot_bypass_login(auth_server):
         assert request(auth_server, "GET", path)[0] in (401, 403)
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows treats backslashes as path separators")
+@pytest.mark.parametrize("path", ["/static/.%5cindex.html", "/static/assets%5c..%5cindex.html"])
+def test_windows_static_alias_cannot_bypass_login(auth_server, path):
+    assert request(auth_server, "GET", path)[0] in (401, 403)
+
+
+def test_static_symlink_cannot_bypass_login(auth_server, monkeypatch, tmp_path):
+    (tmp_path / "index.html").write_text("protected dashboard", encoding="utf-8")
+    try:
+        (tmp_path / "alias.html").symlink_to(tmp_path / "index.html")
+    except OSError:
+        pytest.skip("Symlink creation is unavailable")
+    monkeypatch.setattr(app, "STATIC_DIR", str(tmp_path))
+    assert request(auth_server, "GET", "/static/alias.html")[0] == 401
+
+
+def test_invalid_static_path_returns_error(auth_server):
+    assert request(auth_server, "GET", "/static/login.js%00")[0] in (403, 404)
+
+
 def test_login_logout_revokes_cookie_and_replay(auth_server):
     cookie = sign_in(auth_server)
     assert request(auth_server, "GET", "/api/auth/session", cookie=cookie)[2]["login"] == LOGIN
@@ -290,6 +313,7 @@ def test_password_failures_and_rate_limit(auth_server, monkeypatch):
         {"X-PZ-Request": ""},
         {"Origin": "https://evil.test"},
         {"Origin": "null"},
+        {"Origin": "http://[evil"},
         {"Sec-Fetch-Site": "cross-site"},
     ],
 )
@@ -351,3 +375,77 @@ def test_unconfigured_server_is_closed(auth_server):
     assert request(auth_server, "GET", "/api/overview")[0] == 503
     assert request(auth_server, "POST", "/api/auth/login", {})[0] == 503
     assert request(auth_server, "GET", "/api/health")[0] == 200
+
+
+@pytest.mark.parametrize(
+    "body",
+    [b'{"nested":' + b"[" * 15000 + b"0" + b"]" * 15000 + b"}", b"{}"],
+    ids=["deep-nesting", "truncated"],
+)
+def test_json_parser_rejects_deep_nesting_and_truncated_body(body):
+    handler = SimpleNamespace(
+        headers={"Content-Length": str(len(body) + (1 if body == b"{}" else 0))},
+        path="/api/auth/login",
+        rfile=io.BytesIO(body),
+    )
+    with pytest.raises(ValueError, match="JSON"):
+        app._read_json(handler)
+
+
+@pytest.mark.parametrize("depth", [20, 63])
+def test_json_parser_preserves_nested_data_within_the_depth_limit(depth):
+    body = b'{"nested":' + b"[" * depth + b"0" + b"]" * depth + b"}"
+    handler = SimpleNamespace(
+        headers={"Content-Length": str(len(body))},
+        path="/api/settings",
+        rfile=io.BytesIO(body),
+    )
+    assert app._read_json(handler) == json.loads(body)
+
+
+def test_json_parser_rejects_the_first_container_over_the_depth_limit():
+    body = b'{"nested":' + b"[" * 64 + b"0" + b"]" * 64 + b"}"
+    handler = SimpleNamespace(
+        headers={"Content-Length": str(len(body))},
+        path="/api/settings",
+        rfile=io.BytesIO(body),
+    )
+    with pytest.raises(ValueError, match="JSON"):
+        app._read_json(handler)
+
+
+def test_nested_settings_input_is_rejected_before_recursive_processing(auth_server, monkeypatch):
+    cookie = sign_in(auth_server)
+    patch_settings = Mock(return_value=None)
+    monkeypatch.setattr(app.ops, "patch_settings", patch_settings)
+    nested = 0
+    for _ in range(500):
+        nested = [nested]
+    status, _, response = request(
+        auth_server, "POST", "/api/settings", {"autoUpdate": {"extra": nested}}, cookie=cookie
+    )
+    assert status == 400 and response["ok"] is False
+    patch_settings.assert_not_called()
+
+
+def test_deeply_nested_login_body_returns_json_error(auth_server):
+    connection = http.client.HTTPConnection(*auth_server.server_address, timeout=5)
+    body = b'{"nested":' + b"[" * 15000 + b"0" + b"]" * 15000 + b"}"
+    try:
+        connection.request("POST", "/api/auth/login", body, {"X-PZ-Request": "1"})
+        response = connection.getresponse()
+        assert response.status == 400
+        assert json.loads(response.read())["ok"] is False
+    finally:
+        connection.close()
+
+
+def test_deeply_nested_saved_sessions_are_replaced_with_empty_store(tmp_path):
+    key = auth.Fernet.generate_key()
+    path = tmp_path / "auth-sessions.bin"
+    manager = auth.Auth(LOGIN, PASSWORD, key, sessions_file=path)
+    damaged = b'{"nested":' + b"[" * 15000 + b"0" + b"]" * 15000 + b"}"
+    path.write_bytes(manager._cipher.encrypt(damaged))
+    restarted = auth.Auth(LOGIN, PASSWORD, key, sessions_file=path)
+    assert not restarted._sessions
+    assert json.loads(restarted._cipher.decrypt(path.read_bytes()))["sessions"] == {}

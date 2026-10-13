@@ -42,6 +42,13 @@ def assert_clean(page):
     expect(page.locator("body")).not_to_have_class(re.compile(".*order-dragging.*"))
 
 
+def expect_saved_order(page, mid, position):
+    # Positions preview immediately; the announcement follows save and metadata refresh.
+    expect(page.locator("#orderAnnouncement")).to_have_text(
+        re.compile(rf"^{re.escape(mid)}: .*→ {position}\. (?:Draft saved|Черновик сохранён)\.$")
+    )
+
+
 @pytest.mark.parametrize("width,language", [(1440, "ru"), (390, "en"), (320, "ru")])
 def test_pointer_preview_cancel_and_drop(page, dashboard, long_order, width, language):
     data, ids, original = long_order
@@ -72,6 +79,7 @@ def test_pointer_preview_cancel_and_drop(page, dashboard, long_order, width, lan
     page.mouse.move(x, target["y"] + target["height"] - 4, steps=8)
     page.mouse.up()
     expect(page.locator('[data-order-id="library"] .order-position')).to_have_text("3")
+    expect_saved_order(page, "library", 3)
     assert editor.mod_response("world.ini", draft_mode=True)["mods"] == [
         "plugin",
         "mod001",
@@ -133,6 +141,7 @@ def test_drag_autoscroll_both_directions_and_wheel(page, dashboard, long_order, 
     expect(page.locator('[data-order-id="library"] .order-position')).to_have_text(
         str(destination + 1)
     )
+    expect_saved_order(page, "library", destination + 1)
     result = editor.mod_response("world.ini", draft_mode=True)["mods"]
     expected = ids[1:]
     expected.insert(destination, "library")
@@ -163,6 +172,7 @@ def test_keyboard_reorder_cancel_reduced_motion_and_filtered_positions(page, das
     grip.press("End")
     grip.press("Enter")
     expect(page.locator('[data-order-id="mod001"] .order-position')).to_have_text("11")
+    expect_saved_order(page, "mod001", 11)
     assert editor.mod_response("world.ini", draft_mode=True)["mods"] == [
         *ids[:2],
         *ids[3:11],
@@ -221,6 +231,7 @@ def test_touch_drag_and_keyboard_focus_change_cancel(page, dashboard, long_order
     )
     session.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
     expect(page.locator('[data-order-id="library"] .order-position')).to_have_text("3")
+    expect_saved_order(page, "library", 3)
     assert editor.mod_response("world.ini", draft_mode=True)["mods"] == [
         "plugin",
         "mod001",

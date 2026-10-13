@@ -187,6 +187,29 @@ def test_draft_is_persistent_and_does_not_write_server(env):
     assert "topsecret" not in encoded and "hidden-token" not in encoded
 
 
+def test_ini_alias_edits_keep_the_persisted_draft_readable(env):
+    current = change(ini={"mods": "\\library", "password": "new-secret"})
+    reloaded = editor.draft("world.ini")
+    assert reloaded["draftRevision"] == current["draftRevision"]
+    assert ini_entries(reloaded["texts"]["ini"])["Mods"]["value"] == "\\library"
+    assert "new-secret" not in json.dumps(reloaded)
+
+
+def test_rejected_duplicate_ini_aliases_preserve_the_saved_draft(env):
+    current = editor.draft("world.ini")
+    with pytest.raises(FormatError):
+        editor.patch(
+            {
+                "file": "world.ini",
+                "draftRevision": current["draftRevision"],
+                "ini": {"Mods": "first", "mods": "second"},
+            }
+        )
+    reloaded = editor.draft("world.ini")
+    assert reloaded["draftRevision"] == current["draftRevision"]
+    assert reloaded["texts"] == current["texts"]
+
+
 def test_source_secret_markers_preserve_actual_values(env):
     current = editor.draft("world.ini")
     new = editor.patch(
@@ -500,6 +523,72 @@ def test_transaction_rolls_back_both_files_after_partial_failure(env, monkeypatc
             "test",
         )
     assert editor.read_profile("world.ini") == original
+    assert not (editor.state_dir("world.ini") / "transaction.json").exists()
+
+
+@pytest.mark.parametrize("kind", ["ini", "sandbox"])
+def test_commit_rechecks_revision_after_writing_history_snapshots(env, monkeypatch, kind):
+    original = editor.read_profile("world.ini")
+    paths = editor.profile_paths("world.ini")
+    external = {
+        "ini": INI.replace("Сервер", "External change"),
+        "sandbox": LUA.replace("Count = 2", "Count = 7"),
+    }
+    real_atomic = editor.atomic
+
+    def change_during_snapshot(path, value, mode=0o600, owner=None):
+        result = real_atomic(path, value, mode, owner=owner)
+        if path.name == kind and path.parent.parent.name == "history":
+            paths[kind].write_bytes(external[kind].encode())
+        return result
+
+    monkeypatch.setattr(editor, "atomic", change_during_snapshot)
+    with pytest.raises(editor.EditorError, match="конфликт ревизии"):
+        editor.commit(
+            "world.ini",
+            {"ini": INI.replace("Сервер", "Draft change"), "sandbox": LUA},
+            "test",
+            expected=editor.revision(original),
+        )
+    assert editor.read_profile("world.ini") == {**original, kind: external[kind]}
+    assert not (editor.state_dir("world.ini") / "transaction.json").exists()
+
+
+def test_aborted_commit_history_uses_the_same_immutable_bytes_as_its_revision(env, monkeypatch):
+    paths = editor.profile_paths("world.ini")
+    original_bytes = {
+        "ini": INI.encode("utf-8-sig"),
+        "sandbox": LUA.replace("\n", "\r\n").encode("utf-8-sig"),
+    }
+    for kind, path in paths.items():
+        path.write_bytes(original_bytes[kind])
+    original = editor.read_profile("world.ini")
+    external = original_bytes["sandbox"].replace(b"Count = 2", b"Count = 7")
+    real_atomic = editor.atomic
+
+    def change_other_file_during_snapshot(path, value, mode=0o600, owner=None):
+        result = real_atomic(path, value, mode, owner=owner)
+        if path.name == "ini" and path.parent.parent.name == "history":
+            paths["sandbox"].write_bytes(external)
+        return result
+
+    monkeypatch.setattr(editor, "atomic", change_other_file_during_snapshot)
+    with pytest.raises(editor.EditorError, match="конфликт ревизии"):
+        editor.commit(
+            "world.ini",
+            {**original, "ini": original["ini"].replace("Сервер", "Draft change")},
+            "test",
+            expected=editor.revision(original),
+        )
+    record = editor.history("world.ini")["items"][0]
+    backup = editor.state_dir("world.ini") / "history" / record["id"]
+    history_bytes = {kind: (backup / kind).read_bytes() for kind in paths}
+    assert history_bytes == original_bytes
+    assert record["revision"] == editor.revision(
+        {kind: data.decode("utf-8-sig") for kind, data in history_bytes.items()}
+    )
+    assert paths["ini"].read_bytes() == original_bytes["ini"]
+    assert paths["sandbox"].read_bytes() == external
     assert not (editor.state_dir("world.ini") / "transaction.json").exists()
 
 

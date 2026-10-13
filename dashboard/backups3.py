@@ -295,6 +295,8 @@ def upload_verified(path, cfg, phase, *, verification=None):
     invalidate()
     phase("Удаление локальной копии бэкапа", name)
     try:
+        if backupverify.local_identity(path) != identity:
+            raise OpsError("Бэкап изменился во время проверки; повторите проверку")
         os.remove(path)
     except OSError as error:
         raise OpsError(

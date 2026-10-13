@@ -70,6 +70,100 @@ def test_prepare_preserves_project_and_maps_world_mount(deployment):
     assert container["Image"] == OLD
 
 
+def test_prepare_rejects_world_bind_replaced_by_tmpfs_before_pull(deployment, monkeypatch):
+    _, model = deployment
+    model["services"]["game"]["volumes"] = [{"type": "tmpfs", "target": "/data"}]
+    monkeypatch.setattr(dockerlib, "image_pull", Mock())
+    monkeypatch.setattr(dockerlib, "compose_version", lambda: True)
+    monkeypatch.setattr(ops, "graceful_stop", Mock())
+    with pytest.raises(ops.OpsError, match="Пути данных"):
+        ops._do_apply_update(0)
+    dockerlib.image_pull.assert_not_called()
+    ops.graceful_stop.assert_not_called()
+
+
+@pytest.mark.parametrize("kind", ["bind", "volume"])
+@pytest.mark.parametrize("change", ["removed", "readonly"])
+def test_prepare_rejects_removed_or_readonly_world_mount(deployment, kind, change):
+    container, model = deployment
+    definition = model["services"]["game"]
+    if kind == "volume":
+        container["Mounts"] = [
+            {"Type": "volume", "Name": "production_world", "Destination": "/data", "RW": True}
+        ]
+        model["volumes"] = {"world": {"name": "production_world"}}
+        definition["volumes"] = [{"type": "volume", "source": "world", "target": "/data"}]
+    if change == "removed":
+        definition["volumes"] = []
+    else:
+        definition["volumes"][0]["read_only"] = True
+    with pytest.raises(ops.OpsError, match="Пути данных"):
+        serverupdate.prepare()
+
+
+def test_prepare_retains_implicit_image_volumes_and_file_mounts(deployment):
+    container, model = deployment
+    container["Config"]["Volumes"] = {"/cache": {}}
+    container["Mounts"].extend(
+        [
+            {
+                "Type": "volume",
+                "Name": "c" * 64,
+                "Source": "/volumes/cache",
+                "Destination": "/cache",
+                "RW": True,
+            },
+            {
+                "Type": "bind",
+                "Source": "/srv/pz/password",
+                "Destination": "/run/secrets/password",
+                "RW": False,
+            },
+            {"Type": "bind", "Source": "/srv/pz/settings", "Destination": "/settings", "RW": False},
+        ]
+    )
+    definition = model["services"]["game"]
+    definition["secrets"] = [{"source": "password"}]
+    definition["configs"] = [{"source": "settings", "target": "/settings"}]
+    model["secrets"] = {"password": {"file": "/compose/password"}}
+    model["configs"] = {"settings": {"file": "/compose/settings"}}
+    _, frozen = serverupdate.prepare()
+    assert any(
+        volume == {"type": "volume", "target": "/cache", "read_only": False}
+        for volume in frozen["services"]["game"]["volumes"]
+    )
+    assert frozen["secrets"]["password"]["file"] == "/srv/pz/password"
+    assert frozen["configs"]["settings"]["file"] == "/srv/pz/settings"
+
+
+@pytest.mark.parametrize("changed", [False, True])
+def test_prepare_preserves_named_volume_subpath(deployment, changed):
+    container, model = deployment
+    container["Mounts"] = [
+        {"Type": "volume", "Name": "production_world", "Destination": "/data", "RW": True}
+    ]
+    container["HostConfig"] = {
+        "Mounts": [{"Type": "volume", "Target": "/data", "VolumeOptions": {"Subpath": "world"}}]
+    }
+    model["volumes"] = {"world": {"name": "production_world"}}
+    model["services"]["game"]["volumes"] = [
+        {
+            "type": "volume",
+            "source": "world",
+            "target": "/data",
+            "volume": {"subpath": "replacement" if changed else "world"},
+        }
+    ]
+    if changed:
+        with pytest.raises(ops.OpsError, match="Пути данных"):
+            serverupdate.prepare()
+    else:
+        assert (
+            serverupdate.prepare()[1]["services"]["game"]["volumes"][0]["volume"]["subpath"]
+            == "world"
+        )
+
+
 @pytest.mark.parametrize("changed", [False, True])
 def test_prepare_preserves_named_world_volume(deployment, changed):
     container, model = deployment

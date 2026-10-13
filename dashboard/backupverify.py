@@ -63,7 +63,7 @@ def receipts(cfg):
         try:
             saved = json.loads(_path(cfg).read_text(encoding="utf-8"))
             return saved if isinstance(saved, dict) else {}
-        except (OSError, ValueError):
+        except (OSError, ValueError, RecursionError):
             return {}
 
 
@@ -105,7 +105,7 @@ def _change(cfg, key, receipt):
     with _LOCK:
         try:
             saved = json.loads(_path(cfg).read_text(encoding="utf-8"))
-        except (FileNotFoundError, ValueError):
+        except (FileNotFoundError, ValueError, RecursionError):
             saved = {}
         if not isinstance(saved, dict):
             saved = {}

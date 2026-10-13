@@ -134,19 +134,25 @@ def profile_paths(file):
     return paths
 
 
-def read_profile(file):
+def profile_snapshot(file):
+    """Read each original once; decoded revisions and history share these bytes."""
     paths = profile_paths(file)
-    texts = {}
+    texts, originals = {}, {}
     for kind, path in paths.items():
         if path.exists() and path.stat().st_size > 1_000_000:
             raise EditorError("Файл конфигурации больше 1 МБ")
         try:
-            texts[kind] = path.read_bytes().decode("utf-8-sig") if path.exists() else ""
+            originals[kind] = path.read_bytes() if path.exists() else None
+            texts[kind] = originals[kind].decode("utf-8-sig") if originals[kind] is not None else ""
         except UnicodeDecodeError:
             raise EditorError(
                 "Конфигурация должна быть в UTF-8; исходный файл не изменён"
             ) from None
-    return texts
+    return texts, originals
+
+
+def read_profile(file):
+    return profile_snapshot(file)[0]
 
 
 def shared_data_path(mounts, cache_dirs):
@@ -950,7 +956,7 @@ def commit(file, texts, reason, expected=None):
             ctx.get("dataDiagnostic") or "Не подтверждён общий каталог данных сервера", 409
         )
     root, paths = state_dir(file), profile_paths(file)
-    current = read_profile(file)
+    current, originals = profile_snapshot(file)
     if expected is not None and revision(current) != expected:
         raise EditorError("Файлы изменились перед записью: конфликт ревизии", 409)
     hid = f"{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:8]}"
@@ -958,15 +964,19 @@ def commit(file, texts, reason, expected=None):
     durable_directory(backup)
     modes, owners = {}, {}
     for kind, path in paths.items():
-        if path.exists():
+        if originals[kind] is not None:
             stat = path.stat()
             modes[kind] = stat.st_mode & 0o777
             owners[kind] = (stat.st_uid, stat.st_gid)
-            atomic(backup / kind, path.read_bytes())
+            atomic(backup / kind, originals[kind])
     save_json(
         backup / "record.json",
         {"id": hid, "at": ops.now_iso(), "reason": reason, "revision": revision(current)},
     )
+    # Durable history writes can be slow; recheck before publishing the journal
+    # so an external edit during those writes is neither overwritten nor rolled back.
+    if expected is not None and revision(read_profile(file)) != expected:
+        raise EditorError("Файлы изменились перед записью: конфликт ревизии", 409)
     journal = root / "transaction.json"
     transaction = {"historyId": hid, "modes": modes, "owners": owners}
     save_json(journal, transaction)
@@ -975,7 +985,7 @@ def commit(file, texts, reason, expected=None):
             if texts[kind] != current[kind]:
                 encoding = (
                     "utf-8-sig"
-                    if path.exists() and path.read_bytes().startswith(b"\xef\xbb\xbf")
+                    if originals[kind] is not None and originals[kind].startswith(b"\xef\xbb\xbf")
                     else "utf-8"
                 )
                 atomic(

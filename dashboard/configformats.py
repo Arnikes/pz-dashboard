@@ -9,6 +9,13 @@ import re
 SECRET = "__PZ_SECRET_UNCHANGED__"
 SECRET_KEY = re.compile(r"password|token|secret", re.I)
 MOD_KEYS = {"Mods", "WorkshopItems", "Map"}
+INI_KEYS = {
+    "mods": "Mods",
+    "workshopitems": "WorkshopItems",
+    "map": "Map",
+    "password": "Password",
+    "rconpassword": "RCONPassword",
+}
 
 
 class FormatError(ValueError):
@@ -60,18 +67,17 @@ def ini_entries(text):
     pattern = re.compile(r"^([ \t]*)([^#;\s=][^=\r\n]*?)([ \t]*=[ \t]*)([^\r\n]*)", re.M)
     for match in pattern.finditer(text):
         key = match[2].strip()
-        key = {
-            "mods": "Mods",
-            "workshopitems": "WorkshopItems",
-            "map": "Map",
-            "password": "Password",
-            "rconpassword": "RCONPassword",
-        }.get(key.lower(), key)
+        key = INI_KEYS.get(key.lower(), key)
         end = match.end(4)
         value = match[4]
         while value.rstrip().endswith(";"):
             continuation = re.match(r"\r?\n[ \t]+([^\r\n]*)", text[end:])
-            if not continuation or "=" in continuation[1]:
+            if (
+                not continuation
+                or not continuation[1].strip()
+                or continuation[1].lstrip().startswith(("#", ";"))
+                or "=" in continuation[1]
+            ):
                 break
             value += continuation[1].strip()
             end += continuation.end()
@@ -84,14 +90,17 @@ def ini_entries(text):
 def edit_ini(text, changes):
     entries = ini_entries(text)
     edits = []
+    seen = set()
     newline = "\r\n" if "\r\n" in text else "\n"
     for key, value in changes.items():
-        if (
-            not isinstance(key, str)
-            or key not in entries
-            and not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", key)
-        ):
+        if not isinstance(key, str):
             raise FormatError("Некорректный ключ INI")
+        key = INI_KEYS.get(key.lower(), key)
+        if key not in entries and not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", key):
+            raise FormatError("Некорректный ключ INI")
+        if key in seen:
+            raise FormatError(f"Повторяющийся ключ INI: {key}")
+        seen.add(key)
         value = str(value)
         if "\n" in value or "\r" in value or "\0" in value:
             raise FormatError(f"Перенос строки недопустим в {key}")
@@ -408,6 +417,8 @@ class LuaTable:
                     branch = branch.setdefault(key, {})
                     if not isinstance(branch, dict):
                         raise FormatError("Поле одновременно задано как таблица и значение")
+                if path[-1] in branch:
+                    raise FormatError("Поле одновременно задано как таблица и значение")
                 branch[path[-1]] = value
         for dotted in remove:
             path = tuple(dotted.split("."))

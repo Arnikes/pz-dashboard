@@ -63,32 +63,15 @@ def prepare():
         panel_mounts = sorted(
             panel.get("Mounts", []), key=lambda m: len(m["Destination"]), reverse=True
         )
-        server_mounts = {m["Destination"]: m for m in container.get("Mounts", [])}
         for volume in definition.get("volumes", []):
-            live = server_mounts.get(volume["target"])
-            if volume.get("type", "volume") == "volume":
-                source = volume.get("source")
-                name = model.get("volumes", {}).get(source, {}).get("name") if source else None
-                if not live or live["Type"] != "volume" or (source and name != live.get("Name")):
-                    raise OpsError(
-                        "Пути данных сервера в Compose не совпадают с подключениями контейнера"
-                    )
-                continue
-            if volume.get("type") != "bind":
-                continue
-            source = volume["source"]
-            for mount in panel_mounts:
-                target = mount["Destination"].rstrip("/")
-                if mount["Type"] == "bind" and (
-                    source == target or source.startswith(target + "/")
-                ):
-                    source = mount["Source"].rstrip("/") + source[len(target) :]
-                    break
-            if not live or live["Type"] != "bind" or source != live["Source"]:
-                raise OpsError(
-                    "Пути данных сервера в Compose не совпадают с подключениями контейнера"
-                )
-            volume["source"] = source
+            if volume.get("type") == "bind":
+                volume["source"] = dockerlib.host_bind_source(volume["source"], panel_mounts)
+        for kind in ("configs", "secrets"):
+            for record in model.get(kind, {}).values():
+                if record.get("file"):
+                    record["file"] = dockerlib.host_bind_source(record["file"], panel_mounts)
+        if not dockerlib.preserve_mounts(container, model, service):
+            raise OpsError("Пути данных сервера в Compose не совпадают с подключениями контейнера")
         model["name"] = project
         return container, model
     except (ValueError, KeyError, TypeError, AttributeError) as error:

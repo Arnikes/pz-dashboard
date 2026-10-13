@@ -155,3 +155,55 @@ Chromium tests. The affected backend/browser run passed all 343 tests. Eight
 removed weight-specific font assets were byte-for-byte duplicates of the four
 retained variable fonts. `graphify update . --force` refreshed the local AST graph
 without model API calls. `git diff --check` passed.
+
+## October 13, 2026 defect audit
+
+This audit used the existing Graphify graph to navigate configuration, HTTP,
+storage, operation, Workshop and browser code. Findings were verified against
+source and isolated regression tests before changing behavior. Python 3.12.10
+from the checkout's `.venv` was used; installed runtime and development versions
+match the pinned requirements.
+
+### Confirmed defects and corrections
+
+| Area | Trigger and consequence | Correction |
+| --- | --- | --- |
+| INI continuations | An indented comment or blank line following a trailing semicolon was consumed as part of the value and deleted by an edit. | Stop continuations before comments and blank lines; preserve their original bytes. |
+| INI key aliases | Editing `mods` or `password` could append a duplicate canonical key and leave the persisted draft unreadable. | Canonicalize edits with the parser's key mapping and reject duplicate aliases before saving. |
+| Lua additions | Adding a child field before its scalar parent silently discarded the child. | Reject conflicting parent/child additions in either input order. |
+| Configuration revisions and history | An external edit during durable history writes could bypass the earlier revision check or mix different versions in a history pair. | Capture immutable originals for both the revision and history; recheck the working revision before creating the recovery journal. |
+| Source editor | Typing while a draft save or metadata request was pending could replace the new text with an older response and mark it saved. | Share the pending save and persist newer buffer snapshots before clearing dirty state. |
+| Numeric fields | Clearing a field that allowed zero converted the empty text to `0`, including settings where zero disables a feature. | Require a numeric value while continuing to accept an explicit zero. |
+| Protected static HTML | Native Windows separators could alias `index.html` through a public static URL and bypass the HTML authorization guard. | Check containment and authorization against the resolved file path. API authorization remained enforced. |
+| HTTP input | Malformed Origin URLs and truncated or deeply nested JSON could escape validation or close the connection without a JSON error. | Reject malformed origins and incomplete bodies; bound JSON nesting before downstream processing. |
+| Persistent JSON stores | Deeply nested damaged session or backup-verification stores raised uncaught recursion errors. | Recover through the existing empty-store behavior instead of failing startup or verification. |
+| S3 export | A local archive changed after upload verification but before deletion could be removed without its new bytes being uploaded. | Recheck local identity immediately before removal, including after phase callbacks and client cleanup. |
+| Operation launch | Failure to construct or start a worker left the operation slot permanently occupied. | Restore the previous idle state and return the existing operation error; later operations can start. |
+| Container updates | Mount checks could accept different data storage, dropped bindings or a persistent mount replaced by temporary storage. | Validate mount identity and access before downloading images or handing off recreation; retain implicit image volumes and declared config/secret files. |
+| Workshop validation | Long dependency chains exhausted Python's recursion limit, including valid acyclic chains. | Detect cycles iteratively with the same dependency and ordering edges. |
+| Browser verification | A drag test inspected backend state while the optimistic preview's save was still pending. | Wait for the existing saved-order announcement before inspecting persisted order. |
+
+The configuration and S3 identity checks detect the reproduced race windows;
+they do not provide an atomic transaction with arbitrary external file writers.
+Regression fixtures use fictional credentials and local temporary data. No live
+game server, registry publication, Steam download or Telegram message was needed.
+
+### Validation
+
+The initial full gate reported **1,673 passed, 4 skipped and 1 failed**. The failed
+phone-width drag test passed its automatic diagnostic replay; inspection confirmed
+that its backend assertion ran before the save finished. Saved-order assertions
+now wait for the application's completion announcement. No checks were disabled.
+
+After the final Python edit, repository-wide `ruff format .`, `ruff check .` and
+`ruff format --check .` passed. Node.js 24.21.0 was used for JavaScript checks.
+`graphify update .` refreshed the AST graph to **2,311 nodes, 4,567 edges and
+165 communities**, with no model API calls. Graphify reports no extracted nodes
+for `pyproject.toml` and skips unsupported file formats; these files remain in
+scope for the repository's ordinary checks. Community names affected by changed
+membership were derived deterministically from their hub nodes.
+
+The final `python scripts/check.py` passed dependency consistency, repository-wide
+lint/format, generated translation catalogs, every JavaScript syntax check and
+**1,750 tests passed, 5 skipped**, including Chromium browser scenarios. The full
+test run took 610.63 seconds. `git diff --check` also passed after the report update.
