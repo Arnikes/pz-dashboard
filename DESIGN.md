@@ -282,7 +282,9 @@ readiness, including restarts, updates, restore, stopped-server backups and
 configuration/Workshop application. A readiness timeout reports failure without
 automatically restarting again. This includes drafts, mod order, player
 actions, schedules, watchdog and notification settings. Route navigation, search,
-logs and events remain available, as does mod-update cancellation during countdown.
+logs and events remain available, as do mod-update cancellation during countdown and server image update cancellation
+until stopping begins. The shared operation bar shows the matching cancel action,
+keeps an accepted cancellation disabled while pending, and removes it at completion.
 Pending input survives locking and failed requests; completion restores each
 control's ordinary profile, host/remote, demo and server-state restrictions.
 Source editing preserves native formats and masks secrets. Tabs expose linked

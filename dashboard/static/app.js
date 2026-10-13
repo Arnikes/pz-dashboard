@@ -1052,10 +1052,10 @@ function renderOverview(o) {
     $("updNote").textContent = I18n.t("Сравнение digest требует доступа к локальному образу — обновление выполняется с хоста сервера.");
   } else if (u.available === true) {
     pill.dataset.state = "warn"; pill.textContent = I18n.t("есть обновление");
-    $("updNote").textContent = I18n.t("Сверяется digest локального образа с Docker Hub.");
+    $("updNote").textContent = I18n.t("Сверяется образ запущенного сервера с его реестром.");
   } else if (u.available === false) {
     pill.dataset.state = "ok"; pill.textContent = I18n.t("актуально");
-    $("updNote").textContent = I18n.t("Сверяется digest локального образа с Docker Hub.");
+    $("updNote").textContent = I18n.t("Сверяется образ запущенного сервера с его реестром.");
   } else if (u.error) {
     pill.dataset.state = "bad"; pill.textContent = I18n.t("ошибка проверки");
     $("updNote").textContent = u.error;
@@ -1064,12 +1064,12 @@ function renderOverview(o) {
     $("updNote").textContent = u.note;
   } else {
     pill.dataset.state = "unknown"; pill.textContent = I18n.t("не проверялось");
-    $("updNote").textContent = I18n.t("Сверяется digest локального образа с Docker Hub.");
+    $("updNote").textContent = I18n.t("Сверяется образ запущенного сервера с его реестром.");
   }
   $("updNote").hidden = !(remote || u.error || (u.note && u.available == null));
   const same = u.local && u.remote && u.local === u.remote;
   $("updRemote").classList.toggle("ok-same", !!same);
-  $("updHubDate").textContent = u.hubUpdated ? I18n.t("собрана ") + fmtTime(u.hubUpdated) : "—";
+  $("updHubDate").textContent = u.at ? fmtTime(u.at) : "—";
   setCopyTarget("updLocalCopy", u.local, shortDigest(u.local));
   setCopyTarget("updRemoteCopy", u.remote, same ? I18n.t("совпадает") : shortDigest(u.remote));
 
@@ -1270,11 +1270,16 @@ function updateButtons() {
   $("btnApplyDashboardUpd").disabled = busy || remote || !o?.dashboardUpdate?.supported || o?.compose === false || o?.dashboardUpdate?.available === false;
   $("btnCheckMods").disabled = busy || S.demo || remote;
   $("btnApplyMods").disabled = busy || S.demo || remote;
-  const modsRestart = S.op?.active?.op === "mods-restart";
-  const cancelPending = modsRestart && !!S.op.active.cancelRequested;
-  $("btnCancelMods").hidden = !modsRestart || (!S.op.active.cancellable && !cancelPending);
-  $("btnCancelMods").disabled = remote || cancelPending || !S.op?.active?.cancellable;
-  $("btnCancelMods").textContent = cancelPending ? I18n.t("Отмена…") : I18n.t("Отменить обновление модов");
+  for (const [id, operation, label] of [
+    ["btnCancelMods", "mods-restart", "Отменить обновление модов"],
+    ["btnCancelUpdate", "apply-update", "Отменить обновление сервера"],
+  ]) {
+    const matching = S.op?.active?.op === operation;
+    const cancelPending = matching && !!S.op.active.cancelRequested;
+    $(id).hidden = !matching || (!S.op.active.cancellable && !cancelPending);
+    $(id).disabled = remote || S.demo || cancelPending || !S.op?.active?.cancellable;
+    $(id).textContent = cancelPending ? I18n.t("Отмена…") : I18n.t(label);
+  }
   // автонастройки и watchdog пишут в настройки и работают только с хоста —
   // в remote-режиме они тихо ничего не делают, честно их глушим
   const hostOnly = busy || S.demo || remote;
@@ -2228,23 +2233,27 @@ const WARN_OPTIONS = I18n.msg`
   </label>`;
 
 $("btnStart").addEventListener("click", () => action("start"));
-$("btnCancelMods").addEventListener("click", async () => {
-  const btn = $("btnCancelMods");
-  btn.disabled = true;
-  try {
-    const res = await api("/api/action", { method: "POST", body: { op: "cancel-mods-update" } });
-    if (res.error) throw new Error(res.error);
-    if (S.op?.active?.op === "mods-restart") {
-      S.op.active.cancelRequested = true;
-      S.op.active.cancellable = false;
+for (const [id, operation, cancelAction, message] of [
+  ["btnCancelMods", "mods-restart", "cancel-mods-update", "Запрошена отмена автообновления модов"],
+  ["btnCancelUpdate", "apply-update", "cancel-update", "Запрошена отмена обновления сервера"],
+]) {
+  $(id).addEventListener("click", async () => {
+    $(id).disabled = true;
+    try {
+      const res = await api("/api/action", { method: "POST", body: { op: cancelAction } });
+      if (res.error) throw new Error(res.error);
+      if (S.op?.active?.op === operation) {
+        S.op.active.cancelRequested = true;
+        S.op.active.cancellable = false;
+      }
+      toast(I18n.t(message), "ok");
+    } catch (e) {
+      toast(e.message || String(e), "error");
+    } finally {
+      updateButtons();
     }
-    toast(I18n.t("Запрошена отмена автообновления модов"), "ok");
-  } catch (e) {
-    toast(e.message || String(e), "error");
-  } finally {
-    updateButtons();
-  }
-});
+  });
+}
 $("btnStop").addEventListener("click", () => {
   modal.open({
     title: I18n.t("Остановить сервер?"),

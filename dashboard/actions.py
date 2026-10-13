@@ -19,9 +19,12 @@ def dispatch(data):
     if not isinstance(action, str):
         raise ActionError(400, "Неизвестная операция")
     # Отмена относится к занятой операции и не запускает нового worker.
-    if action == "cancel-mods-update":
+    if action in {"cancel-mods-update", "cancel-update"}:
         try:
-            ops.cancel_mods_update()
+            if action == "cancel-update":
+                ops.cancel_image_update()
+            else:
+                ops.cancel_mods_update()
         except ops.OpsError as error:
             raise ActionError(409, str(error)) from error
         return {"ok": True, "cancelRequested": True}

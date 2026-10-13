@@ -76,56 +76,10 @@ def check():
     if not current["supported"]:
         raise OpsError(current["note"])
     descriptor = (_CONTAINER["value"] or {}).get("ImageManifestDescriptor") or {}
-    code, out, _ = dockerlib.sh(
-        ["docker", "manifest", "inspect", "--verbose", current["image"]], timeout=25
-    )
     result = {**current, "at": time.time(), "remote": None, "available": None, "error": None}
     try:
-        if code:
-            raise ValueError
-        manifests = json.loads(out)
-        if not isinstance(manifests, list):
-            manifests = [manifests]
-        code, image_out, _ = dockerlib.sh(
-            ["docker", "image", "inspect", current["imageId"]], timeout=30
-        )
-        if code:
-            raise ValueError
-        image = json.loads(image_out)[0]
-        manifest_digest = descriptor.get("digest")
-        # Without the running manifest, an index/manifest ID cannot safely be
-        # compared to a config digest. Leave availability unknown in that case.
-        if image.get("Descriptor") and not manifest_digest:
-            raise ValueError
-        platform = descriptor.get("platform") or {
-            key: image.get(field, "")
-            for key, field in (
-                ("os", "Os"),
-                ("architecture", "Architecture"),
-                ("variant", "Variant"),
-            )
-        }
-        if not platform.get("os") or not platform.get("architecture"):
-            raise ValueError
-        for manifest in manifests:
-            remote_descriptor = manifest.get("Descriptor") or {}
-            remote_platform = remote_descriptor.get("platform") or {}
-            if remote_platform and any(
-                remote_platform.get(key, "") != platform.get(key, "")
-                for key in ("os", "architecture", "variant")
-            ):
-                continue
-            schema = manifest.get("SchemaV2Manifest") or manifest.get("OCIManifest") or {}
-            digest = (
-                remote_descriptor.get("digest")
-                if manifest_digest
-                else schema.get("config", {}).get("digest")
-            )
-            if digest:
-                result.update(remote=digest, available=digest != current["local"])
-                break
-        if not result["remote"]:
-            raise ValueError
+        local, remote = dockerlib.registry_digests(current["image"], current["imageId"], descriptor)
+        result.update(local=local, remote=remote, available=remote != local)
     except (ValueError, IndexError, TypeError, AttributeError):
         result["error"] = "Не удалось проверить образ пульта. Проверьте реестр и доступ к образу."
     _CHECK.clear()

@@ -73,15 +73,18 @@ def test_launch_keeps_lock_and_history_pending_until_game_readiness(
     monkeypatch.setattr(ops, "get_settings", lambda: settings)
     monkeypatch.setattr(ops, "_set_schedule", Mock())
     monkeypatch.setattr(ops, "rcon_warn_broadcast", Mock())
-    monkeypatch.setattr(ops, "_effective_image", lambda: "test-image")
-    monkeypatch.setattr(ops, "_installed_digest", lambda image: "old")
+    container = {"Id": "game", "Image": "old", "State": {"Running": True}}
+    model = {"services": {ops.config.CFG["pz_service"]: {"image": "test-image"}}}
+    monkeypatch.setattr(ops.serverupdate, "prepare", lambda: (container, model))
+    monkeypatch.setattr(ops.serverupdate, "image_id", lambda image: "new")
+    inspections = iter([container, {**container, "Image": "new"}])
+    monkeypatch.setattr(ops.dashboardupdate, "inspect", lambda name: next(inspections))
     monkeypatch.setattr(dockerlib, "image_pull", lambda image: (0, "", ""))
-    monkeypatch.setattr(dockerlib, "image_digests", lambda image: "new")
     monkeypatch.setattr(dockerlib, "compose_version", lambda: True)
     monkeypatch.setattr(
-        dockerlib,
-        "compose_up",
-        lambda cfg: (1 if operation == "update-recovery" else 0, "", "compose failed"),
+        ops.serverupdate,
+        "recreate",
+        lambda model, snapshot: (1 if operation == "update-recovery" else 0, "", "compose failed"),
     )
     monkeypatch.setattr(ops, "check_update", Mock())
     if operation in ("start", "restore"):

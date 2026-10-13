@@ -135,10 +135,13 @@ def test_manual_restart_arms_grace_before_stop_and_refreshes_at_launch(
 
 def test_update_arms_grace_for_compose_launch(watchdog, monkeypatch):
     ops._SETTINGS["autoUpdate"]["backupBeforeUpdate"] = False
-    monkeypatch.setattr(ops, "_effective_image", lambda: "image")
-    monkeypatch.setattr(ops, "_installed_digest", lambda image: "old")
+    container = {"Id": "game", "Image": "old", "State": {"Running": True}}
+    model = {"services": {ops.config.CFG["pz_service"]: {"image": "image"}}}
+    monkeypatch.setattr(ops.serverupdate, "prepare", lambda: (container, model))
+    monkeypatch.setattr(ops.serverupdate, "image_id", lambda image: "new")
+    inspections = iter([container, {**container, "Image": "new"}])
+    monkeypatch.setattr(ops.dashboardupdate, "inspect", lambda name: next(inspections))
     monkeypatch.setattr(dockerlib, "image_pull", lambda image: (0, "", ""))
-    monkeypatch.setattr(dockerlib, "image_digests", lambda image: "new")
     monkeypatch.setattr(dockerlib, "compose_version", lambda: True)
     monkeypatch.setattr(ops, "wait_until_running", lambda timeout: True)
     monkeypatch.setattr(ops, "wait_until_ready", lambda timeout=600: True)
@@ -148,21 +151,28 @@ def test_update_arms_grace_for_compose_launch(watchdog, monkeypatch):
         assert ops._watchdog_in_grace()
         watchdog[0] += 400
 
-    def compose(cfg):
+    def compose(cfg, snapshot):
         assert ops.watchdog_state()["graceRemainingSec"] == 300
         return 0, "", ""
 
     monkeypatch.setattr(ops, "graceful_stop", stop)
-    monkeypatch.setattr(dockerlib, "compose_up", compose)
+    monkeypatch.setattr(ops.serverupdate, "recreate", compose)
     ops._do_apply_update(0)
     assert ops.watchdog_state()["graceRemainingSec"] == 300
 
 
 def test_update_without_restart_does_not_arm_grace(watchdog, monkeypatch):
-    monkeypatch.setattr(ops, "_effective_image", lambda: "image")
-    monkeypatch.setattr(ops, "_installed_digest", lambda image: "same")
+    monkeypatch.setattr(
+        ops.serverupdate,
+        "prepare",
+        lambda: (
+            {"Image": "same"},
+            {"services": {ops.config.CFG["pz_service"]: {"image": "image"}}},
+        ),
+    )
+    monkeypatch.setattr(ops.serverupdate, "image_id", lambda image: "same")
+    monkeypatch.setattr(dockerlib, "compose_version", lambda: True)
     monkeypatch.setattr(dockerlib, "image_pull", lambda image: (0, "", ""))
-    monkeypatch.setattr(dockerlib, "image_digests", lambda image: "same")
     monkeypatch.setattr(ops, "check_update", Mock())
     ops._do_apply_update(0)
     assert not ops._watchdog_in_grace()

@@ -176,31 +176,17 @@ def test_restore_rechecks_stopped_container_before_writing(audit_env, tmp_path, 
 
 
 def test_update_compares_container_image_even_if_tag_was_pulled(audit_env, monkeypatch):
-    state = {"running": True, "image": "repo/server:latest", "imageId": "sha256:installed"}
-    monkeypatch.setattr(ops, "container_state", Mock(return_value=state))
-    digest = Mock(
-        side_effect=lambda image: "sha256:old" if image == state["imageId"] else "sha256:new"
-    )
-    monkeypatch.setattr(dockerlib, "image_digests", digest)
-
-    class Response:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            pass
-
-        def read(self):
-            return b'{"digest": "sha256:new"}'
-
-    monkeypatch.setattr(ops.urllib.request, "urlopen", Mock(return_value=Response()))
+    container = {"Config": {"Image": "repo/server:latest"}, "Image": "sha256:installed"}
+    monkeypatch.setattr(ops.dashboardupdate, "inspect", Mock(return_value=container))
+    compare = Mock(return_value=("sha256:installed", "sha256:new"))
+    monkeypatch.setattr(dockerlib, "registry_digests", compare)
     assert ops.check_update()["available"] is True
-    digest.assert_called_once_with("sha256:installed")
-    monkeypatch.setattr(dockerlib, "image_pull", Mock(return_value=(0, "", "")))
+    compare.assert_called_once_with("repo/server:latest", "sha256:installed", {})
+    monkeypatch.setattr(dockerlib, "image_pull", Mock())
     monkeypatch.setattr(dockerlib, "compose_version", Mock(return_value=False))
     with pytest.raises(ops.OpsError, match="compose недоступен"):
         ops._do_apply_update(0)
-    dockerlib.image_pull.assert_called_once_with("repo/server:latest")
+    dockerlib.image_pull.assert_not_called()
 
 
 def test_digest_cache_refreshes_for_same_tag_new_container(audit_env, monkeypatch):

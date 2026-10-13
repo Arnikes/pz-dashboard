@@ -33,6 +33,7 @@ from settingsmodel import DEFAULTS as _DEFAULTS
 from errors import OpsError as OpsError, OpsErrorReported as OpsErrorReported
 import dockerlib
 import dashboardupdate
+import serverupdate
 import notify as notifylib
 import rcon as rconlib
 
@@ -549,6 +550,26 @@ def cancel_mods_update():
         _OP_CANCEL.set()
 
 
+def cancel_image_update():
+    """Accept cancellation until the worker commits to stopping the server."""
+    with _OP_LOCK:
+        if _ACTIVE["op"] != "apply-update":
+            raise OpsError("Обновление сервера сейчас не выполняется")
+        if _ACTIVE["cancelRequested"]:
+            return
+        if not _ACTIVE["cancellable"]:
+            raise OpsError("Сервер уже останавливается — отменить обновление нельзя")
+        _ACTIVE.update(
+            cancelRequested=True,
+            cancellable=False,
+            phase="Отмена",
+            message="Отмена обновления сервера…",
+            countdownEndsAt=None,
+        )
+        _ACTIVE.setdefault("stages", []).append("Отмена")
+        _OP_CANCEL.set()
+
+
 def _set_phase(phase, message="", *, countdown_seconds=None):
     with _OP_LOCK:
         _ACTIVE["phase"] = phase
@@ -648,7 +669,7 @@ def _start_worker(op, fn):
                 "phase": "Подготовка…",
                 "message": "",
                 "startedAt": now_iso(),
-                "cancellable": op == "mods-restart",
+                "cancellable": op in {"mods-restart", "apply-update"},
                 "cancelRequested": False,
                 "countdownEndsAt": None,
                 "stages": ["Подготовка…"],
@@ -797,10 +818,7 @@ def _effective_image():
 
 
 def _image_from_state(st):
-    img = (st or {}).get("image") or config.CFG["pz_image"]
-    if ":" not in img.rsplit("/", 1)[-1]:
-        img = img + ":latest"
-    return img
+    return dockerlib.normalize_image((st or {}).get("image") or config.CFG["pz_image"])
 
 
 def _installed_digest(image):
@@ -823,50 +841,33 @@ _LAST_CHECK = {
 
 def check_update(force_event=False):
     """Сравнить локальный и актуальный digest образа, который реально запущен."""
-    image = _effective_image()
-    repo, _, tag = image.rpartition(":")
-    local = _installed_digest(image)
+    container = dashboardupdate.inspect(config.CFG["pz_container"]) or {}
+    image = dockerlib.normalize_image(
+        container.get("Config", {}).get("Image") or _effective_image()
+    )
+    descriptor = container.get("ImageManifestDescriptor") or {}
     result = {
         "at": now_iso(),
         "image": image,
-        "local": local,
+        "imageId": container.get("Image"),
+        "local": descriptor.get("digest") or container.get("Image"),
         "remote": None,
         "hubUpdated": None,
         "available": None,
         "error": None,
     }
     try:
-        url = f"https://hub.docker.com/v2/repositories/{repo}/tags/{tag}"
-        req = urllib.request.Request(url, headers={"User-Agent": "pz-dashboard/1.0"})
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        digest = data.get("digest") or ""
-        result["remote"] = (
-            digest if digest.startswith("sha256:") else ("sha256:" + digest if digest else None)
-        )
-        result["hubUpdated"] = data.get("last_updated")
-        if local and result["remote"]:
-            result["available"] = local != result["remote"]
-        elif result["remote"] and not local:
-            result["available"] = None
-            if docker_ok_cached():
-                result["note"] = (
-                    "У образа нет repo-digest (собран или загружен без pull) — сравнение по digest невозможно"
-                )
-            else:
-                result["note"] = (
-                    "Локальный digest недоступен (пульт вне хоста сервера) — сравнение версий невозможно"
-                )
-        elif not result["remote"]:
-            result["error"] = "не удалось получить актуальный образ из Docker Hub"
-    except (urllib.error.URLError, urllib.error.HTTPError, OSError, ValueError) as e:
-        result["error"] = f"Docker Hub недоступен: {e}"
+        local, remote = dockerlib.registry_digests(image, container.get("Image"), descriptor)
+        result.update(local=local, remote=remote, available=local != remote)
+    except (ValueError, IndexError, TypeError, AttributeError, OSError):
+        result["error"] = "Не удалось проверить образ сервера. Проверьте реестр и доступ к образу."
+
     _LAST_CHECK.update(result)
     if force_event:
         if result["error"]:
             log_event("update-check", "Проверка обновлений: " + result["error"])
         elif result["available"]:
-            log_event("update", "Доступно обновление образа " + config.CFG["pz_image"])
+            log_event("update", "Доступно обновление образа " + image)
     return dict(result)
 
 
@@ -875,7 +876,7 @@ def update_state():
 
 
 def _do_check_update():
-    _set_phase("Проверка актуального образа", "Docker Hub")
+    _set_phase("Проверка актуального образа", "Реестр образов")
     result = check_update(force_event=True)
     if result.get("error") or result.get("available") is None:
         raise OpsError(
@@ -925,47 +926,97 @@ def local_digest_cached(ttl=60, image=None, image_id=None):
     return _LOCAL_DIGEST["digest"]
 
 
-def _do_apply_update(warn_seconds, reason="Обновление сервера"):
-    _set_phase("Проверка актуального образа", "Docker Hub")
-    try:
-        image = _effective_image()
-        before = _installed_digest(image)
-        _set_phase("Скачивание нового образа", image)
-        code, out, err = dockerlib.image_pull(image)
-        if code != 0:
-            raise OpsError(f"Не удалось скачать образ: {(err or out)[:200]}")
-        after = dockerlib.image_digests(image)
-        if before and after and before == after:
-            check_update(force_event=False)
-            log_event("update", "Образ уже актуален, обновление не требуется")
-            _set_phase("Готово", "Образ уже актуален")
-            return
-        if not dockerlib.compose_version():
-            raise OpsError(
-                "docker compose недоступен — без него нельзя заменить контейнер. "
-                "Проверьте установку плагина compose в образе пульта"
-            )
-        if get_settings()["autoUpdate"].get("backupBeforeUpdate", True):
-            _set_phase("Страховочный бэкап", "сохранение мира и архива")
-            try:
-                bk = _do_backup(False)
-                log_event(
-                    "backup", f"Бэкап перед обновлением: {bk['name']} ({fmt_size(bk['size'])})"
+def _cancel_image_update_if_requested(*, commit=False, warned=False):
+    with _OP_LOCK:
+        cancelled = _OP_CANCEL.is_set()
+        if commit:
+            _ACTIVE["cancellable"] = False
+    if not cancelled:
+        return False
+    message = "Обновление сервера отменено администратором"
+    if warned:
+        try:
+            rcon(
+                'servermsg "'
+                + i18n.translate(
+                    "Обновление сервера отменено. Сервер продолжает работу.",
+                    locale=player_notification_language(),
                 )
-            except OpsError as e:
-                raise OpsError(f"Обновление отменено — не удалось сделать бэкап: {e}")
-        was_running = is_running()
-        if was_running and warn_seconds > 0:
-            _set_phase("Предупреждение игроков", f"отсчёт {warn_seconds} с")
-            rcon_warn_broadcast(warn_seconds, reason)
+                + '"',
+                quiet=True,
+            )
+        except rconlib.RCONError:
+            pass
+    log_event("update", message)
+    _set_phase("Отменено", message)
+    return True
+
+
+def _do_apply_update(warn_seconds, reason="Обновление сервера"):
+    _set_phase("Проверка актуального образа", "Реестр образов")
+    if _cancel_image_update_if_requested():
+        return "cancelled"
+    if not dockerlib.compose_version():
+        raise OpsError(
+            "docker compose недоступен — без него нельзя заменить контейнер. Проверьте установку плагина compose в образе пульта"
+        )
+    container, model = serverupdate.prepare()
+    image = model["services"][config.CFG["pz_service"]]["image"]
+    _set_phase("Скачивание нового образа", image)
+    code, out, err = dockerlib.image_pull(image)
+    if _cancel_image_update_if_requested():
+        return "cancelled"
+    if code != 0:
+        raise OpsError(f"Не удалось скачать образ: {(err or out)[:200]}")
+    after = serverupdate.image_id(image)
+    if container["Image"] == after:
+        check_update(force_event=False)
+        log_event("update", "Образ уже актуален, обновление не требуется")
+        _set_phase("Готово", "Образ уже актуален")
+        return
+    if get_settings()["autoUpdate"].get("backupBeforeUpdate", True):
+        _set_phase("Страховочный бэкап", "сохранение мира и архива")
+        try:
+            bk = _do_backup(False)
+            log_event("backup", f"Бэкап перед обновлением: {bk['name']} ({fmt_size(bk['size'])})")
+        except OpsError as error:
+            raise OpsError(f"Обновление отменено — не удалось сделать бэкап: {error}") from error
+    if _cancel_image_update_if_requested():
+        return "cancelled"
+    was_running = bool(container.get("State", {}).get("Running"))
+    warned = was_running and warn_seconds > 0
+    if warned:
+        _set_phase("Предупреждение игроков", f"отсчёт {warn_seconds} с")
+        rcon_warn_broadcast(
+            warn_seconds, reason, abort_check=_OP_CANCEL.is_set, abort_wait=_OP_CANCEL.wait
+        )
+    current = dashboardupdate.inspect(config.CFG["pz_container"])
+    if (
+        not current
+        or any(current.get(key) != container.get(key) for key in ("Id", "Image"))
+        or any(
+            current.get("State", {}).get(key) != container.get("State", {}).get(key)
+            for key in ("Running", "StartedAt")
+        )
+    ):
+        raise OpsError("Контейнер сервера изменился. Повторите обновление.")
+    if serverupdate.image_id(image) != after:
+        raise OpsError("Скачанный образ изменился. Повторите обновление.")
+    # Create the snapshot while the original server is still available.
+    with serverupdate.compose_snapshot(model) as snapshot:
+        # Serialize the final cancellation check with accepting a cancel request.
+        if _cancel_image_update_if_requested(commit=True, warned=warned):
+            return "cancelled"
         _begin_watchdog_grace()
         if was_running:
-            graceful_stop(lambda m: _set_phase("Остановка сервера", m))
+            if graceful_stop(lambda m: _set_phase("Остановка сервера", m)) == "resurrected":
+                raise OpsError(
+                    "Docker сам перезапустил контейнер — обновление отменено. Проверьте restart policy."
+                )
         _set_phase("Пересоздание контейнера", "docker compose up -d")
         _begin_watchdog_grace()
-        code, out, err = dockerlib.compose_up(config.CFG)
+        code, out, err = serverupdate.recreate(model, snapshot)
         if code != 0:
-            # пробуем поднять старый контейнер обратно
             start_code, _, _ = _start_container()
             recovered = start_code == 0 and wait_until_ready()
             recovery_message = (
@@ -976,14 +1027,15 @@ def _do_apply_update(warn_seconds, reason="Обновление сервера")
             raise OpsError(f"docker compose up не удался: {(err or out)[:200]}. {recovery_message}")
         if not wait_until_running(180):
             raise OpsError("Контейнер пересоздан, но не поднялся — проверьте docker logs pzserver")
+        current = dashboardupdate.inspect(config.CFG["pz_container"])
+        if not current or current.get("Image") != after:
+            raise OpsError(
+                "Обновление образа сервера не подтверждено. Проверьте Compose и журнал Docker."
+            )
         _require_ready()
         check_update(force_event=False)
         log_event("update", f"Сервер обновлён до {image}")
         _set_phase("Готово", "Сервер обновлён и запущен")
-    except OpsError:
-        raise
-    except Exception as e:  # noqa: BLE001
-        raise OpsError(f"Обновление не удалось: {e}")
 
 
 # ─── бэкапы ───
@@ -2052,6 +2104,17 @@ def overview(*, state_provider=None):
     docker_ok = docker_ok_cached()
     st = (state_provider or container_state)()
     image = _image_from_state(st)
+    update = update_state()
+    if update.get("image") != image or update.get("imageId") != (st or {}).get("imageId"):
+        update = {
+            "image": image,
+            "local": local_digest_cached(image=image, image_id=(st or {}).get("imageId")),
+            "remote": None,
+            "available": None,
+            "error": None,
+            "at": None,
+            "hubUpdated": None,
+        }
     cont = None
     if st:
         cont = {
@@ -2078,10 +2141,7 @@ def overview(*, state_provider=None):
         "rconConfigured": bool(cfg["rcon_password"]),
         "rcon": dict(_RCON_CACHE),
         "containerInfo": cont,
-        "update": {
-            **update_state(),
-            "local": local_digest_cached(image=image, image_id=(st or {}).get("imageId")),
-        },
+        "update": update,
         "dashboardUpdate": dashboardupdate.state() if docker_ok else {"supported": False},
         "modsCheck": mods_check_state(),
         "settings": get_settings(),

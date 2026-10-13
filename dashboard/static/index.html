@@ -148,6 +148,7 @@
       <div class="op-text"><strong id="opPhase"></strong><ol id="opStages" class="op-stages" aria-label="Стадии операции" hidden></ol><span id="opMsg" class="sr-only"></span></div>
       <span class="mono op-countdown" id="opCountdown" aria-label="Обратный отсчёт" aria-live="off" hidden></span>
       <a class="btn" href="#/console">Логи</a>
+      <button class="btn" id="btnCancelUpdate" hidden>Отменить обновление сервера</button>
       <button class="btn" id="btnCancelMods" hidden>Отменить обновление модов</button>
     </section>
     <section id="editorAttention" class="card attention" hidden aria-label="Требуют внимания"></section>
@@ -392,8 +393,8 @@
           <p class="upd-note" id="updNote" hidden></p>
           <dl class="meta">
             <div><dt>Локальный</dt><dd class="mono"><button type="button" class="copy-value" id="updLocalCopy" aria-label="Скопировать локальный digest" disabled><span class="copy-label" id="updLocal">—</span></button></dd></div>
-            <div><dt>В Docker Hub</dt><dd class="mono"><button type="button" class="copy-value" id="updRemoteCopy" aria-label="Скопировать digest из Docker Hub" disabled><span class="copy-label" id="updRemote">—</span></button></dd></div>
-            <div><dt>Сборка latest</dt><dd id="updHubDate">—</dd></div>
+            <div><dt>В реестре</dt><dd class="mono"><button type="button" class="copy-value" id="updRemoteCopy" aria-label="Скопировать digest из реестра" disabled><span class="copy-label" id="updRemote">—</span></button></dd></div>
+            <div><dt>Последняя проверка</dt><dd id="updHubDate">—</dd></div>
           </dl>
           <div class="actions">
             <button class="btn" id="btnCheckUpd">Проверить</button>

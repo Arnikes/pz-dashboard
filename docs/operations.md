@@ -139,8 +139,13 @@ interval to clean up transfers interrupted by process termination.
 
 ## Image and Workshop updates
 
-Image checks compare the running container's local digest with the registry digest.
-Applying an update pulls first and restarts only when the image changes.
+Image checks use Docker's registry client for the running image reference, including
+private registries, and compare matching platform manifests or configuration digests.
+Applying an update validates the live Compose project, image and data mounts before
+pulling. It compares immutable image IDs, recreates only the game service from a
+frozen Compose snapshot without building or pulling again, and confirms the pulled
+image and PZ/RCON readiness before reporting success. A Compose/image mismatch
+fails before stopping the server; check the mounted files and interpolation environment.
 A configured pre-update world backup must succeed before the update proceeds.
 
 On every console start or restart, mod freshness is checked in the background
@@ -157,6 +162,13 @@ does not trigger another restart.
 During a mod update's player-warning phase, “Cancel mod update” cancels the pending
 restart and notifies players. Once stopping starts, cancellation is unavailable.
 The API action `cancel-mods-update` returns HTTP 409 if there is no cancellable operation.
+
+During a server image update, “Cancel server update” accepts cancellation until
+stopping begins, including manual and scheduled updates. Downloads or backups
+already in progress finish before the worker releases the operation; cancellation
+prevents the pending stop and recreation. Players receive a cancellation message
+if they have already been warned. The `cancel-update` action returns HTTP 409
+for an unrelated operation or once stopping has begun.
 
 ## Player warning language
 

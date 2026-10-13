@@ -384,16 +384,35 @@ def test_stop_requires_confirmation_and_shows_api_error(page, dashboard):
 
 
 @pytest.mark.parametrize("width,height", [(1440, 900), (390, 844)])
-def test_cancel_auto_mods_update(page, dashboard, width, height):
+@pytest.mark.parametrize(
+    "operation_name,button_id,cancel_action,message",
+    [
+        (
+            "mods-restart",
+            "btnCancelMods",
+            "cancel-mods-update",
+            "Автообновление модов отменено администратором",
+        ),
+        (
+            "apply-update",
+            "btnCancelUpdate",
+            "cancel-update",
+            "Обновление сервера отменено администратором",
+        ),
+    ],
+)
+def test_cancel_auto_mods_update(
+    page, dashboard, width, height, operation_name, button_id, cancel_action, message
+):
     operation = {"active": None, "history": []}
     page.route("**/api/ops", lambda route: route.fulfill(json=operation))
     page.set_viewport_size({"width": width, "height": height})
     page.goto(dashboard["url"])
     expect(page.locator("#btnStop")).to_be_enabled()
-    cancel = page.locator("#btnCancelMods")
+    cancel = page.locator(f"#{button_id}")
     expect(cancel).to_be_hidden()
     active = {
-        "op": "mods-restart",
+        "op": operation_name,
         "phase": "Предупреждение игроков",
         "message": "отсчёт 600 с",
         "cancellable": True,
@@ -405,6 +424,8 @@ def test_cancel_auto_mods_update(page, dashboard, width, height):
     expect(cancel).to_be_enabled()
     expect(page.locator("#btnStop")).to_be_disabled()
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    if operation_name == "apply-update":
+        page.screenshot(path=f"test-results/server-update-cancel-{width}.png")
     requests = []
 
     def handle_cancel(route):
@@ -415,22 +436,22 @@ def test_cancel_auto_mods_update(page, dashboard, width, height):
     cancel.click()
     expect(cancel).to_have_text("Отмена…")
     expect(cancel).to_be_disabled()
-    assert requests == [{"op": "cancel-mods-update"}]
+    assert requests == [{"op": cancel_action}]
     operation.update(
         active=None,
         history=[
             {
-                "op": "mods-restart",
+                "op": operation_name,
                 "ok": True,
                 "cancelled": True,
                 "finishedAt": "2026-10-08T12:00:00Z",
-                "message": "Автообновление модов отменено администратором",
+                "message": message,
             }
         ],
     )
     page.evaluate("op => renderOp(op)", operation)
     expect(cancel).to_be_hidden()
-    expect(page.locator("#toasts")).to_contain_text("Автообновление модов отменено администратором")
+    expect(page.locator("#toasts")).to_contain_text(message)
 
 
 def test_cancel_button_hidden_for_other_operations_and_stopping(page, dashboard):
@@ -442,16 +463,56 @@ def test_cancel_button_hidden_for_other_operations_and_stopping(page, dashboard)
         ("restart", True),
         ("apply-mods-update", True),
         ("mods-restart", False),
+        ("apply-update", False),
     ]:
         state["active"] = {"op": operation, "phase": "Остановка", "cancellable": cancellable}
         page.evaluate("op => renderOp(op)", state)
         expect(page.locator("#btnCancelMods")).to_be_hidden()
+        expect(page.locator("#btnCancelUpdate")).to_be_hidden()
 
 
-def test_cancel_mods_update_shows_api_rejection(page, dashboard):
+@pytest.mark.parametrize("width", [390, 1440])
+def test_server_image_cancel_english_keyboard_and_stopping(page, dashboard, width):
+    page.add_init_script("localStorage.setItem('pz-language', 'en')")
+    page.set_viewport_size({"width": width, "height": 900})
+    page.route("**/api/ops", lambda route: route.fulfill(json={"active": None, "history": []}))
+    page.route(
+        "**/api/action", lambda route: route.fulfill(json={"ok": True, "cancelRequested": True})
+    )
+    page.goto(dashboard["url"])
+    expect(page.locator("#btnStop")).to_be_enabled()
+    operation = {
+        "active": {"op": "apply-update", "phase": "Downloading image", "cancellable": True},
+        "history": [],
+    }
+    page.evaluate("op => renderOp(op)", operation)
+    button = page.get_by_role("button", name="Cancel server update", exact=True)
+    expect(button).to_be_visible()
+    expect(page.locator("#btnCancelMods")).to_be_hidden()
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    page.screenshot(path=f"test-results/server-update-cancel-en-{width}.png")
+    button.focus()
+    button.press("Enter")
+    expect(page.locator("#btnCancelUpdate")).to_have_text("Cancelling…")
+    expect(page.locator("#btnCancelUpdate")).to_be_disabled()
+    operation["active"].update(cancellable=False, phase="Stopping")
+    page.evaluate("op => renderOp(op)", operation)
+    expect(page.locator("#btnCancelUpdate")).to_be_hidden()
+
+
+@pytest.mark.parametrize(
+    "operation_name,button_id,cancel_action",
+    [
+        ("mods-restart", "btnCancelMods", "cancel-mods-update"),
+        ("apply-update", "btnCancelUpdate", "cancel-update"),
+    ],
+)
+def test_cancel_mods_update_shows_api_rejection(
+    page, dashboard, operation_name, button_id, cancel_action
+):
     operation = {
         "active": {
-            "op": "mods-restart",
+            "op": operation_name,
             "phase": "Предупреждение игроков",
             "cancellable": True,
         },
@@ -459,10 +520,10 @@ def test_cancel_mods_update_shows_api_rejection(page, dashboard):
     }
     page.route("**/api/ops", lambda route: route.fulfill(json=operation))
     page.goto(dashboard["url"])
-    page.locator("#btnCancelMods").click()
+    page.locator(f"#{button_id}").click()
     expect(page.locator("#toasts")).to_contain_text("Тест: сервер занят")
-    assert dashboard["actions"] == [{"op": "cancel-mods-update"}]
-    expect(page.locator("#btnCancelMods")).to_be_enabled()
+    assert dashboard["actions"] == [{"op": cancel_action}]
+    expect(page.locator(f"#{button_id}")).to_be_enabled()
 
 
 @pytest.mark.parametrize("action", ["kick", "ban"])

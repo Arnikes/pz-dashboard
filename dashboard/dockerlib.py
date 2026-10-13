@@ -6,6 +6,7 @@
 """
 
 import re
+import json
 import queue
 import subprocess
 import threading
@@ -13,6 +14,53 @@ import time
 
 SIZE_RE = re.compile(r"^([\d.]+)\s*([kKmMgG]?)(i?)([bB])$")
 STARTUP_LOG_BYTES_LIMIT = 64_000_000
+
+
+def normalize_image(image):
+    if "@" not in image and ":" not in image.rsplit("/", 1)[-1]:
+        return image + ":latest"
+    return image
+
+
+def registry_digests(image, image_id, descriptor=None):
+    """Compare the same platform and digest kind through Docker's registry client."""
+    descriptor = descriptor or {}
+    local = descriptor.get("digest") or image_id
+    code, out, _ = sh(["docker", "manifest", "inspect", "--verbose", image], timeout=25)
+    if code:
+        raise ValueError("Registry manifest unavailable")
+    manifests = json.loads(out)
+    if not isinstance(manifests, list):
+        manifests = [manifests]
+    code, out, _ = sh(["docker", "image", "inspect", image_id], timeout=30)
+    if code:
+        raise ValueError("Installed image unavailable")
+    installed = json.loads(out)[0]
+    if installed.get("Descriptor") and not descriptor.get("digest"):
+        raise ValueError("Running platform manifest unavailable")
+    platform = descriptor.get("platform") or {
+        key: installed.get(field, "")
+        for key, field in (("os", "Os"), ("architecture", "Architecture"), ("variant", "Variant"))
+    }
+    if not platform.get("os") or not platform.get("architecture"):
+        raise ValueError("Installed platform unavailable")
+    for manifest in manifests:
+        remote_descriptor = manifest.get("Descriptor") or {}
+        remote_platform = remote_descriptor.get("platform") or {}
+        if remote_platform and any(
+            remote_platform.get(key, "") != platform.get(key, "")
+            for key in ("os", "architecture", "variant")
+        ):
+            continue
+        schema = manifest.get("SchemaV2Manifest") or manifest.get("OCIManifest") or {}
+        remote = (
+            remote_descriptor.get("digest")
+            if descriptor.get("digest")
+            else schema.get("config", {}).get("digest")
+        )
+        if remote and local:
+            return local, remote
+    raise ValueError("Matching platform manifest unavailable")
 
 
 def sh(args, timeout=120, merge_stderr=False):
