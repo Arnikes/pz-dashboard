@@ -11,6 +11,8 @@ def open_fields(page, dashboard):
         update={"local": "sha256:" + "a" * 64, "remote": "sha256:" + "b" * 64},
     )
     page.goto(dashboard["url"] + "/#/maintenance")
+    # Buttons start enabled in the static HTML; wait for every boot request first.
+    expect(page.locator("#startupLoader")).to_be_hidden()
     expect(page.locator("#btnStop")).to_be_enabled()
     # These cases drive snapshots manually; reconnects must not restore the old fixture.
     page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")

@@ -277,6 +277,7 @@ def test_copy_field_writes_full_text_to_clipboard(page, dashboard, mode):
                 };
             }""")
 
+    expect(page.locator("#startupLoader")).to_be_hidden()
     expect(page.locator("#btnStop")).to_be_enabled()
     page.evaluate(
         """value => {
@@ -355,6 +356,7 @@ def test_navigation_and_layout(page, dashboard, width, height):
 
 def test_overview_leads_with_actions_and_backup_freshness(page, dashboard):
     page.goto(dashboard["url"])
+    expect(page.locator("#startupLoader")).to_be_hidden()
     expect(page.locator("#btnStop")).to_be_enabled()
     expect(page.locator("#serverDetails")).to_have_count(0)
     page.evaluate("""() => { S.backupsItems=[{name:'old.zip',size:1024,
@@ -408,6 +410,7 @@ def test_cancel_auto_mods_update(
     page.route("**/api/ops", lambda route: route.fulfill(json=operation))
     page.set_viewport_size({"width": width, "height": height})
     page.goto(dashboard["url"])
+    expect(page.locator("#startupLoader")).to_be_hidden()
     expect(page.locator("#btnStop")).to_be_enabled()
     cancel = page.locator(f"#{button_id}")
     expect(cancel).to_be_hidden()
@@ -430,6 +433,7 @@ def test_cancel_auto_mods_update(
 
     def handle_cancel(route):
         requests.append(route.request.post_data_json)
+        operation["active"].update(cancelRequested=True, cancellable=False)
         route.fulfill(json={"ok": True, "cancelRequested": True})
 
     page.route("**/api/action", handle_cancel)
@@ -458,6 +462,7 @@ def test_cancel_button_hidden_for_other_operations_and_stopping(page, dashboard)
     state = {"active": None, "history": []}
     page.route("**/api/ops", lambda route: route.fulfill(json=state))
     page.goto(dashboard["url"])
+    expect(page.locator("#startupLoader")).to_be_hidden()
     expect(page.locator("#btnStop")).to_be_enabled()
     for operation, cancellable in [
         ("restart", True),
@@ -475,16 +480,21 @@ def test_cancel_button_hidden_for_other_operations_and_stopping(page, dashboard)
 def test_server_image_cancel_english_keyboard_and_stopping(page, dashboard, width):
     page.add_init_script("localStorage.setItem('pz-language', 'en')")
     page.set_viewport_size({"width": width, "height": 900})
-    page.route("**/api/ops", lambda route: route.fulfill(json={"active": None, "history": []}))
-    page.route(
-        "**/api/action", lambda route: route.fulfill(json={"ok": True, "cancelRequested": True})
-    )
+    operation = {"active": None, "history": []}
+    page.route("**/api/ops", lambda route: route.fulfill(json=operation))
+    requests = []
+
+    def handle_cancel(route):
+        requests.append(route.request.post_data_json)
+        operation["active"].update(cancelRequested=True, cancellable=False)
+        route.fulfill(json={"ok": True, "cancelRequested": True})
+
+    page.route("**/api/action", handle_cancel)
     page.goto(dashboard["url"])
+    # Initial snapshots must finish before the test supplies a newer operation.
+    expect(page.locator("#startupLoader")).to_be_hidden()
     expect(page.locator("#btnStop")).to_be_enabled()
-    operation = {
-        "active": {"op": "apply-update", "phase": "Downloading image", "cancellable": True},
-        "history": [],
-    }
+    operation["active"] = {"op": "apply-update", "phase": "Downloading image", "cancellable": True}
     page.evaluate("op => renderOp(op)", operation)
     button = page.get_by_role("button", name="Cancel server update", exact=True)
     expect(button).to_be_visible()
@@ -495,7 +505,8 @@ def test_server_image_cancel_english_keyboard_and_stopping(page, dashboard, widt
     button.press("Enter")
     expect(page.locator("#btnCancelUpdate")).to_have_text("Cancelling…")
     expect(page.locator("#btnCancelUpdate")).to_be_disabled()
-    operation["active"].update(cancellable=False, phase="Stopping")
+    assert requests == [{"op": "cancel-update"}]
+    operation["active"].update(cancellable=False, cancelRequested=False, phase="Stopping")
     page.evaluate("op => renderOp(op)", operation)
     expect(page.locator("#btnCancelUpdate")).to_be_hidden()
 
