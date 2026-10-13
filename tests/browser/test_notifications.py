@@ -24,6 +24,7 @@ HISTORY = [
 
 
 def render_history(page, history=HISTORY):
+    expect(page.locator("#startupLoader")).to_be_hidden()
     page.evaluate("history => renderOp({active: null, history})", history)
 
 
@@ -117,6 +118,7 @@ def test_new_operations_and_toasts_share_inbox_without_duplicate_results(page, d
 
 def test_center_keyboard_filters_and_mark_all_when_new_feedback_arrives(page, dashboard):
     page.goto(dashboard["url"])
+    expect(page.locator("#startupLoader")).to_be_hidden()
     expect(page.locator("#btnStop")).to_be_enabled()
     page.locator("#btnNotifications").focus()
     page.keyboard.press("Enter")

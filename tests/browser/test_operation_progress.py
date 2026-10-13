@@ -16,6 +16,7 @@ def test_countdown_finishing_keeps_lock_until_game_ready(
     page.set_viewport_size({"width": width, "height": 900})
     page.add_init_script(f"localStorage.setItem('pz-language','{language}')")
     page.goto(dashboard["url"] + "/#/maintenance")
+    expect(page.locator("#startupLoader")).to_be_hidden()
     expect(page.locator("#btnStop")).to_be_enabled()
     page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
     page.clock.install()

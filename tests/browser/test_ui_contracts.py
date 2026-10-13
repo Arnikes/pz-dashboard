@@ -8,6 +8,7 @@ pytestmark = pytest.mark.browser
 
 def test_rejected_request_survives_unchanged_operation_history(page, dashboard):
     page.goto(dashboard["url"])
+    expect(page.locator("#startupLoader")).to_be_hidden()
     expect(page.locator("#btnStart")).to_be_disabled()
     history = {
         "op": "backup",
@@ -33,6 +34,7 @@ def test_update_check_has_persistent_result_and_serializes_requests(page, dashbo
     held = []
     page.route("**/api/action", lambda route: held.append(route))
     page.goto(dashboard["url"] + "/#/maintenance")
+    expect(page.locator("#startupLoader")).to_be_hidden()
     expect(page.locator("#btnCheckUpd")).to_be_enabled()
     page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
     snapshot = {"active": None, "history": []}
@@ -80,6 +82,7 @@ def test_player_command_preserves_exact_target_or_refuses_unsafe_encoding(page, 
         ),
     )
     page.goto(dashboard["url"] + "/#/players")
+    expect(page.locator("#startupLoader")).to_be_hidden()
     expect(page.locator("#btnStop")).to_be_enabled()
     page.evaluate("name=>confirmPlayerAction('kick',name)", name)
     page.locator("#modalOk").click()
@@ -162,7 +165,7 @@ def test_unchanged_events_and_journal_retain_nodes_but_changes_refresh(page, das
 
 def test_action_restrictions_show_recovery_in_context(page, dashboard):
     page.goto(dashboard["url"])
-    page.wait_for_function("typeof S !== 'undefined' && !!S.overview")
+    expect(page.locator("#startupLoader")).to_be_hidden()
     expect(page.locator("#btnStop")).to_be_enabled()
     page.evaluate(
         "() => { liveSource?.close(); liveSource = null; clearTimeout(sseStartupTimer); }"
@@ -254,6 +257,7 @@ def test_commands_unavailable_reason_empty_results_and_log_filter(page, dashboar
 @pytest.mark.parametrize("operation", ["backup", "apply-update", "restore", "restart"])
 def test_operation_visible_on_all_routes_and_result_survives_navigation(page, dashboard, operation):
     page.goto(dashboard["url"])
+    expect(page.locator("#startupLoader")).to_be_hidden()
     expect(page.locator("#btnStop")).to_be_enabled()
     page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
     page.wait_for_load_state("networkidle")
@@ -321,6 +325,8 @@ def test_live_list_preserves_focus_identity_and_recovers_removed_row(page, dashb
         dashboard["players"].update(frame)
     page.route(f"**/api/{kind}", lambda route: route.fulfill(json=frame))
     page.goto(dashboard["url"] + f"/#/{kind}")
+    # Boot also changes control availability and focus; finish it before observing rows.
+    expect(page.locator("#startupLoader")).to_be_hidden()
     expect(page.locator("#btnStop")).to_be_enabled()
     page.clock.install()
     page.evaluate(
@@ -530,6 +536,7 @@ def test_explicit_copy_button_works_from_keyboard_with_full_digest(page, dashboa
     value = "sha256:" + "0123456789abcdef" * 4
     dashboard["overview"]["update"] = {"local": value}
     page.goto(dashboard["url"])
+    expect(page.locator("#startupLoader")).to_be_hidden()
     expect(page.locator("#btnStop")).to_be_enabled()
     page.evaluate("value => renderOverview({...S.overview,update:{local:value}})", value)
     page.evaluate("location.hash='#/maintenance'")
@@ -551,6 +558,7 @@ def test_backup_schedule_switch_has_name_and_update_links_are_reachable_at_320(p
     page.set_viewport_size({"width": 320, "height": 568})
     page.goto(dashboard["url"] + "/#/backups")
     expect(page.get_by_role("switch", name="Бэкап по расписанию")).to_be_visible()
+    expect(page.locator("#startupLoader")).to_be_hidden()
     page.evaluate("location.hash='#/overview'")
     page.evaluate("""() => {renderOverview({...S.overview,update:{at:'2026-10-04T21:00:00Z'},
       modsCheck:{at:'2026-10-04T21:00:00Z'}});}""")

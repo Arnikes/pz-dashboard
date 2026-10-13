@@ -19,6 +19,7 @@ ACTIVE = {
 
 
 def stop_stream(page):
+    expect(page.locator("#startupLoader")).to_be_hidden()
     page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
 
 
