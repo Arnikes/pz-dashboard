@@ -428,16 +428,17 @@ def draft(file=None, *, refresh=False):
             save_json(root / "state.json", state)
         current = read_profile(file)
         saved = load_json(root / "draft.json")
+        # Older operations recorded only a revision. Preserve their written pair
+        # before refreshing, rebasing or discarding can replace the draft base.
+        if (
+            saved
+            and not ops.op_busy()
+            and state.get("savedRevision") == revision(saved["base"])
+            and not state.get("snapshots", {}).get("saved")
+        ):
+            state.setdefault("snapshots", {})["saved"] = saved["base"].copy()
+            save_json(root / "state.json", state)
         if not saved or refresh and saved["texts"] == saved["base"] and current != saved["base"]:
-            # Old operations recorded only a revision. Keep their written pair
-            # available for startup verification before refreshing a clean draft.
-            if (
-                saved
-                and state.get("savedRevision") == revision(saved["base"])
-                and not state.get("snapshots", {}).get("saved")
-            ):
-                state.setdefault("snapshots", {})["saved"] = saved["base"].copy()
-                save_json(root / "state.json", state)
             saved = {
                 "file": file,
                 "baseRevision": revision(current),
@@ -886,6 +887,16 @@ def validate(file, include_mods=True, prepare=False, draft_revision=None, *, ove
         )
     diffs = profile_diff(base, texts, "До", "После")
     current = read_profile(file)
+    state = load_json(state_dir(file) / "state.json")
+    written = state.get("snapshots", {}).get("saved") or base
+    # A clean draft can already have adopted the post-startup disk files. Keep
+    # the recorded write visible independently of draft edits and conflicts.
+    written_changed = state.get("savedRevision") == revision(written) and written != current
+    written_diff = (
+        profile_diff(written, current, "Записанная конфигурация", "Сейчас на диске")
+        if written_changed
+        else {}
+    )
     conflict_diff = {}
     rebase_available, rebase_error, rebase_diff = False, None, {}
     if revision(current) != saved["baseRevision"]:
@@ -904,6 +915,8 @@ def validate(file, include_mods=True, prepare=False, draft_revision=None, *, ove
         "errors": errors,
         "warnings": warnings,
         "diff": diffs,
+        "writtenChanged": written_changed,
+        "writtenDiff": written_diff,
         "conflictDiff": conflict_diff,
         "rebaseAvailable": rebase_available,
         "rebaseError": rebase_error,

@@ -1816,6 +1816,145 @@ def test_refresh_clean_page_preserves_old_written_snapshot_for_startup_verificat
     assert editor.verify_running(request)["status"] == "applied"
 
 
+@pytest.mark.parametrize("legacy", [False, True])
+@pytest.mark.parametrize("pending", [False, True])
+def test_review_shows_written_disk_differences_independently_of_draft(env, legacy, pending):
+    data, _ = env
+    initial = editor.draft("world.ini")
+    original = editor.read_profile("world.ini")
+    root = editor.state_dir("world.ini")
+    state = {"status": "saved", "savedRevision": initial["baseRevision"]}
+    if not legacy:
+        state["snapshots"] = {"saved": original.copy()}
+    editor.save_json(root / "state.json", state)
+    if pending:
+        change(ini={"PublicName": "Pending setting"})
+    ini = data / "Server/world.ini"
+    ini.write_bytes(ini.read_bytes().replace(b"topsecret", b"changed-ini-secret"))
+    sandbox = data / "Server/world_SandboxVars.lua"
+    sandbox.write_bytes(
+        sandbox.read_bytes()
+        .replace(b"Zombies = 4", b"Zombies = 3")
+        .replace(b"hidden-token", b"changed-lua-secret")
+    )
+    disk = editor.read_profile("world.ini")
+    refreshed = editor.draft("world.ini", refresh=True)
+    result = editor.validate("world.ini", overwrite=True)
+    assert refreshed["changed"] is pending
+    assert refreshed["conflict"] is pending
+    assert result["writtenChanged"]
+    assert "Zombies = 4" in result["writtenDiff"]["sandbox"]
+    assert "Zombies = 3" in result["writtenDiff"]["sandbox"]
+    assert result["diff"]["sandbox"] == ""
+    assert ("Pending setting" in result["diff"]["ini"]) is pending
+    assert bool(result["conflictDiff"]) is pending
+    reviewed = json.dumps(result)
+    assert all(
+        secret not in reviewed
+        for secret in ("topsecret", "hidden-token", "changed-ini-secret", "changed-lua-secret")
+    )
+    assert editor.read_profile("world.ini") == disk
+    recorded = editor.load_json(root / "state.json").get("snapshots", {}).get("saved")
+    assert (recorded or editor.load_json(root / "draft.json")["base"]) == original
+
+
+def test_review_reports_secret_only_written_drift_without_revealing_values(env):
+    data, _ = env
+    initial = editor.draft("world.ini")
+    original = editor.read_profile("world.ini")
+    root = editor.state_dir("world.ini")
+    editor.save_json(
+        root / "state.json",
+        {
+            "status": "saved",
+            "savedRevision": initial["baseRevision"],
+            "snapshots": {"saved": original.copy()},
+        },
+    )
+    for filename, old, new in (
+        ("world.ini", b"topsecret", b"changed-ini-secret"),
+        ("world_SandboxVars.lua", b"hidden-token", b"changed-lua-secret"),
+    ):
+        path = data / "Server" / filename
+        path.write_bytes(path.read_bytes().replace(old, new))
+    editor.draft("world.ini", refresh=True)
+    result = editor.validate("world.ini")
+    assert result["writtenChanged"]
+    assert result["writtenDiff"] == {"ini": "", "sandbox": ""}
+    assert result["diff"] == {"ini": "", "sandbox": ""}
+    assert not result["changed"] and not result["conflictDiff"]
+    assert all(
+        secret not in json.dumps(result)
+        for secret in ("topsecret", "hidden-token", "changed-ini-secret", "changed-lua-secret")
+    )
+    assert editor.load_json(root / "state.json")["snapshots"]["saved"] == original
+
+
+@pytest.mark.parametrize("recorded", [None, "invalid", "valid"])
+def test_review_only_reports_recorded_disk_differences(env, recorded):
+    initial = editor.draft("world.ini")
+    if recorded:
+        editor.save_json(
+            editor.state_dir("world.ini") / "state.json",
+            {
+                "savedRevision": initial["baseRevision"] if recorded == "valid" else "unverifiable",
+                "snapshots": {"saved": initial["texts"]},
+            },
+        )
+    change(sandbox={"Zombies": 3})
+    result = editor.validate("world.ini")
+    assert not result["writtenChanged"] and result["writtenDiff"] == {}
+    assert result["diff"]["sandbox"]
+
+
+@pytest.mark.parametrize("operation", ["rebase", "discard"])
+def test_legacy_written_differences_survive_rebasing_or_discarding_draft(
+    env, monkeypatch, operation
+):
+    data, request = saved_verification(env, monkeypatch)
+    original = editor.load_json(editor.state_dir("world.ini") / "draft.json")["base"]
+    current = change(ini={"PublicName": "Pending setting"})
+    sandbox = data / "Server/world_SandboxVars.lua"
+    sandbox.write_bytes(sandbox.read_bytes().replace(b"Zombies = 4", b"Zombies = 3"))
+    current = editor.patch(
+        {
+            "file": "world.ini",
+            "draftRevision": current["draftRevision"],
+            "currentRevision": editor.revision(editor.read_profile("world.ini")),
+            operation: True,
+        }
+    )
+    result = editor.validate("world.ini")
+    assert current["changed"] is (operation == "rebase")
+    assert not current["conflict"]
+    assert result["writtenChanged"]
+    assert "Zombies = 3" in result["writtenDiff"]["sandbox"]
+    assert (
+        editor.load_json(editor.state_dir("world.ini") / "state.json")["snapshots"]["saved"]
+        == original
+    )
+    request.update(
+        draftRevision=current["draftRevision"], currentRevision=current["currentRevision"]
+    )
+    with pytest.raises(editor.EditorError, match="Значения SandboxVars отличаются"):
+        editor.verify_running(request)
+
+
+def test_legacy_snapshot_migration_waits_for_active_operation(env, monkeypatch):
+    initial = editor.draft("world.ini")
+    root = editor.state_dir("world.ini")
+    state = {"status": "saved", "savedRevision": initial["baseRevision"]}
+    editor.save_json(root / "state.json", state)
+    monkeypatch.setattr(ops, "op_busy", lambda: True)
+    editor.draft("world.ini")
+    assert editor.load_json(root / "state.json") == state
+    monkeypatch.setattr(ops, "op_busy", lambda: False)
+    editor.draft("world.ini")
+    assert editor.load_json(root / "state.json")["snapshots"]["saved"] == editor.read_profile(
+        "world.ini"
+    )
+
+
 @pytest.mark.parametrize("automatic", [False, True])
 @pytest.mark.parametrize("pending", [False, True])
 def test_verification_accepts_ini_line_endings_and_preserves_draft(

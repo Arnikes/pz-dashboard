@@ -123,6 +123,7 @@ RAW_KEYS = {
     "sandbox",
     "diff",
     "conflictDiff",
+    "writtenDiff",
     "rebaseDiff",
     "mergedTexts",
     "settings",

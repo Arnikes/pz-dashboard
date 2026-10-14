@@ -1629,6 +1629,86 @@ def test_verify_unchanged_settings_accepts_ini_line_endings(
     assert dashboard["actions"] == []
 
 
+@pytest.mark.parametrize("language", ["ru", "en"])
+@pytest.mark.parametrize("width", [390, 1440])
+@pytest.mark.parametrize("secret_only", [False, True])
+def test_written_changes_remain_reviewable_after_clean_draft_refresh(
+    page, dashboard, editing, monkeypatch, language, width, secret_only
+):
+    data, request = saved_verification(editing, monkeypatch)
+    editor.verify_running(request)
+    if not secret_only:
+        metadata = data / "steamapps/workshop/content/108600/111/mods/PluginFolder/42/mod.info"
+        metadata.write_text(
+            metadata.read_text(encoding="utf-8") + "loadModBefore=library\n", encoding="utf-8"
+        )
+        editor.workshop.invalidate()
+    monkeypatch.setattr(
+        editor.ops,
+        "container_state",
+        lambda: {"running": True, "startedAt": "another-external-start"},
+    )
+    path = data / "Server/world_SandboxVars.lua"
+    original = path.read_text(encoding="utf-8")
+    external = original.replace(
+        'Password = "hidden-token"' if secret_only else "Zombies = 4",
+        'Password = "changed-hidden-token"' if secret_only else "Zombies = 5",
+    )
+    assert external != original
+    path.write_text(external, encoding="utf-8")
+    before = editor.read_profile("world.ini")
+    page.add_init_script(f"localStorage.setItem('pz-language', {json.dumps(language)})")
+    page.set_viewport_size({"width": width, "height": 844})
+    page.goto(dashboard["url"] + "/#/settings")
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    current = editor.draft("world.ini")
+    assert not current["changed"] and not current["conflict"]
+    validation = editor.validate("world.ini", overwrite=True)
+    assert not any(validation["diff"].values()) and not validation["conflictDiff"]
+    assert validation["writtenChanged"]
+    assert bool(validation["writtenDiff"]["sandbox"]) is not secret_only
+    if not secret_only:
+        assert validation["valid"]
+        assert any(
+            issue.get("existing") and "before=library" in issue["message"]
+            for issue in validation["warnings"]
+        )
+    page.locator("#configVerify").click()
+    expect(page.locator("#configError")).to_contain_text(
+        "Значения SandboxVars отличаются" if language == "ru" else "SandboxVars values differ"
+    )
+    page.locator("#configDiff").click()
+    section = page.locator(".written-config-diff")
+    expect(section).to_be_visible()
+    expect(section).to_contain_text(
+        "Записанная конфигурация → сейчас на диске"
+        if language == "ru"
+        else "Written configuration → current disk"
+    )
+    if secret_only:
+        expect(section).to_contain_text(
+            "Отличия затрагивают скрытые значения"
+            if language == "ru"
+            else "The differences affect hidden values"
+        )
+        expect(section.locator("pre")).to_have_count(0)
+    else:
+        expect(section.locator("pre")).to_contain_text("- Zombies = 4,")
+        expect(section.locator("pre")).to_contain_text("+ Zombies = 5,")
+        expect(page.get_by_role("alertdialog")).to_contain_text("before=library")
+    expect(section).not_to_contain_text("Нет изменений" if language == "ru" else "No changes")
+    dialog = page.get_by_role("alertdialog")
+    for secret in ("topsecret", "hidden-token", "changed-hidden-token"):
+        expect(dialog).not_to_contain_text(secret)
+    expect(page.locator("#modalOk")).to_have_text("Закрыть" if language == "ru" else "Close")
+    expect(page.locator("#modalCancel")).to_be_hidden()
+    assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
+    page.locator("#modalOk").click()
+    assert editor.read_profile("world.ini") == before
+    assert not editor.draft("world.ini")["changed"]
+    assert dashboard["actions"] == []
+
+
 def test_startup_status_does_not_claim_previous_verification_after_another_restart(
     page, dashboard, editing, monkeypatch
 ):
