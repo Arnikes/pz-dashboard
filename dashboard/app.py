@@ -175,7 +175,9 @@ class Handler(BaseHTTPRequestHandler):
         except (OSError, ValueError):
             self._send_error_json(403, "Запрещено")
             return
-        if not os.path.normcase(full).startswith(os.path.normcase(root) + os.sep):
+        # Check the same canonical path that is passed to every filesystem access.
+        # Include the separator so a sibling such as static-private cannot match.
+        if not full.startswith(root + os.sep):
             self._send_error_json(403, "Запрещено")
             return
         # Authorize the resolved file, including native separators and symlink aliases.
