@@ -50,20 +50,22 @@ jobs:
     name: Docker build and health check
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      PYTHON_BASE_IMAGE: pz-console-python-base:ci
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Prepare Python base image
+        run: python scripts/prepare_image_base.py "$PYTHON_BASE_IMAGE"
       - name: Build panel image
         env:
-          # Docker's official mirror avoids Docker Hub's shared-runner pull quota.
-          PYTHON_BASE_IMAGE: public.ecr.aws/docker/library/python:3.12-alpine
           SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
           REVISION: ${{ github.sha }}
           VERSION: ${{ github.ref_name }}
         run: |
-          docker build -t pz-console:ci \
+          docker build --builder default --pull=false -t pz-console:ci \
             --build-arg "PYTHON_BASE_IMAGE=$PYTHON_BASE_IMAGE" \
             --label "org.opencontainers.image.source=$SOURCE_URL" \
             --label "org.opencontainers.image.revision=$REVISION" \
