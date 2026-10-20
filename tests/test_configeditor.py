@@ -1872,6 +1872,81 @@ def saved_verification(env, monkeypatch, installed=False):
     }
 
 
+@pytest.mark.parametrize(
+    "context_changes,reason,hints",
+    [
+        pytest.param(
+            {"activeFile": None},
+            "Активный профиль не определён",
+            ["SERVER_NAME", "-servername", "PZ_CONFIG_FILE"],
+            id="unknown-profile",
+        ),
+        pytest.param(
+            {"activeFile": "other.ini"},
+            "Выбранный профиль не активен",
+            ["Откройте активный профиль"],
+            id="inactive-profile",
+        ),
+        pytest.param(
+            {"version": "", "versionKnown": False},
+            "Версия сервера неизвестна",
+            ["логов текущего запуска PZ", "из пульта"],
+            id="unknown-version",
+        ),
+        pytest.param(
+            {"version": "unstable-private-hint", "versionKnown": False},
+            "Версия сервера неизвестна",
+            ["логов текущего запуска PZ", "из пульта"],
+            id="invalid-version-hint",
+        ),
+        pytest.param(
+            {"version": "42.15.1", "versionKnown": False},
+            "Версия сервера неизвестна",
+            ["логов текущего запуска PZ", "из пульта"],
+            id="unconfirmed-b42-version",
+        ),
+        pytest.param(
+            {"version": "41.78.16", "versionKnown": False},
+            "Версия сервера не поддерживается",
+            ["B42 (42.*)"],
+            id="known-b41-version",
+        ),
+        pytest.param(
+            {"version": "43.1", "versionKnown": True},
+            "Версия сервера не поддерживается",
+            ["B42 (42.*)"],
+            id="unsupported-version-even-if-marked-known",
+        ),
+        pytest.param(
+            {"mountsKnown": False},
+            "Общий каталог данных сервера и пульта не подтверждён",
+            ["DATA_DIR", "-cachedir"],
+            id="unconfirmed-data-directory",
+        ),
+    ],
+)
+def test_external_verification_explains_context_blockers_without_mutation(
+    env, monkeypatch, context_changes, reason, hints
+):
+    data, request = saved_verification(env, monkeypatch, installed=True)
+    env[1].update(context_changes)
+    before = {p: p.read_bytes() for p in data.parent.rglob("*") if p.is_file()}
+    monkeypatch.setattr(editor.dockerlib, "container_start", Mock())
+    monkeypatch.setattr(ops, "graceful_stop", Mock())
+    with pytest.raises(editor.EditorError) as error:
+        editor.verify_running(request)
+    assert error.value.status == 409
+    assert reason in str(error.value)
+    assert all(hint in str(error.value) for hint in hints)
+    assert "unstable-private-hint" not in str(error.value)
+    assert "topsecret" not in str(error.value) and "hidden-token" not in str(error.value)
+    assert {p: p.read_bytes() for p in data.parent.rglob("*") if p.is_file()} == before
+    ops.rcon.assert_not_called()
+    editor.dockerlib.container_start.assert_not_called()
+    ops.graceful_stop.assert_not_called()
+    ops.run_backup_job.assert_not_called()
+
+
 def test_external_verification_clears_old_failure_and_finished_installation_without_game_write(
     env, monkeypatch
 ):

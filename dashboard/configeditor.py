@@ -278,10 +278,8 @@ def context(refresh=False):
     if env.get("SERVER_NAME"):
         names.append(env["SERVER_NAME"])
     names = list(dict.fromkeys(names))
-    active = names[0] + ".ini" if len(names) == 1 else None
     configured = os.getenv("PZ_CONFIG_FILE", "")
-    if configured and not active:
-        active = configured
+    active = configured or (names[0] + ".ini" if len(names) == 1 else None)
     hint = os.getenv("PZ_VERSION", "")
     state = inspect.get("State") or {}
     started_at = state.get("StartedAt", "") if isinstance(state, dict) else ""
@@ -1507,13 +1505,31 @@ def verify_running(data, *, automatic=False):
             )
         ctx = context(refresh=True)
         container = confirmed_container()
-        if (
-            ctx["activeFile"] != file
-            or not ctx["versionKnown"]
-            or not str(ctx["version"]).startswith("42.")
-            or not ctx["mountsKnown"]
-        ):
-            raise EditorError("Проверка доступна для подтверждённого активного профиля B42", 409)
+        if not ctx["activeFile"]:
+            raise EditorError(
+                "Активный профиль не определён. Проверьте SERVER_NAME или -servername сервера; при необходимости задайте PZ_CONFIG_FILE в пульте",
+                409,
+            )
+        if ctx["activeFile"] != file:
+            raise EditorError(
+                "Выбранный профиль не активен. Откройте активный профиль сервера и повторите проверку",
+                409,
+            )
+        version = str(ctx["version"])
+        if re.fullmatch(r"\d{2}\.\d+(?:\.\d+)?", version) and not version.startswith("42."):
+            raise EditorError(
+                "Версия сервера не поддерживается: для проверки требуется B42 (42.*)", 409
+            )
+        if not ctx["versionKnown"] or not version.startswith("42."):
+            raise EditorError(
+                "Версия сервера неизвестна. Проверьте доступность логов текущего запуска PZ из пульта",
+                409,
+            )
+        if not ctx["mountsKnown"]:
+            raise EditorError(
+                "Общий каталог данных сервера и пульта не подтверждён. Проверьте монтирование DATA_DIR и -cachedir сервера",
+                409,
+            )
         if not container["running"]:
             raise EditorError("Сервер остановлен: проверка запуска недоступна", 409)
         try:

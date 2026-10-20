@@ -19,6 +19,7 @@ import ops  # noqa: E402
 import payloads  # noqa: E402
 import rcon  # noqa: E402
 from test_configeditor import env as editor_env  # noqa: E402, F401
+from test_configeditor import saved_verification  # noqa: E402
 
 
 @pytest.fixture
@@ -281,6 +282,49 @@ def test_config_http_running_and_boolean_errors(api, editor_env, monkeypatch):  
             {"file": "world.ini", "overwrite": "false"},
         )[0]
         == 400
+    )
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+@pytest.mark.parametrize(
+    "context_changes,prefixes",
+    [
+        pytest.param(
+            {"activeFile": None},
+            {"en": "Active profile is unknown.", "ru": "Активный профиль не определён."},
+            id="unknown-profile",
+        ),
+        pytest.param(
+            {"version": "private-invalid-version", "versionKnown": False},
+            {"en": "Server version is unknown.", "ru": "Версия сервера неизвестна."},
+            id="unknown-version",
+        ),
+        pytest.param(
+            {"mountsKnown": False},
+            {
+                "en": "The shared data directory between the server and console is unconfirmed.",
+                "ru": "Общий каталог данных сервера и пульта не подтверждён.",
+            },
+            id="wrong-mounts",
+        ),
+    ],
+)
+def test_config_verify_http_localizes_context_diagnostics(
+    api,
+    editor_env,  # noqa: F811
+    monkeypatch,
+    language,
+    context_changes,
+    prefixes,
+):
+    _, body = saved_verification(editor_env, monkeypatch)
+    editor_env[1].update(context_changes)
+    status, result = api("POST", "/api/config-verify", body, headers={"X-PZ-Language": language})
+    assert status == 409
+    assert result["error"].startswith(prefixes[language])
+    assert all(
+        secret not in json.dumps(result)
+        for secret in ("topsecret", "hidden-token", "private-invalid-version")
     )
 
 

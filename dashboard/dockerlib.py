@@ -283,13 +283,11 @@ def parse_startup_version(line):
     return match[1] if match else None
 
 
-def container_startup_version(name, started_at, timeout=15):
-    """Read the current launch's first PZ header, with bounded memory and time."""
-    if not started_at or started_at.startswith("0001-"):
-        return None
+def _startup_version_attempt(args, deadline, output_limit):
+    """Read one Docker log window; only clean EOF allows a larger attempt."""
     try:
         process = subprocess.Popen(
-            ["docker", "logs", "--since", started_at, "--timestamps", name],
+            args,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -298,41 +296,56 @@ def container_startup_version(name, started_at, timeout=15):
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
     except OSError:
-        return None
+        return None, 0, False
     messages = queue.Queue(maxsize=16)
     stopped = threading.Event()
+    read_failed = threading.Event()
+
+    def send(line):
+        while not stopped.is_set():
+            try:
+                messages.put(line, timeout=0.1)
+                return
+            except queue.Full:
+                continue
 
     def read():
         try:
             while not stopped.is_set():
                 line = process.stdout.readline(65536)
-                while not stopped.is_set():
-                    try:
-                        messages.put(line or None, timeout=0.1)
-                        break
-                    except queue.Full:
-                        continue
+                send(line or None)
                 if not line:
                     break
         except (OSError, ValueError):
-            pass
+            read_failed.set()
+            send(None)
 
     reader = threading.Thread(target=read, daemon=True)
     reader.start()
-    deadline, size = time.monotonic() + timeout, 0
+    size, version, complete = 0, None, False
     try:
-        while (remaining := deadline - time.monotonic()) > 0 and size < STARTUP_LOG_BYTES_LIMIT:
+        while (remaining := deadline - time.monotonic()) > 0 and size < output_limit:
             try:
                 line = messages.get(timeout=remaining)
             except queue.Empty:
                 break
             if line is None:
+                if read_failed.is_set():
+                    break
+                try:
+                    code = process.poll()
+                    if code is None:
+                        code = process.wait(timeout=max(0, deadline - time.monotonic()))
+                    complete = code == 0
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
                 break
             size += len(line)
+            if size > output_limit:
+                break
             version = parse_startup_version(line)
             if version:
-                return version
-        return None
+                break
     finally:
         stopped.set()
         if process.poll() is None:
@@ -342,11 +355,37 @@ def container_startup_version(name, started_at, timeout=15):
                 pass  # The docker log reader may have exited since poll().
         try:
             process.wait(timeout=2)
-        except subprocess.TimeoutExpired:
+        except (OSError, subprocess.TimeoutExpired):
             pass
         reader.join(timeout=2)
         if not reader.is_alive():
             process.stdout.close()
+    return version, size, complete and not reader.is_alive()
+
+
+def container_startup_version(name, started_at, timeout=15):
+    """Read a current-launch header with one time and output budget for all windows."""
+    if not started_at or started_at.startswith("0001-"):
+        return None
+    deadline = time.monotonic() + timeout
+    output_left = STARTUP_LOG_BYTES_LIMIT
+    # With json-file journals, Docker applies --since after decoding old history.
+    # A finite --tail seeks backwards first, avoiding that delay.
+    # Expand when recent windows omit the header, retaining the full-log fallback.
+    for tail in (100_000, 1_000_000, None):
+        if time.monotonic() >= deadline or output_left <= 0:
+            break
+        args = ["docker", "logs"]
+        if tail is not None:
+            args += ["--tail", str(tail)]
+        args += ["--since", started_at, "--timestamps", name]
+        version, size, complete = _startup_version_attempt(args, deadline, output_left)
+        output_left -= size
+        if version:
+            return version
+        if not complete:
+            break
+    return None
 
 
 def parse_bytes(raw):
