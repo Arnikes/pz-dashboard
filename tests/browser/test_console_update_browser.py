@@ -23,6 +23,20 @@ def test_console_update_flow_and_mod_timestamp(page, dashboard, language, width)
     )
     page.set_viewport_size({"width": width, "height": 1000})
     page.add_init_script(f"localStorage.setItem('pz-language','{language}')")
+    sequence = 0
+    history = []
+
+    def operation_state(active=None):
+        nonlocal sequence
+        sequence += 1
+        return {
+            "ok": True,
+            "active": active,
+            "history": history.copy(),
+            "snapshot": {"epoch": "console-update-flow", "sequence": sequence},
+        }
+
+    page.route("**/api/ops", lambda route: route.fulfill(json=operation_state()))
     page.goto(dashboard["url"] + "/#/maintenance")
     expect(page.locator("#btnCheckDashboardUpd")).to_be_enabled()
     expect(page.locator("#dashboardUpdImage")).to_have_text(
@@ -36,18 +50,30 @@ def test_console_update_flow_and_mod_timestamp(page, dashboard, language, width)
     def action(route):
         request = route.request.post_data_json
         requests.append(request)
+        operation_id = f"console-operation-{len(requests)}"
         if request["op"] == "check-dashboard-update":
             dashboard["overview"]["dashboardUpdate"].update(
                 available=True, remote="sha256:" + "b" * 64
             )
-            route.fulfill(
-                json={
-                    "ok": True,
-                    "started": request["op"],
-                }
-            )
-        else:
-            route.fulfill(json={"ok": True, "started": request["op"]})
+        history.insert(
+            0,
+            {
+                "id": operation_id,
+                "op": request["op"],
+                "ok": True,
+                "message": "Complete",
+                "finishedAt": "2026-10-20T12:00:00Z",
+            },
+        )
+        # A fast worker can finish before its accepted POST reaches the browser.
+        route.fulfill(
+            json={
+                "ok": True,
+                "started": request["op"],
+                "operationId": operation_id,
+                "operationState": operation_state(),
+            }
+        )
 
     page.route("**/api/action", action)
     page.locator("#btnCheckDashboardUpd").click()
@@ -67,7 +93,16 @@ def test_console_update_flow_and_mod_timestamp(page, dashboard, language, width)
     page.locator("#modalOk").click()
     expect(page.locator("#modalRoot")).to_be_hidden()
     page.wait_for_function("!S.actionPending")
-    assert requests == [{"op": "check-dashboard-update"}, {"op": "apply-dashboard-update"}]
+    for request in requests:
+        if "requestId" in request or "requestEpoch" in request:
+            assert isinstance(request["requestId"], str) and request["requestId"]
+            assert request["requestEpoch"] == "console-update-flow"
+    assert [
+        {key: value for key, value in request.items() if key not in {"requestId", "requestEpoch"}}
+        for request in requests
+    ] == [{"op": "check-dashboard-update"}, {"op": "apply-dashboard-update"}]
+    if "requestId" in requests[0]:
+        assert requests[0]["requestId"] != requests[1]["requestId"]
     # Keep completion refreshes and polling consistent with the asserted snapshot.
     dashboard["overview"]["modsCheck"]["state"] = "needs-update"
     page.evaluate("refreshOverview()")
@@ -80,7 +115,12 @@ def test_console_update_flow_and_mod_timestamp(page, dashboard, language, width)
     target = Path(__file__).resolve().parents[2] / ".tmp-console-update-evidence"
     target.mkdir(exist_ok=True)
     capture_evidence(page, path=str(target / f"maintenance-{language}-{width}.png"), full_page=True)
-    page.evaluate("renderOp({active:{op:'apply-dashboard-update',phase:'Updating'},history:[]})")
+    page.evaluate(
+        "state => renderOp(state)",
+        operation_state(
+            {"id": "console-updating", "op": "apply-dashboard-update", "phase": "Updating"}
+        ),
+    )
     expect(page.locator("#btnCheckDashboardUpd")).to_be_disabled()
     expect(page.locator("#btnApplyDashboardUpd")).to_be_disabled()
 

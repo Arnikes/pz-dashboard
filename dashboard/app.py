@@ -555,14 +555,18 @@ class Handler(BaseHTTPRequestHandler):
                     return
             # в удалённом режиме живость сервера покажет сам RCON-запрос
             try:
-                out = ops.rcon(command)
-                ops.log_event("console", command[:200])
+                out = ops.console_command(command)
                 self._send_json({"ok": True, "output": out or "(без ответа)"})
+            except ops.OpsBusyError as error:
+                self._send_error_json(409, str(error))
             except rcon.RCONError as e:
                 self._send_json({"ok": False, "error": str(e)})
         elif path == "/api/settings":
             try:
                 err = ops.patch_settings(data)
+            except ops.OpsBusyError as error:
+                self._send_error_json(409, str(error))
+                return
             except ops.OpsError as error:
                 self._send_error_json(503, str(error))
                 return
@@ -571,7 +575,12 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._send_json({"ok": True, "settings": ops.get_settings()})
         elif path == "/api/notify-test":
-            ok, err = notify.test_message()
+            try:
+                with ops.mutation_guard():
+                    ok, err = notify.test_message()
+            except ops.OpsBusyError as error:
+                self._send_error_json(409, str(error))
+                return
             if ok:
                 self._send_json({"ok": True})
             else:
@@ -601,12 +610,26 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/modpack":
             self._editor_request(lambda: configeditor.modpack(data))
         elif path == "/api/action":
-            if data.get("op") in ("prepare-workshop", "apply-config"):
-                self._editor_request(
-                    lambda: configeditor.queue(data, prepare=data["op"] == "prepare-workshop")
-                )
-            else:
+            if data.get("op") in ("resolve-request", "cancel-update", "cancel-mods-update"):
                 self._handle_action(data)
+                return
+            request_options = (
+                {"request_id": data.get("requestId"), "request_epoch": data.get("requestEpoch")}
+                if "requestId" in data or "requestEpoch" in data
+                else {}
+            )
+            try:
+                with ops.operation_request(**request_options):
+                    if data.get("op") in ("prepare-workshop", "apply-config"):
+                        self._editor_request(
+                            lambda: configeditor.queue(
+                                data, prepare=data["op"] == "prepare-workshop"
+                            )
+                        )
+                    else:
+                        self._handle_action(data)
+            except ops.OpsError as error:
+                self._send_error_json(409, str(error))
         else:
             self._send_error_json(404, "Нет такого маршрута")
 
@@ -634,6 +657,8 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 ops.delete_backup(qs.get("name", [""])[0])
                 self._send_json({"ok": True})
+            except ops.OpsBusyError as error:
+                self._send_error_json(409, str(error))
             except ops.OpsError as e:
                 self._send_error_json(400, str(e))
         else:

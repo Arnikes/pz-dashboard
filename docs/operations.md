@@ -12,6 +12,22 @@ then displays the server's completed and current stages. Only timed waits show a
 countdown; reaching zero does not release the operation lock. Phase diagnostics
 remain available through the operation heading's tooltip and accessible status.
 Editable widgets show the localized operation name while their controls are locked.
+Operation snapshots carry a process epoch and an increasing sequence number, so
+delayed polling responses or cached SSE frames cannot overwrite newer progress.
+A stream frame from an unfamiliar process epoch waits for direct API confirmation;
+buffered frames from an old connection cannot declare a restart or release a lock.
+Accepted requests include the operation ID and a snapshot captured after admission;
+the same ID identifies its final history entry. Failed or incomplete state responses
+never release the lock. If submission times out or loses its connection, the browser
+keeps mutations blocked and reconciles the launch request ID with the server. A request
+still in validation remains pending even if no worker is active. Resolving a request
+that has not arrived fences its ID against later admission; requests from an earlier
+console process are rejected. Only a resolved submission and a valid fresh snapshot
+can restore idle controls. A delayed acceptance cannot revive a completion
+already received through the live stream. Cancellation remains disabled while its
+request is pending and after acceptance until that operation ends.
+Cancellation requests from the interface carry the active operation ID; the server
+rejects a stale ID rather than cancelling a later operation of the same type.
 Navigation, logs, events, and mod-update cancellation during its warning period
 remain available. Completion, failure, or cancellation restores the normal controls
 and records one result notification. Request acceptance appears in the bar without
@@ -34,11 +50,23 @@ and post-start verification have explicit stages. An automatic mod restart skipp
 because the server was already stopped or restarted is recorded as cancelled.
 Read-only monitoring, automatic freshness probes, and editor draft/metadata requests
 retain their ordinary local loading feedback; they do not launch a maintenance worker.
+The API admits direct console commands, archive deletions, settings writes, and draft
+mutations through the same atomic admission gate as operation starts. Concurrent
+mutations are rejected with HTTP 409, including requests sent from another tab or
+directly to the API; the worker's own lifecycle steps retain access to these services.
 
 Image check actions now return `{"ok":true,"started":"check-update"}` or
 `{"ok":true,"started":"check-dashboard-update"}`, like other worker actions,
 instead of an inline `check` result. Read progress/results from `GET /api/ops` and
 updated image status from `GET /api/overview` or SSE.
+
+Launch clients can attach a unique `requestId` and the latest snapshot's
+`snapshot.epoch` as `requestEpoch`. To reconcile a lost reply, send
+`POST /api/action` with `op: "resolve-request"` and those same identifiers.
+The reply contains `requestPending` and `operationState`. A pending request retains
+the submission lock; a resolved request permits the ordinary worker state to decide
+availability. The browser also keeps newer live progress when reconciliation arrives
+late. Clients omitting both tracking fields retain the existing action API.
 
 ## Dashboard notifications
 

@@ -368,18 +368,61 @@ def test_live_list_preserves_focus_identity_and_recovers_removed_row(page, dashb
 def test_rejected_confirmation_preserves_parameters_and_retries_once(page, dashboard, failure):
     requests = []
     pending = []
+    pending_resolutions = []
+    history = []
+    sequence = 0
+
+    def operation_state():
+        nonlocal sequence
+        sequence += 1
+        return {
+            "ok": True,
+            "active": None,
+            "history": history,
+            "snapshot": {"epoch": "confirmation-retry", "sequence": sequence},
+        }
+
+    def refresh_operations(route):
+        route.fulfill(json=operation_state())
 
     def respond(route):
-        requests.append(route.request.post_data_json)
+        body = route.request.post_data_json
+        if body["op"] == "resolve-request":
+            assert body["requestId"] == requests[0]["requestId"]
+            assert body["requestEpoch"] == requests[0]["requestEpoch"]
+            if failure == "timeout":
+                pending_resolutions.append(route)
+            else:
+                route.fulfill(
+                    json={"ok": True, "requestPending": False, "operationState": operation_state()}
+                )
+            return
+        requests.append(body)
         if len(requests) == 1:
             if failure == "timeout":
                 pending.append(route)
             else:
                 route.fulfill(status=int(failure), json={"error": "Запрос отклонён"})
         else:
-            route.fulfill(json={"ok": True})
+            history.append(
+                {
+                    "id": "retried-stop",
+                    "op": "stop",
+                    "ok": True,
+                    "finishedAt": "2026-10-20T12:01:00Z",
+                }
+            )
+            route.fulfill(
+                json={
+                    "ok": True,
+                    "started": "stop",
+                    "operationId": "retried-stop",
+                    "operationState": operation_state(),
+                }
+            )
 
     page.route("**/api/action", respond)
+    page.route("**/api/ops", refresh_operations)
     page.goto(dashboard["url"])
     expect(page.locator("#btnStop")).to_be_enabled()
     page.clock.install()
@@ -388,13 +431,35 @@ def test_rejected_confirmation_preserves_parameters_and_retries_once(page, dashb
     page.locator("#modalOk").click()
     if failure == "timeout":
         page.wait_for_function("S.actionPending")
-        page.clock.run_for(9500)
+        with page.expect_request(
+            lambda request: (
+                request.url.endswith("/api/action")
+                and request.post_data_json.get("op") == "resolve-request"
+            )
+        ):
+            page.clock.run_for(9500)
+        expect(page.locator("#modalOk")).to_be_disabled()
+        page.evaluate("document.getElementById('modalOk').click()")
+        assert len(requests) == 1
+        assert len(pending_resolutions) == 1
+        pending_resolutions.pop().fulfill(
+            json={"ok": True, "requestPending": False, "operationState": operation_state()}
+        )
     expect(page.locator("#modalError")).to_be_visible()
     expect(page.get_by_role("alertdialog")).to_be_visible()
     expect(page.locator("#warnSel")).to_have_value("60")
     page.locator("#modalOk").click()
     expect(page.get_by_role("alertdialog")).to_be_hidden()
-    assert requests == [{"op": "stop", "warnSeconds": 60}] * 2
+    for request in requests:
+        if "requestId" in request or "requestEpoch" in request:
+            assert isinstance(request["requestId"], str) and request["requestId"]
+            assert request["requestEpoch"] == "confirmation-retry"
+    assert [
+        {key: value for key, value in request.items() if key not in {"requestId", "requestEpoch"}}
+        for request in requests
+    ] == [{"op": "stop", "warnSeconds": 60}] * 2
+    if "requestId" in requests[0]:
+        assert requests[0]["requestId"] != requests[1]["requestId"]
 
 
 def test_pending_confirmation_cannot_be_submitted_twice_or_dismissed(page, dashboard):
@@ -409,8 +474,33 @@ def test_pending_confirmation_cannot_be_submitted_twice_or_dismissed(page, dashb
     expect(page.get_by_role("alertdialog")).to_be_visible()
     expect(page.locator("#modalCancel")).to_be_disabled()
     assert len(requests) == 1
-    requests[0].fulfill(json={"ok": True})
+    active = {"id": "confirmed-stop", "op": "stop", "phase": "Saving world"}
+    page.route(
+        "**/api/ops",
+        lambda route: route.fulfill(
+            json={
+                "ok": True,
+                "active": active,
+                "history": [],
+                "snapshot": {"epoch": "pending-confirmation", "sequence": 2},
+            }
+        ),
+    )
+    requests[0].fulfill(
+        json={
+            "ok": True,
+            "started": "stop",
+            "operationId": "confirmed-stop",
+            "operationState": {
+                "ok": True,
+                "active": active,
+                "history": [],
+                "snapshot": {"epoch": "pending-confirmation", "sequence": 1},
+            },
+        }
+    )
     expect(page.get_by_role("alertdialog")).to_be_hidden()
+    expect(page.locator("#btnStop")).to_be_disabled()
 
 
 def test_failed_telegram_save_keeps_secret_and_stale_snapshots_do_not_erase_edits(page, dashboard):

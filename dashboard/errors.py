@@ -5,6 +5,10 @@ class OpsError(Exception):
     pass
 
 
+class OpsBusyError(OpsError):
+    """A mutation could not claim the shared operation admission lock."""
+
+
 class OpsErrorReported(OpsError):
     """OpsError, о которой уже сообщено (событие и журнал) — воркер не дублирует."""
 

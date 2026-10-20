@@ -64,6 +64,106 @@ def operation_env(monkeypatch):
     return start, defer
 
 
+@pytest.fixture
+def operation_requests(monkeypatch):
+    monkeypatch.setattr(ops, "_OP_REQUEST_PENDING", set())
+    monkeypatch.setattr(ops, "_OP_REQUEST_FENCED", set())
+    monkeypatch.setattr(ops, "_ACTIVE", {"op": None, "stages": []})
+    monkeypatch.setattr(ops.dashboardupdate, "operation", lambda: None)
+    return ops.op_state()["snapshot"]["epoch"]
+
+
+@pytest.mark.parametrize("operation", ["apply-config", "prepare-workshop"])
+def test_request_resolution_tracks_slow_config_preflight_before_worker_admission(
+    api, monkeypatch, operation_requests, operation
+):
+    entered, release = threading.Event(), threading.Event()
+    responses = []
+
+    def preflight(data, *, prepare):
+        entered.set()
+        assert release.wait(5)
+        return {"ok": True, "operation": data["op"]}
+
+    queue = Mock(side_effect=preflight)
+    monkeypatch.setattr(configeditor, "queue", queue)
+    body = {"op": operation, "requestId": "slow-preflight", "requestEpoch": operation_requests}
+    thread = threading.Thread(target=lambda: responses.append(api("POST", "/api/action", body)))
+    thread.start()
+    resolution = {**body, "op": "resolve-request"}
+    try:
+        assert entered.wait(3)
+        status, result = api("POST", "/api/action", resolution)
+        assert status == 200 and result["requestPending"] is True
+        assert result["operationState"]["active"] is None
+        assert api("POST", "/api/action", body)[0] == 409
+        queue.assert_called_once()
+    finally:
+        release.set()
+        thread.join(5)
+    assert responses == [(200, {"ok": True, "operation": operation})]
+    assert api("POST", "/api/action", resolution)[1]["requestPending"] is False
+    assert api("POST", "/api/action", body)[0] == 409
+    queue.assert_called_once()
+
+
+def test_resolution_before_launch_fences_late_post_and_rejects_previous_process(
+    api, operation_env, operation_requests
+):
+    body = {"op": "start", "requestId": "delayed-launch", "requestEpoch": operation_requests}
+    resolution = {**body, "op": "resolve-request"}
+    status, result = api("POST", "/api/action", resolution)
+    assert status == 200 and result["requestPending"] is False
+    assert result["operationState"]["active"] is None
+    assert api("POST", "/api/action", body)[0] == 409
+    old_process = {**body, "requestId": "old-process-request", "requestEpoch": "previous-process"}
+    assert (
+        api("POST", "/api/action", {**old_process, "op": "resolve-request"})[1]["requestPending"]
+        is False
+    )
+    assert api("POST", "/api/action", old_process)[0] == 409
+    operation_env[0].assert_not_called()
+    assert api("POST", "/api/action", {**old_process, "requestEpoch": operation_requests})[0] == 200
+    operation_env[0].assert_called_once()
+
+
+def test_completed_launch_resolution_returns_its_finished_operation(
+    api, monkeypatch, operation_requests
+):
+    monkeypatch.setattr(ops, "_do_check_update", lambda: ops._set_phase("Готово", "Complete"))
+    body = {
+        "op": "check-update",
+        "requestId": "completed-launch",
+        "requestEpoch": operation_requests,
+    }
+    status, response = api("POST", "/api/action", body)
+    assert status == 200
+    for thread in threading.enumerate():
+        if thread.name == "op-check-update":
+            thread.join(5)
+    status, result = api("POST", "/api/action", {**body, "op": "resolve-request"})
+    assert status == 200 and result["requestPending"] is False
+    assert result["operationState"]["active"] is None
+    assert any(row["id"] == response["operationId"] for row in result["operationState"]["history"])
+
+
+@pytest.mark.parametrize(
+    "identity",
+    [
+        {"requestId": None, "requestEpoch": None},
+        {"requestId": "missing-epoch"},
+        {"requestEpoch": "missing-id"},
+        {"requestId": "", "requestEpoch": "epoch"},
+        {"requestId": "  ", "requestEpoch": "epoch"},
+        {"requestId": 123, "requestEpoch": "epoch"},
+        {"requestId": "x" * 129, "requestEpoch": "epoch"},
+    ],
+)
+def test_action_request_identity_must_be_valid_before_dispatch(api, operation_env, identity):
+    assert api("POST", "/api/action", {"op": "start", **identity})[0] == 409
+    operation_env[0].assert_not_called()
+
+
 def test_backup_journal_paginates_all_saved_entries(api, tmp_path, monkeypatch):
     monkeypatch.setitem(app.config.CFG, "dashboard_dir", str(tmp_path))
     path = tmp_path / "backups.jsonl"
@@ -359,6 +459,85 @@ def test_cancel_mods_update_allowed_while_busy(api, monkeypatch, operation_env):
         409,
         {"ok": False, "error": "Остановка уже началась"},
     )
+
+
+@pytest.mark.parametrize(
+    "action,function",
+    [("cancel-mods-update", "cancel_mods_update"), ("cancel-update", "cancel_image_update")],
+)
+def test_cancel_action_forwards_operation_identity_and_rejects_invalid_values(
+    api, monkeypatch, action, function
+):
+    cancel = Mock()
+    monkeypatch.setattr(ops, function, cancel)
+    assert api("POST", "/api/action", {"op": action, "operationId": "expected-operation"}) == (
+        200,
+        {"ok": True, "cancelRequested": True},
+    )
+    cancel.assert_called_once_with(operation_id="expected-operation")
+    for invalid in (None, "", "  ", 123, False, [], {}):
+        assert api("POST", "/api/action", {"op": action, "operationId": invalid})[0] == 400
+    assert cancel.call_count == 1
+    cancel.side_effect = ops.OpsError("Обновление сервера сейчас не выполняется")
+    assert api("POST", "/api/action", {"op": action, "operationId": "expired-operation"})[0] == 409
+
+
+@pytest.mark.parametrize(
+    "method,path,body,target",
+    [
+        ("POST", "/api/rcon", {"command": "quit"}, "rcon"),
+        ("POST", "/api/settings", {"autoUpdate": {"enabled": True}}, "_save_settings"),
+        ("DELETE", "/api/backup?name=world.tar.gz", None, "_delete_backup"),
+    ],
+)
+def test_direct_mutation_routes_reject_busy_operations(
+    api, monkeypatch, method, path, body, target
+):
+    monkeypatch.setattr(ops, "op_busy", lambda: True)
+    monkeypatch.setattr(ops, "docker_ok_cached", lambda: False)
+    mutation = Mock()
+    monkeypatch.setattr(ops, target, mutation)
+    status, result = api(method, path, body)
+    assert status == 409
+    assert result["ok"] is False
+    mutation.assert_not_called()
+
+
+def test_notification_test_rejects_busy_operation_without_sending(api, monkeypatch):
+    monkeypatch.setattr(ops, "op_busy", lambda: True)
+    send = Mock()
+    monkeypatch.setattr(app.notify, "test_message", send)
+    status, result = api("POST", "/api/notify-test", {})
+    assert status == 409 and result["ok"] is False
+    send.assert_not_called()
+
+
+def test_accepted_action_receipt_contains_an_ordered_operation_snapshot(api, monkeypatch):
+    from collections import deque
+
+    monkeypatch.setattr(ops, "_ACTIVE", {"op": None, "stages": []})
+    monkeypatch.setattr(ops, "_OP_HISTORY", deque())
+    monkeypatch.setattr(ops.dashboardupdate, "operation", lambda: None)
+    entered, release = threading.Event(), threading.Event()
+
+    def work():
+        entered.set()
+        assert release.wait(5)
+
+    monkeypatch.setattr(ops, "_do_check_update", work)
+    previous = ops.op_state()
+    try:
+        status, response = api("POST", "/api/action", {"op": "check-update"})
+        assert status == 200 and entered.wait(3)
+        state = response["operationState"]
+        assert state["active"]["id"] == response["operationId"]
+        assert state["snapshot"]["epoch"] == previous["snapshot"]["epoch"]
+        assert state["snapshot"]["sequence"] > previous["snapshot"]["sequence"]
+    finally:
+        release.set()
+        for thread in threading.enumerate():
+            if thread.name == "op-check-update":
+                thread.join(5)
 
 
 def test_polling_and_streaming_payloads(api, monkeypatch):

@@ -18,6 +18,8 @@ def lifecycle(monkeypatch):
     monkeypatch.setattr(ops, "_ACTIVE", {"op": None, "stages": []})
     monkeypatch.setattr(ops, "_OP_HISTORY", deque())
     monkeypatch.setattr(ops, "_OP_CANCEL", threading.Event())
+    monkeypatch.setattr(ops, "_OP_REQUEST_PENDING", set())
+    monkeypatch.setattr(ops, "_OP_REQUEST_FENCED", set())
     monkeypatch.setattr(ops.dashboardupdate, "operation", lambda: None)
     monkeypatch.setattr(ops, "log_event", Mock())
     monkeypatch.setattr(ops, "_begin_watchdog_grace", Mock())
@@ -55,6 +57,138 @@ def test_failed_worker_launch_releases_operation_slot(lifecycle, monkeypatch, fa
             thread.join(3)
     assert not ops.op_busy()
     assert ops.op_state()["history"][0]["ok"] is True
+
+
+def test_operation_receipt_and_ordered_snapshots_follow_the_same_worker(lifecycle):
+    entered, release = threading.Event(), threading.Event()
+
+    def work():
+        entered.set()
+        assert release.wait(5)
+
+    before = ops.op_state()
+    operation_id = ops.start_op("restart", work)
+    try:
+        assert entered.wait(3)
+        active = ops.op_state()
+        assert active["active"]["id"] == operation_id
+        assert active["snapshot"]["epoch"] == before["snapshot"]["epoch"]
+        assert active["snapshot"]["sequence"] > before["snapshot"]["sequence"]
+        with pytest.raises(ops.OpsBusyError):
+            with ops.mutation_guard():
+                pytest.fail("A mutation was admitted while the worker was active")
+    finally:
+        release.set()
+        for thread in threading.enumerate():
+            if thread.name == "op-restart":
+                thread.join(5)
+    completed = ops.op_state()
+    assert completed["active"] is None
+    assert completed["history"][0]["id"] == operation_id
+    assert completed["snapshot"]["sequence"] > active["snapshot"]["sequence"]
+
+
+def test_mutation_admission_rejects_worker_and_other_mutations_until_return(lifecycle):
+    entered, release = threading.Event(), threading.Event()
+
+    def mutate():
+        with ops.mutation_guard():
+            with ops.mutation_guard():
+                entered.set()
+                assert release.wait(5)
+
+    thread = threading.Thread(target=mutate)
+    thread.start()
+    try:
+        assert entered.wait(3)
+        with pytest.raises(ops.OpsBusyError):
+            ops.start_op("restart", Mock())
+        with pytest.raises(ops.OpsBusyError):
+            with ops.mutation_guard():
+                pytest.fail("Concurrent mutation was admitted")
+        assert ops.op_state()["active"] is None
+    finally:
+        release.set()
+        thread.join(5)
+    with pytest.raises(RuntimeError, match="write failed"):
+        with ops.mutation_guard():
+            raise RuntimeError("write failed")
+    with ops.mutation_guard():
+        pass
+
+
+@pytest.mark.parametrize(
+    "operation,cancel,inactive_message",
+    [
+        ("mods-restart", ops.cancel_mods_update, "Автообновление модов сейчас не выполняется"),
+        ("apply-update", ops.cancel_image_update, "Обновление сервера сейчас не выполняется"),
+    ],
+)
+def test_delayed_cancel_cannot_cancel_a_same_type_replacement(
+    lifecycle, operation, cancel, inactive_message
+):
+    finished, entered, release = threading.Event(), threading.Event(), threading.Event()
+    previous_id = ops.start_op(operation, finished.set)
+    assert finished.wait(3)
+    for thread in threading.enumerate():
+        if thread.name == f"op-{operation}":
+            thread.join(5)
+
+    def replacement():
+        entered.set()
+        assert release.wait(5)
+
+    current_id = ops.start_op(operation, replacement)
+    try:
+        assert entered.wait(3)
+        assert current_id != previous_id
+        before = ops.op_state()["active"]
+        with pytest.raises(ops.OpsError, match=inactive_message):
+            cancel(operation_id=previous_id)
+        assert ops.op_state()["active"] == before
+        assert not ops._OP_CANCEL.is_set()
+        cancel(operation_id=current_id)
+        assert ops.op_state()["active"]["cancelRequested"]
+        assert ops._OP_CANCEL.is_set()
+    finally:
+        release.set()
+        for thread in threading.enumerate():
+            if thread.name == f"op-{operation}":
+                thread.join(5)
+
+
+def test_request_resolution_keeps_preflight_pending_and_fences_delayed_admission(lifecycle):
+    epoch = ops.op_state()["snapshot"]["epoch"]
+    with ops.operation_request("pending-launch", epoch):
+        result = ops.resolve_operation_request("pending-launch", epoch)
+        assert result["requestPending"] is True
+        assert result["operationState"]["active"] is None
+        with pytest.raises(ops.OpsError, match="Запрос не принят"):
+            with ops.operation_request("pending-launch", epoch):
+                pytest.fail("Duplicate launch entered preflight")
+    assert "pending-launch" not in ops._OP_REQUEST_FENCED
+    result = ops.resolve_operation_request("pending-launch", epoch)
+    assert result["requestPending"] is False
+    with pytest.raises(ops.OpsError, match="Запрос не принят"):
+        with ops.operation_request("pending-launch", epoch):
+            pytest.fail("Resolved launch was admitted again")
+
+
+def test_request_completion_cleanup_survives_response_failure_and_epoch_changes(lifecycle):
+    epoch = ops.op_state()["snapshot"]["epoch"]
+    with pytest.raises(BrokenPipeError):
+        with ops.operation_request("disconnected-response", epoch):
+            raise BrokenPipeError("Client disconnected after dispatch")
+    assert ops.resolve_operation_request("disconnected-response", epoch)["requestPending"] is False
+    assert ops.resolve_operation_request("reused-id", "previous-process")["requestPending"] is False
+    assert "reused-id" not in ops._OP_REQUEST_FENCED
+    with pytest.raises(ops.OpsError, match="Запрос не принят"):
+        with ops.operation_request("reused-id", "previous-process"):
+            pytest.fail("An old process admitted a delayed launch")
+    with ops.operation_request("reused-id", epoch):
+        assert ops.resolve_operation_request("reused-id", epoch)["requestPending"] is True
+    with ops.operation_request():
+        assert not ops._OP_REQUEST_PENDING
 
 
 @pytest.mark.parametrize("result", ["ready", "timeout"])

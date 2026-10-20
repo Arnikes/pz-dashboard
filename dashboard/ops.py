@@ -30,12 +30,33 @@ import settingsmodel
 import backups3
 import backupverify
 from settingsmodel import DEFAULTS as _DEFAULTS
-from errors import OpsError as OpsError, OpsErrorReported as OpsErrorReported
+from errors import (
+    OpsBusyError as OpsBusyError,
+    OpsError as OpsError,
+    OpsErrorReported as OpsErrorReported,
+)
 import dockerlib
 import dashboardupdate
 import serverupdate
 import notify as notifylib
 import rcon as rconlib
+
+_MUTATION_LOCK = threading.RLock()
+
+
+@contextmanager
+def mutation_guard(busy_error=None):
+    """Admit a synchronous mutation atomically with background operation starts."""
+    error = busy_error or OpsBusyError("Уже выполняется другая операция, подождите")
+    if not _MUTATION_LOCK.acquire(blocking=False):
+        raise error
+    try:
+        if op_busy():
+            raise error
+        yield
+    finally:
+        _MUTATION_LOCK.release()
+
 
 # ─────────────────────────── утилиты времени ───────────────────────────
 
@@ -232,7 +253,7 @@ def telegram_settings_raw():
 
 def patch_settings(patch):
     """Validate a detached candidate, then publish and persist it under one lock."""
-    with _SET_LOCK:
+    with mutation_guard(), _SET_LOCK:
         updated, error = settingsmodel.prepare_patch(_SETTINGS, patch, _next_daily_run)
         if error:
             return error
@@ -294,6 +315,14 @@ def rcon(command, quiet=False):
             _RCON_LOG["at"] = now
             log_event("rcon-error", "RCON: " + str(e))
         raise
+
+
+def console_command(command):
+    """Keep user commands from racing lifecycle operations or other mutations."""
+    with mutation_guard():
+        output = rcon(command)
+        log_event("console", command[:200])
+        return output
 
 
 def rcon_warn_broadcast(seconds, reason, abort_check=None, abort_wait=None):
@@ -504,11 +533,57 @@ _ACTIVE = {
 }
 _OP_CANCEL = threading.Event()
 _OP_HISTORY = deque(maxlen=10)
+_OP_SNAPSHOT_EPOCH = uuid.uuid4().hex
+_OP_SNAPSHOT_SEQUENCE = 0
+_OP_REQUEST_PENDING = set()
+_OP_REQUEST_FENCED = set()
+_UNTRACKED_REQUEST = object()
 
 _NAME_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
+def _validate_operation_request(request_id, request_epoch):
+    if any(
+        not isinstance(value, str) or not value.strip() or len(value) > 128
+        for value in (request_id, request_epoch)
+    ):
+        raise OpsError("Запрос не принят")
+
+
+@contextmanager
+def operation_request(request_id=_UNTRACKED_REQUEST, request_epoch=_UNTRACKED_REQUEST):
+    """Fence abandoned launches before preflight can later acquire an operation slot."""
+    if request_id is _UNTRACKED_REQUEST and request_epoch is _UNTRACKED_REQUEST:
+        yield
+        return
+    _validate_operation_request(request_id, request_epoch)
+    with _OP_LOCK:
+        if (
+            request_epoch != _OP_SNAPSHOT_EPOCH
+            or request_id in _OP_REQUEST_PENDING
+            or request_id in _OP_REQUEST_FENCED
+        ):
+            raise OpsError("Запрос не принят")
+        _OP_REQUEST_PENDING.add(request_id)
+    try:
+        yield
+    finally:
+        with _OP_LOCK:
+            _OP_REQUEST_PENDING.discard(request_id)
+
+
+def resolve_operation_request(request_id, request_epoch):
+    """Resolve pending preflight, or prevent a delayed request from starting later."""
+    _validate_operation_request(request_id, request_epoch)
+    with _OP_LOCK:
+        pending = request_epoch == _OP_SNAPSHOT_EPOCH and request_id in _OP_REQUEST_PENDING
+        if request_epoch == _OP_SNAPSHOT_EPOCH and not pending:
+            _OP_REQUEST_FENCED.add(request_id)
+    return {"ok": True, "requestPending": pending, "operationState": op_state()}
+
+
 def op_state():
+    global _OP_SNAPSHOT_SEQUENCE
     with _OP_LOCK:
         dashboard_op = dashboardupdate.operation()
         active = {**_ACTIVE, "stages": list(_ACTIVE.get("stages", []))} if _ACTIVE["op"] else None
@@ -521,9 +596,11 @@ def op_state():
                 history.sort(
                     key=lambda row: row.get("finishedAt", row.get("startedAt", "")), reverse=True
                 )
+        _OP_SNAPSHOT_SEQUENCE += 1
         return {
             "active": active,
             "history": history,
+            "snapshot": {"epoch": _OP_SNAPSHOT_EPOCH, "sequence": _OP_SNAPSHOT_SEQUENCE},
         }
 
 
@@ -532,10 +609,12 @@ def op_busy():
         return _ACTIVE["op"] is not None or bool((dashboardupdate.operation() or {}).get("active"))
 
 
-def cancel_mods_update():
+def cancel_mods_update(operation_id=None):
     """Отменить текущий авторестарт модов до начала остановки сервера."""
     with _OP_LOCK:
-        if _ACTIVE["op"] != "mods-restart":
+        if _ACTIVE["op"] != "mods-restart" or (
+            operation_id is not None and operation_id != _ACTIVE.get("id")
+        ):
             raise OpsError("Автообновление модов сейчас не выполняется")
         if _ACTIVE["cancelRequested"]:
             return
@@ -550,10 +629,12 @@ def cancel_mods_update():
         _OP_CANCEL.set()
 
 
-def cancel_image_update():
+def cancel_image_update(operation_id=None):
     """Accept cancellation until the worker commits to stopping the server."""
     with _OP_LOCK:
-        if _ACTIVE["op"] != "apply-update":
+        if _ACTIVE["op"] != "apply-update" or (
+            operation_id is not None and operation_id != _ACTIVE.get("id")
+        ):
             raise OpsError("Обновление сервера сейчас не выполняется")
         if _ACTIVE["cancelRequested"]:
             return
@@ -583,6 +664,11 @@ def _set_phase(phase, message="", *, countdown_seconds=None):
 
 
 def _start_worker(op, fn):
+    with mutation_guard():
+        return _launch_worker(op, fn)
+
+
+def _launch_worker(op, fn):
     notification_language = player_notification_language()
     operation_id = uuid.uuid4().hex
 
@@ -666,6 +752,7 @@ def _start_worker(op, fn):
         _OP_CANCEL.clear()
         _ACTIVE.update(
             {
+                "id": operation_id,
                 "op": op,
                 "phase": "Подготовка…",
                 "message": "",
@@ -685,11 +772,12 @@ def _start_worker(op, fn):
             _ACTIVE.update(previous_active)
             _OP_CANCEL.clear()
         raise OpsError(f"Не удалось запустить: {error}") from error
+    return operation_id
 
 
 def start_op(op, fn):
     """Запустить операцию в фоне. Бросает OpsError, если занято."""
-    _start_worker(op, fn)
+    return _start_worker(op, fn)
 
 
 # ─── старт / стоп / рестарт ───
@@ -1577,6 +1665,11 @@ def _do_restore(name):
 
 
 def delete_backup(name):
+    with mutation_guard():
+        return _delete_backup(name)
+
+
+def _delete_backup(name):
     path = _backup_local_candidate(name)
     if os.path.isfile(path):
         os.remove(path)

@@ -12,6 +12,7 @@ import tempfile
 import threading
 import time
 import uuid
+from contextlib import nullcontext
 from pathlib import Path
 
 import config
@@ -395,25 +396,46 @@ def recover(file, active=False):
     journal = root / "transaction.json"
     if not journal.exists():
         return
-    if ops.op_busy() and not active:
-        raise EditorError("Идёт запись конфигурации: дождитесь завершения операции", 409)
-    if confirmed_container()["running"] or ops.is_running():
-        raise EditorError("Незавершённая запись: остановите сервер для восстановления файлов", 409)
-    rec = load_json(journal)
-    paths = profile_paths(file)
-    backup = root / "history" / rec["historyId"]
-    for kind, path in paths.items():
-        saved = backup / kind
-        if saved.exists():
-            atomic(
-                path,
-                saved.read_bytes(),
-                rec["modes"].get(kind, 0o600),
-                owner=rec.get("owners", {}).get(kind),
+    guard = (
+        nullcontext()
+        if active
+        else ops.mutation_guard(
+            EditorError("Идёт запись конфигурации: дождитесь завершения операции", 409)
+        )
+    )
+    with guard:
+        if confirmed_container()["running"] or ops.is_running():
+            raise EditorError(
+                "Незавершённая запись: остановите сервер для восстановления файлов", 409
             )
-        elif kind == "sandbox" and path.exists():
-            durable_unlink(path)
-    durable_unlink(journal)
+        rec = load_json(journal)
+        paths = profile_paths(file)
+        backup = root / "history" / rec["historyId"]
+        for kind, path in paths.items():
+            saved = backup / kind
+            if saved.exists():
+                atomic(
+                    path,
+                    saved.read_bytes(),
+                    rec["modes"].get(kind, 0o600),
+                    owner=rec.get("owners", {}).get(kind),
+                )
+            elif kind == "sandbox" and path.exists():
+                durable_unlink(path)
+        durable_unlink(journal)
+
+
+def _draft_record(file, texts):
+    return {
+        "file": file,
+        "baseRevision": revision(texts),
+        "base": texts,
+        "texts": texts.copy(),
+        "draftRevision": uuid.uuid4().hex,
+        "modOrder": split_list(
+            ini_entries(texts["ini"]).get("Mods", {}).get("value", ""), mods=True
+        ),
+    }
 
 
 def draft(file=None, *, refresh=False):
@@ -422,36 +444,57 @@ def draft(file=None, *, refresh=False):
         recover(file)
         root = state_dir(file)
         state = load_json(root / "state.json")
-        if state.get("status") == "applying" and not ops.op_busy():
-            state.update(
-                status="error",
-                error="Операция прервана перезапуском пульта. Проверьте сервер и повторите применение или восстановите конфигурацию",
-            )
-            save_json(root / "state.json", state)
         current = read_profile(file)
         saved = load_json(root / "draft.json")
         # Older operations recorded only a revision. Preserve their written pair
         # before refreshing, rebasing or discarding can replace the draft base.
-        if (
+        legacy_snapshot = (
             saved
-            and not ops.op_busy()
             and state.get("savedRevision") == revision(saved["base"])
             and not state.get("snapshots", {}).get("saved")
+        )
+        if state.get("status") == "applying" or legacy_snapshot:
+            try:
+                with ops.mutation_guard():
+                    # A worker may have completed since the inspection reads above.
+                    state = load_json(root / "state.json")
+                    saved = load_json(root / "draft.json")
+                    interrupted = state.get("status") == "applying"
+                    legacy_snapshot = (
+                        saved
+                        and state.get("savedRevision") == revision(saved["base"])
+                        and not state.get("snapshots", {}).get("saved")
+                    )
+                    if interrupted:
+                        state.update(
+                            status="error",
+                            error="Операция прервана перезапуском пульта. Проверьте сервер и повторите применение или восстановите конфигурацию",
+                        )
+                    if legacy_snapshot:
+                        state.setdefault("snapshots", {})["saved"] = saved["base"].copy()
+                    if interrupted or legacy_snapshot:
+                        save_json(root / "state.json", state)
+            except ops.OpsBusyError:
+                # Inspection must not change operation state while admission is reserved.
+                pass
+        if not saved or (
+            refresh
+            and not ops.op_busy()
+            and saved["texts"] == saved["base"]
+            and current != saved["base"]
         ):
-            state.setdefault("snapshots", {})["saved"] = saved["base"].copy()
-            save_json(root / "state.json", state)
-        if not saved or refresh and saved["texts"] == saved["base"] and current != saved["base"]:
-            saved = {
-                "file": file,
-                "baseRevision": revision(current),
-                "base": current,
-                "texts": current.copy(),
-                "draftRevision": uuid.uuid4().hex,
-                "modOrder": split_list(
-                    ini_entries(current["ini"]).get("Mods", {}).get("value", ""), mods=True
-                ),
-            }
-            save_json(root / "draft.json", saved)
+            try:
+                with ops.mutation_guard():
+                    current = read_profile(file)
+                    saved = load_json(root / "draft.json")
+                    if not saved or (
+                        refresh and saved["texts"] == saved["base"] and current != saved["base"]
+                    ):
+                        saved = _draft_record(file, current)
+                        save_json(root / "draft.json", saved)
+            except ops.OpsBusyError:
+                # Read requests still inspect files if admission changed after the busy check.
+                saved = saved or _draft_record(file, current)
         return response(saved, current)
 
 
@@ -621,7 +664,12 @@ def patch(data):
     if ops.op_busy():
         raise EditorError("Дождитесь завершения операции перед изменением черновика", 409)
     file = choose(data.get("file"))
-    with LOCK:
+    with (
+        LOCK,
+        ops.mutation_guard(
+            EditorError("Дождитесь завершения операции перед изменением черновика", 409)
+        ),
+    ):
         if ops.op_busy():
             raise EditorError("Дождитесь завершения операции перед изменением черновика", 409)
         draft(file)
@@ -1026,7 +1074,7 @@ def restore_history(data):
     hid = data.get("historyId", "")
     if not isinstance(hid, str) or not re.fullmatch(r"\d{8}-\d{6}-[a-f0-9]{8}", hid):
         raise EditorError("Некорректная версия истории")
-    with LOCK:
+    with LOCK, ops.mutation_guard(EditorError("Дождитесь завершения операции", 409)):
         if ops.op_busy():
             raise EditorError("Дождитесь завершения операции", 409)
         draft(file)
@@ -1444,7 +1492,7 @@ _AUTO_VERIFY_FAILURE = None
 def verify_running(data, *, automatic=False):
     """Recheck a saved revision after an external restart; never write game files."""
     file = choose(data.get("file"))
-    with LOCK:
+    with LOCK, ops.mutation_guard(EditorError("Дождитесь завершения операции", 409)):
         if ops.op_busy():
             raise EditorError("Дождитесь завершения операции", 409)
         saved = load_json(state_dir(file) / "draft.json")
@@ -1634,8 +1682,11 @@ def queue(data, prepare=False):
         if not prepare and not data.get("restart") and ops.is_running():
             raise EditorError("Сначала остановите сервер", 409)
     operation = "prepare-workshop" if prepare else "apply-config"
-    ops.start_op(operation, lambda: run(dict(data, file=file), prepare))
-    return {"ok": True, "operation": operation}
+    operation_id = ops.start_op(operation, lambda: run(dict(data, file=file), prepare))
+    response = {"ok": True, "operation": operation}
+    if isinstance(operation_id, str):
+        response.update(operationId=operation_id, operationState=ops.op_state())
+    return response
 
 
 def modpack(data):

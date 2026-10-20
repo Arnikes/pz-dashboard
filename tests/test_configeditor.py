@@ -3,6 +3,8 @@
 import json
 import itertools
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -1652,6 +1654,91 @@ def test_live_transaction_cannot_be_recovered_by_background_read(env, monkeypatc
     assert (root / "transaction.json").exists()
 
 
+@pytest.mark.parametrize("reader", ["recover", "draft"])
+def test_journal_recovery_reserves_admission_until_files_are_restored(env, monkeypatch, reader):
+    data, _ = env
+    root = editor.state_dir("world.ini")
+    backup = root / "history/20260101-120000-12345678"
+    backup.mkdir(parents=True)
+    (backup / "ini").write_bytes(INI.encode())
+    (backup / "sandbox").write_bytes(LUA.encode())
+    editor.save_json(root / "transaction.json", {"historyId": backup.name, "modes": {}})
+    path = data / "Server/world.ini"
+    path.write_text("broken", encoding="utf-8")
+    entered, release = threading.Event(), threading.Event()
+    atomic = editor.atomic
+
+    def persist(target, value, mode=0o600, owner=None):
+        if target == path:
+            entered.set()
+            assert release.wait(5)
+        atomic(target, value, mode, owner)
+
+    monkeypatch.setattr(editor, "atomic", persist)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        recovery = pool.submit(getattr(editor, reader), "world.ini")
+        try:
+            assert entered.wait(3)
+            with pytest.raises(ops.OpsBusyError):
+                ops.start_op("start", Mock())
+            assert (root / "transaction.json").exists()
+        finally:
+            release.set()
+        recovery.result(timeout=5)
+    assert editor.read_profile("world.ini") == {"ini": INI, "sandbox": LUA}
+    assert not (root / "transaction.json").exists()
+
+
+def test_active_transaction_rollback_recovers_with_operation_slot_owned(env, monkeypatch):
+    data, _ = env
+    root = editor.state_dir("world.ini")
+    backup = root / "history/20260101-120000-12345678"
+    backup.mkdir(parents=True)
+    (backup / "ini").write_bytes(INI.encode())
+    (backup / "sandbox").write_bytes(LUA.encode())
+    editor.save_json(root / "transaction.json", {"historyId": backup.name, "modes": {}})
+    (data / "Server/world.ini").write_text("broken", encoding="utf-8")
+    monkeypatch.setattr(ops, "op_busy", lambda: True)
+    editor.recover("world.ini", active=True)
+    assert editor.read_profile("world.ini") == {"ini": INI, "sandbox": LUA}
+    assert not (root / "transaction.json").exists()
+
+
+def test_draft_write_reserves_admission_until_persistence_finishes(env, monkeypatch):
+    current = editor.draft("world.ini")
+    entered, release = threading.Event(), threading.Event()
+    save = editor.save_json
+    result = []
+
+    def persist(path, value):
+        if path.name == "draft.json":
+            entered.set()
+            assert release.wait(5)
+        save(path, value)
+
+    monkeypatch.setattr(editor, "save_json", persist)
+    thread = threading.Thread(
+        target=lambda: result.append(
+            editor.patch(
+                {
+                    "file": "world.ini",
+                    "draftRevision": current["draftRevision"],
+                    "ini": {"PublicName": "Atomic draft"},
+                }
+            )
+        )
+    )
+    thread.start()
+    try:
+        assert entered.wait(3)
+        with pytest.raises(ops.OpsBusyError):
+            ops.start_op("apply-config", Mock())
+    finally:
+        release.set()
+        thread.join(5)
+    assert len(result) == 1 and "Atomic draft" in result[0]["texts"]["ini"]
+
+
 def test_unknown_version_blocks_changed_configuration(env):
     _, ctx = env
     change(ini={"PublicName": "Changed"})
@@ -1953,6 +2040,150 @@ def test_legacy_snapshot_migration_waits_for_active_operation(env, monkeypatch):
     assert editor.load_json(root / "state.json")["snapshots"]["saved"] == editor.read_profile(
         "world.ini"
     )
+
+
+@pytest.mark.parametrize("metadata", ["applying", "legacy"])
+def test_draft_metadata_reserves_admission_until_persistence_finishes(env, monkeypatch, metadata):
+    initial = editor.draft("world.ini")
+    root = editor.state_dir("world.ini")
+    state = (
+        {"status": "applying"}
+        if metadata == "applying"
+        else {"status": "saved", "savedRevision": initial["baseRevision"]}
+    )
+    editor.save_json(root / "state.json", state)
+    entered, release = threading.Event(), threading.Event()
+    atomic = editor.atomic
+
+    def persist(path, value, mode=0o600, owner=None):
+        if path == root / "state.json":
+            entered.set()
+            assert release.wait(5)
+        atomic(path, value, mode, owner)
+
+    monkeypatch.setattr(editor, "atomic", persist)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        draft = pool.submit(editor.draft, "world.ini")
+        try:
+            assert entered.wait(3)
+            with pytest.raises(ops.OpsBusyError):
+                ops.start_op("start", Mock())
+        finally:
+            release.set()
+        draft.result(timeout=5)
+    saved = editor.load_json(root / "state.json")
+    if metadata == "applying":
+        assert saved["status"] == "error"
+    else:
+        assert saved["snapshots"]["saved"] == editor.read_profile("world.ini")
+
+
+@pytest.mark.parametrize("metadata", ["applying", "legacy"])
+def test_draft_inspection_defers_metadata_when_mutation_admission_is_reserved(env, metadata):
+    initial = editor.draft("world.ini")
+    root = editor.state_dir("world.ini")
+    state = (
+        {"status": "applying"}
+        if metadata == "applying"
+        else {"status": "saved", "savedRevision": initial["baseRevision"]}
+    )
+    editor.save_json(root / "state.json", state)
+    entered, release = threading.Event(), threading.Event()
+
+    def reserve_admission():
+        with ops.mutation_guard():
+            entered.set()
+            assert release.wait(5)
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        reservation = pool.submit(reserve_admission)
+        try:
+            assert entered.wait(3)
+            inspected = editor.draft("world.ini")
+            assert inspected["draftRevision"] == initial["draftRevision"]
+            assert editor.load_json(root / "state.json") == state
+        finally:
+            release.set()
+        reservation.result(timeout=5)
+
+
+@pytest.mark.parametrize("metadata", ["applying", "legacy"])
+def test_draft_metadata_rechecks_state_after_a_worker_finishes(env, monkeypatch, metadata):
+    initial = editor.draft("world.ini")
+    root = editor.state_dir("world.ini")
+    editor.save_json(
+        root / "state.json",
+        {"status": "applying"}
+        if metadata == "applying"
+        else {"status": "saved", "savedRevision": initial["baseRevision"]},
+    )
+    completed = {"status": "applied", "snapshots": {"saved": editor.read_profile("world.ini")}}
+    read = editor.read_profile
+
+    def finish_before_admission(file):
+        editor.save_json(root / "state.json", completed)
+        return read(file)
+
+    monkeypatch.setattr(editor, "read_profile", finish_before_admission)
+    inspected = editor.draft("world.ini")
+    assert inspected["state"]["status"] == "applied"
+    assert editor.load_json(root / "state.json") == completed
+
+
+def test_refresh_inspects_files_without_replacing_the_draft_during_an_operation(env, monkeypatch):
+    data, _ = env
+    initial = editor.draft("world.ini")
+    path = data / "Server/world.ini"
+    path.write_bytes(path.read_bytes().replace(b"Unknown=preserve", b"Unknown=during-startup"))
+    root = editor.state_dir("world.ini")
+    before = (root / "draft.json").read_bytes()
+    monkeypatch.setattr(ops, "op_busy", lambda: True)
+    busy = editor.draft("world.ini", refresh=True)
+    assert busy["draftRevision"] == initial["draftRevision"]
+    assert busy["conflict"]
+    assert (root / "draft.json").read_bytes() == before
+    monkeypatch.setattr(ops, "op_busy", lambda: False)
+    refreshed = editor.draft("world.ini", refresh=True)
+    assert refreshed["draftRevision"] != initial["draftRevision"]
+    assert "Unknown=during-startup" in refreshed["texts"]["ini"]
+
+
+@pytest.mark.parametrize("pending", [False, True])
+def test_refresh_rechecks_files_and_preserves_a_worker_draft_completed_before_admission(
+    env, monkeypatch, pending
+):
+    data, _ = env
+    editor.draft("world.ini")
+    root = editor.state_dir("world.ini")
+    completed = editor.load_json(root / "draft.json")
+    path = data / "Server/world.ini"
+    path.write_bytes(INI.replace("Unknown=preserve", "Unknown=intermediate").encode())
+    final = {
+        "ini": INI.replace("Unknown=preserve", "Unknown=completed"),
+        "sandbox": LUA.replace("Zombies = 4", "Zombies = 3"),
+    }
+    completed.update(
+        base=final.copy(),
+        texts=final.copy(),
+        baseRevision=editor.revision(final),
+        draftRevision="worker-completed",
+    )
+    if pending:
+        completed["texts"]["ini"] = final["ini"].replace("Unknown=completed", "Unknown=pending")
+    guard = ops.mutation_guard
+
+    def finish_before_admission(*args, **kwargs):
+        path.write_bytes(final["ini"].encode())
+        (data / "Server/world_SandboxVars.lua").write_bytes(final["sandbox"].encode())
+        editor.save_json(root / "draft.json", completed)
+        return guard(*args, **kwargs)
+
+    monkeypatch.setattr(ops, "mutation_guard", finish_before_admission)
+    refreshed = editor.draft("world.ini", refresh=True)
+    assert refreshed["draftRevision"] == "worker-completed"
+    assert refreshed["currentRevision"] == editor.revision(final)
+    assert refreshed["changed"] is pending
+    assert editor.load_json(root / "draft.json") == completed
 
 
 @pytest.mark.parametrize("automatic", [False, True])

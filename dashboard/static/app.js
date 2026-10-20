@@ -747,6 +747,8 @@ const S = {
   opsLoaded: false,
   localResultId: null,
   actionPending: false,
+  operationUncertain: false,
+  pendingRequest: null,
   pendingOperation: null,
   settingsVersion: null,
   serverSettings: null,
@@ -872,6 +874,43 @@ $("btnLogout").addEventListener("click", async () => {
 });
 
 let pendingMutations = 0;
+let opsGeneration = 0;
+let opsRefreshSequence = 0;
+let opsAppliedRefresh = 0;
+let opsEpochRefresh = null;
+let opsSnapshot = null;
+const retiredOpsEpochs = new Set();
+const pendingCancellations = new Set();
+let operationRecoveryTimer = null;
+
+function operationIdentity(active) {
+  return active?.id || (active ? `${active.op}:${active.startedAt || ""}` : "");
+}
+
+function validOperationState(op) {
+  return !!op && !op.error && op.ok !== false && Array.isArray(op.history)
+    && Object.hasOwn(op, "active") && (op.active === null || !!op.active && typeof op.active.op === "string" && !!op.active.op)
+    && (!Object.hasOwn(op, "snapshot") || !!op.snapshot && typeof op.snapshot.epoch === "string" && !!op.snapshot.epoch
+      && Number.isSafeInteger(op.snapshot.sequence) && op.snapshot.sequence >= 0);
+}
+
+function recoverOperationState() {
+  clearTimeout(operationRecoveryTimer);
+  if (!S.operationUncertain) return;
+  operationRecoveryTimer = setTimeout(async () => {
+    if (!document.hidden) await refreshOps();
+    recoverOperationState();
+  }, 1500);
+}
+
+function clearPendingOperation() {
+  S.operationUncertain = false;
+  S.actionPending = false;
+  S.pendingOperation = null;
+  S.pendingRequest = null;
+  clearTimeout(operationRecoveryTimer);
+}
+
 function operationBusy() {
   return !!S.op?.active || S.actionPending;
 }
@@ -930,12 +969,19 @@ async function api(path, opts = {}) {
       requireLogin();
       throw new Error(I18n.t("Сессия завершена. Войдите снова"));
     }
-    const data = await res.json().catch(() => ({}));
+    const parsed = await res.json().catch(() => ({}));
+    const data = parsed && typeof parsed === "object" ? parsed : {};
+    Object.defineProperty(data, "httpStatus", { value: res.status });
     if (!res.ok && !data.error) data.error = `HTTP ${res.status}`;
     return data;
   } catch (error) {
-    if (error.name === "AbortError") throw new Error(I18n.t("Сервер не ответил вовремя. Проверьте состояние операции перед повтором."));
-    if (error instanceof TypeError) throw new Error(I18n.t("Нет соединения с пультом. Восстановите связь и повторите запрос."));
+    if (error.name === "AbortError" || error instanceof TypeError) {
+      const failure = new Error(I18n.t(error.name === "AbortError"
+        ? "Сервер не ответил вовремя. Проверьте состояние операции перед повтором."
+        : "Нет соединения с пультом. Восстановите связь и повторите запрос."));
+      failure.outcomeUnknown = mutation;
+      throw failure;
+    }
     throw error;
   } finally {
     clearTimeout(timer);
@@ -945,21 +991,51 @@ async function api(path, opts = {}) {
 
 async function requestOperation(body, { timeout } = {}) {
   if (operationBusy()) throw new Error(operationAvailabilityReason());
+  // Requests captured before this submission cannot describe its outcome.
+  opsGeneration++;
   S.actionPending = true;
+  S.operationUncertain = false;
   S.pendingOperation = body.op;
   updateButtons();
   try {
-    const res = await api("/api/action", { method: "POST", body, timeout });
-    if (res.error || res.ok === false) throw new Error(res.error || I18n.t("Запрос не принят"));
+    if (!S.opsLoaded && !await refreshOps()) throw new Error(I18n.t("Запрос не принят"));
+    if (S.op?.active) throw new Error(operationAvailabilityReason());
+    if (opsSnapshot) {
+      const requestId = [...crypto.getRandomValues(new Uint8Array(16))].map(value => value.toString(16).padStart(2, "0")).join("");
+      S.pendingRequest = { requestId, requestEpoch: opsSnapshot.epoch };
+    }
+    const res = await api("/api/action", { method: "POST", body: { ...body, ...S.pendingRequest }, timeout });
+    const started = res.started || res.operation;
+    if (res.error || res.ok !== true || !started) {
+      const failure = new Error(res.error || I18n.t("Запрос не принят"));
+      failure.outcomeUnknown = res.httpStatus >= 500 || (res.ok !== false && !res.error);
+      throw failure;
+    }
+    const hasReceipt = validOperationState(res.operationState);
+    const hadActive = !!S.op?.active;
+    if (hasReceipt) renderOp(res.operationState);
     // An accepted operation keeps its lock even if the first state refresh fails.
-    if (res.started && !S.op?.active) {
-      renderOp({ active: { op: res.started, phase: I18n.t("Подготовка…"), startedAt: new Date().toISOString() }, history: S.op?.history || [] });
+    const finished = res.operationId && S.op?.history?.some(row => row.id === res.operationId);
+    if (finished && !hadActive && !S.op?.active) refreshAll();
+    if (!S.op?.active && !finished && !hasReceipt) {
+      S.op = { ...S.op, active: { id: res.operationId, op: started, phase: I18n.t("Подготовка…"), startedAt: new Date().toISOString() } };
+      S.lastOpActive = true;
+      opsGeneration++;
+      updateButtons();
     }
     await refreshOps();
     return res;
+  } catch (error) {
+    if (error.outcomeUnknown) {
+      S.operationUncertain = true;
+      await refreshOps();
+      recoverOperationState();
+    }
+    throw error;
   } finally {
-    S.actionPending = false;
-    S.pendingOperation = null;
+    if (!S.operationUncertain) {
+      clearPendingOperation();
+    }
     updateButtons();
   }
 }
@@ -977,7 +1053,7 @@ async function action(op, extra = {}) {
 }
 
 function showActionError(op, error) {
-  showLocalResult("error", I18n.msg`${OP_TITLES[op] || op} — запрос не принят`, I18n.msg`${error.message || error} Проверьте соединение и события, затем повторите действие.`);
+  showLocalResult("error", error.outcomeUnknown ? OP_TITLES[op] || op : I18n.msg`${OP_TITLES[op] || op} — запрос не принят`, I18n.msg`${error.message || error} Проверьте соединение и события, затем повторите действие.`);
 }
 
 function showLocalResult(state, title, message) {
@@ -1275,7 +1351,7 @@ function updateButtons() {
     ["btnCancelUpdate", "apply-update", "Отменить обновление сервера"],
   ]) {
     const matching = S.op?.active?.op === operation;
-    const cancelPending = matching && !!S.op.active.cancelRequested;
+    const cancelPending = matching && (!!S.op.active.cancelRequested || pendingCancellations.has(operationIdentity(S.op.active)));
     $(id).hidden = !matching || (!S.op.active.cancellable && !cancelPending);
     $(id).disabled = remote || S.demo || cancelPending || !S.op?.active?.cancellable;
     $(id).textContent = cancelPending ? I18n.t("Отмена…") : I18n.t(label);
@@ -1368,9 +1444,34 @@ function renderActiveOperation() {
   updateOperationCountdown();
 }
 
-function renderOp(op) {
-  const active = op && op.active;
+function renderOp(op, { reconcilePending = false, fromRefresh = false, fromStream = false } = {}) {
+  // Errors and partial frames are not evidence that an operation has finished.
+  if (!validOperationState(op)) return false;
+  const snapshot = op.snapshot;
+  if (snapshot) {
+    if (retiredOpsEpochs.has(snapshot.epoch)) return false;
+    if (opsSnapshot?.epoch === snapshot.epoch && snapshot.sequence <= opsSnapshot.sequence) return false;
+    if (fromStream && opsSnapshot && snapshot.epoch !== opsSnapshot.epoch) {
+      // A buffered old connection cannot establish that the server restarted.
+      if (!opsEpochRefresh) {
+        opsGeneration++;
+        opsEpochRefresh = refreshOps().finally(() => { opsEpochRefresh = null; });
+      }
+      return false;
+    }
+    if (opsSnapshot && opsSnapshot.epoch !== snapshot.epoch) retiredOpsEpochs.add(opsSnapshot.epoch);
+    opsSnapshot = snapshot;
+  } else if (opsSnapshot) return false;
+  const active = op.active;
+  if (active?.id && active.id === S.op?.active?.id && S.op.active.cancelRequested) {
+    op = { ...op, active: { ...active, cancelRequested: true, cancellable: false } };
+  }
+  if (!fromRefresh) opsGeneration++;
+  if (S.operationUncertain && reconcilePending) {
+    clearPendingOperation();
+  }
   for (const h of [...(op?.history || [])].reverse()) {
+    if (!h || typeof h !== "object") continue;
     const finished = Date.parse(h.finishedAt);
     if (!Number.isFinite(finished)) continue;
     Notifications.publish({
@@ -1387,6 +1488,7 @@ function renderOp(op) {
   S.op = op;
   if (activeView === "backups" && S.backupsItems?.length) renderBackupsPage();
   updateButtons();
+  return true;
 }
 
 function updateOperationCountdown() {
@@ -2238,11 +2340,15 @@ for (const [id, operation, cancelAction, message] of [
   ["btnCancelUpdate", "apply-update", "cancel-update", "Запрошена отмена обновления сервера"],
 ]) {
   $(id).addEventListener("click", async () => {
-    $(id).disabled = true;
+    const active = S.op?.active;
+    const identity = operationIdentity(active);
+    if (!identity || pendingCancellations.has(identity)) return;
+    pendingCancellations.add(identity);
+    updateButtons();
     try {
-      const res = await api("/api/action", { method: "POST", body: { op: cancelAction } });
-      if (res.error) throw new Error(res.error);
-      if (S.op?.active?.op === operation) {
+      const res = await api("/api/action", { method: "POST", body: { op: cancelAction, ...(active.id ? { operationId: active.id } : {}) } });
+      if (res.error || res.ok !== true || res.cancelRequested !== true) throw new Error(res.error || I18n.t("Запрос не принят"));
+      if (S.op?.active?.op === operation && operationIdentity(S.op.active) === identity) {
         S.op.active.cancelRequested = true;
         S.op.active.cancellable = false;
       }
@@ -2250,6 +2356,7 @@ for (const [id, operation, cancelAction, message] of [
     } catch (e) {
       toast(e.message || String(e), "error");
     } finally {
+      pendingCancellations.delete(identity);
       updateButtons();
     }
   });
@@ -2703,7 +2810,27 @@ async function refreshEvents() {
 }
 
 async function refreshOps() {
-  try { applyOps(await api("/api/ops")); } catch (e) { /* тихо */ }
+  const generation = opsGeneration;
+  const request = ++opsRefreshSequence;
+  const resolving = S.operationUncertain && S.pendingRequest;
+  try {
+    const response = resolving
+      ? await api("/api/action", { method: "POST", body: { op: "resolve-request", ...resolving } })
+      : await api("/api/ops");
+    if (resolving && (response.error || response.ok !== true || typeof response.requestPending !== "boolean" || S.pendingRequest !== resolving)) return false;
+    const op = resolving ? response.operationState : response;
+    const settled = !!resolving && !response.requestPending && validOperationState(op) && !!op.snapshot;
+    const supersededEpoch = request < opsAppliedRefresh && op?.snapshot?.epoch !== opsSnapshot?.epoch;
+    if (generation !== opsGeneration || supersededEpoch || (!op?.snapshot && request < opsAppliedRefresh)) {
+      if (settled) { clearPendingOperation(); updateButtons(); }
+      return settled;
+    }
+    const applied = renderOp(op, { reconcilePending: !resolving || !response.requestPending, fromRefresh: true });
+    // Admission proof remains valid even when newer live progress won the race.
+    if (!applied && settled) { clearPendingOperation(); updateButtons(); }
+    if (applied) opsAppliedRefresh = Math.max(opsAppliedRefresh, request);
+    return applied || settled;
+  } catch (e) { return false; }
 }
 
 function refreshAll() {
@@ -3025,7 +3152,7 @@ function startSse() {
   bind("stats", applyStats);
   bind("backups", applyBackups);
   bind("events", applyEvents);
-  bind("ops", applyOps);
+  bind("ops", data => renderOp(data, { fromStream: true }));
   bind("stats-history", (d) => renderStatsHistory(d.points || []));
   bind("players-history", (d) => renderPlayersHistory(d.points || []));
   // браузер сам переподключается; откат на опрос — если поток так и не ожил

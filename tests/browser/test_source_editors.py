@@ -181,7 +181,26 @@ def test_explicit_apply_overwrites_external_changes_and_reloads_once(
         body = route.request.post_data_json
         assert body["overwrite"] is True
         editor.run(body)
-        route.fulfill(json={"ok": True})
+        route.fulfill(
+            json={
+                "ok": True,
+                "operation": "apply-config",
+                "operationId": "source-editor-apply",
+                "operationState": {
+                    "ok": True,
+                    "active": None,
+                    "history": [
+                        {
+                            "id": "source-editor-apply",
+                            "op": "apply-config",
+                            "ok": True,
+                            "finishedAt": "2026-10-20T12:01:00Z",
+                        }
+                    ],
+                    "snapshot": {"epoch": "source-editor-apply", "sequence": 1},
+                },
+            }
+        )
 
     page.route("**/api/action", save)
     page.goto(dashboard["url"] + "/#/settings")

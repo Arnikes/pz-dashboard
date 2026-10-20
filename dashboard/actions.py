@@ -18,13 +18,24 @@ def dispatch(data):
     action = data.get("op")
     if not isinstance(action, str):
         raise ActionError(400, "Неизвестная операция")
+    if action == "resolve-request":
+        try:
+            return ops.resolve_operation_request(data.get("requestId"), data.get("requestEpoch"))
+        except ops.OpsError as error:
+            raise ActionError(409, str(error)) from error
     # Отмена относится к занятой операции и не запускает нового worker.
     if action in {"cancel-mods-update", "cancel-update"}:
+        operation_id = data.get("operationId")
+        if "operationId" in data and (
+            not isinstance(operation_id, str) or not operation_id.strip()
+        ):
+            raise ActionError(400, "Неизвестная операция")
+        cancel_options = {"operation_id": operation_id} if "operationId" in data else {}
         try:
             if action == "cancel-update":
-                ops.cancel_image_update()
+                ops.cancel_image_update(**cancel_options)
             else:
-                ops.cancel_mods_update()
+                ops.cancel_mods_update(**cancel_options)
         except ops.OpsError as error:
             raise ActionError(409, str(error)) from error
         return {"ok": True, "cancelRequested": True}
@@ -58,10 +69,14 @@ def dispatch(data):
         raise ActionError(409, "Уже выполняется другая операция")
 
     try:
-        if action == "apply-update":
-            # Persist the deferral: get_settings returns a copy.
-            ops.defer_next_check(settings["autoUpdate"]["intervalHours"])
-        ops.start_op(action, workers[action])
+        with ops.mutation_guard():
+            if action == "apply-update":
+                # Persist the deferral only after winning admission to the operation slot.
+                ops.defer_next_check(settings["autoUpdate"]["intervalHours"])
+            operation_id = ops.start_op(action, workers[action])
     except ops.OpsError as error:
         raise ActionError(409, str(error)) from error
-    return {"ok": True, "started": action}
+    result = {"ok": True, "started": action}
+    if isinstance(operation_id, str):
+        result.update(operationId=operation_id, operationState=ops.op_state())
+    return result

@@ -91,6 +91,8 @@ def dashboard(page, static_url):
             route.fulfill(json=overview)
         elif path == "players":
             route.fulfill(json=players)
+        elif path == "ops":
+            route.fulfill(json={"ok": True, "active": None, "history": []})
         else:
             route.fulfill(json={"ok": True, "items": [], "points": [], "names": []})
 
