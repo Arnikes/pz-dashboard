@@ -34,8 +34,11 @@ Source edits have a separate save action; switching profiles or editor tabs also
 attempts to save. Unsaved input survives a failed request in the current tab.
 Retry after reconnecting; secrets are not persisted in browser storage.
 
-Settings and Mods load a configuration snapshot when opened or when the selected
-profile changes. Live server updates do not reload sources, forms, or draft metadata.
+Settings and Mods share a configuration snapshot when navigating directly between
+them, avoiding repeated draft and Workshop requests. Reopening either editor after
+another page, changing profiles, and explicit configuration operations reload the
+snapshot. A changed server startup or unavailable Workshop metadata invalidates
+the navigation cache. Live server updates do not reload sources, forms, or draft metadata.
 Unsaved input survives navigation; saving, restoring history, and completing an
 explicit configuration operation update the editor once.
 
@@ -69,6 +72,9 @@ available until applied or explicitly discarded. API clients retain revision che
 by default; they can request the same overwrite behavior explicitly.
 
 A changed draft revision invalidates earlier validation and confirmation.
+Review results and their discard/apply actions belong to the reviewed profile and
+draft revision. Changing either while a request or confirmation is open requires
+a new review; a delayed response cannot act on another profile's draft.
 Configuration history is scoped to the selected profile; restoring history changes
 the draft and still requires a separate application.
 
@@ -90,8 +96,11 @@ Disabled or missing mods' values remain in a separate group until explicitly rem
 
 Lua containing expressions disables the structured form. Source view masks string and
 number literals with `__PZ_RAW_LITERAL_…__` markers; retained markers restore their original
-values. New expression-based source requires `luac -p`. The Docker image includes this
-syntax checker; the panel never executes the submitted Lua.
+values in their original field or expression context. Replace a marker with an explicit
+literal to change its value. Moving or duplicating retained markers is rejected, so a
+hidden value cannot be copied into a public field. Unchanged secret literals retain
+their original source spelling. New expression-based source requires `luac -p`.
+The Docker image includes this syntax checker; the panel never executes the submitted Lua.
 
 Initial-world conditions, new-character kits, and vehicle generation do not necessarily
 change an existing world. Follow field help and verify gameplay effects in the actual game.
@@ -117,6 +126,10 @@ For a package that is not yet downloaded:
    Other edits stay in the draft.
 3. Inspect the downloaded package; choose ModIDs, dependencies, load order, and maps.
 4. The second restart applies the complete configuration.
+
+The first restart preserves pending Sandbox edits, including deleted tables and
+explicit replacements. Verified new defaults join the draft only where they do
+not restore a removed table or overwrite a pending value.
 
 Readiness and fresh B42 metadata confirm installation. The Steam manifest is checked when
 available; an unavailable manifest is reported as `manifestVerified:false`.

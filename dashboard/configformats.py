@@ -5,6 +5,7 @@ import difflib
 import hashlib
 import math
 import re
+from bisect import bisect_left
 
 SECRET = "__PZ_SECRET_UNCHANGED__"
 SECRET_KEY = re.compile(r"password|token|secret", re.I)
@@ -49,7 +50,11 @@ def preserve_newlines(original, edited):
         None, before_body, after_body, autojunk=False
     ).get_opcodes():
         if tag == "equal":
-            result.extend(before[i1:i2])
+            for original_index, edited_index in zip(range(i1, i2), range(j1, j2), strict=True):
+                line = before[original_index]
+                if not ending(line) and edited_index < len(after) - 1:
+                    line += default
+                result.append(line)
         elif tag != "delete":
             for offset, index in enumerate(range(j1, j2)):
                 tail = (ending(before[i1 + offset]) if i1 + offset < i2 else default) or default
@@ -201,19 +206,28 @@ def decode_string(raw):
     }
 
     def unescape(match):
-        token = match[1]
+        decimal = match["decimal"]
+        if decimal is not None:
+            numbers = [int(number) for number in decimal.split("\\")]
+            if any(number > 255 for number in numbers):
+                raise FormatError("Некорректная escape-последовательность Lua")
+            data = bytes(numbers)
+            try:
+                return data.decode("utf-8")
+            except UnicodeDecodeError:
+                # Keep the legacy byte-to-codepoint view for non-UTF-8 runs.
+                # Unlike surrogate escapes, this stays safe for JSON responses.
+                return data.decode("latin-1")
+        token = match["escape"]
         if token in ("\n", "\r\n", "\r"):
             return "\n"
-        if token.isdigit():
-            number = int(token)
-            if number > 255:
-                raise FormatError("Некорректная escape-последовательность Lua")
-            return chr(number)
         if token not in escapes:
             raise FormatError("Неподдерживаемая escape-последовательность Lua")
         return escapes[token]
 
-    return re.sub(r"\\(\d{1,3}|\r\n|\n|\r|.)", unescape, body)
+    return re.sub(
+        r"\\(?P<decimal>\d{1,3}(?:\\\d{1,3})*)|\\(?P<escape>\r\n|\n|\r|.)", unescape, body
+    )
 
 
 def version_marker(text):
@@ -455,7 +469,8 @@ class LuaTable:
         return text
 
 
-def mask_lua(text):
+def mask_lua(text, *, comparison=None, side=None):
+    """Mask source, with optional value-independent change labels for reviews."""
     try:
         table = LuaTable(text)
         return table.edit(
@@ -463,9 +478,126 @@ def mask_lua(text):
         )
     except FormatError:
         # Unknown expressions may contain secrets. Hide every literal in raw mode.
-        for start, end, placeholder, _ in reversed(raw_literals(text)):
+        records = raw_literals(text)
+        other = raw_literals(comparison) if comparison is not None else None
+        for index in reversed(range(len(records))):
+            start, end, placeholder, value = records[index]
+            if other is not None and (index >= len(other) or value != other[index][3]):
+                placeholder = placeholder[:-2] + f"_changed_{side}__"
             text = text[:start] + literal(placeholder) + text[end:]
         return text
+
+
+def mask_lua_pair(before, after):
+    """Keep raw literal edits visible without exporting values or value hashes."""
+    return (
+        mask_lua(before, comparison=after, side="before"),
+        mask_lua(after, comparison=before, side="after"),
+    )
+
+
+def restore_lua_secrets(text, original):
+    """Restore untouched secret literals byte-for-byte, including across expressions.
+
+    Only direct fields in named tables can retain a secret marker. Expressions are
+    skipped by balanced delimiters; no submitted Lua is executed or evaluated.
+    """
+    old = literal_table(original)
+    tokens = [
+        match for match in TOKEN.finditer(text) if match.lastgroup not in ("space", "comment")
+    ]
+    edits = []
+
+    def trivia(begin, end):
+        while begin < end:
+            token = TOKEN.match(text, begin)
+            if not token or token.lastgroup not in ("space", "comment") or token.end() > end:
+                return False
+            begin = token.end()
+        return True
+
+    def expression_end(index):
+        delimiters, blocks = [], []
+        while index < len(tokens):
+            value = tokens[index][0]
+            if not delimiters and not blocks and value in (",", ";", "}"):
+                break
+            if value in ("{", "(", "["):
+                delimiters.append(value)
+            elif value in ("}", ")", "]") and delimiters:
+                delimiters.pop()
+            elif value in ("function", "if", "do", "repeat"):
+                blocks.append(value)
+            elif value in ("end", "until") and blocks:
+                blocks.pop()
+            index += 1
+        return index
+
+    def table(index, path):
+        if len(path) > 32:
+            raise FormatError("Слишком глубокая вложенность SandboxVars")
+        index += 1  # Opening brace.
+        keys = set()
+        found = []
+        while index < len(tokens) and tokens[index][0] != "}":
+            key, equal = None, index + 1
+            if tokens[index].lastgroup == "name":
+                key = tokens[index][0]
+            elif (
+                tokens[index][0] == "["
+                and index + 3 < len(tokens)
+                and tokens[index + 1].lastgroup in ("string", "long")
+                and tokens[index + 2][0] == "]"
+            ):
+                key, equal = decode_string(tokens[index + 1][0]), index + 3
+            if key is not None and equal < len(tokens) and tokens[equal][0] == "=":
+                if key in keys:
+                    raise FormatError(f"Повторяющийся ключ Lua: {key}")
+                keys.add(key)
+                child = (*path, key)
+                start = equal + 1
+                end = expression_end(start)
+                if start < len(tokens) and tokens[start][0] == "{":
+                    after, nested = table(start, child)
+                    if after == end:
+                        found.extend(nested)
+                elif end == start + 1 and (
+                    tokens[start].lastgroup in ("number", "string", "long")
+                    or tokens[start][0] in ("true", "false")
+                ):
+                    begin = tokens[equal].end()
+                    finish = tokens[end].start() if end < len(tokens) else len(text)
+                    if trivia(begin, tokens[start].start()) and trivia(tokens[start].end(), finish):
+                        prefix = "SandboxVars={Value="
+                        marker = LuaTable(prefix + text[begin:finish] + "}")
+                        if (
+                            old
+                            and child in old.values
+                            and SECRET_KEY.search(".".join(child))
+                            and marker.values.get(("Value",), {}).get("value") == SECRET
+                        ):
+                            rec, previous = marker.values[("Value",)], old.values[child]
+                            found.append(
+                                (
+                                    begin + rec["start"] - len(prefix),
+                                    begin + rec["end"] - len(prefix),
+                                    original[previous["start"] : previous["end"]],
+                                )
+                            )
+            else:
+                end = expression_end(index)
+            if end >= len(tokens):
+                return end, found
+            index = end + (tokens[end][0] in (",", ";"))
+        return index + 1, found
+
+    if [token[0] for token in tokens[:3]] == ["SandboxVars", "=", "{"]:
+        _, edits = table(2, ())
+    for start, end, value in sorted(edits, reverse=True):
+        text = text[:start] + value + text[end:]
+    if SECRET in text:
+        raise FormatError("Неизвестный маркер литерала Lua")
+    return text
 
 
 def raw_literals(text):
@@ -476,16 +608,151 @@ def raw_literals(text):
                 "__PZ_RAW_LITERAL_"
                 + str(len(result))
                 + "_"
-                + hashlib.sha256(match[0].encode()).hexdigest()[:12]
+                + hashlib.sha256(f"position:{len(result)}".encode()).hexdigest()[:12]
                 + "__"
             )
             result.append((match.start(), match.end(), placeholder, match[0]))
     return result
 
 
+def raw_literal_contexts(text, records, retained=None):
+    """Locate literal slots without interpreting submitted expressions.
+
+    Named fields have independent contexts. Unnamed/computed structures retain
+    an exact token context, so ambiguous edits cannot move hidden values.
+    """
+    retained = retained or {}
+    tokens = [
+        token for token in RAW_TOKEN.finditer(text) if token.lastgroup not in ("space", "comment")
+    ]
+    literal_indexes = {rec[0]: index for index, rec in enumerate(records)}
+    literal_starts = [rec[0] for rec in records]
+
+    def signature(begin, end, generalize=False):
+        parts, offset = [], begin
+        for token in RAW_TOKEN.finditer(text, begin, end):
+            gap = re.sub(r"\s+", "", text[offset : token.start()])
+            if gap:
+                parts.append(("operator", gap))
+            if token.lastgroup in ("string", "long", "number"):
+                value = None if generalize else retained.get(token.start(), token[0])
+                parts.append(("literal", value))
+            elif token.lastgroup not in ("space", "comment"):
+                parts.append(("token", token[0]))
+            offset = token.end()
+        gap = re.sub(r"\s+", "", text[offset:end])
+        if gap:
+            parts.append(("operator", gap))
+        return tuple(parts)
+
+    fallback = signature(0, len(text))
+    contexts = {index: ("ambiguous", fallback, index) for index in range(len(records))}
+
+    def expression_end(index):
+        delimiters, blocks = [], []
+        while index < len(tokens):
+            value = tokens[index][0]
+            if not delimiters and not blocks and value in (",", ";", "}"):
+                break
+            if value in ("{", "(", "["):
+                delimiters.append(value)
+            elif value in ("}", ")", "]") and delimiters:
+                delimiters.pop()
+            elif value in ("function", "if", "do", "repeat"):
+                blocks.append(value)
+            elif value in ("end", "until") and blocks:
+                blocks.pop()
+            index += 1
+        return index
+
+    def table(index, path):
+        if len(path) > 32:
+            return None
+        index += 1
+        keys, found = set(), {}
+        while index < len(tokens) and tokens[index][0] != "}":
+            key, key_literal, equal = None, None, index + 1
+            if tokens[index].lastgroup == "name":
+                key = tokens[index][0]
+            elif (
+                tokens[index][0] == "["
+                and index + 3 < len(tokens)
+                and tokens[index + 1].lastgroup in ("string", "long")
+                and tokens[index + 2][0] == "]"
+            ):
+                key_token = tokens[index + 1]
+                try:
+                    key = decode_string(retained.get(key_token.start(), key_token[0]))
+                except FormatError:
+                    return None
+                key_literal, equal = literal_indexes[key_token.start()], index + 3
+            if key is None or key in keys or equal >= len(tokens) or tokens[equal][0] != "=":
+                return None
+            keys.add(key)
+            child, start = (*path, key), equal + 1
+            end = expression_end(start)
+            if end >= len(tokens):
+                return None
+            begin, finish = tokens[equal].end(), tokens[end].start()
+            simple = not any(
+                token[0] in ("{", "[", "function", "if", "do", "repeat")
+                for token in tokens[start:end]
+            )
+            shape = signature(begin, finish, generalize=simple)
+            slots = range(bisect_left(literal_starts, begin), bisect_left(literal_starts, finish))
+            found.update({i: ("field", child, shape, slot) for slot, i in enumerate(slots)})
+            if start < len(tokens) and tokens[start][0] == "{":
+                nested = table(start, child)
+                if nested and nested[0] == end:
+                    found.update(nested[1])
+            if key_literal is not None:
+                found[key_literal] = ("key", child)
+            index = end + (tokens[end][0] in (",", ";"))
+        return (index + 1, found) if index < len(tokens) else None
+
+    if [token[0] for token in tokens[:3]] == ["SandboxVars", "=", "{"]:
+        named = table(2, ())
+        if named:
+            contexts.update(named[1])
+    return contexts
+
+
 def restore_raw_literals(text, original):
-    for _, _, placeholder, value in raw_literals(original):
-        text = text.replace(literal(placeholder), value)
+    previous, current = raw_literals(original), raw_literals(text)
+    retained, used = {}, set()
+    edits = []
+    for index, (start, end, _, value) in enumerate(current):
+        if not value.startswith(('"', "'", "[")):
+            continue
+        try:
+            marker = decode_string(value)
+        except FormatError:
+            if "__PZ_RAW_LITERAL_" in value:
+                raise FormatError("Неизвестный маркер литерала Lua") from None
+            continue
+        if "__PZ_RAW_LITERAL_" not in marker:
+            continue
+        match = re.fullmatch(r"__PZ_RAW_LITERAL_([0-9]{1,6})_[a-f0-9]{12}__", marker)
+        slot = int(match[1]) if match else -1
+        if not 0 <= slot < len(previous) or slot in used:
+            raise FormatError("Неизвестный маркер литерала Lua")
+        # Legacy suffixes once fingerprinted values. Treat every syntactically
+        # valid suffix alike; ownership comes from context, never a secret hash.
+        used.add(slot)
+        retained[start] = previous[slot][3]
+        edits.append((start, end, previous[slot][3], slot, index))
+    unresolved = text
+    for start, end, *_ in reversed(edits):
+        unresolved = unresolved[:start] + unresolved[end:]
+    if "__PZ_RAW_LITERAL_" in unresolved:
+        raise FormatError("Неизвестный маркер литерала Lua")
+    if edits:
+        before = raw_literal_contexts(original, previous)
+        after = raw_literal_contexts(text, current, retained)
+        if any(before[slot] != after[index] for _, _, _, slot, index in edits):
+            raise FormatError("Неизвестный маркер литерала Lua")
+    for start, end, value, *_ in reversed(edits):
+        text = text[:start] + value + text[end:]
     if "__PZ_RAW_LITERAL_" in text:
         raise FormatError("Неизвестный маркер литерала Lua")
     return text

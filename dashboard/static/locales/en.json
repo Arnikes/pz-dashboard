@@ -838,6 +838,7 @@
   "Пересоздание контейнера": "Recreating container",
   "Перетащить {{1}}": "Drag {{1}}",
   "Перечитать метаданные": "Rescan metadata",
+  "Перечитайте метаданные модов перед изменением состава.": "Rescan mod metadata before changing the selection.",
   "Период бэкапов PZ": "PZ backup period",
   "Период логов: укажите ISO-время с часовым поясом и конец не раньше начала": "Log period: use ISO time with a time zone and an end no earlier than the start",
   "Персонажи": "Characters",

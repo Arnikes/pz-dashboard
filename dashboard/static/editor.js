@@ -17,6 +17,7 @@ window.ConfigEditor = (() => {
   let fieldSaveFailed = false;
   let unsaved = [];
   let previousBarBusy = false;
+  let modsReady = false, profileContext = null, contextGeneration = 0;
   let historyRequest = 0;
   const groupStates = new Map();
   let fieldQuery = "";
@@ -50,14 +51,28 @@ window.ConfigEditor = (() => {
     toast(message, "error");
   }
   function clearError() { $("configError").hidden = true; delete $("configError").dataset.source; }
+  function serverContext() {
+    const state = S.overview?.containerInfo;
+    return typeof state?.running === "boolean" ? JSON.stringify([state.running, state.startedAt || ""]) : null;
+  }
+  function modInputs(snapshot) {
+    return JSON.stringify([snapshot.version, snapshot.texts.ini.split(/\r?\n/).filter(line => /^\s*(Mods|WorkshopItems|Map)\s*=/i.test(line))]);
+  }
+  function reviewedDraft() { return { file, revision: draft?.draftRevision }; }
+  function checkReviewed(review, patching = false) {
+    if (file !== review.file || draft?.draftRevision !== review.revision || loading || sourceDirty || pendingFields.size || unsaved.length || pendingPatches > (patching ? 1 : 0) || !patching && fieldDirty) {
+      throw new Error(I18n.t("Черновик изменился после просмотра. Проверьте изменения заново"));
+    }
+  }
   function updateBar() {
     updateLoading();
     const busy = operationBusy();
     setDomProperty($("configProfile"), "disabled", busy || loading);
     if (!draft) { setDomProperty($("draftBar"), "hidden", true); setDomProperty($("configFlow"), "hidden", true); setDomProperty($("navDraftCount"), "hidden", true); attention(); return; }
     const locked = busy || loading || S.demo;
+    const modsLocked = locked || !modsReady;
     const running = S.overview?.containerInfo?.running;
-    setDomProperty($("view-mods"), "inert", loading || !mods);
+    setDomProperty($("view-mods"), "inert", loading || !draft);
     for (const kind of ["ini", "sandbox"]) setDomProperty($(kind + "Source"), "readOnly", busy || loading);
     const editorView = ["settings", "mods"].includes(activeView);
     setDomProperty($("configFlow"), "hidden", !editorView);
@@ -106,13 +121,15 @@ window.ConfigEditor = (() => {
     previousBarBusy = busy;
     $("configFields").querySelectorAll("[data-key]").forEach(el => { setDomProperty(el, "disabled", busy || loading || S.demo || !!el.dataset.owner); });
     const incompatible = new Set((mods?.workshop || []).flatMap(w => w.available || []).filter(r => r.compatible === false).map(r => r.modId));
-    $("modPackages").querySelectorAll("[data-modid]").forEach(el => { setDomProperty(el, "disabled", locked || incompatible.has(el.dataset.modid) && !el.checked); });
-    document.querySelectorAll("#modPackages button, #modMapEditor input, #modMapEditor button, #modProblems button, #legacyMods button, #installNotice button, #configFields [data-remove-option], #configHistory button").forEach(el => { setDomProperty(el, "disabled", locked); });
-    for (const id of ["modImport", "modExport", "modRescan", "sourceSave", "draftRetry"]) setDomProperty($(id), "disabled", locked);
-    setDomAttribute($("modImport").closest("label"), "aria-disabled", String(locked));
-    setDomProperty($("workshopInput"), "disabled", locked || resolvingWorkshop);
-    setDomProperty($("workshopAdd").querySelector("button"), "disabled", locked || resolvingWorkshop);
-    $("modOrderList").querySelectorAll("button").forEach(el => { setDomProperty(el, "disabled", busy || S.demo || loading || el.dataset.edge === "true"); });
+    $("modPackages").querySelectorAll("[data-modid]").forEach(el => { setDomProperty(el, "disabled", modsLocked || incompatible.has(el.dataset.modid) && !el.checked); });
+    document.querySelectorAll("#modPackages button, #modMapEditor input, #modMapEditor button, #modProblems button, #legacyMods button, #installNotice button").forEach(el => { setDomProperty(el, "disabled", modsLocked); });
+    document.querySelectorAll("#configFields [data-remove-option], #configHistory button").forEach(el => { setDomProperty(el, "disabled", locked); });
+    for (const id of ["modImport", "modExport"]) setDomProperty($(id), "disabled", modsLocked);
+    for (const id of ["modRescan", "sourceSave", "draftRetry"]) setDomProperty($(id), "disabled", locked);
+    setDomAttribute($("modImport").closest("label"), "aria-disabled", String(modsLocked));
+    setDomProperty($("workshopInput"), "disabled", modsLocked || resolvingWorkshop);
+    setDomProperty($("workshopAdd").querySelector("button"), "disabled", modsLocked || resolvingWorkshop);
+    $("modOrderList").querySelectorAll("button").forEach(el => { setDomProperty(el, "disabled", modsLocked || el.dataset.edge === "true"); });
     const profileState = $("configActive");
     const profile = $("configProfile");
     const profileLabel = draft.canApply ? I18n.t("Активен на сервере") : draft.activeFile ? I18n.t("Другой профиль") : I18n.t("Не подтверждён");
@@ -183,6 +200,8 @@ window.ConfigEditor = (() => {
   }
   async function loadProfileSnapshot(next) {
     endDrag();
+    const startedContext = serverContext(), generation = contextGeneration;
+    profileContext = null;
     loading = true;
     updateBar();
     try {
@@ -201,6 +220,7 @@ window.ConfigEditor = (() => {
       renderFields();
       renderSources();
       await loadMods();
+      if (startedContext !== null && startedContext === serverContext() && generation === contextGeneration) profileContext = startedContext;
     } finally { loading = false; updateBar(); }
     if (configTab === "history") await history();
   }
@@ -219,8 +239,8 @@ window.ConfigEditor = (() => {
       $("configFields").textContent = e.message;
     } finally { updateBar(); }
   }
-  function patch(body, redraw = true) {
-    if (sourceDirty && !(body && typeof body === "object" && (body.texts || body.discard === true))) return flushSources().then(() => patch(body, redraw));
+  function patch(body, redraw = true, review = null) {
+    if (sourceDirty && !(body && typeof body === "object" && (body.texts || body.discard === true))) return flushSources().then(() => patch(body, redraw, review));
     const target = file;
     pendingPatches++;
     fieldDirty = true;
@@ -229,15 +249,21 @@ window.ConfigEditor = (() => {
     const task = chain.then(async () => {
       if (!draft || target !== file) throw new Error(I18n.t("Профиль изменился во время редактирования"));
       if (operationBusy() || loading || S.demo) throw new Error(I18n.t("Дождитесь завершения операции; редактор временно недоступен"));
+      if (review) checkReviewed(review, true);
+      if (!modsReady && (typeof body === "function" || body?.mods)) throw new Error(I18n.t("Перечитайте метаданные модов перед изменением состава."));
+      const startedContext = serverContext(), generation = contextGeneration;
       const update = typeof body === "function" ? body() : body;
-      const updates = [...unsaved, update];
-      unsaved = [];
+      const discarding = update.discard === true;
+      const updates = discarding ? [update] : [...unsaved, update];
+      if (!discarding) unsaved = [];
       try {
         while (updates.length) {
           // Keep this page's complete snapshot when a stale draft is overwritten.
           const texts = { ini: draft.texts.ini };
           if (draft.texts.sandbox !== null) texts.sandbox = draft.texts.sandbox;
+          const previous = draft;
           draft = await call("/api/config-draft", { file, draftRevision: draft.draftRevision, overwrite: true, texts, ...updates[0] });
+          if (modsReady && mods?.file === file && mods.draftRevision === previous.draftRevision && modInputs(previous) === modInputs(draft)) mods.draftRevision = draft.draftRevision;
           for (const [id, field] of pendingFields) {
             const sent = updates[0][field.dataset.kind]?.[field.dataset.key], value = formValue(field);
             const savedValue = Array.isArray(value) ? Array.isArray(sent) && sent.length === value.length && value.every((v, i) => v === sent[i]) : sent === value;
@@ -245,12 +271,17 @@ window.ConfigEditor = (() => {
           }
           updates.shift();
         }
-      } catch (failure) { if (!failure.remote) unsaved = updates; fieldSaveFailed = !!pendingFields.size; throw failure; }
+      } catch (failure) { if (!discarding && !failure.remote) unsaved = updates; fieldSaveFailed = !!pendingFields.size; throw failure; }
       if (!pendingFields.size) fieldSaveFailed = false;
       clearError();
       $("draftSaved").textContent = I18n.t("Черновик сохранён");
-      if (redraw) { renderFields(); renderSources(); await loadMods(); }
+      if (redraw) {
+        renderFields(); renderSources();
+        // Saving succeeded even when its subsequent metadata read fails.
+        try { await loadMods(); } catch (failure) { error(failure.message); }
+      }
       else if (deferredFields && !pendingFields.size) renderFields();
+      if (modsReady && startedContext !== null && startedContext === serverContext() && generation === contextGeneration) profileContext = startedContext;
       return draft;
     });
     chain = task.catch(e => { error(e.message); }).finally(() => { pendingPatches--; fieldDirty = pendingPatches > 0 || unsaved.length > 0; updateBar(); });
@@ -260,12 +291,20 @@ window.ConfigEditor = (() => {
     if (!file) return;
     // Draft metadata is read separately so live SSE cannot overwrite the editing state.
     const profile = file, revision = draft?.draftRevision;
-    const result = await call(`/api/mods?file=${encodeURIComponent(profile)}&draft=1${refresh ? "&refresh=1" : ""}`);
-    if (file !== profile || draft?.draftRevision !== revision) return;
-    if (result.file !== profile || result.draftRevision !== revision) { error(I18n.t("Черновик изменён другой вкладкой. Обновите страницу для загрузки актуального состава модов.")); return; }
-    mods = result;
-    renderMods();
-    if (["world", "custom"].includes(configTab)) renderFields();
+    try {
+      const result = await call(`/api/mods?file=${encodeURIComponent(profile)}&draft=1${refresh ? "&refresh=1" : ""}`);
+      if (file !== profile || draft?.draftRevision !== revision) return;
+      if (result.file !== profile || result.draftRevision !== revision) throw new Error(I18n.t("Черновик изменён другой вкладкой. Обновите страницу для загрузки актуального состава модов."));
+      mods = result;
+      modsReady = true;
+      renderMods();
+      if (["world", "custom"].includes(configTab)) renderFields();
+      return true;
+    } catch (failure) {
+      if (file !== profile || draft?.draftRevision !== revision) return;
+      modsReady = false; updateBar();
+      throw failure;
+    }
   }
   function customFields() {
     if (!mods) return [];
@@ -504,12 +543,17 @@ window.ConfigEditor = (() => {
     await flushFields();
     if (unsaved.length) throw new Error(I18n.t("Сначала повторите сохранение черновика после восстановления связи"));
     await flushSources();
-    const result = await call("/api/config-validate", { file, prepare, draftRevision: draft.draftRevision, overwrite: true });
+    await chain;
+    const review = reviewedDraft();
+    checkReviewed(review);
+    const result = await call("/api/config-validate", { file: review.file, prepare, draftRevision: review.revision, overwrite: true });
+    checkReviewed(review);
+    if (result.draftRevision !== review.revision) throw new Error(I18n.t("Черновик изменился после просмотра. Проверьте изменения заново"));
     document.querySelectorAll("[data-error-key]").forEach(el => { el.hidden = true; });
     for (const issue of result.errors || []) {
       document.querySelectorAll("[data-error-key]").forEach(el => { if (el.dataset.errorKey === issue.key) { el.textContent = issue.message; el.hidden = false; } });
     }
-    return result;
+    return { ...result, review };
   }
   function diffHtml(result) {
     const writtenDiffs = Object.entries(result.writtenDiff || {}).filter(([, diff]) => diff);
@@ -520,15 +564,18 @@ window.ConfigEditor = (() => {
     if (!draft || S.demo) return;
     try {
       const result = await validate(prepare);
+      checkReviewed(result.review);
       if (!result.valid) {
         error(result.errors.map(e => e.message).join("; ")); return;
       }
-      const revisionAtReview = result.draftRevision;
+      const review = result.review;
       const backupDefault = result.modChanges || prepare;
       const options = I18n.msg`<div class="apply-options">${restart ? I18n.html('<label class="field">Предупредить игроков<select id="editorWarn"><option value="300">За 5 минут</option><option value="600">За 10 минут</option><option value="60">За 1 минуту</option><option value="0">Без предупреждения</option></select></label>') : ""}<label class="check"><input type="checkbox" id="editorBackup" ${backupDefault ? "checked" : ""} aria-describedby="editorBackupHint" />Создать бэкап мира перед записью</label><p class="hint" id="editorBackupHint">История конфигурации сохраняется независимо от бэкапа мира.</p></div>`;
       modal.open({ title: prepare ? I18n.t("Загрузить Workshop items?") : restart ? I18n.t("Применить конфигурацию?") : I18n.t("Сохранить файлы?"), bodyHTML: `<p>${prepare ? I18n.t("Первый рестарт загрузит пакеты. Прежние ModID и остальные настройки останутся без изменений.") : restart ? I18n.t("Сервер сохранит мир, остановится, применит конфигурацию и запустится.") : I18n.t("Файлы будут записаны при остановленном сервере.")}</p>${options}${diffHtml(result)}`, onConfirm: async () => {
-        if (draft.draftRevision !== revisionAtReview || sourceDirty || fieldDirty || pendingFields.size) throw new Error(I18n.t("Черновик изменился после просмотра. Проверьте изменения заново"));
-        await call("/api/action", { op: prepare ? "prepare-workshop" : "apply-config", file, draftRevision: revisionAtReview, overwrite: true, restart, backupBeforeApply: $("editorBackup").checked, warnSeconds: restart ? Number($("editorWarn").value) : 0 });
+        checkReviewed(review);
+        await chain;
+        checkReviewed(review);
+        await call("/api/action", { op: prepare ? "prepare-workshop" : "apply-config", file: review.file, draftRevision: review.revision, overwrite: true, restart, backupBeforeApply: $("editorBackup").checked, warnSeconds: restart ? Number($("editorWarn").value) : 0 });
         draft.status = "applying";
         updateBar();
         if (!operationBusy()) await loadProfile(file);
@@ -977,7 +1024,7 @@ window.ConfigEditor = (() => {
     compositionPager.page = 0;
     renderComposition();
   });
-  $("modRescan").addEventListener("click", () => loadMods(true).catch(e => error(e.message)));
+  $("modRescan").addEventListener("click", () => loadMods(true).then(loaded => { if (loaded) { clearError(); updateBar(); } }).catch(e => error(e.message)));
   $("modExport").addEventListener("click", async () => {
     try {
       await chain; await flushFields(); await flushSources();
@@ -1002,14 +1049,21 @@ window.ConfigEditor = (() => {
   $("configDiff").addEventListener("click", async () => {
     try {
       const result = await validate();
-      modal.open({ title: I18n.t("Изменения конфигурации"), okLabel: I18n.t("Закрыть"), bodyHTML: diffHtml(result), secondaryAction: draft.changed && canDiscardChanges() ? { label: I18n.t("Сбросить изменения…"), danger: true, onClick: confirmDiscard } : null });
+      checkReviewed(result.review);
+      modal.open({ title: I18n.t("Изменения конфигурации"), okLabel: I18n.t("Закрыть"), bodyHTML: diffHtml(result), secondaryAction: draft.changed && canDiscardChanges() ? { label: I18n.t("Сбросить изменения…"), danger: true, onClick: () => confirmDiscard(result.review) } : null });
     } catch (e) { error(e.message); }
   });
   $("draftRetry").addEventListener("click", () => flushFields().then(() => patch({})).catch(e => error(e.message)));
   function canDiscardChanges() { return !!draft && !operationBusy() && !S.demo && !loading; }
-  function confirmDiscard() {
+  function confirmDiscard(review) {
     if (!canDiscardChanges()) return;
-    modal.open({ title: I18n.t("Отменить черновик?"), okLabel: I18n.t("Сбросить изменения"), danger: true, bodyHTML: I18n.t("Будет загружена текущая конфигурация с диска. Уже записанные настройки и скачанные пакеты сохранятся."), onConfirm: async () => { unsaved = []; await patch({ discard: true }); pendingFields.clear(); sourceDirty = false; renderFields(); renderSources(); renderMods(); } });
+    try { checkReviewed(review); } catch (failure) { error(failure.message); return; }
+    modal.open({ title: I18n.t("Отменить черновик?"), okLabel: I18n.t("Сбросить изменения"), danger: true, bodyHTML: I18n.t("Будет загружена текущая конфигурация с диска. Уже записанные настройки и скачанные пакеты сохранятся."), onConfirm: async () => {
+      checkReviewed(review);
+      await patch({ discard: true }, true, review);
+      unsaved = []; pendingFields.clear(); sourceDirty = false;
+      renderFields(); renderSources(); renderMods();
+    } });
   }
   $("configApply").addEventListener("click", () => confirmApply(false, true));
   async function verifyRunning() {
@@ -1096,6 +1150,7 @@ window.ConfigEditor = (() => {
     },
     operationChanged() {
       const active = operationBusy();
+      if (active || previousOp) { profileContext = null; contextGeneration++; }
       if (active) endDrag();
       const completed = previousOp && !active && draft?.status === "applying";
       previousOp = active;
@@ -1108,9 +1163,11 @@ window.ConfigEditor = (() => {
     route(view) {
       if (view !== "mods") endDrag();
       const entering = ["settings", "mods"].includes(view) && view !== editorRoute;
+      const direct = ["settings", "mods"].includes(editorRoute) && ["settings", "mods"].includes(view);
+      const cached = direct && modsReady && mods?.file === file && mods.draftRevision === draft?.draftRevision && profileContext !== null && profileContext === serverContext();
       editorRoute = view;
       updateBar(); if (view === "mods") updateModTab();
-      if (entering && draft && !loading && !operationBusy() && !sourceDirty && !fieldDirty && !pendingFields.size && !unsaved.length && !pendingPatches) {
+      if (entering && !cached && draft && !loading && !operationBusy() && !sourceDirty && !fieldDirty && !pendingFields.size && !unsaved.length && !pendingPatches) {
         loadProfile(file).catch(e => error(e.message));
       }
     },

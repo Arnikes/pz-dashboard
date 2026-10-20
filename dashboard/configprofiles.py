@@ -10,7 +10,7 @@ from configformats import (
     ini_entries,
     literal_table,
     mask_ini,
-    mask_lua,
+    mask_lua_pair,
     preserve_newlines,
 )
 from errors import EditorError
@@ -24,16 +24,20 @@ def revision(texts):
 
 def profile_diff(before, after, fromfile, tofile):
     """Build reviewable INI/Lua diffs without exposing secrets from either side."""
+    masked = {
+        "ini": (mask_ini(before["ini"]), mask_ini(after["ini"])),
+        "sandbox": mask_lua_pair(before["sandbox"], after["sandbox"]),
+    }
     return {
         kind: "".join(
             difflib.unified_diff(
-                mask(before[kind]).splitlines(keepends=True),
-                mask(after[kind]).splitlines(keepends=True),
+                versions[0].splitlines(keepends=True),
+                versions[1].splitlines(keepends=True),
                 fromfile=fromfile,
                 tofile=tofile,
             )
         )
-        for kind, mask in (("ini", mask_ini), ("sandbox", mask_lua))
+        for kind, versions in masked.items()
     }
 
 
@@ -147,7 +151,10 @@ def adopt_startup_comment(text, actual):
 
 
 def adopt_startup_ini(text, expected, actual):
-    text = adopt_startup_comment(text, actual)
+    original_comment = PZ_RESET_COMMENT.search(expected)
+    pending_comment = PZ_RESET_COMMENT.search(text)
+    if original_comment and pending_comment and original_comment[0] == pending_comment[0]:
+        text = adopt_startup_comment(text, actual)
     before = ini_entries(expected).get("ResetID", {}).get("value")
     pending = ini_entries(text).get("ResetID", {}).get("value")
     current = ini_entries(actual).get("ResetID", {}).get("value")
@@ -158,16 +165,64 @@ def adopt_startup_ini(text, expected, actual):
 
 
 def merge_verified_profile(saved, current):
-    """Merge pending edits across accepted startup INI newline serialization."""
-    # Align endings before the line-based merge, so changing every CRLF to LF
-    # cannot turn a disjoint setting edit into an overlapping source conflict.
-    aligned = {
-        **current,
-        "ini": preserve_newlines(saved["base"]["ini"], current["ini"]),
-    }
-    merged = merge_profile(saved, aligned)
-    merged["ini"] = preserve_newlines(current["ini"], merged["ini"])
-    return merged
+    """Preserve pending edits after the caller verifies PZ's startup changes."""
+    base, desired = saved["base"], saved["texts"]
+    base_ini, desired_ini = base["ini"], desired["ini"]
+    if startup_profile_matches(
+        {**base, "sandbox": current["sandbox"]}, current, allow_runtime_reset=True
+    ):
+        # The caller already accepted these generated fields. Align their old
+        # values in the merge base, while keeping deliberate pending edits.
+        base_ini = adopt_startup_ini(base_ini, base["ini"], current["ini"])
+        desired_ini = adopt_startup_ini(desired_ini, base["ini"], current["ini"])
+    try:
+        ini = merge_source(base_ini, desired_ini, preserve_newlines(base_ini, current["ini"]))
+    except EditorError as error:
+        raise EditorError(f"ini: {error}", 409) from None
+    try:
+        sandbox = merge_verified_sandbox(base["sandbox"], desired["sandbox"], current["sandbox"])
+    except EditorError as error:
+        raise EditorError(f"sandbox: {error}", 409) from None
+    return {"ini": preserve_newlines(current["ini"], ini), "sandbox": sandbox}
+
+
+def merge_verified_sandbox(base, desired, current):
+    """Only semantic startup serialization may bypass an overlapping line edit."""
+    try:
+        return merge_source(base, desired, current)
+    except EditorError:
+        before, pending, after = (literal_table(text) for text in (base, desired, current))
+        if (
+            not before
+            or not pending
+            or not after
+            or not before.values.keys() <= after.values.keys()
+            or any(
+                not same_lua_value(rec["value"], after.values[path]["value"])
+                for path, rec in before.values.items()
+            )
+        ):
+            raise
+        added = after.values.keys() - before.values.keys()
+        tables = before.tables.keys() | {path[:i] for path in added for i in range(1, len(path))}
+        if after.tables.keys() != tables:
+            raise
+        # Desired source is authoritative for comments, explicit removals,
+        # additions and table structure. Copy only new startup defaults that
+        # do not recreate a deliberately removed table or replace a scalar.
+        defaults = {
+            ".".join(path): after.values[path]["value"]
+            for path in added
+            if path not in pending.values
+            and path not in pending.tables
+            and not any(
+                path[:i] in pending.values
+                or path[:i] in before.tables
+                and path[:i] not in pending.tables
+                for i in range(1, len(path))
+            )
+        }
+        return pending.edit(defaults) if defaults else desired
 
 
 def same_lua_value(left, right):

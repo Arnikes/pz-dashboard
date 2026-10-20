@@ -24,6 +24,7 @@ from configprofiles import (
     profile_diff,
     merge_profile as merge_profile,
     merge_verified_profile,
+    merge_verified_sandbox,
     preserve_existing_issues as preserve_existing_issues,
     startup_profile_matches as startup_profile_matches,
     adopt_startup_ini as adopt_startup_ini,
@@ -46,6 +47,7 @@ from configformats import (
     mask_lua,
     normalize_mod,
     restore_ini_secrets,
+    restore_lua_secrets,
     restore_raw_literals,
     literal_table,
     split_list,
@@ -658,23 +660,12 @@ def patch(data):
                 else:
                     if not text and not texts[kind]:
                         continue  # A missing Sandbox file stays absent in a full snapshot.
-                    if not literal_table(texts[kind]) and texts[kind]:
-                        raw = restore_raw_literals(text, texts[kind])
-                        if raw != texts[kind] and not literal_table(raw):
-                            syntax_check(raw)
-                        texts[kind] = raw
-                        continue
-                    table = LuaTable(text)
-                    old = LuaTable(texts[kind]) if texts[kind] else None
-                    restore = {
-                        ".".join(p): old.values[p]["value"]
-                        for p, rec in table.values.items()
-                        if rec["value"] == SECRET
-                        and SECRET_KEY.search(".".join(p))
-                        and old
-                        and p in old.values
-                    }
-                    texts[kind] = table.edit(restore) if restore else text
+                    original = "" if literal_table(texts[kind]) else texts[kind]
+                    raw = restore_raw_literals(text, original)
+                    raw = restore_lua_secrets(raw, texts[kind])
+                    if raw != texts[kind] and not literal_table(raw):
+                        syntax_check(raw)
+                    texts[kind] = raw
             for kind in ("ini", "sandbox"):
                 changes = data.get(kind, {})
                 if not isinstance(changes, dict):
@@ -1252,18 +1243,13 @@ def run(data, prepare=False):
                         saved["texts"]["ini"], texts["ini"], started_texts["ini"]
                     )
                     if added_defaults:
-                        pending = literal_table(saved["texts"]["sandbox"])
-                        if not pending:
+                        if not literal_table(saved["texts"]["sandbox"]):
                             raise EditorError(
                                 "Добавлены Sandbox-параметры PZ: объедините их с исходником черновика вручную",
                                 409,
                             )
-                        saved["texts"]["sandbox"] = pending.edit(
-                            {
-                                key: value
-                                for key, value in added_defaults.items()
-                                if tuple(key.split(".")) not in pending.values
-                            }
+                        saved["texts"]["sandbox"] = merge_verified_sandbox(
+                            texts["sandbox"], saved["texts"]["sandbox"], started_texts["sandbox"]
                         )
                 else:
                     saved["texts"] = started_texts.copy()
