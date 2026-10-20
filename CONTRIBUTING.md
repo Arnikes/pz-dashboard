@@ -27,6 +27,8 @@ python3.12 -m venv .venv-linux
 With the environment activated, `python scripts/check.py` is the shared local/CI entrypoint.
 It checks dependency consistency, Ruff lint/format, generated i18n catalogs,
 JavaScript syntax, backend tests, and Chromium browser tests.
+JavaScript checks discover every `.js` file under `dashboard/static/`, including
+nested scripts. Each full run also writes a JUnit report in its artifact directory.
 
 The full suite runs in isolated pytest-xdist processes, using up to four CPUs.
 Each process has its own browser, loopback servers, and temporary test files;
@@ -41,11 +43,21 @@ that would be discarded. Each check uses a private failure cache and a unique
 each other's evidence. After a failed suite, its cached failures are automatically
 replayed with traces and screenshots retained in that run's `diagnostic/`
 subdirectory, even if the replay passes.
+Direct pytest commands use `test-results/direct/`, so their startup cleanup cannot
+erase the full check's reports or diagnostics. An explicit `--output` still selects
+a different directory when needed.
 The original failure still fails the check. Use `python scripts/check.py --trace`
 to capture traces on the initial run, including intermittent failures.
 Use `python scripts/check.py --workers 2` to limit resource usage, or
 `python scripts/check.py --workers 0` for a serial run when debugging or comparing
 timings. Direct `python -m pytest` commands remain serial unless given `-n`.
+
+Successful browser scenarios skip optional review screenshots by default; layout
+and behavior assertions still run, and automatic failure screenshots are retained.
+Set `PZ_VISUAL_EVIDENCE=1` to capture the intermediate review images as well
+(`$env:PZ_VISUAL_EVIDENCE = '1'` in PowerShell). README screenshot generation keeps
+its existing separate opt-in. Font readiness and locator stability are checked even
+when optional captures are disabled.
 
 Before committing, format the whole repository with the same virtual environment:
 `python -m ruff format .`, then run `python scripts/check.py` after the final edit.
@@ -155,9 +167,13 @@ when redistributing the skill.
 ## GitHub and Gitea CI
 
 GitHub CI runs on pushes to `main`/`master`, pull requests, manual runs, and pushed
-tags matching `v*`. It runs quality checks, builds the panel image, and checks
+tags matching `v*`. It runs quality checks alongside the panel image build and checks
 `/api/health`. Browser failure artifacts are retained. Only a **tag push** publishes
 to GHCR and creates a GitHub Release; branch, pull-request, and manual runs perform checks.
+Publication requires both parallel jobs to succeed. Pip downloads are cached using
+both the development and runtime dependency files.
+New branch/PR runs cancel superseded checks for the same ref. Tag runs keep running
+so an in-progress release is not interrupted by a rerun.
 
 GitHub builds use Docker's official `python:3.12-alpine` image from
 [Amazon ECR Public](https://gallery.ecr.aws/docker/library/python) to avoid
@@ -206,7 +222,15 @@ Use a new version tag for each release rather than moving published tags.
 The workflow does not restart a running server; see
 [using a released image](docs/installation.md#released-images-from-ghcr).
 
-The existing Gitea workflows remain available for installations using that forge.
+The Gitea workflow combines CI and optional publication/deployment. Every publication
+first passes the full quality checks and container smoke test; the exact tested image
+ID is published without rebuilding. Pull requests and pushes to `master` only check.
+Main pushes, `v*` tags, and manual runs may publish. The former independent
+`deploy.yml` is replaced by this dependency chain.
+
+Both forges use `scripts/smoke_image.py` to start one uniquely identified container,
+probe it with the shipped health check, and collect logs and remove it afterward.
+No published host port, fixed container name, or extra Docker network is needed.
 
 Gitea CD publishes `latest`, `sha-<commit>`, and version tags with `REGISTRY_TOKEN`
 (scope `write:package`). SSH deployment is enabled only with `DEPLOY_ENABLED=true`

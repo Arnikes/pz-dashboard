@@ -9,6 +9,8 @@ from playwright.sync_api import expect
 
 from test_editors import editing, env  # noqa: F401
 
+from browser_evidence import capture_evidence
+
 pytestmark = pytest.mark.browser
 EVIDENCE = Path(__file__).resolve().parents[2] / ".tmp-uiux-fixes-20261007/evidence"
 
@@ -24,7 +26,7 @@ def start(page, dashboard, route, language="ru", width=390):
 
 def screenshot(page, name, full_page=True):
     EVIDENCE.mkdir(parents=True, exist_ok=True)
-    page.screenshot(path=str(EVIDENCE / f"{name}.png"), full_page=full_page)
+    capture_evidence(page, path=str(EVIDENCE / f"{name}.png"), full_page=full_page)
 
 
 @pytest.mark.parametrize("width", [320, 390, 1440])

@@ -4,6 +4,8 @@ import pytest
 from playwright.sync_api import expect
 from test_editors import editing, env, editor, saved_verification  # noqa: F401
 
+from browser_evidence import capture_evidence
+
 pytestmark = pytest.mark.browser
 
 
@@ -39,7 +41,9 @@ def test_stepper_keeps_statuses_and_draft_actions(
             assert step.bounding_box()["height"] >= 44
             expect(step.locator(".flow-copy > span")).to_be_visible()
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
-        page.screenshot(path=str(data.parent / f"stepper-{language}-{width}-{route}-verified.png"))
+        capture_evidence(
+            page, path=str(data.parent / f"stepper-{language}-{width}-{route}-verified.png")
+        )
 
     page.locator('.nav [data-route="settings"]').click()
     expect(page.locator("#view-settings")).to_be_visible()
@@ -59,7 +63,7 @@ def test_stepper_keeps_statuses_and_draft_actions(
     page.locator('.nav [data-route="mods"]').click()
     expect(page.locator("#view-mods")).to_be_visible()
     expect(page.locator('#configFlow [data-state="ok"]')).to_have_count(0)
-    page.screenshot(path=str(data.parent / f"stepper-{language}-{width}-mods-draft.png"))
+    capture_evidence(page, path=str(data.parent / f"stepper-{language}-{width}-mods-draft.png"))
     page.locator('[data-flow="files"]').click()
     expect(page.get_by_role("alertdialog")).to_contain_text("New stepper draft")
     page.locator("#modalOk").click()

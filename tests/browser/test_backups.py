@@ -6,6 +6,8 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import expect
 
+from browser_evidence import capture_evidence
+
 pytestmark = pytest.mark.browser
 
 
@@ -206,7 +208,7 @@ def test_backup_columns_are_stable_and_schedule_is_compact(page, backups_page, w
         assert page.locator("#backupsBody").evaluate("el => el.scrollHeight === el.clientHeight")
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
         page.evaluate("window.scrollTo(0,0)")
-        page.screenshot(path=str(out / f"backups-after-{width}.png"), full_page=True)
+        capture_evidence(page, path=str(out / f"backups-after-{width}.png"), full_page=True)
 
 
 def test_schedule_saved_message_uses_toast_and_keeps_errors_inline(page, backups_page):
@@ -264,7 +266,8 @@ def test_verified_archive_explains_missing_contents_inline(page, dashboard, widt
     if os.getenv("PZ_BACKUP_AUDIT_EVIDENCE"):
         page.locator("#toasts").evaluate("el => el.replaceChildren()")
         result.scroll_into_view_if_needed()
-        page.screenshot(
+        capture_evidence(
+            page,
             path=str(
                 Path(os.environ["PZ_BACKUP_AUDIT_EVIDENCE"]) / f"backups-{language}-{width}.png"
             ),
@@ -319,10 +322,11 @@ def test_verified_s3_status_survives_history_refresh_and_prevents_repeat_checks(
     assert dashboard["actions"] == []
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     if os.getenv("PZ_BACKUP_AUDIT_EVIDENCE"):
-        page.locator("#view-backups .c-backups").screenshot(
+        capture_evidence(
+            page.locator("#view-backups .c-backups"),
             path=str(
                 Path(os.environ["PZ_BACKUP_AUDIT_EVIDENCE"]) / f"verified-{language}-{width}.png"
-            )
+            ),
         )
     items[0]["verification"] = None
     page.evaluate("items => renderBackups({ok:true,items})", items)

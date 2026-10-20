@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import expect
 
+from browser_evidence import capture_evidence
+
 pytestmark = pytest.mark.browser
 
 
@@ -43,7 +45,7 @@ def test_history_tooltip_fits_at_both_edges(page, dashboard, language, width):
         if fraction == 1:
             output = Path(".tmp-pytest/review-evidence")
             output.mkdir(parents=True, exist_ok=True)
-            page.screenshot(path=str(output / f"players-tooltip-{language}-{width}.png"))
+            capture_evidence(page, path=str(output / f"players-tooltip-{language}-{width}.png"))
         tooltip = tip.bounding_box()
         assert tooltip["x"] >= bounds["x"] - 0.5
         assert tooltip["x"] + tooltip["width"] <= bounds["x"] + bounds["width"] + 0.5

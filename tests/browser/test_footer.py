@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import expect
 
+from browser_evidence import capture_evidence
+
 pytestmark = pytest.mark.browser
 
 
@@ -34,4 +36,4 @@ def test_footer_stays_visible_on_short_and_scrolling_pages(page, dashboard, widt
     expect(link).to_be_focused()
     evidence = Path(__file__).resolve().parents[2] / ".tmp-footer-render"
     evidence.mkdir(exist_ok=True)
-    page.screenshot(path=str(evidence / f"footer-{width}-{height}.png"))
+    capture_evidence(page, path=str(evidence / f"footer-{width}-{height}.png"))

@@ -5,6 +5,8 @@ from playwright.sync_api import expect
 
 from test_editors import editing, env  # noqa: F401
 
+from browser_evidence import capture_evidence
+
 
 @pytest.mark.parametrize("language", ["en", "ru"])
 @pytest.mark.parametrize("width", [390, 1440])
@@ -59,7 +61,7 @@ def test_settings_loading_preserves_layout(page, dashboard, editing, language, w
         "Профиль загружается. Дождитесь получения черновика.",
     ):
         expect(page.get_by_text(message, exact=True)).to_have_count(0)
-    page.screenshot(path=str(editing[0].parent / f"settings-loading-{language}-{width}.png"))
+    capture_evidence(page, path=str(editing[0].parent / f"settings-loading-{language}-{width}.png"))
     assert len(requests) == 1
     # The bar remains while the same profile's Workshop metadata is in flight.
     with page.expect_request("**/api/mods?*"):

@@ -7,6 +7,8 @@ import auth
 from test_editors import editing as editing, env as env
 from test_pwa_browser import pwa_server as pwa_server
 
+from browser_evidence import capture_evidence
+
 pytestmark = pytest.mark.browser_context_args(service_workers="allow")
 
 
@@ -75,11 +77,11 @@ def test_release_reloads_editor_and_styles_behind_sticky_proxy(
         )
         == "two"
     )
-    page.screenshot(path=f".tmp-pytest/review-evidence/profile-fixed-{language}-{width}.png")
+    capture_evidence(page, path=f".tmp-pytest/review-evidence/profile-fixed-{language}-{width}.png")
     page.locator('.nav [data-route="mods"]').click()
     expect(page.locator("#view-mods")).to_be_visible()
     expect(page.locator("#modsLoading")).to_be_hidden()
     expect(page.locator("#modPackages details")).to_have_count(1)
     expect(page.locator("#modPackages")).to_contain_text("Package name differs")
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
-    page.screenshot(path=f".tmp-pytest/review-evidence/mods-fixed-{language}-{width}.png")
+    capture_evidence(page, path=f".tmp-pytest/review-evidence/mods-fixed-{language}-{width}.png")

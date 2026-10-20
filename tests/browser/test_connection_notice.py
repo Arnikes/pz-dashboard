@@ -3,6 +3,8 @@
 import pytest
 from playwright.sync_api import expect
 
+from browser_evidence import capture_evidence
+
 pytestmark = pytest.mark.browser
 
 
@@ -243,4 +245,4 @@ def test_shared_alerts_stack_and_clear_mobile_controls(
         footer_top = page.locator(".site-footer").bounding_box()["y"]
         assert all(box["bottom"] < footer_top for box in boxes)
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
-    page.screenshot(path=str(tmp_path / f"connection-{width}-{height}-{motion}.png"))
+    capture_evidence(page, path=str(tmp_path / f"connection-{width}-{height}-{motion}.png"))

@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import expect
 
+from browser_evidence import capture_evidence
+
 pytestmark = pytest.mark.browser
 
 HISTORY = [
@@ -268,7 +270,7 @@ def test_center_layout_and_localization(page, dashboard, language, width):
     assert page.locator("#notificationClear").bounding_box()["height"] >= 44
     out = Path(".tmp-notification-evidence")
     out.mkdir(exist_ok=True)
-    page.screenshot(path=str(out / f"center-{language}-{width}.png"))
+    capture_evidence(page, path=str(out / f"center-{language}-{width}.png"))
     page.locator("#notificationClose").click()
     render_history(page, [dict(HISTORY[0], finishedAt="2026-10-08T12:03:00Z")])
     page.evaluate("toast('Settings saved', 'ok')")
@@ -280,4 +282,4 @@ def test_center_layout_and_localization(page, dashboard, language, width):
     )
     page.locator('.toast[data-front="true"] .toast-close').focus()
     page.wait_for_function("!document.getAnimations().some(a => a.playState === 'running')")
-    page.screenshot(path=str(out / f"toast-{language}-{width}.png"))
+    capture_evidence(page, path=str(out / f"toast-{language}-{width}.png"))

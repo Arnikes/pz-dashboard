@@ -7,6 +7,8 @@ from playwright.sync_api import expect
 
 from test_editors import editing, editor, env  # noqa: F401
 
+from browser_evidence import capture_evidence
+
 pytestmark = pytest.mark.browser
 
 
@@ -151,5 +153,5 @@ def test_composition_pager_layout_and_language(page, dashboard, composition, wid
         expect(page.locator("#modCompositionNext")).to_have_text("Next")
     out = Path(__file__).resolve().parents[2] / ".tmp-mods-pagination"
     out.mkdir(exist_ok=True)
-    page.screenshot(path=str(out / f"composition-{width}-{language}.png"))
+    capture_evidence(page, path=str(out / f"composition-{width}-{language}.png"))
     assert dashboard["actions"] == []

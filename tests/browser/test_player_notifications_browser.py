@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import expect
 
+from browser_evidence import capture_evidence
+
 pytestmark = pytest.mark.browser
 
 
@@ -44,7 +46,9 @@ def test_player_warning_language_is_independent_and_persistent(page, dashboard, 
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     out = Path(__file__).resolve().parents[2] / ".tmp-player-i18n-visual"
     out.mkdir(exist_ok=True)
-    page.locator("#sec-notify").screenshot(path=str(out / f"notifications-{language}-{width}.png"))
+    capture_evidence(
+        page.locator("#sec-notify"), path=str(out / f"notifications-{language}-{width}.png")
+    )
 
 
 def test_failed_save_preserves_choice_and_retries(page, dashboard):

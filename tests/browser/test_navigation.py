@@ -3,6 +3,8 @@
 import pytest
 from playwright.sync_api import expect
 
+from browser_evidence import capture_evidence
+
 pytestmark = pytest.mark.browser
 
 
@@ -46,7 +48,7 @@ def test_sidebar_defaults_toggle_and_layout(page, dashboard, width):
         assert box["x"] >= boxes[".nav"]["width"]
         assert box["x"] + box["width"] <= width
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
-    page.screenshot(path=f".tmp-sidebar/navigation-{width}.png")
+    capture_evidence(page, path=f".tmp-sidebar/navigation-{width}.png")
 
 
 def test_sidebar_preferences_survive_reload_and_resize_without_changing_mobile(page, dashboard):
@@ -61,10 +63,10 @@ def test_sidebar_preferences_survive_reload_and_resize_without_changing_mobile(p
     toggle.click()
     page.reload()
     expect(toggle).to_have_attribute("aria-expanded", "true")
-    page.screenshot(path=".tmp-sidebar/tablet-expanded.png")
+    capture_evidence(page, path=".tmp-sidebar/tablet-expanded.png")
     page.set_viewport_size({"width": 1440, "height": 900})
     expect(toggle).to_have_attribute("aria-expanded", "false")
-    page.screenshot(path=".tmp-sidebar/desktop-collapsed.png")
+    capture_evidence(page, path=".tmp-sidebar/desktop-collapsed.png")
     page.set_viewport_size({"width": 390, "height": 844})
     expect(toggle).to_be_hidden()
     nav = page.locator(".nav")
@@ -76,7 +78,7 @@ def test_sidebar_preferences_survive_reload_and_resize_without_changing_mobile(p
     expect(page.locator("#view-console")).to_be_visible()
     expect(page.locator("#moreMenu")).to_be_hidden()
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
-    page.screenshot(path=".tmp-sidebar/mobile.png")
+    capture_evidence(page, path=".tmp-sidebar/mobile.png")
     page.set_viewport_size({"width": 834, "height": 900})
     expect(toggle).to_have_attribute("aria-expanded", "true")
 

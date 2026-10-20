@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 import pytest
 from playwright.sync_api import expect
 
+from browser_evidence import capture_evidence
+
 pytestmark = pytest.mark.browser
 
 
@@ -137,12 +139,12 @@ def test_stack_layout_long_messages_and_expansion(page, dashboard, width, motion
     assert boxes[0]["y"] < boxes[1]["y"] < boxes[2]["y"]
     assert boxes[0]["width"] < boxes[1]["width"] < boxes[2]["width"]
     assert all(box["x"] >= 0 and box["right"] <= width for box in boxes)
-    page.screenshot(path=f".tmp-toast-evidence/stack-{width}.png")
+    capture_evidence(page, path=f".tmp-toast-evidence/stack-{width}.png")
     page.locator('.toast[data-front="true"] button').focus()
     boxes = settled_toast_boxes(page)
     assert all(a["bottom"] <= b["top"] for a, b in zip(boxes, boxes[1:]))
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
-    page.screenshot(path=f".tmp-toast-evidence/expanded-{width}.png")
+    capture_evidence(page, path=f".tmp-toast-evidence/expanded-{width}.png")
 
 
 def test_touch_can_expand_stack_and_outside_tap_resumes_timer(browser, dashboard):
@@ -214,7 +216,7 @@ def test_expansion_moves_up_from_stack_and_keeps_front_anchored(page, dashboard,
         abs(boxes[-1]["bottom"] - collapsed[-1]["bottom"]) < 1 for boxes in (start, middle, end)
     )
     assert all(a["bottom"] <= b["top"] for a, b in zip(end, end[1:]))
-    page.screenshot(path=f".tmp-toast-evidence/motion-expanded-{width}.png")
+    capture_evidence(page, path=f".tmp-toast-evidence/motion-expanded-{width}.png")
 
 
 def test_interrupted_expansion_and_collapse_keep_current_position(page, dashboard):

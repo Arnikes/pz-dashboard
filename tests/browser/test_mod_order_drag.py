@@ -9,6 +9,8 @@ from playwright.sync_api import expect
 from test_editors import editing as editing, long_order as long_order, navigate
 from test_configeditor import editor, env as env
 
+from browser_evidence import capture_evidence
+
 
 def open_order(page, dashboard, width=1440, language="ru"):
     page.set_viewport_size({"width": width, "height": 900})
@@ -64,7 +66,7 @@ def test_pointer_preview_cancel_and_drop(page, dashboard, long_order, width, lan
     # Inspect the lifted row and actual gap at both desktop and phone widths.
     output = Path(__file__).resolve().parents[2] / ".tmp-reorder-evidence"
     output.mkdir(exist_ok=True)
-    page.screenshot(path=str(output / f"drag-{width}-{language}.png"))
+    capture_evidence(page, path=str(output / f"drag-{width}-{language}.png"))
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     page.keyboard.press("Escape")
     page.mouse.up()

@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import expect
 
+from browser_evidence import capture_evidence
+
 
 pytestmark = pytest.mark.browser
 
@@ -55,7 +57,9 @@ def test_language_selector_persists_and_test_waits_for_save(page, dashboard, lan
     page.locator("#sec-notify").scroll_into_view_if_needed()
     out = Path(__file__).resolve().parents[2] / ".tmp-telegram-i18n-visual"
     out.mkdir(exist_ok=True)
-    page.locator("#sec-notify").screenshot(path=str(out / f"notifications-{language}-{width}.png"))
+    capture_evidence(
+        page.locator("#sec-notify"), path=str(out / f"notifications-{language}-{width}.png")
+    )
     with page.expect_navigation(wait_until="load"):
         page.locator("#languageSwitch").select_option(notification_language)
     expect(page.locator("html")).to_have_attribute("lang", notification_language)

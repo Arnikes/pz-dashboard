@@ -9,6 +9,8 @@ from playwright.sync_api import expect
 from test_auth import auth_server  # noqa: F401
 from test_login import fill_login, login_url  # noqa: F401
 
+from browser_evidence import capture_evidence
+
 pytestmark = pytest.mark.browser
 FONTS = Path(__file__).resolve().parents[2] / "dashboard" / "static" / "fonts"
 
@@ -71,7 +73,7 @@ def test_all_pages_and_fonts_load_without_external_requests(
     page.goto(login_url + "/login")
     expect(page.get_by_role("heading", name="PZ·ПУЛЬТ")).to_be_visible()
     assert_fonts_loaded(page)
-    page.screenshot(path=str(tmp_path / f"login-{width}.png"))
+    capture_evidence(page, path=str(tmp_path / f"login-{width}.png"))
     fill_login(page)
     expect(page.locator("#view-overview")).to_be_visible()
     for route in (

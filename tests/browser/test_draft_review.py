@@ -4,6 +4,8 @@ import pytest
 from playwright.sync_api import expect
 from test_editors import editing, env  # noqa: F401
 
+from browser_evidence import capture_evidence
+
 pytestmark = [pytest.mark.browser, pytest.mark.usefixtures("editing")]
 
 
@@ -37,7 +39,7 @@ def test_simple_draft_bar_and_review_actions(page, dashboard, width, height, lan
         bounds = action.bounding_box()
         assert 0 <= bounds["x"] < bounds["x"] + bounds["width"] <= width
         assert 0 <= bounds["y"] < bounds["y"] + bounds["height"] <= height
-    page.screenshot(path=f".tmp-pytest/review-evidence/bar-{language}-{width}-{height}.png")
+    capture_evidence(page, path=f".tmp-pytest/review-evidence/bar-{language}-{width}-{height}.png")
     review = page.locator("#configDiff")
     if width <= 740:
         review.tap()
@@ -58,7 +60,9 @@ def test_simple_draft_bar_and_review_actions(page, dashboard, width, height, lan
         if width <= 740:
             assert bounds["height"] >= 44
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
-    page.screenshot(path=f".tmp-pytest/review-evidence/review-{language}-{width}-{height}.png")
+    capture_evidence(
+        page, path=f".tmp-pytest/review-evidence/review-{language}-{width}-{height}.png"
+    )
     page.locator("#modalOk").click()
     expect(review).to_be_focused()
     expect(field).to_have_value("Review draft")

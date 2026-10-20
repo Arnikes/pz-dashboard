@@ -9,6 +9,8 @@ import app
 import auth
 from test_auth import LOGIN, PASSWORD, auth_server  # noqa: F401
 
+from browser_evidence import capture_evidence
+
 pytestmark = pytest.mark.browser
 
 
@@ -57,7 +59,7 @@ def test_login_navigation_reload_and_logout(page, login_url, width, height):
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     output = Path(__file__).resolve().parents[2] / ".tmp-ui-auth"
     output.mkdir(exist_ok=True)
-    page.screenshot(path=str(output / f"login-{width}.png"))
+    capture_evidence(page, path=str(output / f"login-{width}.png"))
     fill_login(page)
     expect(page.locator("#view-console")).to_be_visible()
     page.reload()

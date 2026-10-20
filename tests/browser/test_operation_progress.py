@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import expect
 
+from browser_evidence import capture_evidence
+
 pytestmark = pytest.mark.browser
 
 
@@ -33,8 +35,8 @@ def test_countdown_finishing_keeps_lock_until_game_ready(
     expect(page.locator("#maintenanceAvailability")).to_be_hidden()
     target = Path(__file__).resolve().parents[2] / ".tmp-operation-lock-evidence"
     target.mkdir(exist_ok=True)
-    page.screenshot(
-        path=str(target / f"countdown-{operation}-{language}-{width}.png"), full_page=True
+    capture_evidence(
+        page, path=str(target / f"countdown-{operation}-{language}-{width}.png"), full_page=True
     )
     page.clock.run_for(300000)
     expect(page.locator("#opCountdown")).to_have_text("0:00")
@@ -52,8 +54,8 @@ def test_countdown_finishing_keeps_lock_until_game_ready(
     expect(page.locator("#btnRestart")).to_be_disabled()
     expect(page.locator("#sec-logs .operation-loader")).to_have_count(0)
     expect(page.locator("#logsFilter")).to_be_enabled()
-    page.screenshot(
-        path=str(target / f"startup-{operation}-{language}-{width}.png"), full_page=True
+    capture_evidence(
+        page, path=str(target / f"startup-{operation}-{language}-{width}.png"), full_page=True
     )
     page.emulate_media(reduced_motion="reduce")
     assert (

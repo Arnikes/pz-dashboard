@@ -39,9 +39,9 @@ def parse_args(argv=None):
     return parser.parse_args(argv)
 
 
-def diagnose_failures(workers, cache_dir, output_dir):
-    """Retain replay traces even if a failure does not reproduce; never change the gate."""
-    command = [
+def pytest_command(workers, cache_dir, output_dir, *options):
+    """Keep the complete suite, scheduling, and artifact isolation identical on replay."""
+    return [
         sys.executable,
         "-m",
         "pytest",
@@ -50,15 +50,25 @@ def diagnose_failures(workers, cache_dir, output_dir):
         "-n",
         str(workers),
         "--dist=worksteal",
+        *options,
+        "-o",
+        f"cache_dir={cache_dir}",
+        f"--output={output_dir}",
+        f"--junitxml={output_dir}/results.xml",
+    ]
+
+
+def diagnose_failures(workers, cache_dir, output_dir):
+    """Retain replay traces even if a failure does not reproduce; never change the gate."""
+    command = pytest_command(
+        workers,
+        cache_dir,
+        f"{output_dir}/diagnostic",
         "--lf",
         "--last-failed-no-failures=none",
         "--tracing=on",
         "--screenshot=on",
-        "-o",
-        f"cache_dir={cache_dir}",
-        f"--output={output_dir}/diagnostic",
-        f"--junitxml={output_dir}/diagnostic/results.xml",
-    ]
+    )
     print("+ Diagnostic replay: " + " ".join(command), flush=True)
     try:
         subprocess.run(command, cwd=ROOT, check=False)
@@ -143,31 +153,18 @@ def run_checks(args, cache_dir):
         [sys.executable, "-m", "ruff", "check", "."],
         [sys.executable, "-m", "ruff", "format", "--check", "."],
         [sys.executable, "scripts/build_i18n.py", "--check"],
-        ["node", "--check", "dashboard/static/i18n.js"],
-        ["node", "--check", "dashboard/static/localize.js"],
-        ["node", "--check", "dashboard/static/catalogs.js"],
-        ["node", "--check", "dashboard/static/app.js"],
-        ["node", "--check", "dashboard/static/editor.js"],
-        ["node", "--check", "dashboard/static/login.js"],
-        ["node", "--check", "dashboard/static/pwa.js"],
-        ["node", "--check", "dashboard/static/alerts.js"],
-        ["node", "--check", "dashboard/static/sw.js"],
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            "-q",
-            "tests",
-            "-n",
-            str(args.workers),
-            "--dist=worksteal",
+        *(
+            ["node", "--check", path.relative_to(ROOT).as_posix()]
+            for path in sorted((ROOT / "dashboard" / "static").rglob("*.js"))
+        ),
+        pytest_command(
+            args.workers,
+            cache_dir,
+            output_dir,
             "--durations=20",
             "--tracing=retain-on-failure" if args.trace else "--tracing=off",
             "--screenshot=only-on-failure",
-            "-o",
-            f"cache_dir={cache_dir}",
-            f"--output={output_dir}",
-        ],
+        ),
     ]
     for command in commands:
         print("+ " + " ".join(command), flush=True)

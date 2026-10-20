@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import expect
 
+from browser_evidence import capture_evidence
+
 
 @pytest.mark.parametrize("language", ["en", "ru"])
 @pytest.mark.parametrize("width", [390, 1440])
@@ -37,7 +39,7 @@ def test_startup_waits_for_profile_and_visible_data(page, dashboard, language, w
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     out = Path(".tmp-startup-loading")
     out.mkdir(exist_ok=True)
-    page.screenshot(path=str(out / f"startup-{language}-{width}.png"), full_page=True)
+    capture_evidence(page, path=str(out / f"startup-{language}-{width}.png"), full_page=True)
     assert len(profiles) == len(backups) == 1
     profiles.pop().fallback()
     expect(page.locator("#configProfile option")).to_have_count(1)

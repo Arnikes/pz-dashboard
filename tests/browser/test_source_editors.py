@@ -5,6 +5,8 @@ from playwright.sync_api import expect
 
 from test_editors import editing, env, editor  # noqa: F401
 
+from browser_evidence import capture_evidence
+
 
 @pytest.mark.parametrize("width", [390, 1440])
 @pytest.mark.parametrize("kind", ["ini", "sandbox"])
@@ -96,7 +98,7 @@ def test_source_highlight_is_windowed_and_tracks_native_scroll(
         assert source.input_value() == text
     expect(output.locator(".line-number").first).to_have_text("1")
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
-    page.screenshot(path=str(editing[0].parent / f"source-{kind}-{width}.png"))
+    capture_evidence(page, path=str(editing[0].parent / f"source-{kind}-{width}.png"))
 
 
 def test_source_resize_trailing_line_and_forced_colors(page, dashboard, editing):  # noqa: F811

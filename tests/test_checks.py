@@ -10,6 +10,25 @@ import pytest
 from scripts import check
 
 
+@pytest.fixture(autouse=True)
+def static_scripts(tmp_path):
+    """Use a small tree so command tests also exercise recursive script discovery."""
+    root = tmp_path / "dashboard" / "static"
+    (root / "nested").mkdir(parents=True)
+    for name in ("app.js", "nested/worker.js", "ignored.css"):
+        (root / name).write_text("", encoding="utf-8")
+
+
+def pytest_calls(run):
+    return [call for call in run.call_args_list if call.args[0][1:3] == ["-m", "pytest"]]
+
+
+def fail_suite(command, **kwargs):
+    if command[1:3] == ["-m", "pytest"] and kwargs.get("check"):
+        raise subprocess.CalledProcessError(1, command)
+    return subprocess.CompletedProcess(command, 0)
+
+
 @pytest.mark.parametrize("cpus,expected", [(None, 1), (1, 1), (2, 2), (32, 4)])
 def test_default_workers_respect_cpu_count_and_limit(monkeypatch, cpus, expected):
     monkeypatch.setattr(check.os, "cpu_count", lambda: cpus)
@@ -38,7 +57,10 @@ def test_full_checks_preserve_suite_and_failure_artifacts(monkeypatch, tmp_path,
         [check.sys.executable, "-m", "ruff", "format", "--check", "."],
         [check.sys.executable, "scripts/build_i18n.py", "--check"],
     ]
-    assert len([command for command in commands if command[:2] == ["node", "--check"]]) == 9
+    assert [command for command in commands if command[:2] == ["node", "--check"]] == [
+        ["node", "--check", "dashboard/static/app.js"],
+        ["node", "--check", "dashboard/static/nested/worker.js"],
+    ]
     pytest_command = commands[-1]
     cache_dir = pytest_command[pytest_command.index("-o") + 1].removeprefix("cache_dir=")
     assert Path(cache_dir).parent == tmp_path / ".tmp-pytest"
@@ -58,6 +80,7 @@ def test_full_checks_preserve_suite_and_failure_artifacts(monkeypatch, tmp_path,
         "-o",
         f"cache_dir={cache_dir}",
         f"--output=test-results/{Path(cache_dir).name}",
+        f"--junitxml=test-results/{Path(cache_dir).name}/results.xml",
     ]
     assert all(call.kwargs == {"cwd": tmp_path, "check": True} for call in run.call_args_list)
     assert check.os.environ["PYTEST_DEBUG_TEMPROOT"] == str(tmp_path / ".tmp-pytest")
@@ -78,16 +101,17 @@ def test_failed_check_stops_with_its_exit_code(monkeypatch, tmp_path):
 def test_diagnostic_replay_preserves_original_failure(monkeypatch, tmp_path, diagnostic_status):
     monkeypatch.setattr(check, "ROOT", tmp_path)
     monkeypatch.setattr(check.sys, "argv", ["check.py", "--workers", "2"])
-    run = Mock(
-        side_effect=[None] * 13
-        + [subprocess.CalledProcessError(1, ["pytest"])]
-        + [subprocess.CompletedProcess(["pytest"], diagnostic_status)]
-    )
+
+    def execute(command, **kwargs):
+        fail_suite(command, **kwargs)
+        return subprocess.CompletedProcess(command, diagnostic_status)
+
+    run = Mock(side_effect=execute)
     monkeypatch.setattr(check.subprocess, "run", run)
     with pytest.raises(SystemExit) as error:
         check.main()
     assert error.value.code == 1
-    assert run.call_count == 15
+    assert len(pytest_calls(run)) == 2
     replay = run.call_args.args[0]
     assert replay[:8] == [
         check.sys.executable,
@@ -114,22 +138,25 @@ def test_diagnostic_replay_preserves_original_failure(monkeypatch, tmp_path, dia
 def test_initial_tracing_keeps_failure_artifacts_without_replay(monkeypatch, tmp_path):
     monkeypatch.setattr(check, "ROOT", tmp_path)
     monkeypatch.setattr(check.sys, "argv", ["check.py", "--trace"])
-    run = Mock(side_effect=[None] * 13 + [subprocess.CalledProcessError(1, ["pytest"])])
+    run = Mock(side_effect=fail_suite)
     monkeypatch.setattr(check.subprocess, "run", run)
     with pytest.raises(SystemExit) as error:
         check.main()
     assert error.value.code == 1
-    assert run.call_count == 14
+    assert len(pytest_calls(run)) == 1
     assert "--tracing=retain-on-failure" in run.call_args.args[0]
 
 
 def test_diagnostic_start_error_preserves_original_failure(monkeypatch, tmp_path):
     monkeypatch.setattr(check, "ROOT", tmp_path)
     monkeypatch.setattr(check.sys, "argv", ["check.py"])
-    run = Mock(
-        side_effect=[None] * 13
-        + [subprocess.CalledProcessError(1, ["pytest"]), OSError("diagnostic unavailable")]
-    )
+
+    def execute(command, **kwargs):
+        fail_suite(command, **kwargs)
+        if command[1:3] == ["-m", "pytest"]:
+            raise OSError("diagnostic unavailable")
+
+    run = Mock(side_effect=execute)
     monkeypatch.setattr(check.subprocess, "run", run)
     with pytest.raises(SystemExit) as error:
         check.main()
@@ -143,7 +170,7 @@ def test_separate_checks_have_isolated_caches_and_artifacts(monkeypatch, tmp_pat
     monkeypatch.setattr(check.subprocess, "run", run)
     check.main()
     check.main()
-    commands = [run.call_args_list[index].args[0] for index in (13, 27)]
+    commands = [call.args[0] for call in pytest_calls(run)]
     caches = [command[command.index("-o") + 1] for command in commands]
     outputs = [next(arg for arg in command if arg.startswith("--output=")) for command in commands]
     assert caches[0] != caches[1]

@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import expect
 
+from browser_evidence import capture_evidence
+
 pytestmark = pytest.mark.browser
 
 
@@ -77,7 +79,7 @@ def test_console_update_flow_and_mod_timestamp(page, dashboard, language, width)
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     target = Path(__file__).resolve().parents[2] / ".tmp-console-update-evidence"
     target.mkdir(exist_ok=True)
-    page.screenshot(path=str(target / f"maintenance-{language}-{width}.png"), full_page=True)
+    capture_evidence(page, path=str(target / f"maintenance-{language}-{width}.png"), full_page=True)
     page.evaluate("renderOp({active:{op:'apply-dashboard-update',phase:'Updating'},history:[]})")
     expect(page.locator("#btnCheckDashboardUpd")).to_be_disabled()
     expect(page.locator("#btnApplyDashboardUpd")).to_be_disabled()
@@ -149,7 +151,7 @@ def test_overview_console_update_summary(page, dashboard, language, width):
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     target = Path(__file__).resolve().parents[2] / ".tmp-console-update-evidence"
     target.mkdir(exist_ok=True)
-    page.screenshot(path=str(target / f"overview-{language}-{width}.png"), full_page=True)
+    capture_evidence(page, path=str(target / f"overview-{language}-{width}.png"), full_page=True)
     page.locator("#sec-sumupd").get_by_role(
         "link", name="Console image" if language == "en" else "Образ пульта"
     ).click()

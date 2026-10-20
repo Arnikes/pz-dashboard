@@ -12,6 +12,8 @@ from playwright.sync_api import expect
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from test_configeditor import env, editor, INI, saved_verification  # noqa: E402,F401
 
+from browser_evidence import capture_evidence
+
 
 @pytest.fixture
 def editing(page, dashboard, env):  # noqa: F811 (imported pytest fixture)
@@ -112,7 +114,7 @@ def test_field_help_supports_hover_focus_and_tap_without_changing_draft(
     expect(field.locator("[data-key]")).to_have_value(original)
     assert dashboard["actions"] == []
     trigger.click()
-    page.screenshot(path=str(editing[0].parent / f"field-help-{width}.png"))
+    capture_evidence(page, path=str(editing[0].parent / f"field-help-{width}.png"))
 
 
 @pytest.mark.parametrize("width", [320, 390, 1440])
@@ -140,7 +142,7 @@ def test_field_help_keeps_viewport_coordinates_during_page_animation(
     assert bounds["x"] >= 12 and bounds["x"] + bounds["width"] <= width - 12
     assert bounds["y"] >= 12 and bounds["y"] + bounds["height"] <= 844 - 12
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
-    page.screenshot(path=str(editing[0].parent / f"animated-field-help-{width}.png"))
+    capture_evidence(page, path=str(editing[0].parent / f"animated-field-help-{width}.png"))
     page.keyboard.press("Escape")
     expect(tip).to_be_hidden()
     expect(trigger).to_be_focused()
@@ -311,7 +313,7 @@ def test_editor_layout_controls_and_draft_do_not_cover_content(page, dashboard, 
     assert last["y"] + last["height"] < page.locator("#draftBar").bounding_box()["y"]
     assert (data / "Server/world.ini").read_bytes() == INI.encode()
     page.evaluate("scrollTo(0, 0)")
-    page.screenshot(path=str(data.parent / f"review-settings-{width}.png"), full_page=False)
+    capture_evidence(page, path=str(data.parent / f"review-settings-{width}.png"), full_page=False)
 
 
 def test_search_restores_collapsed_groups_and_shows_empty_result(page, dashboard, editing):
@@ -425,7 +427,7 @@ def test_settings_help_keeps_only_decision_relevant_content(
     )
     assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
     page.locator('#configTabs [data-tab="server"]').click()
-    page.screenshot(path=str(data.parent / f"settings-hints-{language}-{width}.png"))
+    capture_evidence(page, path=str(data.parent / f"settings-hints-{language}-{width}.png"))
     assert not editor.draft("world.ini")["changed"]
     assert dashboard["actions"] == []
 
@@ -516,7 +518,9 @@ def test_sandbox_applicability_is_separate_accessible_and_keeps_fields_aligned(
     expect(starter.locator(".config-scope")).to_contain_text("Новые персонажи")
     assert page.locator('.config-field:has([data-key="DayLength"]) .config-scope').count() == 0
     assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
-    page.screenshot(path=str(data.parent / f"sandbox-applicability-{width}.png"), full_page=True)
+    capture_evidence(
+        page, path=str(data.parent / f"sandbox-applicability-{width}.png"), full_page=True
+    )
     assert not editor.draft("world.ini")["changed"] and path.read_bytes() == original
     assert dashboard["actions"] == []
 
@@ -568,7 +572,7 @@ def test_external_changes_keep_page_draft_without_server_write(page, dashboard, 
     assert "ResetID=4742151" in editor.draft("world.ini")["texts"]["ini"]
     assert path.read_bytes() == external.encode() and dashboard["actions"] == []
     assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
-    page.screenshot(path=str(data.parent / f"rebase-{width}.png"))
+    capture_evidence(page, path=str(data.parent / f"rebase-{width}.png"))
 
 
 def test_overlapping_external_changes_do_not_block_draft_review(page, dashboard, editing):
@@ -688,14 +692,14 @@ def test_diff_discard_confirms_and_reloads_both_editors(
     for button in ("#modalCancel", "#modalOk"):
         bounds = page.locator(button).bounding_box()
         assert bounds["y"] + bounds["height"] <= 568
-    page.screenshot(path=str(data.parent / f"draft-review-{language}-{width}-{entry}.png"))
+    capture_evidence(page, path=str(data.parent / f"draft-review-{language}-{width}-{entry}.png"))
     page.locator("#modalCancel").click()
     expect(page.locator("#modalOk")).to_have_text(reset)
     expect(page.locator("#modalOk")).to_have_class("btn solid-danger")
     expect(page.locator("#modalCancel")).to_have_text(cancel)
     expect(page.locator("#modalCancel")).to_be_focused()
     assert editor.draft("world.ini")["changed"]
-    page.screenshot(path=str(data.parent / f"draft-discard-{language}-{width}-{entry}.png"))
+    capture_evidence(page, path=str(data.parent / f"draft-discard-{language}-{width}-{entry}.png"))
     page.locator("#modalCancel").click()
     expect(page.locator("#modalRoot")).to_be_hidden()
     expect(page.locator("#configDiff")).to_be_focused()
@@ -806,7 +810,7 @@ def test_apply_review_can_skip_world_backup(page, dashboard, editing, width, ent
     confirm = page.locator("#modalOk").bounding_box()
     assert dialog["y"] >= 0 and confirm["y"] + confirm["height"] <= 568
     assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
-    page.screenshot(path=str(data.parent / f"apply-options-{entry}-{width}.png"))
+    capture_evidence(page, path=str(data.parent / f"apply-options-{entry}-{width}.png"))
     page.locator("#modalOk").click()
     expect(page.locator(".toast").last).to_contain_text("сервер занят")
     assert len(dashboard["actions"]) == 1
@@ -867,7 +871,7 @@ def test_pages_share_edges_and_form_controls_share_size(page, dashboard, editing
             assert abs(panels["consoleTop"] - panels["logsTop"]) < 1
             assert abs(panels["consoleWidth"] - panels["logsWidth"]) < 1
         if width in (390, 1440):
-            page.screenshot(path=str(editing[0].parent / f"unified-{route}-{width}.png"))
+            capture_evidence(page, path=str(editing[0].parent / f"unified-{route}-{width}.png"))
     assert all(
         abs(left - edges[0][0]) < 1 and abs(right - edges[0][1]) < 1 for left, right in edges
     )
@@ -879,7 +883,7 @@ def test_pages_share_edges_and_form_controls_share_size(page, dashboard, editing
         bar = page.locator("#draftBar").bounding_box()
         assert abs(bar["x"] - edges[0][0]) < 1
         assert abs(bar["x"] + bar["width"] - edges[0][1]) < 1
-    page.screenshot(path=str(editing[0].parent / f"unified-ui-{width}.png"))
+    capture_evidence(page, path=str(editing[0].parent / f"unified-ui-{width}.png"))
 
 
 def test_more_menu_escape_restores_focus_and_marks_extra_page(page, dashboard, editing):
@@ -918,7 +922,7 @@ def test_scrolling_draft_does_not_block_phone_navigation(page, dashboard, editin
         return (fixed ? bar.bottom <= link.top : bar.top < y && bar.bottom > y)
             && !!document.elementFromPoint(x, y)?.closest('.nav [data-route=settings]');
     }""")
-    page.screenshot(path=str(editing[0].parent / f"draft-navigation-{width}-{height}.png"))
+    capture_evidence(page, path=str(editing[0].parent / f"draft-navigation-{width}-{height}.png"))
     navigate(page, "settings", True)
     expect(page.locator('[data-key="PublicName"]')).to_have_value("Navigation draft")
 
@@ -1028,8 +1032,8 @@ def test_header_profile_context_is_clear_and_aligned(page, dashboard, editing, w
     page.locator("#configProfile").select_option("world.ini")
     expect(page.locator("#configActive")).to_have_text("Активен на сервере")
     expect(page.locator("#configProfile")).to_have_attribute("data-state", "active")
-    page.locator(".topbar").screenshot(path=str(data.parent / f"review-header-{width}.png"))
-    page.screenshot(path=str(data.parent / f"review-page-{width}.png"))
+    capture_evidence(page.locator(".topbar"), path=str(data.parent / f"review-header-{width}.png"))
+    capture_evidence(page, path=str(data.parent / f"review-page-{width}.png"))
     assert dashboard["actions"] == []
 
 
@@ -1076,7 +1080,7 @@ def test_real_form_draft_mod_selection_and_sources(page, dashboard, editing, wid
     assert "UI draft" in page.locator("#iniSource").input_value()
     assert "topsecret" not in page.locator("#iniSource").input_value()
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
-    page.screenshot(path=str(data.parent / f"editor-{width}.png"), full_page=True)
+    capture_evidence(page, path=str(data.parent / f"editor-{width}.png"), full_page=True)
 
 
 def test_background_refresh_preserves_profile_focus_and_draft(page, dashboard, editing):
@@ -1206,9 +1210,12 @@ def test_long_order_moves_to_edges_and_position_without_server_write(
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     query.fill("")
     page.locator("#modOrderList .order-row").first.scroll_into_view_if_needed()
-    page.screenshot(path=str(data.parent / f"review-mod-order-{width}.png"), full_page=False)
+    capture_evidence(page, path=str(data.parent / f"review-mod-order-{width}.png"), full_page=False)
     page.get_by_role("button", name="Переместить library", exact=True).click()
-    page.screenshot(path=str(data.parent / f"review-mod-position-{width}.png"), full_page=False)
+    expect(page.get_by_role("alertdialog")).to_be_visible()
+    capture_evidence(
+        page, path=str(data.parent / f"review-mod-position-{width}.png"), full_page=False
+    )
     buttons = page.locator(".order-actions .btn").first
     assert buttons.evaluate("el => el.getBoundingClientRect().height >= 44")
 
@@ -1567,7 +1574,7 @@ def test_collection_cancel_keeps_draft_and_next_modal_usable(page, dashboard, ed
         expect(page.locator(".collection-candidate:visible")).to_have_count(1)
         assert page.locator("#modalCancel").bounding_box()["y"] < 568
     assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
-    page.screenshot(path=str(editing[0].parent / f"collection-candidates-{count}.png"))
+    capture_evidence(page, path=str(editing[0].parent / f"collection-candidates-{count}.png"))
     page.keyboard.press("Escape")
     expect(page.locator("#modalRoot")).to_be_hidden()
     assert not editor.draft("world.ini")["changed"]
@@ -1758,7 +1765,7 @@ def test_auto_verification_updates_editors_only_when_reopened(
     assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
     evidence = Path(__file__).resolve().parents[2] / ".tmp-auto-verify-browser"
     evidence.mkdir(exist_ok=True)
-    page.screenshot(path=str(evidence / f"settings-{width}.png"), full_page=True)
+    capture_evidence(page, path=str(evidence / f"settings-{width}.png"), full_page=True)
 
 
 def test_auto_verification_refresh_keeps_saved_draft_mod_selection(
@@ -2209,7 +2216,7 @@ def test_metadata_refresh_keeps_unblurred_mod_setting_and_focus(page, dashboard,
     field.evaluate("el => el.protectedNode = true")
     with page.expect_response("**/api/mods?*refresh=1"):
         page.evaluate("document.querySelector('#modRescan').click()")
-    page.wait_for_timeout(100)  # Complete metadata rendering without blurring the field.
+    expect(page.locator("#view-settings")).to_have_attribute("aria-busy", "false")
     expect(field).to_have_value("37")
     expect(field).to_be_focused()
     assert field.evaluate("el => el.protectedNode")
@@ -2241,8 +2248,9 @@ def test_late_mod_metadata_cannot_replace_profile_or_new_selection(
         count = 1
     expect(page.locator("#modOrderList [data-order-id]")).to_have_count(count)
     assert pending
+    expect(page.locator("#view-mods")).to_have_attribute("aria-busy", "true")
     pending[0].fulfill(json=old)
-    page.wait_for_timeout(100)  # Run the delayed response's promise callback.
+    expect(page.locator("#view-mods")).to_have_attribute("aria-busy", "false")
     expect(page.locator("#modOrderList [data-order-id]")).to_have_count(count)
     expect(page.locator("#configError")).to_be_hidden()
     assert dashboard["actions"] == []
@@ -2321,7 +2329,7 @@ def test_unsaved_map_input_survives_mod_controls_before_explicit_save(
     maps.evaluate("el => el.protectedNode = true")
     with page.expect_response("**/api/mods?*refresh=1"):
         page.evaluate("document.querySelector('#modRescan').click()")
-    page.wait_for_timeout(100)
+    expect(page.locator("#view-settings")).to_have_attribute("aria-busy", "false")
     expect(maps).to_be_focused()
     assert maps.evaluate("el => el.protectedNode")
     maps.scroll_into_view_if_needed()
@@ -2461,11 +2469,12 @@ def test_late_history_response_does_not_replace_new_profile(
     page.locator("#configProfile").select_option("another.ini")
     expect(page.locator("#configHistory")).to_contain_text("История another.ini")
     assert held
+    expect(page.locator("#view-settings")).to_have_attribute("aria-busy", "true")
     held[0].fulfill(
         status=500 if failure else 200,
         json={"ok": False, "error": "Ошибка истории прежнего профиля"} if failure else old,
     )
-    page.wait_for_timeout(100)
+    expect(page.locator("#view-settings")).to_have_attribute("aria-busy", "false")
     expect(page.locator("#configHistory")).to_contain_text("История another.ini")
     expect(page.locator("#configHistory")).not_to_contain_text("История world.ini")
     expect(page.locator("#configError")).to_be_hidden()

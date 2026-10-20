@@ -6,6 +6,8 @@ import pytest
 from playwright.sync_api import expect
 from test_editors import editing, env  # noqa: F401
 
+from browser_evidence import capture_evidence
+
 pytestmark = pytest.mark.browser
 EVIDENCE = Path(__file__).resolve().parents[2] / ".tmp-ultrawide"
 ROUTES = ("overview", "settings", "mods", "players", "maintenance", "backups", "events", "console")
@@ -90,7 +92,7 @@ def test_all_routes_share_centered_workspace(page, dashboard, width, height):
                 page.evaluate(
                     "document.querySelectorAll('.banner').forEach(el => el.hidden = true)"
                 )
-                page.screenshot(path=str(EVIDENCE / f"{route}-{width}-{state}.png"))
+                capture_evidence(page, path=str(EVIDENCE / f"{route}-{width}-{state}.png"))
 
 
 @pytest.mark.parametrize("width,height", [(1440, 900), (3440, 1440), (3440, 540)])
@@ -129,8 +131,8 @@ def test_saved_draft_follows_workspace_after_resize_and_sidebar_toggle(
             )
             page.locator("#draftBar").scroll_into_view_if_needed()
         if width == 3440:
-            page.screenshot(
-                path=str(EVIDENCE / f"settings-{language}-{width}-{height}-{state}.png")
+            capture_evidence(
+                page, path=str(EVIDENCE / f"settings-{language}-{width}-{height}-{state}.png")
             )
     # Resizing a real saved draft keeps the mobile controls in the same viewport.
     page.set_viewport_size({"width": 390, "height": 844})

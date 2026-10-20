@@ -4,6 +4,8 @@ from urllib.parse import urlsplit
 import pytest
 from playwright.sync_api import expect
 
+from browser_evidence import capture_evidence
+
 pytestmark = pytest.mark.browser
 
 
@@ -70,7 +72,7 @@ def test_mod_updates_remain_available_in_maintenance(page, dashboard, language, 
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     output = Path(__file__).resolve().parents[2] / ".tmp-mods-update"
     output.mkdir(exist_ok=True)
-    page.screenshot(path=str(output / f"maintenance-{language}-{width}.png"), full_page=True)
+    capture_evidence(page, path=str(output / f"maintenance-{language}-{width}.png"), full_page=True)
 
 
 @pytest.mark.parametrize("language", ["en", "ru"])
@@ -89,7 +91,7 @@ def test_image_update_button_tracks_checked_status(page, dashboard, language, wi
     expect(apply).to_be_disabled()
     output = Path(__file__).resolve().parents[2] / ".tmp-maintenance-update-button"
     output.mkdir(exist_ok=True)
-    page.locator("#sec-updates").screenshot(path=str(output / f"{language}-{width}.png"))
+    capture_evidence(page.locator("#sec-updates"), path=str(output / f"{language}-{width}.png"))
 
     page.evaluate("renderOverview({...S.overview,update:{available:true}})")
     expect(apply).to_be_enabled()
@@ -154,7 +156,7 @@ def test_watchdog_grace_setting_and_status(page, dashboard, width):
     )
     expect(page.locator("#wdPill")).to_have_text("следит")
     page.locator("#sec-watchdog").scroll_into_view_if_needed()
-    page.screenshot(path=f".tmp-watchdog/maintenance-{width}.png", full_page=True)
+    capture_evidence(page, path=f".tmp-watchdog/maintenance-{width}.png", full_page=True)
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     dashboard["overview"]["mode"] = "remote"
     page.evaluate("renderOverview({...S.overview,mode:'remote'})")
@@ -428,7 +430,7 @@ def test_cancel_auto_mods_update(
     expect(page.locator("#btnStop")).to_be_disabled()
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     if operation_name == "apply-update":
-        page.screenshot(path=f"test-results/server-update-cancel-{width}.png")
+        capture_evidence(page, path=f"test-results/server-update-cancel-{width}.png")
     requests = []
 
     def handle_cancel(route):
@@ -500,7 +502,7 @@ def test_server_image_cancel_english_keyboard_and_stopping(page, dashboard, widt
     expect(button).to_be_visible()
     expect(page.locator("#btnCancelMods")).to_be_hidden()
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
-    page.screenshot(path=f"test-results/server-update-cancel-en-{width}.png")
+    capture_evidence(page, path=f"test-results/server-update-cancel-en-{width}.png")
     button.focus()
     button.press("Enter")
     expect(page.locator("#btnCancelUpdate")).to_have_text("Cancelling…")

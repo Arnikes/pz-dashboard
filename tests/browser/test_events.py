@@ -6,6 +6,8 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import expect
 
+from browser_evidence import capture_evidence
+
 pytestmark = pytest.mark.browser
 
 
@@ -111,4 +113,4 @@ def test_events_layout_has_no_nested_scroll_or_overflow(page, events_page, width
     if os.getenv("PZ_EVENTS_EVIDENCE"):
         out = Path(__file__).resolve().parents[2] / ".tmp-events-pagination"
         out.mkdir(exist_ok=True)
-        page.screenshot(path=str(out / f"events-{width}.png"), full_page=True)
+        capture_evidence(page, path=str(out / f"events-{width}.png"), full_page=True)

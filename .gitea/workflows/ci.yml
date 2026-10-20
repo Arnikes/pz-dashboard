@@ -1,14 +1,15 @@
-name: CI
+name: CI and deployment
 
 on:
   push:
     branches: [main, master]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
 jobs:
   test:
-    name: Code checks
+    name: Code and browser checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,40 +32,87 @@ jobs:
         run: ./.venv/bin/python scripts/check.py
 
   image:
-    name: Image build and smoke test
+    name: Image build, smoke test, and optional publication
     runs-on: ubuntu-latest
     needs: test
     steps:
       - uses: actions/checkout@v4
 
-      - name: Docker build
-        run: docker build -t pz-pult:ci ./dashboard
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
-      - name: Container startup and /api/health
+      - name: Build panel image
         run: |
-          # act_runner jobs normally run in containers sharing docker.sock.
-          # Published ports bind to the daemon host and may not be reachable
-          # on job-local loopback. Check health through the Docker network
-          # using the container name (Docker DNS).
-          docker network create pz-smoke
-          auth_key=$(docker run --rm pz-pult:ci python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
-          docker run -d --name pz-pult-smoke --network pz-smoke \
-            -e PZ_ADMIN_LOGIN=ci-admin -e PZ_ADMIN_PASSWORD=ci-only-dummy-password \
-            -e PZ_AUTH_KEY="$auth_key" \
-            -e RCON_PASSWORD=ci-dummy -e PZ_SERVER_NAME=ci pz-pult:ci
-          for i in $(seq 1 30); do
-            if docker run --rm --network pz-smoke pz-pult:ci python3 -c "import urllib.request; urllib.request.urlopen('http://pz-pult-smoke:8080/api/health', timeout=4)" 2>/dev/null; then
-              echo "health OK (attempt $i)"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "health did not respond within 30 seconds"
-          exit 1
+          # A private image ID avoids tag races on shared Docker daemons.
+          image_dir=$(mktemp -d "$RUNNER_TEMP/pz-console-image.XXXXXX")
+          trap 'rm -f "$image_dir/panel-image.id"; rmdir "$image_dir"' EXIT
+          docker build --iidfile "$image_dir/panel-image.id" ./dashboard
+          echo "PANEL_IMAGE_ID=$(cat "$image_dir/panel-image.id")" >> "$GITHUB_ENV"
 
-      - name: Cleanup and diagnostics
-        if: always()
+      - name: Check container startup
+        run: python scripts/smoke_image.py "$PANEL_IMAGE_ID"
+
+      - name: Publish the tested image to Gitea registry
+        if: >-
+          github.event_name == 'workflow_dispatch' ||
+          (github.event_name == 'push' &&
+          (github.ref == 'refs/heads/main' ||
+          (github.ref_type == 'tag' && startsWith(github.ref_name, 'v'))))
+        env:
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
         run: |
-          docker logs pz-pult-smoke || true
-          docker rm -f pz-pult-smoke || true
-          docker network rm pz-smoke || true
+          if [ -z "$REGISTRY_TOKEN" ]; then
+            echo "::error::Set the REGISTRY_TOKEN secret (scope: write:package)."
+            exit 1
+          fi
+          registry="${GITHUB_SERVER_URL#http://}"
+          registry="${registry#https://}"
+          image="$registry/${GITHUB_REPOSITORY,,}"
+          sha_tag="$image:sha-${GITHUB_SHA:0:7}"
+          printf '%s' "$REGISTRY_TOKEN" | docker login "$registry" -u "$GITHUB_ACTOR" --password-stdin
+          docker tag "$PANEL_IMAGE_ID" "$image:latest"
+          docker tag "$PANEL_IMAGE_ID" "$sha_tag"
+          docker push "$image:latest"
+          docker push "$sha_tag"
+          if [[ "$GITHUB_REF_TYPE" == 'tag' ]]; then
+            docker tag "$PANEL_IMAGE_ID" "$image:$GITHUB_REF_NAME"
+            docker push "$image:$GITHUB_REF_NAME"
+          fi
+
+      - name: Log out of Gitea registry
+        if: >-
+          always() &&
+          (github.event_name == 'workflow_dispatch' ||
+          (github.event_name == 'push' &&
+          (github.ref == 'refs/heads/main' ||
+          (github.ref_type == 'tag' && startsWith(github.ref_name, 'v')))))
+        run: |
+          registry="${GITHUB_SERVER_URL#http://}"
+          registry="${registry#https://}"
+          docker logout "$registry"
+
+  deploy:
+    name: SSH deployment (optional)
+    runs-on: ubuntu-latest
+    needs: image
+    if: >-
+      vars.DEPLOY_ENABLED == 'true' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' ||
+      (github.ref_type == 'tag' && startsWith(github.ref_name, 'v')))))
+    steps:
+      - name: Deploy over SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "cd '$DEPLOY_PATH' && docker compose pull pz-dashboard && docker compose up -d pz-dashboard && docker image prune -f"

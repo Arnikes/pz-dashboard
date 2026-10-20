@@ -8,6 +8,8 @@ from playwright.sync_api import expect
 from test_editors import editing, env  # noqa: F401
 from test_pwa_browser import pwa_server, ready  # noqa: F401
 
+from browser_evidence import capture_evidence
+
 pytestmark = pytest.mark.browser
 
 
@@ -56,7 +58,7 @@ def test_complete_route_matrix(page, dashboard, editing, language, width):  # no
     page.evaluate("location.hash='#/settings'")
     expect(page.locator("#view-settings")).to_be_visible()
     page.wait_for_function("!document.getAnimations().some(a => a.playState === 'running')")
-    page.screenshot(path=str(out / f"settings-{language}-{width}.png"), full_page=True)
+    capture_evidence(page, path=str(out / f"settings-{language}-{width}.png"), full_page=True)
 
 
 def test_language_switch_flushes_draft_and_preserves_route(page, dashboard, editing):  # noqa: F811

@@ -11,6 +11,8 @@ from playwright.sync_api import expect
 import app
 import auth
 
+from browser_evidence import capture_evidence
+
 pytestmark = [pytest.mark.browser, pytest.mark.browser_context_args(service_workers="allow")]
 
 
@@ -367,8 +369,8 @@ def test_update_alert_floats_without_moving_layout_and_stays_visible(
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     if language == "en":
         assert "New version available" in alert.inner_text()
-    page.screenshot(
-        path=str(tmp_path / f"update-alert-{language}-{width}.png"), animations="disabled"
+    capture_evidence(
+        page, path=str(tmp_path / f"update-alert-{language}-{width}.png"), animations="disabled"
     )
     if width <= 740:
         page.evaluate("toast('PWA companion notification', 'ok', 120000)")
@@ -423,7 +425,7 @@ def test_ios_guidance_and_live_offline_preserves_login_input(page, pwa_server, t
     page.locator("#pwaInstall").click()
     expect(page.locator(".pwa-help")).to_contain_text("На экран Домой")
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
-    page.screenshot(path=str(tmp_path / "install-ios-390.png"), full_page=True)
+    capture_evidence(page, path=str(tmp_path / "install-ios-390.png"), full_page=True)
     page.locator("#login").fill("my-admin")
     page.locator("#password").fill("my-password")
     page.context.set_offline(True)
@@ -497,7 +499,7 @@ def test_offline_layout_mobile_and_desktop(page, pwa_server, tmp_path):
         page.set_viewport_size({"width": width, "height": height})
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
         assert page.locator("#pwaRetry").bounding_box()["height"] >= 44
-        page.screenshot(path=str(tmp_path / f"offline-{width}.png"), full_page=True)
+        capture_evidence(page, path=str(tmp_path / f"offline-{width}.png"), full_page=True)
     page.context.set_offline(False)
 
 
@@ -515,7 +517,10 @@ def test_install_bar_stays_clear_of_navigation(page, dashboard, tmp_path, width)
     }""")
     button = page.locator("#pwaInstall")
     expect(button).to_be_visible()
-    page.screenshot(path=str(tmp_path / f"install-bar-{width}.png"))
+    capture_evidence(page, path=str(tmp_path / f"install-bar-{width}.png"))
+    page.locator("#view-overview").evaluate("""async element => {
+      await Promise.all(element.getAnimations().map(animation => animation.finished));
+    }""")
     nav = page.locator(".nav").bounding_box()
     bar = page.locator(".pwa-bar").bounding_box()
     if width >= 741:

@@ -7,6 +7,8 @@ from playwright.sync_api import expect
 
 from test_editors import editing, env  # noqa: F401
 
+from browser_evidence import capture_evidence
+
 pytestmark = pytest.mark.browser
 
 ACTIVE = {
@@ -82,7 +84,9 @@ def test_every_mutating_view_locks_and_recovers(page, dashboard, editing, langua
         if view in ("settings", "maintenance"):
             target = Path(__file__).resolve().parents[2] / ".tmp-operation-lock-evidence"
             target.mkdir(exist_ok=True)
-            page.screenshot(path=str(target / f"{view}-{language}-{width}.png"), full_page=True)
+            capture_evidence(
+                page, path=str(target / f"{view}-{language}-{width}.png"), full_page=True
+            )
 
     page.evaluate("location.hash='#/events'")
     expect(page.locator("#view-events")).to_be_visible()
