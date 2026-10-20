@@ -1,2 +1,2 @@
 # Optional audit tool; install in an isolated uv tool environment.
-graphifyy==0.9.61
+graphifyy==0.9.70
