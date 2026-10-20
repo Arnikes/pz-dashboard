@@ -175,12 +175,20 @@ both the development and runtime dependency files.
 New branch/PR runs cancel superseded checks for the same ref. Tag runs keep running
 so an in-progress release is not interrupted by a rerun.
 
-GitHub builds use Docker's official `python:3.12-alpine` image from
-[Amazon ECR Public](https://gallery.ecr.aws/docker/library/python) to avoid
-Docker Hub's anonymous pull quota on shared runners. No registry credentials are
-needed to pull this base image. Local builds default to Docker Hub; use
-`--build-arg PYTHON_BASE_IMAGE=public.ecr.aws/docker/library/python:3.12-alpine`
-with `docker build` to select the same mirror.
+The GitHub image job first pulls the official `python:3.12-alpine` image from
+Docker Hub. If that pull fails or exceeds 120 seconds, it tries the
+[Amazon ECR Public mirror](https://gallery.ecr.aws/docker/library/python), also
+with a 120-second limit. Either registry can throttle anonymous pulls; the job
+does not depend on one registry being available and needs no additional secrets.
+If both pulls fail, image preparation fails and the build does not run.
+
+`scripts/prepare_image_base.py` tags the successful pull as the local
+`pz-console-python-base:ci` image. The existing daemon builder then builds the
+panel once with `--pull=false`, using that local image without another registry
+lookup. Application build errors do not trigger fallback or a second build.
+The startup smoke check and release gates still apply to the exact built image.
+Local builds continue to use Docker Hub by default; `PYTHON_BASE_IMAGE` remains
+available as a Docker build argument for selecting another trusted source.
 
 For tag pushes, the exact tested image is transferred to the release job instead of
 being rebuilt. The release job uses the automatic `GITHUB_TOKEN` with `packages: write`
