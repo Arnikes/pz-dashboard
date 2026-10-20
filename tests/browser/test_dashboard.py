@@ -485,18 +485,24 @@ def test_server_image_cancel_english_keyboard_and_stopping(page, dashboard, widt
     operation = {"active": None, "history": []}
     page.route("**/api/ops", lambda route: route.fulfill(json=operation))
     requests = []
+    held = []
+    page.expose_function("cancellationRequestCount", lambda: len(held))
 
     def handle_cancel(route):
         requests.append(route.request.post_data_json)
-        operation["active"].update(cancelRequested=True, cancellable=False)
-        route.fulfill(json={"ok": True, "cancelRequested": True})
+        held.append(route)
 
     page.route("**/api/action", handle_cancel)
     page.goto(dashboard["url"])
     # Initial snapshots must finish before the test supplies a newer operation.
     expect(page.locator("#startupLoader")).to_be_hidden()
     expect(page.locator("#btnStop")).to_be_enabled()
-    operation["active"] = {"op": "apply-update", "phase": "Downloading image", "cancellable": True}
+    operation["active"] = {
+        "id": "cancelled-image-update",
+        "op": "apply-update",
+        "phase": "Downloading image",
+        "cancellable": True,
+    }
     page.evaluate("op => renderOp(op)", operation)
     button = page.get_by_role("button", name="Cancel server update", exact=True)
     expect(button).to_be_visible()
@@ -507,8 +513,25 @@ def test_server_image_cancel_english_keyboard_and_stopping(page, dashboard, widt
     button.press("Enter")
     expect(page.locator("#btnCancelUpdate")).to_have_text("Cancelling…")
     expect(page.locator("#btnCancelUpdate")).to_be_disabled()
-    assert requests == [{"op": "cancel-update"}]
-    operation["active"].update(cancellable=False, cancelRequested=False, phase="Stopping")
+    page.wait_for_function("async () => await window.cancellationRequestCount() === 1")
+    assert requests == [{"op": "cancel-update", "operationId": "cancelled-image-update"}]
+    # The pending label appears before the cancellation response is processed.
+    operation["active"].update(cancelRequested=True, cancellable=False)
+    held.pop().fulfill(json={"ok": True, "cancelRequested": True})
+    expect(page.locator("#toasts")).to_contain_text("Server update cancellation requested")
+    expect(page.locator("#btnCancelUpdate")).to_be_visible()
+    expect(page.locator("#btnCancelUpdate")).to_be_disabled()
+    operation["active"] = None
+    page.evaluate("op => renderOp(op)", operation)
+    expect(page.locator("#btnCancelUpdate")).to_be_hidden()
+
+    # Stopping belongs to a new update, not the update whose cancellation was accepted.
+    operation["active"] = {
+        "id": "stopping-image-update",
+        "op": "apply-update",
+        "phase": "Stopping",
+        "cancellable": False,
+    }
     page.evaluate("op => renderOp(op)", operation)
     expect(page.locator("#btnCancelUpdate")).to_be_hidden()
 
