@@ -132,8 +132,14 @@ panel-generated archive names directly under the configured prefix are listed;
 unrelated objects and nested prefixes are excluded. Existing local archives are not
 exported automatically. If S3 is disabled, only local backups are accessible.
 While S3 is enabled, local retention is skipped so failed exports remain available;
-monitor disk space and retry or remove them manually. Manage remote retention with
-bucket lifecycle rules; `backup.maxBackups` applies only in local mode.
+monitor disk space and retry or remove them manually. After each successful export,
+the panel applies `backup.maxBackups` to the exported archives in the configured
+bucket/prefix, keeping the new export and the newest remaining objects. A value
+of `0` disables count-based retention. This remote limit does not count or delete
+retained local archives. If listing or deleting old objects fails, the operation
+fails and the journal records the saved S3 archive's name and location; the new
+export remains available, and dependent updates/configuration changes do not
+proceed. Further deletion stops at the first error.
 Configure a lifecycle rule to abort incomplete multipart uploads after a suitable
 interval to clean up transfers interrupted by process termination.
 

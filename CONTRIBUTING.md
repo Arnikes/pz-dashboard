@@ -110,6 +110,32 @@ edge does not prove dead code. Clustering can collapse multiple relations
 between the same endpoints; diagnose the unclustered graph first when auditing
 individual call sites. See the [audit record](docs/code-audit.md).
 
+## Gauntlet Loop
+
+The project bundles the Codex skill at `.agents/skills/gauntlet-loop/`, including
+its helper scripts, critic contract, and attribution notice. Invoke it in a Codex
+turn with an improvement goal and a concrete, accessible reference, for example:
+
+```text
+$gauntlet-loop Improve this deliverable against <reference>.
+```
+
+The workflow uses separate builders and critics, frozen reference evidence,
+blind A/B comparisons, and mandatory checks. For code changes, use Python 3.12
+from this checkout's virtual environment and all repository checks above as
+gates. Run ledgers are stored outside the repository under
+`$CODEX_HOME/gauntlet-loop/runs/` (or `~/.codex/gauntlet-loop/runs/`).
+
+The helpers use only Python's standard library. Check the installed ledger helper
+without starting an improvement run:
+
+```powershell
+.\.venv\Scripts\python.exe .agents/skills/gauntlet-loop/scripts/gauntlet_state.py self-test
+```
+
+Preserve the [adaptation and license notice](.agents/skills/gauntlet-loop/references/attribution.md)
+when redistributing the skill.
+
 ## Repository map
 
 | Path | Purpose |

@@ -1214,6 +1214,27 @@ def _prune_backups(max_keep):
     return removed
 
 
+def _prune_s3_backups(max_keep, cfg, current_name):
+    """Keep the new export and the newest remote archives; preserve local fallbacks."""
+    if max_keep <= 0:
+        return 0
+    items = sorted(
+        (item for item in backups3.list_archives(cfg) if item["name"] != current_name),
+        key=lambda item: datetime.fromisoformat(item["mtime"]).timestamp(),
+        reverse=True,
+    )
+    removed = 0
+    # Reserve one slot for this export, including when a provider's listing lags.
+    for old in items[max_keep - 1 :]:
+        backups3.delete(old["name"], cfg)
+        removed += 1
+        try:
+            backupverify.forget(old["name"], "s3", cfg)
+        except OSError:
+            log_event("warn", "Бэкап удалён, но результат проверки удалить не удалось")
+    return removed
+
+
 def _create_backup_archive(bdir, ddir):
     """Публиковать архив только после успешного tar, сохраняя предыдущие копии."""
     base = time.strftime("pz-backup-%Y%m%d-%H%M%S")
@@ -1319,6 +1340,9 @@ def _do_backup(stop_server, trigger="manual", started=None):
         try:
             verification = verify_backup(name)
             dest = backups3.upload_verified(dest, s3_cfg, _set_phase, verification=verification)
+            name = dest.rsplit("/", 1)[-1]
+            log_event("backup", f"Бэкап сохранён в S3: {dest}")
+            pruned = _prune_s3_backups(get_settings()["backup"]["maxBackups"], s3_cfg, name)
         except (OpsError, OSError) as error:
             _journal_append(
                 {
@@ -1334,8 +1358,6 @@ def _do_backup(stop_server, trigger="manual", started=None):
             label = "по расписанию" if trigger == "scheduled" else "вручную"
             log_event("error", f"Бэкап ({label}) не удался: {error}")
             raise OpsErrorReported(str(error)) from error
-        log_event("backup", f"Бэкап сохранён в S3: {dest}")
-        name = dest.rsplit("/", 1)[-1]
     else:
         pruned = _prune_backups(get_settings()["backup"]["maxBackups"])
     label = "по расписанию" if trigger == "scheduled" else "вручную"

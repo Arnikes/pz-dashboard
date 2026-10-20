@@ -675,6 +675,8 @@ def test_s3_catalog_pagination_namespace_cache_and_delete(backup_env, s3_client)
             ]
         },
     ]
+    # The fake storage changed after the post-export retention catalog was cached.
+    backups3.invalidate()
     items = ops.list_backups()
     assert len(items) == ops.count_backups() == 1
     assert items[0]["name"] == name and items[0]["storage"] == "s3"

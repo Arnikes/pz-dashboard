@@ -1,0 +1,4 @@
+interface:
+  display_name: "Gauntlet Loop"
+  short_description: "Beat a real quality bar through blind critique"
+  default_prompt: "Use $gauntlet-loop to improve this deliverable against a concrete real-world reference until a fresh blind critic prefers ours."
