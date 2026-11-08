@@ -109,7 +109,17 @@ def test_invalid_configuration_never_creates_client(settings, monkeypatch, field
     monkeypatch.setattr(
         mtproxy, "_create_client", lambda *_: pytest.fail("invalid config connected")
     )
-    assert mtproxy.send_message(settings, "test") == (False, mtproxy._INVALID)
+    ok, error = mtproxy.send_message(settings, "test")
+    assert ok is False
+    expected = {
+        "mtproxyEnabled": "invalid configuration",
+        "mtproxyHost": "proxy host",
+        "mtproxyPort": "proxy port",
+        "apiId": "API ID",
+        "apiHash": "API hash",
+        "mtproxySecret": "FakeTLS secret",
+    }
+    assert error.startswith("Telegram MTProxy:") and expected[field] in error
 
 
 @pytest.mark.parametrize("chat", ["12345", "-12345", "-1001234567890", "@fictional_channel"])
@@ -289,6 +299,7 @@ def test_real_library_factory_routes_complete_ee_secret_to_faketls(settings):
 
     secret = "ee" + "0123456789abcdef" * 2 + "4578616d706c652e434f4d"
     settings["mtproxySecret"] = secret
+    assert mtproxy.validate_settings(settings) is None
 
     async def create():
         return mtproxy._create_client(settings, None)

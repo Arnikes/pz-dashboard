@@ -334,6 +334,11 @@ Use **Test** after saving the configuration. Proxy failures appear in the panel
 event journal and panel container logs, with credentials redacted. Failed proxy
 connections do not send additional Telegram notifications. Incomplete or invalid
 proxy settings fail the test instead of falling back to a direct connection.
+Configuration errors name the proxy host, port, API ID, API hash or secret that
+needs attention. These checks happen before contacting Telegram and do not mean
+the Chat ID is invalid. For FakeTLS, include the complete hex-encoded DNS hostname
+after the secret key. MTProxy test errors omit the unrelated saved Chat ID suffix;
+direct Bot API tests retain it to help diagnose delivery failures.
 
 ## Language and PWA
 

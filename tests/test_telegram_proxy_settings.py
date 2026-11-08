@@ -86,6 +86,7 @@ def test_invalid_saved_proxy_toggle_never_uses_direct_http(tmp_path, monkeypatch
     monkeypatch.setattr(notify.urllib.request, "urlopen", direct)
     assert notify.send_message("event")[0] is False
     assert "mtproxyEnabled" in ops.get_events()[0]["text"]
+    assert "chat id:" not in notify.test_message()[1]
     direct.assert_not_called()
 
 
@@ -192,11 +193,12 @@ def test_saved_raw_secrets_reach_proxy_transport_and_no_http(monkeypatch, secret
 
 
 @pytest.mark.parametrize("secret", [PROXY["mtproxySecret"], FAKETLS_SECRET])
+@pytest.mark.parametrize("raises", [False, True])
 def test_errors_are_redacted_in_process_events_and_state_without_recursion(
-    monkeypatch, caplog, secret
+    monkeypatch, caplog, secret, raises
 ):
     assert ops.patch_settings({"telegram": {**PROXY, "mtproxySecret": secret}}) is None
-    message = " ".join(
+    sensitive = " ".join(
         [
             PROXY["botToken"],
             PROXY["apiHash"].upper(),
@@ -206,7 +208,11 @@ def test_errors_are_redacted_in_process_events_and_state_without_recursion(
             secret[2:34].upper(),
         ]
     )
-    monkeypatch.setattr(telegram_mtproxy, "send_message", Mock(side_effect=OSError(message)))
+    message = "Telegram MTProxy: " + sensitive
+    transport = (
+        Mock(side_effect=OSError(message)) if raises else Mock(return_value=(False, message))
+    )
+    monkeypatch.setattr(telegram_mtproxy, "send_message", transport)
     enqueue = Mock()
     monkeypatch.setattr(notify, "enqueue", enqueue)
     logger = logging.getLogger("pz.events")
@@ -219,7 +225,7 @@ def test_errors_are_redacted_in_process_events_and_state_without_recursion(
         logger.removeHandler(caplog.handler)
     assert ok is False and "•••" in error
     logs = caplog.text + json.dumps(ops.get_events()) + json.dumps(notify.state()) + error
-    for secret in message.split():
+    for secret in sensitive.split():
         assert secret not in logs
     enqueue.assert_not_called()
     assert len(ops.get_events()) == 1
@@ -302,6 +308,119 @@ def test_transport_diagnostics_translate_in_state_and_event_payloads(monkeypatch
     expected = "время ожидания" if language == "ru" else "timed out"
     assert expected in i18n.translate(notify.state()["error"], locale=language)
     assert expected in i18n.translate(ops.get_events()[0]["text"], locale=language)
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+@pytest.mark.parametrize(
+    ("field", "value", "english", "russian"),
+    [
+        (
+            "mtproxyHost",
+            "",
+            "proxy host must be a hostname or IP address",
+            "сервер прокси должен быть именем хоста или IP-адресом",
+        ),
+        (
+            "mtproxyPort",
+            0,
+            "proxy port must be an integer from 1 to 65535",
+            "порт прокси должен быть целым числом от 1 до 65535",
+        ),
+        (
+            "apiId",
+            "",
+            "API ID must be an integer from 1 to 2147483647",
+            "API ID должен быть целым числом от 1 до 2147483647",
+        ),
+        (
+            "apiHash",
+            "fictional-invalid-private-hash",
+            "API hash must contain 32 hexadecimal characters",
+            "API hash должен содержать 32 шестнадцатеричных символа",
+        ),
+        (
+            "mtproxySecret",
+            "fictional-invalid-private-secret",
+            "MTProxy secret must contain 32 hexadecimal characters, dd and 32 hexadecimal "
+            "characters, or ee, 32 hexadecimal characters and a hexadecimal DNS hostname",
+            "секрет MTProxy должен содержать 32 шестнадцатеричных символа, dd и 32 символа "
+            "или ee, 32 символа и DNS-имя в hex",
+        ),
+        (
+            "mtproxySecret",
+            "ee" + "01" * 16,
+            "MTProxy FakeTLS secret must contain a valid hexadecimal DNS hostname of up to 182 bytes",
+            "секрет MTProxy FakeTLS должен содержать допустимое DNS-имя в hex длиной до 182 байт",
+        ),
+        (
+            "apiHash",
+            "a",
+            "API hash must contain 32 hexadecimal characters",
+            "API hash должен содержать 32 шестнадцатеричных символа",
+        ),
+        (
+            "mtproxySecret",
+            "a",
+            "MTProxy secret must contain 32 hexadecimal characters, dd and 32 hexadecimal "
+            "characters, or ee, 32 hexadecimal characters and a hexadecimal DNS hostname",
+            "секрет MTProxy должен содержать 32 шестнадцатеричных символа, dd и 32 символа "
+            "или ee, 32 символа и DNS-имя в hex",
+        ),
+    ],
+    ids=[
+        "host",
+        "port",
+        "api-id",
+        "api-hash",
+        "secret-format",
+        "faketls-domain",
+        "short-api-hash",
+        "short-secret",
+    ],
+)
+def test_proxy_preflight_diagnostics_name_fields_without_chat_context_or_secrets(
+    auth_server, monkeypatch, caplog, language, field, value, english, russian
+):
+    assert ops.patch_settings({"telegram": {**PROXY, "mtproxySecret": FAKETLS_SECRET}}) is None
+    monkeypatch.setitem(ops._SETTINGS["telegram"], field, value)
+    create = Mock(side_effect=AssertionError("preflight connected"))
+    direct = Mock(side_effect=AssertionError("preflight used direct HTTP"))
+    monkeypatch.setattr(telegram_mtproxy, "_create_client", create)
+    monkeypatch.setattr(notify.urllib.request, "urlopen", direct)
+    cookie = sign_in(auth_server)
+    logger = logging.getLogger("pz.events")
+    logger.addHandler(caplog.handler)
+    try:
+        with caplog.at_level(logging.ERROR, logger="pz.events"):
+            status, _, body = request(
+                auth_server,
+                "POST",
+                "/api/notify-test",
+                {},
+                cookie=cookie,
+                headers={"X-PZ-Language": language},
+            )
+    finally:
+        logger.removeHandler(caplog.handler)
+    canonical = "Telegram MTProxy: " + english
+    expected = "Telegram MTProxy: " + (english if language == "en" else russian)
+    assert status == 200 and body["ok"] is False
+    assert body["error"] == expected
+    assert notify.state()["error"] == canonical
+    errors = [event["text"] for event in ops.get_events() if "Telegram MTProxy:" in event["text"]]
+    assert errors == [canonical]
+    assert i18n.translate(canonical, locale=language) == expected
+    diagnostics = json.dumps(body) + json.dumps(notify.state()) + json.dumps(errors) + caplog.text
+    assert "chat id:" not in diagnostics and PROXY["chatId"] not in diagnostics
+    secrets = [PROXY["botToken"], PROXY["apiHash"], FAKETLS_SECRET, FAKETLS_SECRET[2:34]]
+    # Exact-message assertions above also cover short invalid input: a common
+    # letter can occur in authored copy without having been interpolated there.
+    if field in ("apiHash", "mtproxySecret") and len(value) > 1:
+        secrets.append(value)
+    for secret in secrets:
+        assert secret.lower() not in diagnostics.lower()
+    create.assert_not_called()
+    direct.assert_not_called()
 
 
 @pytest.mark.parametrize("language", ["ru", "en"])

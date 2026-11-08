@@ -1581,5 +1581,11 @@
   "32 шестнадцатеричных символа, dd + 32 символа или ee + 32 символа + DNS-имя в hex. Вставьте секрет целиком. Пустое поле сохраняет текущий секрет.": "32 hexadecimal characters, dd + 32 characters, or ee + 32 characters + a DNS hostname in hex. Paste the complete secret. Leave blank to keep the current secret.",
   "MTProxy secret must contain 32 hexadecimal characters, dd and 32 hexadecimal characters, or ee, 32 hexadecimal characters and a hexadecimal DNS hostname": "MTProxy secret must contain 32 hexadecimal characters, dd and 32 hexadecimal characters, or ee, 32 hexadecimal characters and a hexadecimal DNS hostname",
   "MTProxy FakeTLS secret must contain a valid hexadecimal DNS hostname of up to 182 bytes": "MTProxy FakeTLS secret must contain a valid hexadecimal DNS hostname of up to 182 bytes",
-  "telegram.mtproxySecret должен содержать 32 шестнадцатеричных символа, dd и 32 символа или ee, 32 символа и DNS-имя в hex": "telegram.mtproxySecret must contain 32 hexadecimal characters, dd and 32 characters, or ee, 32 characters and a DNS hostname in hex"
+  "telegram.mtproxySecret должен содержать 32 шестнадцатеричных символа, dd и 32 символа или ee, 32 символа и DNS-имя в hex": "telegram.mtproxySecret must contain 32 hexadecimal characters, dd and 32 characters, or ee, 32 characters and a DNS hostname in hex",
+  "Telegram MTProxy: proxy host must be a hostname or IP address": "Telegram MTProxy: proxy host must be a hostname or IP address",
+  "Telegram MTProxy: proxy port must be an integer from 1 to 65535": "Telegram MTProxy: proxy port must be an integer from 1 to 65535",
+  "Telegram MTProxy: API ID must be an integer from 1 to 2147483647": "Telegram MTProxy: API ID must be an integer from 1 to 2147483647",
+  "Telegram MTProxy: API hash must contain 32 hexadecimal characters": "Telegram MTProxy: API hash must contain 32 hexadecimal characters",
+  "Telegram MTProxy: MTProxy secret must contain 32 hexadecimal characters, dd and 32 hexadecimal characters, or ee, 32 hexadecimal characters and a hexadecimal DNS hostname": "Telegram MTProxy: MTProxy secret must contain 32 hexadecimal characters, dd and 32 hexadecimal characters, or ee, 32 hexadecimal characters and a hexadecimal DNS hostname",
+  "Telegram MTProxy: MTProxy FakeTLS secret must contain a valid hexadecimal DNS hostname of up to 182 bytes": "Telegram MTProxy: MTProxy FakeTLS secret must contain a valid hexadecimal DNS hostname of up to 182 bytes"
 }

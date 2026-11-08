@@ -85,10 +85,13 @@ def _safe_error(error, settings):
     return error[:1000]
 
 
-def _proxy_failure(settings, error):
+def _proxy_failure(settings, error, *, safe_errors=()):
     import ops  # noqa: PLC0415 — avoid the operations/notifications import cycle
 
-    error = _safe_error(error, settings)
+    # Only an opted-in exact authored message can bypass content redaction.
+    # Exception callers never provide this set, even for a matching message.
+    if type(error) is not str or error not in safe_errors:
+        error = _safe_error(error, settings)
     if not error.startswith("Telegram MTProxy:"):
         error = "Telegram MTProxy: " + error
     ops.log_event("error", error, notify=False)
@@ -229,7 +232,11 @@ def send_message(text):
             ok, error = telegram_mtproxy.send_message(tg, text[:3500])
         except Exception as error:  # noqa: BLE001 — notifications must not kill their worker
             return _proxy_failure(tg, error)
-        return (True, None) if ok else _proxy_failure(tg, error or "ошибка отправки")
+        if ok:
+            return True, None
+        return _proxy_failure(
+            tg, error or "ошибка отправки", safe_errors=telegram_mtproxy.CONFIGURATION_ERRORS
+        )
     token = (tg.get("botToken") or "").strip()
     chat = (tg.get("chatId") or "").strip()
     if not token or not chat:
@@ -245,8 +252,7 @@ def send_message(text):
 
 
 def test_message():
-    """Кнопка «Проверить» в карточке уведомлений. При ошибке добавляет к тексту
-    сохранённый chat id — чтобы сразу видеть, что реально лежит в настройках."""
+    """Test notification; retain saved-chat context only for the direct Bot API."""
     tg = _telegram_settings()
     ok, err = send_message(
         i18n.translate(
@@ -259,7 +265,7 @@ def test_message():
     if not ok:
         err = i18n.translate(err)
         chat = (tg.get("chatId") or "").strip()
-        if chat:
+        if chat and tg.get("mtproxyEnabled", False) is False:
             err = f"{err} · chat id: {chat}"
     return ok, err
 

@@ -8,7 +8,7 @@ import threading
 import time
 import warnings
 
-from telegram_proxy_secret import parse_secret
+from telegram_proxy_secret import FAKETLS_DOMAIN_ERROR, SECRET_FORMAT_ERROR, parse_secret
 
 OPERATION_TIMEOUT = 15.0
 _CLEANUP_TIMEOUT = 1.0
@@ -17,6 +17,24 @@ _SESSION = None
 _SESSION_KEY = None
 
 _INVALID = "Telegram MTProxy: invalid configuration"
+_INVALID_HOST = "Telegram MTProxy: proxy host must be a hostname or IP address"
+_INVALID_PORT = "Telegram MTProxy: proxy port must be an integer from 1 to 65535"
+_INVALID_API_ID = "Telegram MTProxy: API ID must be an integer from 1 to 2147483647"
+_INVALID_API_HASH = "Telegram MTProxy: API hash must contain 32 hexadecimal characters"
+_INVALID_SECRET = "Telegram MTProxy: " + SECRET_FORMAT_ERROR
+_INVALID_FAKETLS = "Telegram MTProxy: " + FAKETLS_DOMAIN_ERROR
+# These authored diagnostics contain no supplied values, including invalid secrets.
+CONFIGURATION_ERRORS = frozenset(
+    {
+        _INVALID,
+        _INVALID_HOST,
+        _INVALID_PORT,
+        _INVALID_API_ID,
+        _INVALID_API_HASH,
+        _INVALID_SECRET,
+        _INVALID_FAKETLS,
+    }
+)
 _MISSING = "Telegram MTProxy: bot token or chat ID is missing"
 _TIMEOUT = "Telegram MTProxy: connection timed out"
 _FAILED = "Telegram MTProxy: connection failed"
@@ -60,20 +78,24 @@ def validate_settings(settings):
     if not isinstance(settings, dict) or settings.get("mtproxyEnabled") is not True:
         return _INVALID
     if not _valid_host(settings.get("mtproxyHost")):
-        return _INVALID
-    for key, maximum in (("mtproxyPort", 65535), ("apiId", 2147483647)):
+        return _INVALID_HOST
+    for key, maximum, error in (
+        ("mtproxyPort", 65535, _INVALID_PORT),
+        ("apiId", 2147483647, _INVALID_API_ID),
+    ):
         value = settings.get(key)
         if isinstance(value, str) and len(value) <= 10 and re.fullmatch(r"[0-9]+", value):
             value = int(value)
         if type(value) is not int or not 1 <= value <= maximum:
-            return _INVALID
+            return error
     api_hash = settings.get("apiHash")
     if not isinstance(api_hash, str) or not re.fullmatch(r"[0-9a-fA-F]{32}", api_hash):
-        return _INVALID
+        return _INVALID_API_HASH
     try:
         normalize_secret(settings.get("mtproxySecret"))
-    except ValueError:
-        return _INVALID
+    except ValueError as error:
+        # Return only known parser diagnostics, never an arbitrary exception text.
+        return _INVALID_FAKETLS if str(error) == FAKETLS_DOMAIN_ERROR else _INVALID_SECRET
     return None
 
 
