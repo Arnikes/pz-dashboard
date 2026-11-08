@@ -7,6 +7,7 @@
 
 import re
 import json
+import math
 import posixpath
 import queue
 import subprocess
@@ -388,12 +389,12 @@ def container_startup_version(name, started_at, timeout=15):
     return None
 
 
-def parse_bytes(raw):
-    """'1.2kB', '123MiB', '1.9GiB' → байты."""
+def _parse_bytes(raw):
+    """Parse a size strictly so missing metrics cannot masquerade as zero."""
     raw = (raw or "").strip()
     m = SIZE_RE.match(raw)
     if not m:
-        return 0
+        raise ValueError("Invalid Docker size")
     num = float(m.group(1))
     unit = m.group(2)
     iec = m.group(3) == "i"
@@ -402,6 +403,14 @@ def parse_bytes(raw):
     if iec:
         return int(num * {"k": 1024, "m": 1024**2, "g": 1024**3}[unit.lower()])
     return int(num * {"k": 1e3, "m": 1e6, "g": 1e9}[unit.lower()])
+
+
+def parse_bytes(raw):
+    """'1.2kB', '123MiB', '1.9GiB' → байты; неизвестный размер → 0."""
+    try:
+        return _parse_bytes(raw)
+    except (ValueError, OverflowError):
+        return 0
 
 
 def container_stats(name):
@@ -423,16 +432,19 @@ def container_stats(name):
         cpu, mem_usage, mem_pct, net_io, pids = out.split("|")
         mem_used_raw, mem_limit_raw = [x.strip() for x in mem_usage.split("/")]
         net_in_raw, net_out_raw = [x.strip() for x in net_io.split("/")]
-        return {
-            "cpuPct": float(cpu.replace("%", "") or 0),
-            "memUsed": parse_bytes(mem_used_raw),
-            "memLimit": parse_bytes(mem_limit_raw),
-            "memPct": float(mem_pct.replace("%", "") or 0),
-            "netIn": parse_bytes(net_in_raw),
-            "netOut": parse_bytes(net_out_raw),
-            "pids": int(pids or 0),
+        stats = {
+            "cpuPct": float(cpu.strip().removesuffix("%")),
+            "memUsed": _parse_bytes(mem_used_raw),
+            "memLimit": _parse_bytes(mem_limit_raw),
+            "memPct": float(mem_pct.strip().removesuffix("%")),
+            "netIn": _parse_bytes(net_in_raw),
+            "netOut": _parse_bytes(net_out_raw),
+            "pids": int(pids),
         }
-    except (ValueError, IndexError):
+        if any(value < 0 or not math.isfinite(value) for value in stats.values()):
+            return None
+        return stats
+    except (ValueError, IndexError, OverflowError):
         return None
 
 

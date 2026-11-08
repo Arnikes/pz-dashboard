@@ -44,7 +44,7 @@ def parse_translations(text, json_format=False):
     if json_format:
         try:
             values = json.loads(text)
-        except ValueError:
+        except (ValueError, RecursionError):
             return {}
         if not isinstance(values, dict):
             return {}
@@ -123,7 +123,7 @@ def vanilla_translations(version, allow_container=False):
             stored = json.loads(cache_path.read_text(encoding="utf-8"))
             if isinstance(stored, dict):
                 result = {k: v for k, v in stored.items() if isinstance(v, str)}
-        except (ValueError, OSError):
+        except (ValueError, OSError, RecursionError):
             pass
     with _LOCK:
         _store_cache(_TRANSLATIONS, key, result, 300)
@@ -430,6 +430,72 @@ def download_manifest(items):
     }
 
 
+def _valid_cached_index(index, items):
+    """Accept discovery records only after checking all downstream containers."""
+    if not isinstance(index, dict) or set(index) != set(items):
+        return False
+
+    def strings(value):
+        return isinstance(value, list) and all(isinstance(item, str) for item in value)
+
+    for wid, records in index.items():
+        if not isinstance(records, list):
+            return False
+        for rec in records:
+            if (
+                not isinstance(rec, dict)
+                or rec.get("workshopId") != wid
+                or not isinstance(rec.get("modId"), str)
+            ):
+                return False
+            if any(
+                field in rec and not isinstance(rec[field], str)
+                for field in ("name", "folder", "path", "branch")
+            ):
+                return False
+            # The editor also reads optional maps/options from missing-id records.
+            if "maps" in rec and not strings(rec["maps"]):
+                return False
+            if "options" in rec and not isinstance(rec["options"], list):
+                return False
+            for option in rec.get("options", []):
+                if (
+                    not isinstance(option, dict)
+                    or not isinstance(option.get("key"), str)
+                    or not option["key"]
+                    or not isinstance(option.get("type"), str)
+                ):
+                    return False
+                if "choices" in option and (
+                    not isinstance(option["choices"], list)
+                    or any(
+                        not isinstance(choice, dict) or "value" not in choice
+                        for choice in option["choices"]
+                    )
+                ):
+                    return False
+            if rec.get("error"):
+                # Missing-id records intentionally have no dependency/options data.
+                if not isinstance(rec["error"], str) or rec["modId"]:
+                    return False
+                continue
+            if (
+                not rec["modId"]
+                or any(
+                    not strings(rec.get(field))
+                    for field in ("require", "incompatible", "after", "before", "maps")
+                )
+                or any(
+                    not isinstance(rec.get(field), str) for field in ("versionMin", "versionMax")
+                )
+                or not isinstance(rec.get("options"), list)
+                or rec.get("compatible") is not None
+                and not isinstance(rec["compatible"], bool)
+            ):
+                return False
+    return True
+
+
 def scan(items, version, refresh=False):
     items = list(dict.fromkeys(str(i) for i in items if str(i).isdigit()))
     key = (
@@ -460,11 +526,13 @@ def scan(items, version, refresh=False):
             pass
     elif cache_path.is_file():
         try:
-            index = json.loads(cache_path.read_text(encoding="utf-8"))
-            for records in index.values():
-                for rec in records:
-                    rec["metadataStale"] = True
-        except (ValueError, OSError):
+            candidate = json.loads(cache_path.read_text(encoding="utf-8"))
+            if _valid_cached_index(candidate, items):
+                for records in candidate.values():
+                    for rec in records:
+                        rec["metadataStale"] = True
+                index = candidate
+        except (ValueError, OSError, RecursionError):
             pass
     with _LOCK:
         _store_cache(_CACHE, key, index, 120)
@@ -636,7 +704,13 @@ def steam_call(method, ids):
         data=urllib.parse.urlencode(params).encode(),
     )
     with urllib.request.urlopen(req, timeout=15) as response:
-        return json.loads(response.read(2_000_000)).get("response", {})
+        try:
+            envelope = json.loads(response.read(2_000_000))
+        except (ValueError, RecursionError):
+            raise ValueError("Steam вернул некорректные метаданные item") from None
+    if not isinstance(envelope, dict) or not isinstance(envelope.get("response"), dict):
+        raise ValueError("Steam вернул некорректные метаданные item")
+    return envelope["response"]
 
 
 def _steam_records(method, ids, key):

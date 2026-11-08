@@ -248,3 +248,64 @@ follow-up: the two operations intentionally translate different service scopes.
 Broad decomposition of `ops.py` and `configeditor.py` is deferred because their
 locks, callbacks, and operation-admission contracts need a separate focused change.
 Game-container logs and the bilingual interface retain their existing behavior.
+
+## Input boundary sanitation — November 8, 2026
+
+Graphify navigation and an independent source audit identified three groups of
+malformed inputs that escaped existing error handling. The implementation scope
+was reviewed before changes. Fixtures use temporary files and synthetic external
+responses; no live Docker, Steam, or notification service is required.
+
+- Deep JSON in settings, event records, the backup journal, and player history
+  raised `RecursionError` instead of following their damaged-input fallbacks.
+  Those four readers now handle the decoder error at their existing boundaries.
+  Settings still normalize defaults and bootstrap values; journal readers retain
+  surrounding valid records, ordering, limits, and pagination. Player history can
+  accept and persist new samples after recovery. Configuration-editor drafts and
+  transactional recovery files retain their stricter error handling.
+- Workshop resolution requires object-shaped Steam response envelopes. Optional
+  translation JSON and offline metadata caches are validated before use, so a
+  malformed cache cannot replace the freshly collected index. Valid offline
+  metadata retains its stale-data warning and language-specific translations.
+  Review also confirmed that the editor reads optional maps and options from
+  missing-ID records; their present fields are validated before accepting a cache.
+- Docker telemetry requires finite, non-negative values. Overflowing byte counts
+  and non-finite percentages use the existing unavailable-stats response and
+  stay out of history. Valid SI/IEC sizes, zero values, and CPU percentages above
+  100 on multicore hosts remain supported.
+
+### Baseline validation
+
+The clean baseline used Python 3.12.10 from the checkout's `.venv` and Node.js
+24.21.0. All installed dependency versions match the pinned requirements.
+`python scripts/check.py` passed dependency consistency, repository-wide lint and
+format checks, generated catalogs, all JavaScript syntax checks, and **2,275 tests
+passed, 7 skipped**, including Chromium scenarios. The test suite took 768.28
+seconds.
+
+### Focused regression checks
+
+The four new persistence regressions reproduced `RecursionError` before the fix;
+their related backend suite passed **180 tests, 1 skipped** afterward. Docker
+boundary checks passed **46 tests**, including unavailable-stats responses and
+history isolation. The Workshop suite passed **313 tests**. Its first 24 new
+cases reproduced 22 original failures and retained two existing-behavior
+controls; four additional malformed missing-ID cases failed before the review
+correction, and a valid missing-ID control passed. These checks exercise
+malformed inputs alongside valid zero, multicore CPU, bilingual translations,
+and offline metadata recovery.
+
+### Final validation
+
+After the final Python edit and implementation review, repository-wide
+`ruff format .`, `ruff check .`, and `ruff format --check .` passed without
+additional formatting changes. `graphify update .` refreshed the local AST graph
+without model API calls: **2,906 nodes, 5,821 edges, 180 communities**. Unsupported
+formats and the zero-node extraction for `pyproject.toml` remain Graphify limits;
+ordinary repository checks still cover those files.
+
+The final `python scripts/check.py` passed dependency consistency, Ruff,
+generated translation catalogs, every JavaScript syntax check, and **2,349 tests
+passed, 7 skipped**, including Chromium scenarios, in 724.27 seconds. Its JUnit
+report is in `test-results/check-akt8s15d/results.xml`. Only this audit record was
+updated after that successful gate. `git diff --check` passed afterward.

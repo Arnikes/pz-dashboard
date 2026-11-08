@@ -165,7 +165,7 @@ def _load_events():
                     entry = json.loads(line)
                     if isinstance(entry, dict):
                         _EV_MEM.append(entry)
-                except ValueError:
+                except (ValueError, RecursionError):
                     pass
         except OSError:
             pass
@@ -207,7 +207,7 @@ def _load_settings():
         if not isinstance(data, dict):
             raise ValueError("Настройки должны быть объектом")
         settingsmodel.merge_loaded(_SETTINGS, data)
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):
         pass
     settingsmodel.normalize_loaded(_SETTINGS)
 
@@ -1194,7 +1194,7 @@ def get_backup_journal(limit=50, offset=0):
             for line in _reverse_lines(_journal_path()):
                 try:
                     entry = json.loads(line)
-                except ValueError:
+                except (ValueError, RecursionError):
                     continue
                 if skipped < offset:
                     skipped += 1
@@ -2358,7 +2358,7 @@ def _ph_load():
                 if isinstance(data, list)
                 else []
             )
-        except (OSError, ValueError):
+        except (OSError, ValueError, RecursionError):
             _PH = []
     return _PH
 
