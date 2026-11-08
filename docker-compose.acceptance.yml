@@ -48,6 +48,7 @@ services:
       PZ_ADMIN_LOGIN: acceptance-panel-admin
       PZ_ADMIN_PASSWORD: ${ACCEPTANCE_PANEL_PASSWORD:?Set a separate panel password}
       PZ_AUTH_KEY: ${ACCEPTANCE_AUTH_KEY:?Set a separate panel Fernet key}
+      PZ_LOG_LEVEL: ${PZ_LOG_LEVEL:-INFO}
       PZ_CONTAINER: pz-console-acceptance-server
       PZ_SERVICE: acceptance-server
       PZ_IMAGE: indifferentbroccoli/projectzomboid-server-docker:latest

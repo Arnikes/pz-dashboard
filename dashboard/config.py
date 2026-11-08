@@ -70,6 +70,7 @@ CFG = {
     "dashboard_dir": os.getenv("DASHBOARD_DIR", "/dashboard-data"),
     "server_name": os.getenv("PZ_SERVER_NAME", "Project Zomboid"),
     "log_lines": _int("LOG_LINES", 250),
+    "log_level": os.getenv("PZ_LOG_LEVEL", "INFO"),
 }
 
 CFG["events_file"] = os.path.join(CFG["dashboard_dir"], "events.jsonl")

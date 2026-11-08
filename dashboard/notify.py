@@ -8,7 +8,6 @@
 """
 
 import json
-import logging
 import queue
 import threading
 import time
@@ -56,7 +55,7 @@ KIND_ICON = {
 _QUEUE = queue.Queue(maxsize=50)
 _LAST = {"at": None, "ok": None, "error": None}
 _LOCK = threading.Lock()
-_LOGGER = logging.getLogger(__name__)
+_API_RESPONSE_LIMIT = 2 * 1024 * 1024
 
 
 def _safe_error(error, settings):
@@ -92,9 +91,43 @@ def _proxy_failure(settings, error):
     error = _safe_error(error, settings)
     if not error.startswith("Telegram MTProxy:"):
         error = "Telegram MTProxy: " + error
-    _LOGGER.error("%s", error)
     ops.log_event("error", error, notify=False)
     return False, error
+
+
+def _read_bot_response(response):
+    """Bound external responses and require the Bot API's object envelope."""
+    raw = response.read(_API_RESPONSE_LIMIT + 1)
+    if len(raw) > _API_RESPONSE_LIMIT:
+        raise ValueError("Telegram вернул ошибку")
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (ValueError, UnicodeError, RecursionError):
+        raise ValueError("Telegram вернул ошибку") from None
+    if not isinstance(payload, dict):
+        raise ValueError("Telegram вернул ошибку")
+    return payload
+
+
+def _bot_api_request(request, settings):
+    """Share direct Bot API decoding and redact every diagnostic path."""
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            payload = _read_bot_response(response)
+    except urllib.error.HTTPError as error:
+        description = ""
+        try:
+            with error:
+                payload = _read_bot_response(error)
+            description = str(payload.get("description") or "").strip()
+        except Exception:  # noqa: BLE001 — an error response may be empty or unreadable
+            pass
+        return None, _safe_error(description or error, settings)
+    except Exception as error:  # noqa: BLE001 — delivery failures must not kill the worker
+        return None, _safe_error(error, settings)
+    if not payload.get("ok"):
+        return None, _safe_error(payload.get("description") or "Telegram вернул ошибку", settings)
+    return payload, None
 
 
 def state():
@@ -153,22 +186,16 @@ def fetch_recent_chats():
     if not token:
         return None, "не задан токен бота"
     req = urllib.request.Request(f"https://api.telegram.org/bot{token}/getUpdates?limit=100")
-    try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        try:
-            body = json.loads(e.read().decode("utf-8", "replace"))
-            desc = str(body.get("description") or "").strip()
-        except Exception:  # noqa: BLE001 — тело может быть пустым/не-json
-            desc = ""
-        return None, (desc or str(e)).replace(token, "•••" + token[-4:])
-    except Exception as e:  # noqa: BLE001
-        return None, str(e).replace(token, "•••" + token[-4:])
-    if not payload.get("ok"):
-        return None, str(payload.get("description") or "Telegram вернул ошибку")
+    payload, error = _bot_api_request(req, tg)
+    if error:
+        return None, error
+    updates = payload.get("result") or []
+    if not isinstance(updates, list):
+        return None, "Telegram вернул ошибку"
     chats = {}
-    for upd in payload.get("result") or []:
+    for upd in updates:
+        if not isinstance(upd, dict):
+            continue
         chat = None
         for key in (
             "message",
@@ -207,32 +234,14 @@ def send_message(text):
     chat = (tg.get("chatId") or "").strip()
     if not token or not chat:
         return False, "не задан токен бота или chat id"
-    try:
-        body = json.dumps({"chat_id": chat, "text": text[:3500]}).encode("utf-8")
-        req = urllib.request.Request(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            data=body,
-            headers={"Content-Type": "application/json"},
-        )
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
-        if payload.get("ok"):
-            return True, None
-        return False, str(payload.get("description") or "Telegram вернул ошибку")
-    except urllib.error.HTTPError as e:
-        # в теле ответа Telegram пишет настоящую причину («Bad Request: chat not
-        # found» и т.п.), а str(e) — безликое «HTTP Error 400: Bad Request»
-        try:
-            payload = json.loads(e.read().decode("utf-8", "replace"))
-            desc = str(payload.get("description") or "").strip()
-        except Exception:  # noqa: BLE001 — тело может быть пустым/не-json
-            desc = ""
-        err = desc or str(e)
-        return False, err.replace(token, "•••" + token[-4:])
-    except Exception as e:  # noqa: BLE001 — наружу отдаём текст ошибки
-        # текст ошибки может содержать полный URL запроса — маскируем токен
-        err = str(e).replace(token, "•••" + token[-4:])
-        return False, err or "ошибка отправки"
+    body = json.dumps({"chat_id": chat, "text": text[:3500]}).encode("utf-8")
+    req = urllib.request.Request(
+        f"https://api.telegram.org/bot{token}/sendMessage",
+        data=body,
+        headers={"Content-Type": "application/json"},
+    )
+    _, error = _bot_api_request(req, tg)
+    return error is None, error
 
 
 def test_message():

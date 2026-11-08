@@ -2,6 +2,7 @@
 """HTTP-сервер пульта PZ: авторизация, статика и JSON API."""
 
 import json
+import logging
 from datetime import datetime
 import mimetypes
 import os
@@ -12,13 +13,14 @@ import tempfile
 import threading
 import time
 import urllib.parse
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer as _ThreadingHTTPServer
 
 import actions
 import auth
 import config
 import configeditor
 import i18n
+import logging_utils
 from configformats import FormatError
 import dashboardupdate
 import dockerlib
@@ -30,6 +32,15 @@ import rcon
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 _STREAM_CACHE_LOCK = threading.Lock()
+
+
+class ThreadingHTTPServer(_ThreadingHTTPServer):
+    """Keep uncaught request failures in the same safe process log as the app."""
+
+    def handle_error(self, request, client_address):
+        logging_utils.get_logger("http").error(
+            "Unhandled request failure (%s)", sys.exception().__class__.__name__
+        )
 
 
 def _read_json(handler):
@@ -281,8 +292,38 @@ class Handler(BaseHTTPRequestHandler):
                 # Headers have already been sent; close an interrupted download.
                 self.close_connection = True
 
-    def log_message(self, fmt, *args):  # тише в логах
-        sys.stderr.write("[http] %s\n" % (fmt % args))
+    def log_request(self, code="-", size="-"):
+        # send_response calls this once, including send_error responses. Never
+        # format the base handler's request line or arbitrary diagnostic strings.
+        if isinstance(code, int) and code < 200:
+            return
+        level = (
+            "ERROR"
+            if isinstance(code, int) and code >= 500
+            else ("WARNING" if isinstance(code, int) and code >= 400 else "DEBUG")
+        )
+        method = getattr(self, "command", "")
+        if method not in {
+            "GET",
+            "HEAD",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE",
+            "OPTIONS",
+            "CONNECT",
+            "TRACE",
+        }:
+            method = "UNKNOWN"
+        logging_utils.get_logger("http").log(getattr(logging, level), "HTTP %s %s", method, code)
+
+    def log_message(self, fmt, *args):
+        # BaseHTTPRequestHandler diagnostics can contain raw input or secrets.
+        # The final response status is logged by log_request instead.
+        pass
+
+    def log_error(self, fmt, *args):
+        pass
 
     def handle_one_request(self):
         # браузер может резко сбросить keep-alive при закрытии вкладки —
@@ -676,10 +717,14 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     cfg = config.CFG
+    logging_utils.configure()
     try:
         manager = auth.Auth.from_env()
-    except auth.AuthError as error:
-        raise SystemExit(f"Ошибка авторизации: {error}") from None
+    except auth.AuthError:
+        logging_utils.get_logger("startup").critical(
+            "Administrator authentication configuration is invalid; check PZ_ADMIN_* and PZ_AUTH_* settings"
+        )
+        raise SystemExit(1) from None
     os.makedirs(cfg["backup_dir"], exist_ok=True)
     os.makedirs(cfg["dashboard_dir"], exist_ok=True)
     ops._load_settings()
@@ -692,9 +737,14 @@ def main():
             "docker",
             "Docker недоступен — пульт в удалённом режиме: активны RCON-консоль, "
             "игроки и сохранение мира; контейнер, бэкапы и обновление — при запуске на хосте сервера",
+            level="WARNING",
         )
     elif not compose_ok:
-        ops.log_event("docker", "Плагин docker compose не найден — автообновление не сработает")
+        ops.log_event(
+            "docker",
+            "Плагин docker compose не найден — автообновление не сработает",
+            level="WARNING",
+        )
 
     ops.start_scheduler()
     ops.start_watchdog()
@@ -748,9 +798,11 @@ def main():
     server = ThreadingHTTPServer(("0.0.0.0", cfg["port"]), Handler)
     server.auth = manager
     server.daemon_threads = True
-    print(
-        f"PZ Dashboard: http://0.0.0.0:{cfg['port']}  "
-        f"docker={'ok' if docker_ok else 'FAIL'} compose={'ok' if compose_ok else 'FAIL'}"
+    logging_utils.get_logger("startup").info(
+        "PZ Dashboard listening on port %s; docker=%s compose=%s",
+        cfg["port"],
+        "ok" if docker_ok else "unavailable",
+        "ok" if compose_ok else "unavailable",
     )
     server.serve_forever()
 

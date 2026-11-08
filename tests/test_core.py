@@ -910,7 +910,7 @@ def test_telegram_send_and_test(monkeypatch):
         def __exit__(self, *a):
             return False
 
-        def read(self):
+        def read(self, size=-1):
             return json.dumps({"ok": True, "result": {}}).encode()
 
     def fake_urlopen(req, timeout=10):
@@ -948,7 +948,7 @@ def test_telegram_send_uses_saved_token_not_mask(monkeypatch):
         def __exit__(self, *a):
             return False
 
-        def read(self):
+        def read(self, size=-1):
             return json.dumps({"ok": True}).encode()
 
     def fake_urlopen(req, timeout=10):
@@ -1300,7 +1300,7 @@ def test_notify_fetch_recent_chats(monkeypatch):
         def __exit__(self, *a):
             return False
 
-        def read(self):
+        def read(self, size=-1):
             return json.dumps(self._p).encode()
 
     updates = [

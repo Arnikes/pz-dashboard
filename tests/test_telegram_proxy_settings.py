@@ -2,6 +2,7 @@
 
 import json
 import logging
+import urllib.parse
 from collections import deque
 from copy import deepcopy
 from unittest.mock import Mock
@@ -10,6 +11,7 @@ import pytest
 
 import config
 import i18n
+import logging_utils
 import notify
 import ops
 import settingsmodel
@@ -207,14 +209,54 @@ def test_errors_are_redacted_in_process_events_and_state_without_recursion(
     monkeypatch.setattr(telegram_mtproxy, "send_message", Mock(side_effect=OSError(message)))
     enqueue = Mock()
     monkeypatch.setattr(notify, "enqueue", enqueue)
-    with caplog.at_level(logging.ERROR, logger="notify"):
-        ok, error = notify.test_message()
+    logger = logging.getLogger("pz.events")
+    monkeypatch.setattr(logger, "propagate", False)
+    logger.addHandler(caplog.handler)
+    try:
+        with caplog.at_level(logging.ERROR, logger="pz.events"):
+            ok, error = notify.test_message()
+    finally:
+        logger.removeHandler(caplog.handler)
     assert ok is False and "•••" in error
     logs = caplog.text + json.dumps(ops.get_events()) + json.dumps(notify.state()) + error
     for secret in message.split():
         assert secret not in logs
     enqueue.assert_not_called()
     assert len(ops.get_events()) == 1
+    records = [record for record in caplog.records if record.name == "pz.events"]
+    assert len(records) == 1
+    assert records[0].levelno == logging.ERROR
+
+
+def test_proxy_failure_emits_once_through_reconfigured_process_handler(monkeypatch, capsys):
+    assert ops.patch_settings({"telegram": PROXY}) is None
+    message = "failure\n" + urllib.parse.quote(PROXY["botToken"], safe="")
+    monkeypatch.setattr(telegram_mtproxy, "send_message", Mock(side_effect=OSError(message)))
+    enqueue = Mock()
+    monkeypatch.setattr(notify, "enqueue", enqueue)
+    logger = logging.getLogger("pz")
+    handlers, level, propagate = logger.handlers, logger.level, logger.propagate
+    try:
+        logger.handlers = []
+        logger.propagate = False
+        logging_utils.configure("DEBUG")
+        logging_utils.configure("DEBUG")
+        assert notify.send_message("event")[0] is False
+        output = capsys.readouterr().err.splitlines()
+        assert len(output) == 1
+        assert "ERROR pz.events" in output[0] and "•••" in output[0]
+        assert "\\x0a" in output[0]
+        assert PROXY["botToken"] not in output[0]
+        assert urllib.parse.quote(PROXY["botToken"], safe="") not in output[0]
+        assert len(ops.get_events()) == 1
+        enqueue.assert_not_called()
+    finally:
+        for handler in logger.handlers:
+            if handler not in handlers:
+                handler.close()
+        logger.handlers = handlers
+        logger.setLevel(level)
+        logger.propagate = propagate
 
 
 def test_invalid_env_faketls_domain_fails_closed_and_redacts_extracted_key(monkeypatch):

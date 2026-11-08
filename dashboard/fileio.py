@@ -1,9 +1,18 @@
 """Atomic file replacement with bounded retries for Windows sharing failures."""
 
 import os
+import json
 import tempfile
 import time
 from pathlib import Path
+
+
+def append_jsonl(path, record):
+    """Append one UTF-8 record; callers own locking and error handling."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
 def replace(source, target):

@@ -2,6 +2,7 @@
 """Panel events, settings, server operations, backups and schedulers."""
 
 import json
+import logging
 import gzip
 import math
 import os
@@ -27,6 +28,7 @@ import config
 import i18n
 import fileio
 import settingsmodel
+import logging_utils
 import backups3
 import backupverify
 from settingsmodel import DEFAULTS as _DEFAULTS
@@ -110,20 +112,25 @@ _EVENT_TYPES = {
 }
 
 
-def log_event(kind, text, detail=None, notify=True):
+def log_event(kind, text, detail=None, notify=True, *, level=None):
     kind = kind if kind in _EVENT_TYPES else "error"
-    rec = {"ts": now_iso(), "type": kind, "text": text}
+    severity = logging_utils.event_level(kind, level)
+    rec = {"ts": now_iso(), "type": kind, "text": text, "level": severity}
     if detail:
         rec["detail"] = str(detail)[:400]
     with _EV_LOCK:
         _load_events()
         _EV_MEM.appendleft(rec)
         try:
-            os.makedirs(os.path.dirname(config.CFG["events_file"]), exist_ok=True)
-            with open(config.CFG["events_file"], "a", encoding="utf-8") as f:
-                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-        except OSError:
-            pass  # события в памяти всё равно работают
+            fileio.append_jsonl(config.CFG["events_file"], rec)
+        except OSError as error:
+            logging_utils.get_logger("events").warning(
+                "Event persistence unavailable (%s)", type(error).__name__
+            )
+    # Commands can contain player/admin credentials. Their existing journal
+    # contract is preserved, while process logs receive only a fixed summary.
+    message = "Console command submitted" if kind == "console" else text
+    logging_utils.get_logger("events").log(getattr(logging, severity), "[%s] %s", kind, message)
     if notify:
         try:
             notifylib.enqueue(kind, text)
@@ -968,7 +975,7 @@ def check_update(force_event=False):
     _LAST_CHECK.update(result)
     if force_event:
         if result["error"]:
-            log_event("update-check", "Проверка обновлений: " + result["error"])
+            log_event("update-check", "Проверка обновлений: " + result["error"], level="ERROR")
         elif result["available"]:
             log_event("update", "Доступно обновление образа " + image)
     return dict(result)
@@ -1169,11 +1176,11 @@ def _journal_append(entry):
     rec.update({k: entry[k] for k in _BJ_FIELDS if k in entry})
     with _BJ_LOCK:
         try:
-            os.makedirs(os.path.dirname(_journal_path()), exist_ok=True)
-            with open(_journal_path(), "a", encoding="utf-8") as f:
-                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-        except OSError:
-            pass
+            fileio.append_jsonl(_journal_path(), rec)
+        except OSError as error:
+            logging_utils.get_logger("backups").warning(
+                "Backup journal persistence unavailable (%s)", type(error).__name__
+            )
 
 
 def get_backup_journal(limit=50, offset=0):

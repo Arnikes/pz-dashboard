@@ -1,12 +1,31 @@
 """Atomic publication must preserve existing data and clean failed temporary files."""
 
 import os
+import json
 from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
 
 import fileio
+
+
+def test_append_jsonl_creates_parent_and_preserves_unicode_and_order(tmp_path):
+    path = tmp_path / "nested" / "journal.jsonl"
+    records = [{"text": "Привет\nмир"}, {"text": "next", "level": "INFO"}]
+    for record in records:
+        fileio.append_jsonl(path, record)
+    raw = path.read_text(encoding="utf-8")
+    assert "Привет" in raw and len(raw.splitlines()) == 2
+    assert [json.loads(line) for line in raw.splitlines()] == records
+
+
+def test_append_jsonl_reports_filesystem_failure_to_caller(tmp_path):
+    parent = tmp_path / "not-directory"
+    parent.write_text("original", encoding="utf-8")
+    with pytest.raises(OSError):
+        fileio.append_jsonl(parent / "journal.jsonl", {"text": "event"})
+    assert parent.read_text(encoding="utf-8") == "original"
 
 
 def test_atomic_write_publishes_closed_synced_sibling(tmp_path, monkeypatch):

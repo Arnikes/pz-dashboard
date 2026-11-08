@@ -189,6 +189,11 @@ last up to 12 hours; “Remember me” retains a revocable session for 30 days. 
 including drafts, history, settings, and saved sessions, belongs in `dashboard-data`.
 Offline PWA mode shows a reconnect page; server operations require a connection.
 
+Panel process logs use `PZ_LOG_LEVEL=INFO` by default. Set `DEBUG` for HTTP access
+diagnostics, or `WARNING`, `ERROR`, or `CRITICAL` for quieter output. The persistent
+Events journal and Telegram subscriptions remain independent of this threshold.
+See [logging configuration](docs/installation.md#process-logging).
+
 Automated checks use isolated fixtures. A separate B42 server acceptance run has covered
 real startup, RCON, configuration verification, and Workshop workflows; in-game effects of
 Sandbox changes remain outside that validation. See the [acceptance record](docs/acceptance-b42.md).

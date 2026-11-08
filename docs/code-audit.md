@@ -207,3 +207,44 @@ The final `python scripts/check.py` passed dependency consistency, repository-wi
 lint/format, generated translation catalogs, every JavaScript syntax check and
 **1,750 tests passed, 5 skipped**, including Chromium browser scenarios. The full
 test run took 610.63 seconds. `git diff --check` also passed after the report update.
+
+## Logging and DRY review — November 8, 2026
+
+Graphify queries guided a review of the HTTP entry point, operation dispatch,
+configuration boundaries, event and backup journals, and notification delivery.
+The initial checkout was clean on `main` at `70bf081`. Python 3.12.10 from the
+checkout's virtual environment and Node.js 24.21.0 match the project requirements.
+
+### Findings and changes
+
+- Startup output, HTTP diagnostics, event recording, and notification failures
+  previously used separate output mechanisms. `logging_utils` now owns the panel's
+  process handler, format, and `PZ_LOG_LEVEL` configuration. New event records carry
+  an additive severity while preserving event types, translation text, historical
+  JSONL records, and Telegram subscription behavior. The process threshold does
+  not suppress journal writes or notifications.
+- HTTP records use the final response status exactly once and omit request URLs,
+  query strings, bodies, cookies, and arbitrary malformed-request diagnostics.
+  Uncaught request failures report only an exception category, and authentication
+  startup failures use the same handler with a nonzero exit status. Untrusted
+  output is escaped to one terminal line; raw tracebacks are omitted.
+- Independent implementation review reproduced duplicate, unsanitized output
+  through pre-existing root handlers, threshold bypass through explicitly leveled
+  child loggers, and an operation interrupted by a closed stderr stream. The
+  application namespace now stops propagation, the owned handler enforces the
+  threshold, and sink failures remain best-effort without unsafe fallback output.
+  Regression tests exercise real handlers and preserve host logging configuration.
+- `fileio.append_jsonl` replaces duplicate journal append code; callers retain
+  locking, in-memory recovery, and safe write-failure reporting. Readers remain
+  separate because their pagination and record-validation contracts differ.
+- Direct Telegram requests shared error-handling code but exposed credentials in
+  HTTP 200 `ok:false` descriptions. A common bounded response decoder and complete
+  credential redaction now cover success-envelope failures, HTTP errors, and
+  transport exceptions. MTProxy failures create one process record and one event
+  without recursively queuing a notification.
+
+Shared Compose path mapping in server and panel update preparation remains a
+follow-up: the two operations intentionally translate different service scopes.
+Broad decomposition of `ops.py` and `configeditor.py` is deferred because their
+locks, callbacks, and operation-admission contracts need a separate focused change.
+Game-container logs and the bilingual interface retain their existing behavior.

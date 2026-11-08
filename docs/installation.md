@@ -128,12 +128,34 @@ These are application defaults; the Compose examples explicitly set some values.
 | `SERVER_FILES_DIR` | `/server-files` | Mounted game files/Workshop metadata |
 | `WORKSHOP_DIR` | Auto-detected | Explicit Workshop content directory |
 | `LOG_LINES` | `250` | Default log tail length |
+| `PZ_LOG_LEVEL` | `INFO` | Minimum level for panel process logs |
 
 `TZ` configures container time; examples use UTC. `SERVER_NAME`, `SERVER_BRANCH`,
 `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `MEMORY_XMX_GB`, and `MAX_PLAYERS` are
 game-image variables in the full example. See the
 [upstream image reference](https://github.com/indifferentbroccoli/projectzomboid-server-docker)
 for additional game settings. A blank `SERVER_BRANCH` selects the default Steam branch.
+
+## Process logging
+
+Panel startup, HTTP responses, operation events, and journal-write diagnostics use
+the same stderr format: timestamp, level, source, and message. Set `PZ_LOG_LEVEL`
+in `.env` and recreate the panel to change its process output. All three Compose
+examples pass this setting to the panel.
+
+Accepted levels are `DEBUG`, `INFO`, `WARNING`, `ERROR`, and `CRITICAL`, ignoring
+case and surrounding spaces; `WARN` aliases `WARNING`. An invalid value produces
+a warning and falls back to `INFO`. Routine HTTP responses appear at `DEBUG`,
+4xx responses at `WARNING`, and 5xx responses at `ERROR`. HTTP records contain
+only a recognized method and response status, without URLs, query strings, bodies,
+cookies, or diagnostic request text.
+
+This threshold affects process output only. Persistent Events and Telegram
+subscriptions keep their existing behavior; new event records additionally carry
+a `level` field. Existing event files remain readable without migration. The
+Console's game-container logs and their filters are a separate source. Console
+commands retain their existing event-journal representation; process logs record
+only that a command was submitted.
 
 ## Optional S3 backup export
 
