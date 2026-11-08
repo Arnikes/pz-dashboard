@@ -274,9 +274,13 @@ pause the remaining time. Dismiss controls name their message. Notification
 stacks unfold upward from each card's rendered position over 240ms, with the
 newest card anchored at the bottom. Reversing direction keeps the current position;
 new cards enter over 180ms and dismissed cards fade out over 130ms while leaving
-focus and hit testing immediately. Reduced motion skips spatial transitions.
+focus and hit testing immediately. Interrupted arrivals and exits preserve the
+rendered opacity as well as position. Reduced motion skips spatial transitions
+and removes an active visual exit immediately when the preference changes.
 Overflowing stacks open at the newest end and scroll to older messages. New arrivals
-keep that end pinned unless the reader has scrolled to older messages. Touch
+keep that end pinned unless the reader has scrolled to older messages or following
+the new card would clip the focused control. Keyboard focus stays visible throughout
+the transition, taking priority over the newest card in short windows. Touch
 toggles multi-card stacks; a single message keeps its reading timer. Escape
 collapses a focused stack and returns focus to its previous control. Notification
 updates preserve focus on the same action and keep the list's scroll position;

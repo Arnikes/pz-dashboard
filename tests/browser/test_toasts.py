@@ -343,3 +343,168 @@ def test_single_toast_touch_does_not_pause_until_an_outside_tap(browser, dashboa
         expect(page.locator(".toast")).to_have_count(0)
     finally:
         context.close()
+
+
+def toast_appearance(locator):
+    return locator.evaluate("""box => ({
+      ...box.getBoundingClientRect().toJSON(), opacity: Number(getComputedStyle(box).opacity)
+    })""")
+
+
+def show_paused_toast(page, message, duration=None):
+    # Pause during creation: tracing or parallel load can delay the next command
+    # until the complete 180ms entrance has already finished.
+    opacity = page.evaluate(
+        """([message, duration]) => {
+          toast(message, 'info', duration);
+          const box = document.querySelector('#toasts').lastElementChild;
+          box.getAnimations().forEach(animation => { animation.pause(); animation.currentTime = 50; });
+          return Number(getComputedStyle(box).opacity);
+        }""",
+        [message, duration],
+    )
+    assert 0 < opacity < 1
+
+
+@pytest.mark.parametrize("change", ["arrival", "expand", "collapse"])
+def test_interrupted_arrival_preserves_opacity_and_position(page, dashboard, change):
+    open_toasts(page, dashboard)
+    page.locator("#btnCommands").focus()
+    show_paused_toast(page, "First message")
+    first = page.locator(".toast").first
+    if change == "collapse":
+        freeze_next_toast_transition(page, "focusin")
+        first.locator("button").focus()
+        toast_motion_frame(page, 70)
+    before = toast_appearance(first)
+    assert 0 < before["opacity"] < 1
+    if change == "arrival":
+        page.evaluate("""() => {
+          toast('Second message', 'ok');
+          document.querySelectorAll('.toast').forEach(box => box.getAnimations().forEach(animation => {
+            animation.pause(); animation.currentTime = 0;
+          }));
+        }""")
+    elif change == "expand":
+        freeze_next_toast_transition(page, "focusin")
+        first.locator("button").focus()
+    else:
+        freeze_next_toast_transition(page, "keydown")
+        page.keyboard.press("Escape")
+    after = toast_appearance(first)
+    assert after["opacity"] == pytest.approx(before["opacity"], abs=0.001)
+    for coordinate in ("x", "y", "width", "height"):
+        assert after[coordinate] == pytest.approx(before[coordinate], abs=1)
+    toast_motion_frame(page, 240)
+    assert toast_appearance(first)["opacity"] == 1
+    expect(page.locator('.toast[data-front="true"]')).to_have_text(
+        "Second message" if change == "arrival" else "First message"
+    )
+
+
+def test_dismissing_an_arriving_toast_fades_from_its_current_opacity(page, dashboard):
+    open_toasts(page, dashboard)
+    show_paused_toast(page, "Still arriving")
+    before = toast_appearance(page.locator(".toast"))
+    page.evaluate("""() => {
+      document.querySelector('.toast-close').click();
+      document.querySelector('.toast-exit').getAnimations().forEach(animation => {
+        animation.pause(); animation.currentTime = 0;
+      });
+    }""")
+    exiting = page.locator(".toast-exit")
+    after = toast_appearance(exiting)
+    assert 0 < before["opacity"] < 1
+    assert after["opacity"] == pytest.approx(before["opacity"], abs=0.001)
+    for coordinate in ("x", "y", "width", "height"):
+        assert after[coordinate] == pytest.approx(before[coordinate], abs=1)
+    assert exiting.evaluate("box => box.inert && box.getAttribute('aria-hidden') === 'true'")
+    exiting.evaluate("box => box.getAnimations().forEach(animation => animation.currentTime = 129)")
+    assert toast_appearance(exiting)["opacity"] < 0.001
+    exiting.evaluate("box => box.getAnimations().forEach(animation => animation.finish())")
+    expect(exiting).to_have_count(0)
+
+
+@pytest.mark.parametrize("motion", ["no-preference", "reduce"])
+@pytest.mark.parametrize("control", [".toast-close", ".toast-action"])
+@pytest.mark.parametrize("size", [(390, 360), (390, 600), (1440, 900)])
+def test_new_arrivals_keep_the_readers_focused_control_visible(
+    page, dashboard, motion, control, size
+):
+    page.set_viewport_size({"width": size[0], "height": size[1]})
+    page.emulate_media(reduced_motion=motion)
+    open_toasts(page, dashboard)
+    page.locator("#btnCommands").focus()
+    page.evaluate("""Notifications.publish({
+      title: 'Backup failed', message: 'Long operation feedback. '.repeat(30),
+      kind: 'error', operation: true
+    })""")
+    settled_toast_boxes(page)
+    focused_control = page.locator(control).first
+    focused_control.focus()
+    settled_toast_boxes(page)
+    page.evaluate("""() => {
+      toast('New arrival', 'ok');
+      document.querySelectorAll('.toast').forEach(box => box.getAnimations().forEach(animation => {
+        animation.pause(); animation.currentTime = 0;
+      }));
+    }""")
+    for time in (0, 50, 120, 240):
+        toast_motion_frame(page, time)
+        expect(focused_control).to_be_focused()
+        bounds = page.locator("#toasts").bounding_box()
+        active = focused_control.bounding_box()
+        assert active["y"] >= bounds["y"] - 1
+        assert active["y"] + active["height"] <= bounds["y"] + bounds["height"] + 1
+        if control == ".toast-action":
+            message = page.locator(".toast-message").first.bounding_box()
+            assert active["y"] >= message["y"] - 1
+            assert active["y"] + active["height"] <= message["y"] + message["height"] + 1
+            assert (
+                focused_control.evaluate("node => getComputedStyle(node).outlineOffset") == "-2px"
+            )
+    expect(page.locator('.toast[data-front="true"]')).to_have_text("New arrival")
+
+
+@pytest.mark.parametrize("read_older", [False, True])
+def test_unfocused_arrivals_follow_the_end_without_moving_older_reading(
+    page, dashboard, read_older
+):
+    page.set_viewport_size({"width": 390, "height": 600})
+    open_toasts(page, dashboard)
+    page.locator("#btnCommands").focus()
+    page.evaluate("for (let i = 0; i < 12; i++) toast(`Message ${i}`, 'info')")
+    settled_toast_boxes(page)
+    page.locator("#toasts").dispatch_event("pointerenter", {"pointerType": "mouse"})
+    settled_toast_boxes(page)
+    if read_older:
+        page.locator("#toasts").evaluate("root => root.scrollTop = 0")
+    page.evaluate("toast('Newest arrival', 'ok')")
+    settled_toast_boxes(page)
+    expect(page.locator("#btnCommands")).to_be_focused()
+    if read_older:
+        assert page.locator("#toasts").evaluate("root => root.scrollTop") == 0
+        expect(page.locator(".toast-close").first).to_be_in_viewport()
+    else:
+        expect(page.locator('.toast[data-front="true"] .toast-close')).to_be_in_viewport()
+
+
+def test_changing_to_reduced_motion_finishes_live_and_exit_transitions(page, dashboard):
+    open_toasts(page, dashboard)
+    show_paused_toast(page, "Still readable", 1000)
+    page.emulate_media(reduced_motion="reduce")
+    page.wait_for_function(
+        "!document.querySelector('#toasts').getAnimations({subtree: true}).length"
+    )
+    expect(page.locator(".toast")).to_have_count(1)
+    page.clock.run_for(1000)
+    expect(page.locator(".toast")).to_have_count(0)
+    page.emulate_media(reduced_motion="no-preference")
+    show_paused_toast(page, "Leaving")
+    page.evaluate("""() => {
+      document.querySelector('.toast-close').click();
+      document.querySelector('.toast-exit').getAnimations().forEach(animation => animation.pause());
+    }""")
+    expect(page.locator(".toast-exit")).to_have_count(1)
+    page.emulate_media(reduced_motion="reduce")
+    expect(page.locator(".toast-exit")).to_have_count(0)

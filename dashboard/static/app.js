@@ -442,12 +442,22 @@ function toast(text, kind = "info", ms) {
 const showToast = (() => {
   const root = $("toasts");
   const entries = [];
+  const exits = new Map();
   let focused = document.hasFocus(), hovered = false, keyboard = false, expandedByTouch = false;
   let returnFocus = null, movingFocus = false;
   let layoutKey = "";
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
-  const snapshot = () => new Map(entries.map(entry => [entry, entry.box.getBoundingClientRect()]));
+  const snapshot = () => {
+    const active = document.activeElement, bounds = root.getBoundingClientRect();
+    const focus = root.contains(active) ? active.getBoundingClientRect() : null;
+    return {
+      boxes: new Map(entries.map(entry => [entry, {
+        ...entry.box.getBoundingClientRect().toJSON(), opacity: Number(getComputedStyle(entry.box).opacity),
+      }])),
+      focus: focus && focus.top >= bounds.top && focus.bottom <= bounds.bottom ? active : null,
+    };
+  };
 
   function exit(box, rect) {
     const bounds = root.getBoundingClientRect();
@@ -462,8 +472,11 @@ const showToast = (() => {
     Object.assign(box.style, { position: "fixed", left: `${rect.left}px`, top: `${rect.top}px`,
       width: `${rect.width}px`, height: `${rect.height}px`, transform: "none", zIndex: "80" });
     document.body.append(box);
-    box.animate([{ opacity: 1, translate: "0 0" }, { opacity: 0, translate: "0 6px" }],
-      { duration: 130, easing: "ease-out" }).finished.then(() => box.remove(), () => box.remove());
+    const motion = box.animate([{ opacity: rect.opacity, translate: "0 0" }, { opacity: 0, translate: "0 6px" }],
+      { duration: 130, easing: "ease-out" });
+    exits.set(box, motion);
+    const remove = () => { exits.delete(box); box.remove(); };
+    motion.finished.then(remove, remove);
   }
 
   function pause(entry) {
@@ -481,7 +494,7 @@ const showToast = (() => {
     pause(entry);
     entries.splice(index, 1);
     entry.motion?.cancel();
-    exit(entry.box, previous.get(entry));
+    exit(entry.box, previous.boxes.get(entry));
     resize.unobserve(entry.box);
     if (!entries.length) { expandedByTouch = false; hovered = false; }
     if (hadFocus) {
@@ -517,12 +530,19 @@ const showToast = (() => {
       });
       // Reveal the newest end of an overflowing list, keeping the front toast anchored.
       if (opening || (expanded && revealNewest)) root.scrollTop = root.scrollHeight;
+      // A new arrival may follow the end only as far as the reader's focused control allows.
+      // Keep both endpoints inside the clip so FLIP also keeps focus visible during motion.
+      if (expanded && previous.focus === document.activeElement && root.contains(previous.focus)) {
+        const bounds = root.getBoundingClientRect(), control = previous.focus.getBoundingClientRect();
+        if (control.top < bounds.top + 4) root.scrollTop -= bounds.top + 4 - control.top;
+        else if (control.bottom > bounds.bottom - 4) root.scrollTop += control.bottom - bounds.bottom + 4;
+      }
       const targets = entries.map(entry => entry.box.getBoundingClientRect());
       entries.forEach(entry => entry.box.style.removeProperty("transform"));
       const transforms = entries.map(entry => getComputedStyle(entry.box).transform);
       if (!reducedMotion.matches) entries.forEach((entry, index) => {
         if (entry.box.dataset.hidden === "true") return;
-        const before = previous.get(entry), target = targets[index];
+        const before = previous.boxes.get(entry), target = targets[index];
         const transform = transforms[index];
         let frames;
         if (before) {
@@ -530,7 +550,7 @@ const showToast = (() => {
           const x = before.x + before.width / 2 - target.x - target.width / 2;
           const y = before.bottom - target.bottom;
           const start = `translate(${x}px, ${y}px) scale(${before.width / target.width}, ${before.height / target.height})`;
-          frames = [{ transform: start }, { transform }];
+          frames = [{ transform: start, opacity: before.opacity }, { transform, opacity: 1 }];
         } else frames = [{ transform, opacity: 0, translate: "0 6px" }, { transform, opacity: 1, translate: "0 0" }];
         entry.motion = entry.box.animate(frames, { duration: before ? 240 : 180, easing: "cubic-bezier(0.2, 0, 0, 1)" });
       });
@@ -591,7 +611,11 @@ const showToast = (() => {
   const resize = new ResizeObserver(() => sync());
   resize.observe(root);
   reducedMotion.addEventListener("change", () => {
-    if (reducedMotion.matches) entries.forEach(entry => entry.motion?.cancel());
+    if (reducedMotion.matches) {
+      entries.forEach(entry => entry.motion?.cancel());
+      exits.forEach((motion, box) => { motion.cancel(); box.remove(); });
+      exits.clear();
+    }
   });
 
   const show = (notification, ms) => {

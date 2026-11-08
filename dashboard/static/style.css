@@ -1049,6 +1049,7 @@ select { cursor: pointer; }
   z-index: 80;
   display: grid;
   align-items: end;
+  overflow-anchor: none;
   width: min(420px, calc(100vw - 36px));
   --toast-available-height: max(80px, calc(100dvh - var(--header-height, 100px) - var(--footer-height) - var(--draft-height, 0px) - 64px));
 }
@@ -1099,6 +1100,7 @@ select { cursor: pointer; }
 .toast-title + .toast-description { color:var(--muted); }
 .toast-description { white-space:pre-wrap; }
 .toast-action { display:inline-flex; align-items:center; min-height:44px; margin-top:4px; color:var(--ink); font-weight:500; text-underline-offset:4px; }
+.toast-action:focus-visible { outline-offset:-2px; }
 .toast-close { flex: none; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--muted); cursor: pointer; }
 .toast-close:hover { background: var(--surface-2); color: var(--ink); }
 .toast-close svg { width: 16px; height: 16px; }
