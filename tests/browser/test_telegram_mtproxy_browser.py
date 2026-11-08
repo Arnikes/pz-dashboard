@@ -9,6 +9,7 @@ from browser_evidence import capture_evidence
 
 
 pytestmark = pytest.mark.browser
+FAKETLS_SECRET = "ee" + "a1" * 16 + "proxy.edge.example.com".encode("ascii").hex()
 
 
 def public_settings(values):
@@ -26,14 +27,17 @@ def public_settings(values):
 @pytest.mark.parametrize("width", [320, 1440])
 def test_proxy_controls_save_reload_and_explain_manual_chat_id(page, dashboard, language, width):
     requests = []
+    saved = {}
     page.add_init_script(f"localStorage.setItem('pz-language', '{language}')")
     page.set_viewport_size({"width": width, "height": 900})
 
     def settings(route):
         values = route.request.post_data_json["telegram"]
         requests.append(values)
-        previous = dashboard["overview"]["settings"].get("telegram", {})
-        dashboard["overview"]["settings"]["telegram"] = public_settings({**previous, **values})
+        for key, value in values.items():
+            if value or key not in ("botToken", "apiHash", "mtproxySecret"):
+                saved[key] = value
+        dashboard["overview"]["settings"]["telegram"] = public_settings(saved)
         route.fulfill(json={"ok": True, "settings": dashboard["overview"]["settings"]})
 
     page.route("**/api/settings", settings)
@@ -50,10 +54,15 @@ def test_proxy_controls_save_reload_and_explain_manual_chat_id(page, dashboard, 
     expect(page.locator("#tgMtproxyChatsHint")).to_contain_text(
         "вручную" if language == "ru" else "manually"
     )
+    expect(page.locator("#tgMtproxySecretHint")).to_contain_text("ee + 32")
+    expect(page.locator("#tgMtproxySecretHint")).to_contain_text(
+        "секрет целиком" if language == "ru" else "complete secret"
+    )
+    assert page.locator("#tgMtproxySecret").get_attribute("maxlength") is None
     for control, value in (
         ("tgMtproxyHost", "proxy.example.com"),
         ("tgMtproxyPort", "8443"),
-        ("tgMtproxySecret", "dd" + "a1" * 16),
+        ("tgMtproxySecret", FAKETLS_SECRET),
         ("tgApiId", "123456"),
         ("tgApiHash", "b2" * 16),
     ):
@@ -64,7 +73,10 @@ def test_proxy_controls_save_reload_and_explain_manual_chat_id(page, dashboard, 
     expect(page.locator("#tgApiHash")).to_have_value("")
     expect(page.locator("#tgMtproxySecretState")).to_be_visible()
     expect(page.locator("#tgApiHashState")).to_be_visible()
-    assert any(value["mtproxySecret"] == "dd" + "a1" * 16 for value in requests)
+    assert any(value["mtproxySecret"] == FAKETLS_SECRET for value in requests)
+    assert saved["mtproxySecret"] == FAKETLS_SECRET
+    assert requests[-1]["mtproxySecret"] == ""
+    assert dashboard["overview"]["settings"]["telegram"]["mtproxySecret"] == ""
     assert any(value["apiHash"] == "b2" * 16 for value in requests)
     assert requests[-1]["mtproxyEnabled"] is True
     assert requests[-1]["apiId"] == 123456
@@ -76,6 +88,8 @@ def test_proxy_controls_save_reload_and_explain_manual_chat_id(page, dashboard, 
     expect(page.locator("#tgApiId")).to_have_value("123456")
     expect(page.locator("#tgMtproxySecret")).to_have_attribute("type", "password")
     expect(page.locator("#tgApiHash")).to_have_attribute("type", "password")
+    expect(page.locator("#tgMtproxySecret")).to_have_value("")
+    assert saved["mtproxySecret"] == FAKETLS_SECRET
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     assert page.locator("#tgMtproxyHost").evaluate("el => el.labels.length") == 1
     page.locator("#tgMtproxyHost").focus()
@@ -126,8 +140,8 @@ def test_proxy_test_waits_for_edits_made_while_save_is_pending(page, dashboard):
     dashboard["overview"]["settings"] = {"telegram": {"mtproxyEnabled": True}}
 
     def settings(route):
-        host = route.request.post_data_json["telegram"]["mtproxyHost"]
-        requests.append(("settings", host))
+        secret = route.request.post_data_json["telegram"]["mtproxySecret"]
+        requests.append(("settings", secret))
         if len(requests) == 1:
             pending.append(route)
         else:
@@ -143,12 +157,13 @@ def test_proxy_test_waits_for_edits_made_while_save_is_pending(page, dashboard):
     page.goto(dashboard["url"] + "/#/maintenance")
     with page.expect_request("**/api/settings"):
         page.locator("#btnTgTest").click()
-    page.locator("#tgMtproxyHost").fill("new.example.com")
+    page.locator("#tgMtproxySecret").fill(FAKETLS_SECRET)
     assert requests == [("settings", "")]
     with page.expect_request("**/api/notify-test"):
         pending.pop(0).fulfill(json={"ok": True})
     expect(page.locator("#toasts")).to_contain_text("Отправлено")
-    assert requests == [("settings", ""), ("settings", "new.example.com"), ("test", None)]
+    assert requests == [("settings", ""), ("settings", FAKETLS_SECRET), ("test", None)]
+    expect(page.locator("#tgMtproxySecret")).to_have_value("")
 
 
 @pytest.mark.parametrize("invalid_enabled", ["true", "yes", None, 0])

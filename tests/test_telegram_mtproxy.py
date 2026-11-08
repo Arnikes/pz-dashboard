@@ -76,12 +76,12 @@ def test_secret_forms_preserve_plain_prefixes(raw, canonical):
 def test_secret_rejects_unsupported_forms_without_echoing_input(raw):
     with pytest.raises(ValueError) as error:
         mtproxy.normalize_secret(raw)
-    assert str(error.value).startswith("MTProxy secret must be")
+    assert str(error.value).startswith("MTProxy secret must ")
 
 
-def test_faketls_rejected_but_plain_secret_starting_ee_is_supported():
-    with pytest.raises(ValueError, match="FakeTLS"):
-        mtproxy.normalize_secret("ee" + "a" * 32 + "6578616d706c652e74657374")
+def test_faketls_metadata_and_plain_secret_starting_ee_are_preserved():
+    secret = "ee" + "a" * 32 + "6578616d706c652e74657374"
+    assert mtproxy.normalize_secret(secret) == secret.upper()
     assert mtproxy.normalize_secret("ee" + "a" * 30) == "EE" + "A" * 30
 
 
@@ -282,6 +282,26 @@ def test_real_library_factory_uses_memory_session_and_proxy_only(settings):
         proxy=client._proxy,
     )
     assert transport._ip == "proxy.example.test" and transport._port == 443
+
+
+def test_real_library_factory_routes_complete_ee_secret_to_faketls(settings):
+    from telegram_faketls import ConnectionTcpMTProxyFakeTLS
+
+    secret = "ee" + "0123456789abcdef" * 2 + "4578616d706c652e434f4d"
+    settings["mtproxySecret"] = secret
+
+    async def create():
+        return mtproxy._create_client(settings, None)
+
+    client = asyncio.run(create())
+    assert client._connection is ConnectionTcpMTProxyFakeTLS
+    assert client._proxy[2] == secret.upper()
+    transport = client._connection(
+        "149.154.167.51", 443, 2, loggers=client._log, proxy=client._proxy
+    )
+    assert transport._tls_secret.key == bytes.fromhex("0123456789abcdef" * 2)
+    assert transport._tls_secret.domain == "Example.COM"
+    assert transport._secret == transport._tls_secret.key
 
 
 def test_library_child_logs_do_not_propagate(settings, caplog):

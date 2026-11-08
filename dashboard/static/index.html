@@ -575,7 +575,7 @@
               <label class="field">Секрет MTProxy
                 <input type="password" id="tgMtproxySecret" autocomplete="off" aria-describedby="tgMtproxySecretHint tgMtproxySecretState" />
               </label>
-              <p class="hint" id="tgMtproxySecretHint">32 шестнадцатеричных символа или dd + 32 символа. FakeTLS (ee) не поддерживается. Пустое поле сохраняет текущий секрет.</p>
+              <p class="hint" id="tgMtproxySecretHint">32 шестнадцатеричных символа, dd + 32 символа или ee + 32 символа + DNS-имя в hex. Вставьте секрет целиком. Пустое поле сохраняет текущий секрет.</p>
               <p class="hint" id="tgMtproxySecretState" aria-live="polite"></p>
               <label class="field">Telegram API ID
                 <input type="number" id="tgApiId" min="1" max="2147483647" step="1" aria-describedby="tgApiCredentialsHint" />

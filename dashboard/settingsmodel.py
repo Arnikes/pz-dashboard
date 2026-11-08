@@ -5,6 +5,8 @@ import ipaddress
 import re
 from copy import deepcopy
 
+from telegram_proxy_secret import parse_secret
+
 
 DEFAULTS = {
     "playerNotifications": {"language": "en"},
@@ -136,12 +138,17 @@ def _validate_mtproxy(values):
         value = value.strip()
         valid = HEX32_RE.fullmatch(value)
         if key == "mtproxySecret":
-            valid = valid or (value[:2].lower() == "dd" and HEX32_RE.fullmatch(value[2:]))
+            try:
+                parse_secret(value)
+            except ValueError:
+                valid = False
+            else:
+                valid = True
         if not valid:
             return (
                 "telegram.apiHash должен содержать 32 шестнадцатеричных символа"
                 if key == "apiHash"
-                else "telegram.mtproxySecret должен содержать 32 шестнадцатеричных символа или dd и 32 символа; FakeTLS не поддерживается"
+                else "telegram.mtproxySecret должен содержать 32 шестнадцатеричных символа, dd и 32 символа или ee, 32 символа и DNS-имя в hex"
             )
         values[key] = value
     return None

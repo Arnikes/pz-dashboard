@@ -256,9 +256,23 @@ Bot authorization still uses the bot token; no phone-number login is needed.
 The host accepts a DNS name, IPv4 or IPv6 address, without a URL scheme or path.
 The port must be 1–65535 and the API ID must be a positive integer. The API hash
 contains 32 hexadecimal characters. Proxy secrets support 32 hexadecimal
-characters or `dd` followed by 32 hexadecimal characters. Extended `ee` FakeTLS
-secrets, base64 secrets and pasted proxy links are not supported. A plain
-32-character secret beginning with `dd` or `ee` is supported.
+characters, `dd` followed by 32 hexadecimal characters, or a complete `ee`
+FakeTLS secret. A FakeTLS secret contains `ee`, the 32 hexadecimal characters
+of the key, then the hostname encoded as hexadecimal ASCII bytes. Paste the
+**entire secret**, including the hostname suffix, into the existing secret field
+or `TELEGRAM_MTPROXY_SECRET`. The hostname must be a valid DNS name of at most
+182 bytes; use its ASCII A-label form for an internationalized name. Its case
+is preserved in SNI. For example, this fictional secret uses `example.com`:
+
+```text
+ee0123456789abcdef0123456789abcdef6578616d706c652e636f6d
+```
+
+The panel selects FakeTLS automatically for this format and authenticates the
+proxy handshake before sending MTProto data inside TLS-shaped records. This
+does not guarantee that a particular network's traffic filters will permit the
+connection. Base64 secrets and pasted proxy links are not supported. A plain
+32-character secret beginning with `dd` or `ee` remains supported.
 
 The same settings can bootstrap a new installation through `.env`:
 

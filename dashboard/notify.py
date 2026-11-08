@@ -70,8 +70,17 @@ def _safe_error(error, settings):
         variants = {secret, urllib.parse.quote(secret, safe=""), urllib.parse.quote_plus(secret)}
         if key in ("apiHash", "mtproxySecret"):
             variants.update((secret.lower(), secret.upper()))
-        if key == "mtproxySecret" and len(secret) == 34 and secret[:2].lower() == "dd":
-            variants.update((secret[2:], secret[2:].lower(), secret[2:].upper()))
+        if key == "mtproxySecret" and len(secret) >= 34 and secret[:2].lower() in ("dd", "ee"):
+            # A transport may report only its extracted key. Redact that even
+            # when an invalid domain suffix prevented parsing an env secret.
+            extracted = secret[2:34]
+            try:
+                raw_key = bytes.fromhex(extracted)
+            except ValueError:
+                pass
+            else:
+                if len(raw_key) == 16:
+                    variants.update((extracted, extracted.lower(), extracted.upper()))
         for value in sorted(variants, key=len, reverse=True):
             error = error.replace(value, "•••")
     return error[:1000]

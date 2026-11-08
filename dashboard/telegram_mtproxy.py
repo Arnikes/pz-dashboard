@@ -8,6 +8,8 @@ import threading
 import time
 import warnings
 
+from telegram_proxy_secret import parse_secret
+
 OPERATION_TIMEOUT = 15.0
 _CLEANUP_TIMEOUT = 1.0
 _LOCK = threading.Lock()
@@ -30,18 +32,9 @@ _LIBRARY_LOGGER.setLevel(logging.CRITICAL + 1)
 
 
 def normalize_secret(raw):
-    """Accept plain/dd hexadecimal secrets and avoid Telethon's prefix heuristic."""
-    if isinstance(raw, str):
-        value = raw.strip()
-        if re.fullmatch(r"[0-9a-fA-F]{32}", value):
-            return value.upper()
-        if re.fullmatch(r"dd[0-9a-fA-F]{32}", value, re.IGNORECASE):
-            return value[2:].upper()
-        if len(value) > 32 and value[:2].lower() == "ee":
-            raise ValueError("MTProxy FakeTLS secrets are not supported")
-    raise ValueError(
-        "MTProxy secret must be 32 hexadecimal characters or dd followed by 32 hexadecimal characters"
-    )
+    """Retain FakeTLS metadata; avoid Telethon's plain/dd prefix heuristic."""
+    parsed = parse_secret(raw)
+    return parsed.canonical if parsed.mode == "faketls" else parsed.key.hex().upper()
 
 
 def _valid_host(host):
@@ -89,6 +82,12 @@ def _create_client(settings, session):
     from telethon import TelegramClient, connection  # noqa: PLC0415
     from telethon.sessions import MemorySession  # noqa: PLC0415
 
+    transport = connection.ConnectionTcpMTProxyRandomizedIntermediate
+    if parse_secret(settings["mtproxySecret"]).mode == "faketls":
+        from telegram_faketls import ConnectionTcpMTProxyFakeTLS  # noqa: PLC0415
+
+        transport = ConnectionTcpMTProxyFakeTLS
+
     # Telethon 1.45 warns about missing SOCKS support for every proxy, including
     # its MTProxy transport which uses TCP directly and does not need SOCKS.
     with warnings.catch_warnings():
@@ -102,7 +101,7 @@ def _create_client(settings, session):
             session if session is not None else MemorySession(),
             settings["apiId"],
             settings["apiHash"],
-            connection=connection.ConnectionTcpMTProxyRandomizedIntermediate,
+            connection=transport,
             proxy=(
                 settings["mtproxyHost"],
                 settings["mtproxyPort"],

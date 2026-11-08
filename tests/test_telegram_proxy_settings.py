@@ -28,6 +28,7 @@ PROXY = {
     "apiId": 12345,
     "apiHash": "abcdef0123456789abcdef0123456789",
 }
+FAKETLS_SECRET = "ee0123456789abcdef0123456789abcdef" + "Example.COM".encode().hex()
 
 
 @pytest.fixture(autouse=True)
@@ -43,14 +44,15 @@ def isolated_settings(tmp_path, monkeypatch):
     monkeypatch.setitem(config.CFG, "events_file", str(tmp_path / "events.jsonl"))
 
 
-def test_env_defaults_and_saved_keys_merge_individually(tmp_path, monkeypatch):
+@pytest.mark.parametrize("secret", [PROXY["mtproxySecret"], FAKETLS_SECRET])
+def test_env_defaults_and_saved_keys_merge_individually(tmp_path, monkeypatch, secret):
     for key, value in {
         "TELEGRAM_ENABLED": "true",
         "TELEGRAM_BOT_TOKEN": PROXY["botToken"],
         "TELEGRAM_MTPROXY_ENABLED": "1",
         "TELEGRAM_MTPROXY_HOST": "env.example.com",
         "TELEGRAM_MTPROXY_PORT": "8443",
-        "TELEGRAM_MTPROXY_SECRET": PROXY["mtproxySecret"],
+        "TELEGRAM_MTPROXY_SECRET": secret,
         "TELEGRAM_API_ID": "12345",
         "TELEGRAM_API_HASH": PROXY["apiHash"],
     }.items():
@@ -65,6 +67,7 @@ def test_env_defaults_and_saved_keys_merge_individually(tmp_path, monkeypatch):
     assert raw["mtproxyPort"] == "8443"
     assert raw["apiId"] == "12345"
     assert raw["chatId"] == "42"
+    assert raw["mtproxySecret"] == secret
     assert ops.patch_settings({"telegram": {"mtproxyEnabled": False}}) is None
     monkeypatch.setattr(ops, "_SETTINGS", deepcopy(settingsmodel.DEFAULTS))
     ops._load_settings()
@@ -97,14 +100,16 @@ def test_invalid_env_toggle_is_not_normalized_to_direct(monkeypatch, value):
     direct.assert_not_called()
 
 
-def test_secret_masks_blank_preservation_and_persistence(monkeypatch):
-    assert ops.patch_settings({"telegram": PROXY}) is None
+@pytest.mark.parametrize("secret", [PROXY["mtproxySecret"], FAKETLS_SECRET])
+def test_secret_masks_blank_preservation_and_persistence(monkeypatch, secret):
+    proxy = {**PROXY, "mtproxySecret": secret}
+    assert ops.patch_settings({"telegram": proxy}) is None
     public = ops.get_settings()["telegram"]
     assert public["botToken"] == public["apiHash"] == public["mtproxySecret"] == ""
     assert public["hasApiHash"] and public["hasMtproxySecret"]
     assert public["apiHashMasked"] == public["mtproxySecretMasked"] == "•••"
     for key in ("botToken", "apiHash", "mtproxySecret"):
-        assert PROXY[key] not in json.dumps(public)
+        assert proxy[key] not in json.dumps(public)
     assert (
         ops.patch_settings(
             {"telegram": {"apiHash": "", "mtproxySecret": "•••", "mtproxyHost": "new.example.com"}}
@@ -114,7 +119,7 @@ def test_secret_masks_blank_preservation_and_persistence(monkeypatch):
     monkeypatch.setattr(ops, "_SETTINGS", deepcopy(settingsmodel.DEFAULTS))
     ops._load_settings()
     raw = ops.telegram_settings_raw()
-    assert raw["apiHash"] == PROXY["apiHash"] and raw["mtproxySecret"] == PROXY["mtproxySecret"]
+    assert raw["apiHash"] == PROXY["apiHash"] and raw["mtproxySecret"] == secret
     assert raw["mtproxyHost"] == "new.example.com"
 
 
@@ -133,7 +138,8 @@ def test_secret_masks_blank_preservation_and_persistence(monkeypatch):
         {"mtproxyHost": "host\nname"},
         {"apiHash": "short"},
         {"apiHash": []},
-        {"mtproxySecret": "ee" + "01" * 16 + "example.com".encode().hex()},
+        {"mtproxySecret": "ee" + "01" * 16},
+        {"mtproxySecret": "ee" + "01" * 16 + "example.com/path".encode().hex()},
         {"mtproxySecret": "tg://proxy?server=proxy.example.com"},
     ],
 )
@@ -150,7 +156,9 @@ def test_bad_fields_reject_entire_patch_without_advancing_revision(patch, monkey
     save.assert_not_called()
 
 
-@pytest.mark.parametrize("secret", ["dd" + "ab" * 15, "ee" + "ab" * 15, "DD" + "ab" * 16])
+@pytest.mark.parametrize(
+    "secret", ["dd" + "ab" * 15, "ee" + "ab" * 15, "DD" + "ab" * 16, FAKETLS_SECRET]
+)
 def test_supported_hex_secret_prefixes_are_saved_without_truncation(secret):
     assert ops.patch_settings({"telegram": {"mtproxySecret": secret}}) is None
     assert ops.telegram_settings_raw()["mtproxySecret"] == secret
@@ -165,28 +173,35 @@ def test_incomplete_autosave_is_accepted_but_cannot_connect(monkeypatch):
     direct.assert_not_called()
 
 
-def test_saved_raw_secrets_reach_proxy_transport_and_no_http(monkeypatch):
-    assert ops.patch_settings({"telegram": PROXY}) is None
+@pytest.mark.parametrize("secret", [PROXY["mtproxySecret"], FAKETLS_SECRET])
+def test_saved_raw_secrets_reach_proxy_transport_and_no_http(monkeypatch, secret):
+    proxy = {**PROXY, "mtproxySecret": secret}
+    assert ops.patch_settings({"telegram": proxy}) is None
     send = Mock(return_value=(True, None))
     direct = Mock()
     monkeypatch.setattr(telegram_mtproxy, "send_message", send)
     monkeypatch.setattr(notify.urllib.request, "urlopen", direct)
     assert notify.send_message("event") == (True, None)
     sent = send.call_args.args[0]
-    assert all(sent[key] == PROXY[key] for key in PROXY)
+    assert all(sent[key] == proxy[key] for key in proxy)
     assert notify.test_message() == (True, None)
     assert notify.state()["ok"] is True
     direct.assert_not_called()
 
 
-def test_errors_are_redacted_in_process_events_and_state_without_recursion(monkeypatch, caplog):
-    assert ops.patch_settings({"telegram": PROXY}) is None
+@pytest.mark.parametrize("secret", [PROXY["mtproxySecret"], FAKETLS_SECRET])
+def test_errors_are_redacted_in_process_events_and_state_without_recursion(
+    monkeypatch, caplog, secret
+):
+    assert ops.patch_settings({"telegram": {**PROXY, "mtproxySecret": secret}}) is None
     message = " ".join(
         [
             PROXY["botToken"],
             PROXY["apiHash"].upper(),
-            PROXY["mtproxySecret"],
-            PROXY["mtproxySecret"][2:].upper(),
+            secret,
+            secret.upper(),
+            secret[2:34],
+            secret[2:34].upper(),
         ]
     )
     monkeypatch.setattr(telegram_mtproxy, "send_message", Mock(side_effect=OSError(message)))
@@ -200,6 +215,28 @@ def test_errors_are_redacted_in_process_events_and_state_without_recursion(monke
         assert secret not in logs
     enqueue.assert_not_called()
     assert len(ops.get_events()) == 1
+
+
+def test_invalid_env_faketls_domain_fails_closed_and_redacts_extracted_key(monkeypatch):
+    secret = "ee0123456789abcdef0123456789abcdef" + "invalid/path".encode().hex()
+    for name, value in {
+        "TELEGRAM_MTPROXY_ENABLED": "true",
+        "TELEGRAM_MTPROXY_HOST": PROXY["mtproxyHost"],
+        "TELEGRAM_MTPROXY_PORT": str(PROXY["mtproxyPort"]),
+        "TELEGRAM_MTPROXY_SECRET": secret,
+        "TELEGRAM_API_ID": str(PROXY["apiId"]),
+        "TELEGRAM_API_HASH": PROXY["apiHash"],
+        "TELEGRAM_BOT_TOKEN": PROXY["botToken"],
+        "TELEGRAM_CHAT_ID": PROXY["chatId"],
+    }.items():
+        monkeypatch.setenv(name, value)
+    ops._load_settings()
+    direct = Mock()
+    monkeypatch.setattr(notify.urllib.request, "urlopen", direct)
+    assert notify.send_message("event")[0] is False
+    direct.assert_not_called()
+    error = notify._safe_error(secret + " " + secret[2:34].upper(), {"mtproxySecret": secret})
+    assert secret not in error and secret[2:34].upper() not in error
 
 
 def test_chat_discovery_does_not_bypass_proxy(monkeypatch):
@@ -226,19 +263,20 @@ def test_transport_diagnostics_translate_in_state_and_event_payloads(monkeypatch
 
 
 @pytest.mark.parametrize("language", ["ru", "en"])
-def test_proxy_http_settings_error_and_mask_contract(auth_server, monkeypatch, language):
+@pytest.mark.parametrize("secret", [PROXY["mtproxySecret"], FAKETLS_SECRET])
+def test_proxy_http_settings_error_and_mask_contract(auth_server, monkeypatch, language, secret):
     cookie = sign_in(auth_server)
     status, _, body = request(
         auth_server,
         "POST",
         "/api/settings",
-        {"telegram": PROXY},
+        {"telegram": {**PROXY, "mtproxySecret": secret}},
         cookie=cookie,
         headers={"X-PZ-Language": language},
     )
     assert status == 200
     assert body["settings"]["telegram"]["apiHash"] == ""
-    assert PROXY["mtproxySecret"] not in json.dumps(body)
+    assert secret not in json.dumps(body)
     monkeypatch.setattr(
         telegram_mtproxy, "send_message", Mock(return_value=(False, "ошибка отправки"))
     )
