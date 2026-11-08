@@ -11,6 +11,7 @@ window.ConfigEditor = (() => {
   let profileLoad = Promise.resolve();
   let pendingRequests = 0;
   let resolvingWorkshop = false;
+  let workshopResult = null;
   const compositionPager = { page: 0, size: 25 };
   const pendingFields = new Map();
   let deferredFields = false;
@@ -67,6 +68,9 @@ window.ConfigEditor = (() => {
   function updateBar() {
     updateLoading();
     const busy = operationBusy();
+    const editorView = ["settings", "mods"].includes(activeView);
+    setDomProperty($("configFeedback"), "hidden", !editorView);
+    renderWorkshopResult();
     setDomProperty($("configProfile"), "disabled", busy || loading);
     if (!draft) { setDomProperty($("draftBar"), "hidden", true); setDomProperty($("configFlow"), "hidden", true); setDomProperty($("navDraftCount"), "hidden", true); attention(); return; }
     const locked = busy || loading || S.demo;
@@ -74,7 +78,6 @@ window.ConfigEditor = (() => {
     const running = S.overview?.containerInfo?.running;
     setDomProperty($("view-mods"), "inert", loading || !draft);
     for (const kind of ["ini", "sandbox"]) setDomProperty($(kind + "Source"), "readOnly", busy || loading);
-    const editorView = ["settings", "mods"].includes(activeView);
     setDomProperty($("configFlow"), "hidden", !editorView);
     const edited = draft.changed || sourceDirty || fieldDirty || pendingFields.size || unsaved.length;
     const overviewDraft = $("overviewDraft");
@@ -96,13 +99,14 @@ window.ConfigEditor = (() => {
       const complete = el.dataset.flow === "launch" ? verified : recorded && !draft.conflict;
       setDomProperty(el.dataset, "state", failed ? "bad" : complete ? "ok" : "normal");
     });
-    const needsAction = draft.changed || sourceDirty || fieldDirty || pendingFields.size || unsaved.length || draft.conflict || !$("configError").hidden || ["saved", "applying", "error", "select-mods"].includes(draft.status);
+    const needsAction = draft.changed || sourceDirty || fieldDirty || pendingFields.size || unsaved.length || draft.conflict || pendingWorkshop() || !$("configError").hidden || ["saved", "applying", "error", "select-mods"].includes(draft.status);
     setDomProperty($("draftBar"), "hidden", !editorView || !needsAction);
     setDomProperty($("draftRetry"), "hidden", !unsaved.length && !(fieldSaveFailed && pendingFields.size));
-    setDomProperty($("draftLabel"), "textContent", (pendingFields.size ? I18n.t("Есть несохранённые поля") : statuses[draft.status] || I18n.t("Конфигурация")) + (draft.changed ? I18n.msg` · строк: ${draft.changedLines || 1}` : ""));
+    setDomProperty($("draftLabel"), "textContent", (pendingFields.size ? I18n.t("Есть несохранённые поля") : pendingWorkshop() ? I18n.t("Пакеты ожидают загрузки") : statuses[draft.status] || I18n.t("Конфигурация")) + (draft.changed ? I18n.msg` · строк: ${draft.changedLines || 1}` : ""));
     setDomProperty($("configStatus"), "textContent", statuses[draft.status] || I18n.t("Конфигурация"));
     setDomProperty($("configStatus").dataset, "state", draft.conflict || draft.status === "error" ? "bad" : draft.changed || draft.status !== "applied" ? "warn" : "ok");
     setDomProperty($("configApply"), "disabled", busy || !draft.canApply || !draft.canWrite || S.demo || loading || !needsAction);
+    setDomProperty($("configApply"), "textContent", pendingWorkshop() ? I18n.t("Загрузить пакеты с рестартом…") : I18n.t("Применить с рестартом…"));
     setDomProperty($("configApply"), "title", draft.canApply ? "" : I18n.t("Выбран неактивный или неподтверждённый профиль"));
     const reason = S.demo ? I18n.t("Демо: запись файлов и применение отключены.")
       : busy ? operationAvailabilityReason()
@@ -471,6 +475,62 @@ window.ConfigEditor = (() => {
     })().finally(() => { sourceFlush = null; updateBar(); });
     return sourceFlush;
   }
+  function currentModMetadata() { return modsReady && mods?.file === file && mods.draftRevision === draft?.draftRevision; }
+  function pendingWorkshop() { return currentModMetadata() && mods.workshop.some(w => w.status === "pending"); }
+  function renderWorkshopResult() {
+    const current = workshopResult && workshopResult.profile === file && workshopResult.revision === draft?.draftRevision;
+    setDomProperty($("workshopAddResult"), "hidden", !current);
+    if (!current) return;
+    const result = workshopResult;
+    const summary = result.added ? I18n.msg`Добавлено пакетов в черновик: ${result.added}.` : I18n.t("Пакет уже в конфигурации. Черновик не изменён.");
+    const next = !currentModMetadata() ? I18n.t("Черновик сохранён. Перечитайте метаданные, чтобы увидеть пакеты и продолжить.")
+      : mods.workshop.some(w => result.ids.includes(w.workshopId) && w.status === "pending") ? I18n.t("Следующий шаг — загрузить пакеты с рестартом, затем выбрать ModID.")
+      : I18n.t("Выберите нужные ModID в пакете, затем примените черновик с рестартом.");
+    setDomProperty($("workshopAddResult"), "textContent", `${summary} ${next}`);
+  }
+  function compositionPackets() {
+    const packets = mods.workshop.filter(packetVisible);
+    return $("modSortNew").value === "title" ? [...packets].sort((a, b) => a.title.localeCompare(b.title, I18n.locale)) : packets;
+  }
+  function revealWorkshop(ids, profile, revision) {
+    // Collection confirmations close before focus leaves their dialog.
+    setTimeout(() => {
+      if (activeView !== "mods" || modTab !== "composition" || file !== profile || draft?.draftRevision !== revision || !currentModMetadata() || loading || operationBusy()) return;
+      const target = ids.find(id => mods.workshop.some(w => w.workshopId === id));
+      if (!target) return;
+      $("modQuery").value = "";
+      $("modFilter").value = "all";
+      compositionPager.page = Math.floor(compositionPackets().findIndex(w => w.workshopId === target) / compositionPager.size);
+      renderComposition();
+      const packet = [...$("modPackages").querySelectorAll("details")].find(el => el.dataset.item === target);
+      packet.open = true;
+      const summary = packet.querySelector("summary");
+      summary.focus({ preventScroll: true });
+      summary.scrollIntoView({ block: "center", behavior: "instant" });
+    }, 0);
+  }
+  async function addWorkshopItems(ids, profile, submittedInput) {
+    await chain;
+    if (file !== profile) throw new Error(I18n.t("Профиль изменился. Проверьте коллекцию заново."));
+    if (operationBusy() || loading || S.demo) throw new Error(I18n.t("Дождитесь завершения операции; редактор временно недоступен"));
+    if (!currentModMetadata()) throw new Error(I18n.t("Перечитайте метаданные модов перед изменением состава."));
+    const requested = [...new Set(ids)];
+    let added = requested.filter(id => !mods.workshop.some(w => w.workshopId === id));
+    if (added.length) {
+      await flushFields();
+      await flushSources();
+      if (file !== profile) throw new Error(I18n.t("Профиль изменился. Проверьте коллекцию заново."));
+      added = requested.filter(id => !mods.workshop.some(w => w.workshopId === id));
+      if (added.length) await patch(() => ({ mods: { items: [...new Set([...mods.workshop.map(w => w.workshopId), ...added])] } }));
+    } else clearError();
+    if (file !== profile) return;
+    const revision = draft.draftRevision;
+    workshopResult = { profile, revision, ids: added.length ? added : requested, added: added.length };
+    if ($("workshopInput").value === submittedInput) $("workshopInput").value = "";
+    $("draftSaved").textContent = added.length ? I18n.msg`Добавлено пакетов в черновик: ${added.length}.` : I18n.t("Пакет уже в конфигурации. Черновик не изменён.");
+    renderWorkshopResult();
+    revealWorkshop(workshopResult.ids, profile, revision);
+  }
   function packetVisible(packet) {
     const query = $("modQuery").value.toLowerCase();
     const filter = $("modFilter").value;
@@ -502,8 +562,7 @@ window.ConfigEditor = (() => {
   function renderComposition() {
     if (!mods) return;
     const openIds = new Set([...$("modPackages").querySelectorAll("details[open]")].map(d => d.dataset.item));
-    let packets = mods.workshop.filter(packetVisible);
-    if ($("modSortNew").value === "title") packets = [...packets].sort((a, b) => a.title.localeCompare(b.title, I18n.locale));
+    const packets = compositionPackets();
     compositionPager.page = Math.min(compositionPager.page, Math.max(0, Math.ceil(packets.length / compositionPager.size) - 1));
     const start = compositionPager.page * compositionPager.size;
     const pageItems = packets.slice(start, start + compositionPager.size);
@@ -512,7 +571,9 @@ window.ConfigEditor = (() => {
     $("modCompositionNext").disabled = start + pageItems.length >= packets.length;
     $("modCompositionRange").textContent = packets.length
       ? I18n.msg`${start + 1}–${start + pageItems.length} из ${packets.length} · Страница ${compositionPager.page + 1}` : "";
-    $("modPackages").innerHTML = pageItems.map(w => I18n.msg`<details class="workshop-package" data-item="${esc(w.workshopId)}" ${openIds.has(w.workshopId) ? "open" : ""}><summary><strong>${esc(w.title)}</strong><code>${esc(w.workshopId)}</code><span class="pill" data-state="${w.status === "pending" ? "warn" : "ok"}">${w.status === "pending" ? I18n.t("Ожидает загрузки") : `${w.selected.length} / ${w.mods.length} ModID`}</span></summary><div class="package-content"><div class="editor-toolbar"><a href="${esc(w.url)}" target="_blank" rel="noopener">Steam Workshop ↗</a><button type="button" class="btn small" data-remove-item="${esc(w.workshopId)}">Удалить пакет из конфигурации…</button></div>${(w.available || []).map(r => r.modId ? I18n.msg`<div class="mod-option"><label><input type="checkbox" data-modid="${esc(r.modId)}" ${mods.mods.includes(r.modId) ? "checked" : ""} ${S.demo || r.compatible === false && !mods.mods.includes(r.modId) ? "disabled" : ""} /><strong>${esc(r.name)}</strong><code>${esc(r.modId)}</code></label><p class="hint">Версия ${esc(r.branch)} · папка ${esc(r.folder)}${r.compatible === false ? I18n.t(" · Нет подходящего каталога B42") : ""}${r.versionMin ? I18n.msg` · От версии ${esc(r.versionMin)}` : ""}${r.versionMax ? I18n.msg` · До версии ${esc(r.versionMax)}` : ""}${r.require?.length ? I18n.msg` · Требует: ${esc(r.require.join(", "))}` : ""}</p>${r.options?.length ? I18n.html('<a href="#/settings" data-open-custom>Настройки мода →</a>') : ""}</div>` : `<p class="editor-error">${esc(r.error)}</p>`).join("") || I18n.html('<p class="hint">Сначала загрузите пакет через сервер, затем выберите ModID. Название Steam не определяет идентификаторы.</p>')}</div></details>`).join("") || I18n.html('<p class="hint">Пакеты не найдены. Добавьте Steam-ссылку или измените фильтр.</p>');
+    $("modPackages").innerHTML = pageItems.map(w => I18n.msg`<details class="workshop-package" data-item="${esc(w.workshopId)}" ${openIds.has(w.workshopId) ? "open" : ""}><summary><strong>${esc(w.title)}</strong><code>${esc(w.workshopId)}</code><span class="pill" data-state="${w.status === "pending" ? "warn" : "ok"}">${w.status === "pending" ? I18n.t("Ожидает загрузки") : `${w.selected.length} / ${w.mods.length} ModID`}</span></summary><div class="package-content"><div class="editor-toolbar"><a href="${esc(w.url)}" target="_blank" rel="noopener">Steam Workshop ↗</a><button type="button" class="btn small" data-remove-item="${esc(w.workshopId)}">Удалить пакет из конфигурации…</button></div>${(w.available || []).map(r => r.modId ? I18n.msg`<div class="mod-option"><label><input type="checkbox" data-modid="${esc(r.modId)}" ${mods.mods.includes(r.modId) ? "checked" : ""} ${S.demo || r.compatible === false && !mods.mods.includes(r.modId) ? "disabled" : ""} /><strong>${esc(r.name)}</strong><code>${esc(r.modId)}</code></label><p class="hint">Версия ${esc(r.branch)} · папка ${esc(r.folder)}${r.compatible === false ? I18n.t(" · Нет подходящего каталога B42") : ""}${r.versionMin ? I18n.msg` · От версии ${esc(r.versionMin)}` : ""}${r.versionMax ? I18n.msg` · До версии ${esc(r.versionMax)}` : ""}${r.require?.length ? I18n.msg` · Требует: ${esc(r.require.join(", "))}` : ""}</p>${r.options?.length ? I18n.html('<a href="#/settings" data-open-custom>Настройки мода →</a>') : ""}</div>` : `<p class="editor-error">${esc(r.error)}</p>`).join("") || I18n.html('<p class="hint">Сначала загрузите пакет через сервер, затем выберите ModID. Название Steam не определяет идентификаторы.</p>')}</div></details>`).join("") || (mods.workshop.length
+      ? I18n.html('<p class="hint">Нет пакетов, соответствующих поиску и фильтру.</p><button type="button" class="btn small" id="modClearFilters">Сбросить поиск и фильтр</button>')
+      : I18n.html('<p class="hint">В этом профиле пока нет пакетов. Добавьте Steam-ссылку, Workshop ID или коллекцию.</p>'));
     updateBar();
   }
   function installNotice() {
@@ -520,13 +581,16 @@ window.ConfigEditor = (() => {
     const installation = draft?.state?.installation;
     $("installNotice").hidden = !pending && !installation;
     const stage = installation?.stage;
+    const added = new Set(installation?.addedItems || []);
+    const selectable = currentModMetadata() && stage === "select-mods" ? mods.workshop.filter(w => added.has(w.workshopId) && w.status !== "pending" && (w.available || []).some(r => r.modId)).map(w => w.workshopId) : [];
+    const profile = file, revision = draft?.draftRevision;
     const title = stage === "select-mods" ? I18n.t("Пакеты загружены. Выберите ModID") : stage === "error" ? I18n.t("Загрузка требует проверки") : stage === "downloading" ? I18n.t("Загрузка пакетов") : I18n.t("Добавление модов проходит в две стадии");
     const explanation = stage === "select-mods" ? I18n.t("Первый этап завершён. Выберите нужные ModID и примените черновик с рестартом. Выключенные моды не включаются автоматически.") : stage === "error" ? I18n.t("Прошлая операция не была подтверждена. Если вы уже перезапустили сервер, проверьте его без нового рестарта. Если пакеты не загрузились, повторите загрузку.") : I18n.t("1. Рестарт скачает новые Workshop items и сохранит прежние Mods. 2. После выбора ModID следующий рестарт активирует их вместе с остальными правками.");
-    $("installNotice").innerHTML = `<strong>${title}</strong><p>${explanation}</p>${pending ? I18n.html('<button type="button" class="btn" id="prepareWorkshop">Загрузить пакеты через сервер…</button>') : ""}${installation ? I18n.html('<button type="button" class="btn small" id="cancelInstallation">Отменить добавление…</button><button type="button" class="btn small" id="retryInstallation">Повторить загрузку с рестартом…</button><button type="button" class="btn small" data-verify-running>Проверить запущенный сервер</button>') : ""}`;
+    $("installNotice").innerHTML = `<strong>${title}</strong><p>${explanation}</p>${pending ? I18n.html('<button type="button" class="btn" id="prepareWorkshop">Загрузить пакеты через сервер…</button>') : ""}${selectable.length ? I18n.msg`<button type="button" class="btn" id="chooseInstalledMods">Выбрать ModID · пакетов: ${selectable.length}</button>` : ""}${installation ? I18n.html('<button type="button" class="btn small" id="cancelInstallation">Отменить добавление…</button><button type="button" class="btn small" id="retryInstallation">Повторить загрузку с рестартом…</button><button type="button" class="btn small" data-verify-running>Проверить запущенный сервер</button>') : ""}`;
     $("prepareWorkshop")?.addEventListener("click", () => confirmApply(true));
+    $("chooseInstalledMods")?.addEventListener("click", () => revealWorkshop(selectable, profile, revision));
     $("retryInstallation")?.addEventListener("click", () => confirmApply(true));
     $("cancelInstallation")?.addEventListener("click", () => modal.open({ title: I18n.t("Отменить добавление пакетов?"), bodyHTML: I18n.t("Новые пакеты будут удалены из черновика. После этого примените изменения с рестартом. Скачанный кеш сохранится."), onConfirm: async () => {
-      const added = new Set(installation.addedItems);
       const mids = new Set(mods.workshop.filter(w => added.has(w.workshopId)).flatMap(w => w.mods));
       await patch({ mods: { items: mods.workshop.filter(w => !added.has(w.workshopId)).map(w => w.workshopId), selected: mods.mods.filter(mid => !mids.has(mid)) } });
     } }));
@@ -544,6 +608,8 @@ window.ConfigEditor = (() => {
     if (unsaved.length) throw new Error(I18n.t("Сначала повторите сохранение черновика после восстановления связи"));
     await flushSources();
     await chain;
+    // The primary action follows the saved snapshot, including edits just flushed.
+    if (prepare === null) prepare = pendingWorkshop();
     const review = reviewedDraft();
     checkReviewed(review);
     const result = await call("/api/config-validate", { file: review.file, prepare, draftRevision: review.revision, overwrite: true });
@@ -553,7 +619,7 @@ window.ConfigEditor = (() => {
     for (const issue of result.errors || []) {
       document.querySelectorAll("[data-error-key]").forEach(el => { if (el.dataset.errorKey === issue.key) { el.textContent = issue.message; el.hidden = false; } });
     }
-    return { ...result, review };
+    return { ...result, review, prepare };
   }
   function diffHtml(result) {
     const writtenDiffs = Object.entries(result.writtenDiff || {}).filter(([, diff]) => diff);
@@ -564,6 +630,7 @@ window.ConfigEditor = (() => {
     if (!draft || S.demo) return;
     try {
       const result = await validate(prepare);
+      prepare = result.prepare;
       checkReviewed(result.review);
       if (!result.valid) {
         error(result.errors.map(e => e.message).join("; ")); return;
@@ -667,15 +734,14 @@ window.ConfigEditor = (() => {
     new ResizeObserver(() => highlight(kind)).observe(input);
   }
   $("sourceSave").addEventListener("click", () => flushFields().then(flushSources).catch(e => error(e.message)));
-  function selectWorkshopCandidates(result, profile) {
+  function selectWorkshopCandidates(result, profile, submittedInput) {
     const current = new Set(mods.workshop.map(w => w.workshopId));
     const candidates = [...new Map(result.items.map(w => [w.workshopId, w])).values()];
     modal.open({ title: result.source?.title || I18n.t("Пакеты Steam-коллекции"), okLabel: I18n.t("Добавить выбранные"), bodyHTML: I18n.msg`<p>Выберите пакеты для черновика <strong>${esc(profile)}</strong>. ModID выберете после загрузки.</p><div class="collection-tools"><label for="collectionQuery">Поиск пакета</label><input type="search" id="collectionQuery" placeholder="Название или Workshop ID…" /><div class="editor-toolbar"><button type="button" class="btn small" id="collectionSelect">Выбрать найденные</button><button type="button" class="btn small" id="collectionClear">Снять найденные</button></div><p id="collectionCount" class="hint" role="status"></p></div><div id="collectionCandidates">${candidates.map(w => `<label class="collection-candidate" data-candidate-query="${esc(`${w.title} ${w.workshopId}`.toLowerCase())}"><input type="checkbox" value="${esc(w.workshopId)}" ${current.has(w.workshopId) ? "disabled" : ""} /><span><strong>${esc(w.title || w.workshopId)}</strong><code>${esc(w.workshopId)}</code>${current.has(w.workshopId) ? I18n.html('<span class="hint">Уже в конфигурации</span>') : ""}</span></label>`).join("") || I18n.html('<p class="hint">В коллекции нет пакетов для добавления.</p>')}</div><p id="collectionEmpty" class="hint" hidden>Нет пакетов, соответствующих поиску.</p>`, onConfirm: async () => {
       if (file !== profile) throw new Error(I18n.t("Профиль изменился. Проверьте коллекцию заново."));
       const selected = [...$("collectionCandidates").querySelectorAll("input:checked:not(:disabled)")].map(input => input.value);
       if (!selected.length) throw new Error(I18n.t("Выберите хотя бы один пакет"));
-      await patch(() => ({ mods: { items: [...new Set([...mods.workshop.map(w => w.workshopId), ...selected])] } }));
-      $("workshopInput").value = "";
+      await addWorkshopItems(selected, profile, submittedInput);
     } });
     const rows = [...$("collectionCandidates").querySelectorAll(".collection-candidate")];
     function updateCandidates() {
@@ -697,14 +763,14 @@ window.ConfigEditor = (() => {
   $("workshopAdd").addEventListener("submit", async e => {
     e.preventDefault(); if (!draft || !mods || resolvingWorkshop || operationBusy() || loading || S.demo) return;
     const profile = file;
+    const submittedInput = $("workshopInput").value;
     resolvingWorkshop = true; updateBar();
     try {
-      const result = await call("/api/workshop-resolve", { input: $("workshopInput").value });
+      const result = await call("/api/workshop-resolve", { input: submittedInput });
       if (file !== profile) throw new Error(I18n.t("Профиль изменился во время проверки Steam. Добавьте пакет в нужном профиле заново."));
       if (operationBusy() || loading) throw new Error(I18n.t("Дождитесь завершения операции и проверьте Steam-пакет заново"));
-      if (result.source?.kind === "collection" || result.items.length > 1) { selectWorkshopCandidates(result, profile); return; }
-      await patch(() => ({ mods: { items: [...new Set([...mods.workshop.map(w => w.workshopId), ...result.items.map(w => w.workshopId)])] } }));
-      $("workshopInput").value = "";
+      if (result.source?.kind === "collection" || result.items.length > 1) { selectWorkshopCandidates(result, profile, submittedInput); return; }
+      await addWorkshopItems(result.items.map(w => w.workshopId), profile, submittedInput);
     } catch (err) { error(err.message); } finally { resolvingWorkshop = false; updateBar(); }
   });
   $("modPackages").addEventListener("change", async e => {
@@ -718,6 +784,11 @@ window.ConfigEditor = (() => {
     modal.open({ title: I18n.t("Перенести запись в выбранный профиль?"), bodyHTML: I18n.msg`Профиль ${esc(file)}. Состав будет проверен по скачанным Steam-пакетам перед применением.`, onConfirm: () => patch({ mods: { items: [...new Set([...mods.workshop.map(w => w.workshopId), rec.workshopId])], selected: [...new Set([...mods.mods, ...rec.modIds.map(mid => mid.replace(/^\\+/, ""))])] } }) });
   });
   $("modPackages").addEventListener("click", e => {
+    if (e.target.closest("#modClearFilters")) {
+      $("modQuery").value = ""; $("modFilter").value = "all";
+      compositionPager.page = 0; renderComposition(); $("modQuery").focus();
+      return;
+    }
     const remove = e.target.closest("[data-remove-item]");
     if (e.target.closest("[data-open-custom]")) { configTab = "custom"; $("configTabs").querySelectorAll("[role=tab]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === "custom"))); renderFields(); }
     if (!remove) return;
@@ -1024,7 +1095,15 @@ window.ConfigEditor = (() => {
     compositionPager.page = 0;
     renderComposition();
   });
-  $("modRescan").addEventListener("click", () => loadMods(true).then(loaded => { if (loaded) { clearError(); updateBar(); } }).catch(e => error(e.message)));
+  $("modRescan").addEventListener("click", () => {
+    const recovery = !currentModMetadata() && workshopResult?.profile === file && workshopResult.revision === draft?.draftRevision ? workshopResult : null;
+    loadMods(true).then(loaded => {
+      if (loaded) {
+        clearError(); updateBar();
+        if (recovery) revealWorkshop(recovery.ids, recovery.profile, recovery.revision);
+      }
+    }).catch(e => error(e.message));
+  });
   $("modExport").addEventListener("click", async () => {
     try {
       await chain; await flushFields(); await flushSources();
@@ -1065,7 +1144,7 @@ window.ConfigEditor = (() => {
       renderFields(); renderSources(); renderMods();
     } });
   }
-  $("configApply").addEventListener("click", () => confirmApply(false, true));
+  $("configApply").addEventListener("click", () => confirmApply(null, true));
   async function verifyRunning() {
     if (S.demo || operationBusy() || loading) return;
     try {

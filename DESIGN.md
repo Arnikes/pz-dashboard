@@ -216,6 +216,13 @@ Composition shows Workshop packages in 25/50/100-item pages, defaulting to 25.
 Search, filtering and sorting apply before pagination and reset to the first page;
 draft and metadata refreshes preserve the page, clamping it when the list shrinks.
 Changing profiles resets the page. Pagination uses the shared journal controls.
+An explicit package or collection addition reveals the first added package, opens
+it, and focuses its summary after confirmation closes. This clears search and
+status filtering while retaining sort and page size. Duplicate additions leave
+the draft unchanged and reveal the existing package. Persistent result text names
+the saved addition and next step; a failed metadata read keeps the saved result
+and offers the existing metadata refresh. Filtered-empty lists offer Clear search
+and filter, while an empty profile prompts package addition.
 Load-order search uses the editor's flat labeled field treatment; its opaque
 workspace background remains sticky without an additional enclosing border.
 Load-order dragging lifts a copy of the row while neighboring rows slide to open
@@ -249,11 +256,17 @@ pending operations, saved drafts, and verified startup results. Editors load sna
 on entry and explicit actions; live updates do not refresh their contents. External
 changes appear in diff review and are overwritten when the browser writes files.
 Use inline errors with a retry action and concise success notifications.
+Settings and Mods share persistent errors, availability reasons and startup
+verification controls above their lifecycle stages; these stay hidden elsewhere.
 The configuration diff review offers Close to keep the draft and a quiet destructive
 Discard changes action that opens the shared discard confirmation. A clean review
 only offers Close. Discard confirmation focuses Cancel and names its destructive action.
-The draft bar exposes only View changes and Apply with restart, plus save retry when
-needed. It has no overflow menu, operation-log shortcut, or separate Write files action.
+The draft bar exposes View changes and Apply with restart, plus save retry when
+needed. Pending packages replace the primary action with Download packages with
+restart, retaining reviewed-revision confirmation and the separate download stage.
+After download, Choose ModID reveals only known newly installed packages and shows
+their count. Selection stays explicit before the final apply and restart.
+The bar has no overflow menu, operation-log shortcut, or separate Write files action.
 Mobile gives both actions equal-width columns; desktop keeps them beside the draft status.
 Toast reading time scales with message length from 5.2 to 20 seconds, unless a
 caller supplies an explicit duration. Hover, keyboard focus and background tabs

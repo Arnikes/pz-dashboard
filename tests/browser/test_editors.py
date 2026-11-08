@@ -1538,7 +1538,15 @@ def test_collection_candidates_filter_and_add_only_selected_packages(
     assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
     page.locator("#modalOk").click()
     expect(page.locator("#modalRoot")).to_be_hidden()
-    expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
+    expect(page.locator("#draftSaved")).to_have_text("Добавлено пакетов в черновик: 1.")
+    summary = page.locator('.workshop-package[data-item="222"] summary')
+    expect(summary).to_be_focused()
+    expect(summary).to_be_in_viewport(ratio=1)
+    assert summary.evaluate("""summary => {
+        const box = summary.getBoundingClientRect();
+        const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+        return hit === summary || summary.contains(hit);
+    }""")
     saved = editor.draft("world.ini")
     assert "WorkshopItems=111;222\r\n" in saved["texts"]["ini"]
     assert "Mods=\\library;\\plugin\r\n" in saved["texts"]["ini"]

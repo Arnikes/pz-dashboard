@@ -131,7 +131,7 @@ def test_composition_refresh_clamps_page_and_handles_boundaries(page, compositio
         expect(page.locator("#modCompositionNext")).to_be_disabled()
     else:
         expect(page.locator("#modCompositionPager")).to_be_hidden()
-        expect(page.locator("#modPackages")).to_contain_text("Пакеты не найдены")
+        expect(page.locator("#modPackages")).to_contain_text("В этом профиле пока нет пакетов")
 
 
 @pytest.mark.parametrize("width,language", [(1440, "ru"), (390, "en"), (320, "ru")])

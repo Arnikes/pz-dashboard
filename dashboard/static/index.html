@@ -160,6 +160,12 @@
       </div>
     </section>
     <section id="editorAttention" class="card attention" hidden aria-label="Требуют внимания"></section>
+    <div id="configFeedback" hidden>
+      <div id="configError" class="editor-error" role="alert" hidden></div>
+      <p id="configActionHelp" class="hint" role="status" hidden></p>
+      <div id="configVerifyHelp" class="page-actions" hidden><button type="button" id="configVerify" class="btn">Проверить запущенный сервер</button></div>
+      <p id="configVersionDiagnostic" class="hint" role="status" hidden></p>
+    </div>
     <ol id="configFlow" class="config-flow route-stepper" aria-label="Стадии изменения конфигурации" hidden>
       <li class="route-step">
         <button type="button" class="route-step-body" data-flow="draft">
@@ -325,6 +331,7 @@
           </div>
 
           <form id="workshopAdd" class="editor-toolbar"><input id="workshopInput" type="text" placeholder="Steam-ссылка, Workshop ID или коллекция" aria-label="Добавить пакет из Steam" required /><button class="btn" type="submit">Добавить</button></form>
+          <p id="workshopAddResult" class="hint" role="status" hidden></p>
           <div class="editor-toolbar mod-secondary-actions"><button type="button" id="modExport" class="btn small ghost">Экспорт набора</button><label class="btn small ghost import-button">Импорт набора<input type="file" id="modImport" accept="application/json,.json" class="sr-only" /></label><button type="button" class="btn small ghost" id="modRescan">Перечитать метаданные</button></div>
 
           <div id="installNotice" class="install-notice" hidden></div>
@@ -365,10 +372,6 @@
       <section class="card editor-card" aria-labelledby="page-settings">
         <div id="settingsLoading" class="editor-loading" role="progressbar" aria-label="Загрузка…" hidden></div>
         <header class="sr-only"><h2 id="hConfig">Параметры профиля</h2><span id="configStatus">Выберите профиль</span></header>
-        <div id="configError" class="editor-error" role="alert" hidden></div>
-        <p id="configActionHelp" class="hint" role="status" hidden></p>
-        <div id="configVerifyHelp" class="page-actions" hidden><button type="button" id="configVerify" class="btn">Проверить запущенный сервер</button></div>
-        <p id="configVersionDiagnostic" class="hint" role="status" hidden></p>
         <p class="tab-scroll-help" id="configTabsHelp">Вкладки можно прокручивать влево и вправо.</p>
         <div class="editor-tabs" id="configTabs" role="tablist" aria-label="Настройки сервера" aria-describedby="configTabsHelp">
           <button type="button" role="tab" aria-selected="true" aria-controls="configServerPanel" data-tab="server">Сервер</button><button type="button" role="tab" aria-selected="false" aria-controls="configWorldPanel" tabindex="-1" data-tab="world">Мир</button><button type="button" role="tab" aria-selected="false" aria-controls="configCustomPanel" tabindex="-1" data-tab="custom">Настройки модов</button><button type="button" role="tab" aria-selected="false" aria-controls="configSources" tabindex="-1" data-tab="sources">Исходники</button><button type="button" role="tab" aria-selected="false" aria-controls="configHistory" tabindex="-1" data-tab="history">История изменений</button>

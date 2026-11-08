@@ -3007,11 +3007,12 @@ tabletLayout.addEventListener("change", adaptSidebar);
 adaptSidebar();
 function adaptConfigFlow() {
   const editing = /^(settings|mods)$/.test(location.hash.replace(/^#\/?/, ""));
-  const main = document.querySelector(".main"), flow = $("configFlow");
+  const main = document.querySelector(".main"), flow = $("configFlow"), feedback = $("configFeedback");
   if (editing) {
     const card = $("view-" + location.hash.replace(/^#\/?/, "")).querySelector(".editor-card");
     card.querySelector(".editor-tabs").before(flow);
   } else main.querySelector(".view").before(flow);
+  flow.before(feedback);
 }
 adaptConfigFlow();
 mobileLayout.addEventListener("change", adaptConfigFlow);
@@ -3036,7 +3037,6 @@ for (const [route, label] of Object.entries(VIEWS)) {
   view.prepend(heading);
   view.setAttribute("aria-labelledby", "page-" + route);
 }
-$("view-settings").querySelector(".page-heading").append($("configVerifyHelp"));
 const modSettingsLink = document.createElement("a");
 modSettingsLink.className = "btn";
 modSettingsLink.href = "#/settings";
