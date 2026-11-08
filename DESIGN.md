@@ -228,11 +228,15 @@ draft; reduced motion skips the sibling animation.
 One SSE connection persists across route changes.
 
 Desktop and mobile show Draft → Files → Startup inside the editor, below the
-page heading and above the tabs and editing fields. The shared stepper uses round
-numbered indicators, inline titles with status descriptions beneath, and thin
-connecting lines. The current stage has a beige indicator; recorded stages use
-olive checkmarks and errors use a brick-red warning mark. On mobile the labels
-stack below the indicators while keeping all three status descriptions visible.
+page heading and above the tabs and editing fields. The editor and active operation
+use the same connected Route grammar: round numbered indicators, thin connecting
+lines, and a title for every stage. Editor descriptions and the active operation's
+current status remain visible. The current
+stage has a beige indicator; recorded stages use olive checkmarks and errors use a
+brick-red warning mark. Desktop labels sit below the indicators. At widths up to
+540 pixels the route becomes vertical, keeping every description visible. Editor
+stages remain interactive targets of at least 44 pixels and reflect persisted draft,
+file-write, and verified-startup evidence independently of an unrelated operation.
 On mobile, draft actions stay
 fixed above the bottom navigation. Viewports up to 600 pixels high keep the draft
 bar in the document flow. Stage selection reviews changes
@@ -269,12 +273,20 @@ of the center's heading, filters and footer.
 All editing routes lock mutations from request submission through completion.
 Busy widgets blur their existing contents and show a centered loading indicator
 labeled "Operation in progress: <operation name>" in the selected language;
-repeated operation availability blocks are hidden. The shared operation bar shows
-completed stages and the current stage, with Countdown for timed waits and no
-Elapsed row. Detailed phase messages remain accessible and available on hover.
-The operation bar also covers request submission and manual image checks.
-Request acceptance uses the bar; the inbox records the operation's final result.
-Completed stages carry olive checkmarks and accessible completion labels.
+repeated operation availability blocks are hidden. The shared operation bar uses
+the connected Route stepper for completed stages and the current stage, including
+a single stage and request preparation. Only stages actually visited by the
+operation appear; there is no inferred future sequence, percentage, or total.
+Routes with more than five visited stages become vertical on desktop as well.
+The current phase's detail is visible below the route on every input method.
+Countdown appears only for timed waits, uses tabular numerals, and stays separate
+from the stage sequence; there is no Elapsed row. Logs and the matching cancel
+action share a stable action row with touch targets of at least 44 pixels.
+The operation bar also covers manual image checks. Request acceptance uses the
+bar; after completion the bar hides and the inbox records the final result once.
+Completed stages carry olive checkmarks and accessible completion labels. Current
+stages use `aria-current="step"`; the operation route itself is passive and does
+not execute actions.
 Nested backup completion does not add a terminal stage; configuration writing and
 post-start verification remain explicit stages until the operation finishes.
 Game launches retain the lock until a valid PZ players response confirms RCON

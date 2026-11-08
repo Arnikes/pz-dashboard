@@ -88,3 +88,88 @@ def test_recorded_files_do_not_claim_verified_startup(page, dashboard, editing):
     expect(page.locator('[data-flow="launch"]')).to_have_attribute("aria-current", "step")
     expect(page.locator('[data-flow="launch"] .flow-number')).to_be_visible()
     assert dashboard["actions"] == []
+
+
+@pytest.mark.parametrize("language", ["ru", "en"])
+@pytest.mark.parametrize("draft_state", ["draft", "saved", "verified"])
+def test_unrelated_operations_preserve_the_configuration_lifecycle(
+    page,
+    dashboard,
+    editing,  # noqa: F811
+    monkeypatch,
+    language,
+    draft_state,
+):
+    if draft_state == "verified":
+        _, request = saved_verification(editing, monkeypatch)
+        editor.verify_running(request)
+    elif draft_state == "saved":
+        current = editor.draft("world.ini")
+        editor.save_json(
+            editor.state_dir("world.ini") / "state.json",
+            {"status": "saved", "savedRevision": current["currentRevision"]},
+        )
+    page.set_viewport_size({"width": 320, "height": 900})
+    page.add_init_script(f"localStorage.setItem('pz-language','{language}')")
+    page.goto(dashboard["url"] + "/#/settings")
+    expect(page.locator("#configProfile")).to_be_enabled()
+    page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
+    if draft_state == "draft":
+        field = page.locator('[data-key="PublicName"]')
+        field.fill("Keep this draft during backup")
+        field.press("Tab")
+        expect(page.locator("#draftSaved")).to_have_text(
+            "Черновик сохранён" if language == "ru" else "Draft saved"
+        )
+    launch_status = page.locator("#flowLaunch").inner_text()
+    stage_state = page.locator("#configFlow button").evaluate_all(
+        "nodes=>nodes.map(node=>[node.dataset.flow,node.dataset.state,node.getAttribute('aria-current')])"
+    )
+    for operation in ["backup", "check-update"]:
+        page.evaluate("op=>renderOp({active:{op,phase:'Working'},history:[]})", operation)
+        expect(page.locator("#configProfile")).to_be_disabled()
+        expect(page.locator("#opbar")).to_be_visible()
+        expect(page.locator("#flowLaunch")).to_have_text(launch_status)
+        assert (
+            page.locator("#configFlow button").evaluate_all(
+                "nodes=>nodes.map(node=>[node.dataset.flow,node.dataset.state,node.getAttribute('aria-current')])"
+            )
+            == stage_state
+        )
+        page.evaluate("renderOp({active:null,history:[]})")
+        expect(page.locator("#configProfile")).to_be_enabled()
+    if draft_state == "draft":
+        expect(page.locator('[data-key="PublicName"]')).to_have_value(
+            "Keep this draft during backup"
+        )
+    assert dashboard["actions"] == []
+
+
+@pytest.mark.parametrize("language", ["ru", "en"])
+def test_failed_startup_uses_a_warning_marker_in_high_contrast_mode(
+    page,
+    dashboard,
+    editing,  # noqa: F811
+    language,
+):
+    current = editor.draft("world.ini")
+    editor.save_json(
+        editor.state_dir("world.ini") / "state.json",
+        {
+            "status": "error",
+            "savedRevision": current["currentRevision"],
+            "error": "PZ readiness timed out",
+        },
+    )
+    page.set_viewport_size({"width": 320, "height": 900})
+    page.add_init_script(f"localStorage.setItem('pz-language','{language}')")
+    page.emulate_media(forced_colors="active", reduced_motion="reduce")
+    page.goto(dashboard["url"] + "/#/settings")
+    launch = page.locator('[data-flow="launch"]')
+    expect(launch).to_have_attribute("data-state", "bad")
+    expect(page.locator("#flowLaunch")).to_have_text(
+        "Проверьте ошибку" if language == "ru" else "Check error"
+    )
+    expect(launch.locator(".flow-error")).to_be_visible()
+    expect(launch.locator(".flow-check")).to_be_hidden()
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")

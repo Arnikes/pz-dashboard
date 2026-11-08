@@ -434,7 +434,9 @@ def test_older_overlapping_refresh_cannot_replace_newer_process_epoch(page, dash
         lambda route: route.fulfill(json=operation_snapshot(51, active, epoch="epoch-2")),
     )
     page.evaluate("refreshOps()")
-    expect(page.locator("#opPhase")).to_contain_text("Current process progress")
+    expect(page.locator('#opStages [aria-current="step"]')).to_contain_text(
+        "Current process progress"
+    )
 
 
 def test_cached_stream_frame_after_launch_receipt_cannot_clear_admission_state(page, dashboard):
@@ -474,7 +476,7 @@ def test_cached_stream_frame_after_launch_receipt_cannot_clear_admission_state(p
     held.pop().fulfill(status=503, json={"error": "Unavailable"})
     page.wait_for_function("window.launchFinished")
     expect(page.locator("#btnStop")).to_be_disabled()
-    expect(page.locator("#opPhase")).to_contain_text("Checking updates")
+    expect(page.locator('#opStages [aria-current="step"]')).to_contain_text("Checking updates")
 
 
 def test_completion_before_launch_acknowledgement_is_not_revived(page, dashboard):
@@ -547,7 +549,7 @@ def test_accepted_editor_operation_survives_failed_state_refresh(
     expect(page.locator("#configProfile")).to_be_disabled()
     expect(page.locator("#btnStop")).to_be_disabled()
     expect(page.locator("#opbar")).to_be_visible()
-    expect(page.locator("#opPhase")).to_contain_text("Writing configuration")
+    expect(page.locator('#opStages [aria-current="step"]')).to_contain_text("Writing configuration")
 
 
 def test_ambiguous_launch_timeout_stays_locked_until_fresh_state(page, dashboard):

@@ -1441,17 +1441,27 @@ function renderActiveOperation() {
   if (active) {
     setDomProperty($("opbar"), "hidden", false);
     setDomProperty($("opMsg"), "textContent", active.message || "");
-    const stages = (active.stages || [active.phase]).filter(stage => !["Подготовка…", I18n.t("Подготовка…"), "Готово", I18n.t("Готово")].includes(stage));
+    setDomProperty($("opMsg"), "hidden", !active.message);
+    const preparing = ["Подготовка…", I18n.t("Подготовка…")];
+    const done = ["Готово", I18n.t("Готово")];
+    const phase = typeof active.phase === "string" ? active.phase.trim() : "";
+    let stages = (Array.isArray(active.stages) ? active.stages : []).filter(stage => typeof stage === "string" && stage.trim() && !done.includes(stage));
+    // Stages are visits, not a plan: keep repeated visits and append a newer phase.
+    if (phase && !done.includes(phase) && stages.at(-1) !== phase) stages.push(phase);
+    if (stages.some(stage => !preparing.includes(stage))) stages = stages.filter(stage => !preparing.includes(stage));
+    if (!stages.length) stages = [I18n.t("Подготовка…")];
+    // A nested worker may say Done before the outer operation finishes.
+    // Its last real visit stays current until an authoritative terminal frame.
     const markup = stages.map((stage, index) => {
-      const current = index === stages.length - 1 && stage === active.phase;
+      const current = index === stages.length - 1;
       const label = `${stage}: ${current ? I18n.t("Выполняется") : I18n.t("Завершено")}`;
-      return `<li${current ? ' aria-current="step"' : ' data-complete="true"'} aria-label="${esc(label)}">${current ? "" : '<svg class="op-stage-check" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>'}${esc(stage)}</li>`;
+      const marker = current ? index + 1 : '<svg class="op-stage-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>';
+      return `<li class="route-step" data-state="${current ? "current" : "ok"}"${current ? ' aria-current="step"' : ' data-complete="true"'} aria-label="${esc(label)}"><div class="route-step-body"><span class="route-marker" aria-hidden="true">${marker}</span><span class="route-copy"><strong class="op-stage-label">${esc(stage)}</strong><span class="op-stage-state${current ? "" : " sr-only"}">${current ? I18n.t("Выполняется") : I18n.t("Завершено")}</span></span></div>${current ? "" : '<span class="route-connector" aria-hidden="true"></span>'}</li>`;
     }).join("");
     const title = OP_TITLES[active.op] || active.op;
-    setDomProperty($("opPhase"), "textContent", stages.length > 1 ? title : `${title}: ${active.phase}`);
+    setDomProperty($("opPhase"), "textContent", title);
     if ($("opStages").innerHTML !== markup) $("opStages").innerHTML = markup;
-    setDomProperty($("opStages"), "hidden", stages.length < 2);
-    setDomProperty($("opPhase"), "title", active.message || "");
+    setDomProperty($("opStages").dataset, "layout", stages.length > 5 ? "vertical" : "horizontal");
   } else {
     setDomProperty($("opbar"), "hidden", true);
   }
@@ -1508,6 +1518,7 @@ function renderOp(op, { reconcilePending = false, fromRefresh = false, fromStrea
 function updateOperationCountdown() {
   const deadline = Number(S.op?.active?.countdownEndsAt);
   const available = Number.isFinite(deadline) && deadline > 0;
+  setDomProperty($("opTimer"), "hidden", !available);
   setDomProperty($("opCountdown"), "hidden", !available);
   if (available) {
     const left = Math.max(0, Math.ceil(deadline - Date.now() / 1000));

@@ -561,15 +561,12 @@ select:focus-visible,
 /* ───────────────────────── полоса операции ───────────────────────── */
 
 .opbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
+  display: grid;
+  min-width: 0;
   margin-top: 14px;
-  padding: 11px 14px;
-  border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent);
-  border-radius: var(--r-sm);
-  background: color-mix(in srgb, var(--warning) 6%, transparent);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
 }
 
 .op-spin {
@@ -584,12 +581,18 @@ select:focus-visible,
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.op-text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 180px; }
-.opbar .btn { white-space: normal; }
 .main > .opbar { margin: 0 0 18px; }
-.opbar .op-text span { white-space: normal; overflow-wrap: anywhere; }
-.op-text strong { font-size: 13px; color: var(--warn); }
-.op-text span { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.op-title { margin:18px 20px 0; font-size:14.5px; line-height:1.4; font-weight:600; overflow-wrap:anywhere; }
+.opbar .op-stages { padding:24px 20px 20px; }
+.op-detail { display:flex; align-items:center; gap:20px; padding:16px 20px; border-top:1px solid var(--line); background:var(--surface-2); }
+.op-detail:has(#opMsg[hidden]):has(#opTimer[hidden]) { display:none; }
+#opMsg { flex:1; min-width:0; max-width:75ch; margin:0; font-size:13px; line-height:1.6; color:var(--muted); overflow-wrap:anywhere; white-space:pre-line; }
+.op-timer { flex:none; margin-inline-start:auto; text-align:right; }
+.op-timer-label { display:block; max-width:14ch; margin-bottom:4px; font-size:11px; line-height:1.5; color:var(--muted); }
+.op-countdown { font-size:22px; line-height:1.2; font-variant-numeric:tabular-nums; color:var(--warn); }
+.op-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:10px 20px; border-top:1px solid var(--line); }
+.op-actions .btn { min-width:0; min-height:44px; white-space:normal; overflow-wrap:anywhere; }
+.op-actions button { margin-inline-start:auto; background:transparent; }
 
 /* ───────────────────────── watchdog ───────────────────────── */
 
@@ -1672,23 +1675,27 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--footer-heig
 .head-link, .copy-value { min-height:44px; align-items:center; }
 .modal, .command-dialog, .more-menu { border:0; box-shadow:var(--elevation-dialog); }
 .draft-bar { box-shadow:none; border-color:var(--line-strong); }
-.config-flow { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)) auto; gap:20px; list-style:none; padding:8px 0; margin:14px 0 16px; }
-.config-flow > li { position:relative; display:flex; align-items:center; gap:20px; min-width:0; }
-.config-flow button { display:flex; align-items:center; gap:12px; min-width:0; min-height:44px; padding:4px 0; border:0; border-radius:var(--r-control); background:transparent; color:var(--muted); text-align:left; font:inherit; cursor:pointer; }
-.config-flow .flow-copy { display:grid; gap:3px; min-width:0; }
-.config-flow .flow-copy strong { color:var(--ink); font-size:13px; font-weight:500; }
-.config-flow .flow-copy > span { font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
-.config-flow .flow-indicator { display:flex; flex:none; align-items:center; justify-content:center; width:32px; height:32px; border:1px solid var(--line-strong); border-radius:50%; color:var(--muted); background:var(--surface); font-size:13px; font-weight:500; }
-.config-flow .flow-indicator svg { display:none; width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
-.config-flow button[aria-current=step] .flow-indicator { border-color:var(--accent); background:var(--accent); color:var(--bg-deep); }
-.config-flow button[data-state=ok] .flow-indicator { border-color:var(--ok); background:var(--success-tint); color:var(--ok); }
-.config-flow button[data-state=bad] .flow-indicator { border-color:var(--danger-text); background:var(--danger-tint); color:var(--danger-text); }
+.route-stepper { display:grid; grid-auto-columns:minmax(0,1fr); grid-auto-flow:column; gap:16px; list-style:none; padding:0; margin:0; }
+.route-step { position:relative; min-width:0; }
+.route-step-body { position:relative; z-index:1; display:flex; flex-direction:column; align-items:flex-start; gap:10px; min-width:0; }
+.route-marker { display:flex; flex:none; align-items:center; justify-content:center; width:32px; height:32px; border:1px solid var(--line-strong); border-radius:50%; color:var(--muted); background:var(--surface); font-size:13px; font-weight:500; font-variant-numeric:tabular-nums; }
+.route-marker svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.route-copy { display:grid; gap:4px; min-width:0; }
+.route-copy strong { color:var(--ink); font-size:13px; line-height:1.45; font-weight:500; overflow-wrap:anywhere; }
+.route-copy > span { color:var(--muted); font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
+.route-connector { position:absolute; top:16px; left:44px; right:0; height:1px; background:var(--line-strong); }
+.route-stepper [aria-current=step] .route-marker { border-color:var(--accent); background:var(--accent); color:var(--bg-deep); }
+.route-stepper [data-state=ok] .route-marker { border-color:var(--ok); background:var(--surface); color:var(--ok); }
+.route-stepper [data-state=ok] > .route-connector, .route-stepper [data-state=ok] + .route-connector { background:var(--ok); }
+.op-stages [data-complete=true] .op-stage-label { color:var(--muted); }
+.config-flow { padding:8px 0; margin:14px 0 20px; }
+.config-flow button { width:100%; min-height:44px; padding:0; border:0; border-radius:var(--r-control); background:transparent; color:var(--muted); text-align:left; font:inherit; cursor:pointer; }
+.config-flow .flow-indicator svg { display:none; }
+.config-flow button[data-state=bad] .route-marker { border-color:var(--danger-text); background:var(--surface); color:var(--danger-text); }
 .config-flow button[data-state=ok] .flow-number, .config-flow button[data-state=bad] .flow-number { display:none; }
 .config-flow button[data-state=ok] .flow-check, .config-flow button[data-state=bad] .flow-error { display:block; }
 .config-flow button[data-state=ok] .flow-copy > span { color:var(--ok); }
 .config-flow button[data-state=bad] .flow-copy > span { color:var(--danger-text); }
-.config-flow .flow-connector { flex:1; min-width:20px; height:1px; background:var(--line-strong); }
-.config-flow button[data-state=ok] + .flow-connector { background:var(--ok); }
 .config-flow button:hover:not(:disabled) .flow-copy strong { text-decoration:underline; text-underline-offset:4px; }
 .config-flow button:disabled { cursor:default; }
 .config-flow button:focus-visible { outline:2px solid var(--focus); outline-offset:4px; }
@@ -1714,10 +1721,7 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--footer-heig
   .page-heading h1 { font-size:24px; }
   .page-actions { gap:6px; }
   .page-actions .btn { font-size:12px; padding:8px 10px; }
-  .config-flow { grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:8px 0 12px; }
-  .config-flow > li { display:block; }
-  .config-flow button { flex-direction:column; gap:8px; width:100%; min-height:44px; padding:6px 0; text-align:center; }
-  .config-flow .flow-connector { position:absolute; top:22px; left:calc(50% + 20px); width:calc(100% - 32px); min-width:0; }
+  .config-flow { margin:8px 0 16px; }
   .backup-row .b-age { display:block; }
   .editor-card input:not([type=checkbox]), .editor-card select, .editor-card textarea:not(.source-editor textarea) { font-size:16px; }
   .view { gap:12px; }
@@ -1727,8 +1731,24 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--footer-heig
   .config-grid { padding:8px 0; }
 
 }
-@media (max-width:380px) {
-  .config-flow .flow-copy > span { font-size:11px; }
+/* A long visit history uses the same connected rail as a narrow viewport. */
+.route-stepper[data-layout=vertical] { grid-auto-flow:row; grid-auto-columns:auto; gap:0; }
+.route-stepper[data-layout=vertical] .route-step:not(:last-child) { padding-bottom:20px; }
+.route-stepper[data-layout=vertical] .route-step-body { flex-direction:row; gap:12px; min-height:44px; }
+.route-stepper[data-layout=vertical] .route-copy { padding-top:5px; }
+.route-stepper[data-layout=vertical] .route-connector { top:38px; bottom:6px; left:16px; right:auto; width:1px; height:auto; }
+@media (max-width:540px) {
+  .route-stepper { grid-auto-flow:row; grid-auto-columns:auto; gap:0; }
+  .route-stepper .route-step:not(:last-child) { padding-bottom:20px; }
+  .route-stepper .route-step-body { flex-direction:row; gap:12px; min-height:44px; }
+  .route-stepper .route-copy { padding-top:5px; }
+  .route-stepper .route-connector { top:38px; bottom:6px; left:16px; right:auto; width:1px; height:auto; }
+  .op-title { margin:16px 14px 0; }
+  .opbar .op-stages { padding:20px 14px 14px; }
+  .op-detail { align-items:flex-start; padding:14px; gap:12px; }
+  .op-countdown { font-size:20px; }
+  .op-actions { padding:8px 14px; }
+  .op-actions button { flex-basis:100%; margin-inline-start:0; }
 }
 @media (forced-colors:active) {
   .source-editor pre { display:none; }
@@ -1736,8 +1756,9 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--footer-heig
   .source-editor textarea::selection { color:HighlightText; background:Highlight; }
   .more-menu { outline:1px solid CanvasText; }
   .nav a[aria-current=page], .nav-more[aria-current=page], .nav-more[aria-expanded=true], .more-menu a[aria-current=page], .editor-tabs button[aria-selected=true], .config-flow button[aria-current=step] { outline:2px solid Highlight; outline-offset:-2px; }
-  .config-flow .flow-connector { background:CanvasText; }
-  .config-flow button[aria-current=step] .flow-indicator { border-color:Highlight; }
+  .opbar { border-color:CanvasText; }
+  .route-stepper .route-connector { background:CanvasText; }
+  .route-stepper [aria-current=step] .route-marker { border-color:Highlight; outline:2px solid Highlight; outline-offset:3px; }
 }
 @media (max-height:600px) and (min-width:741px) {
   .topbar { position:relative; }
@@ -1961,12 +1982,6 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--footer-heig
 @media (max-width:740px) { #btnCommands { align-self:start; } }
 
 /* Operations keep unavailable widgets recognizable without repeated notices. */
-.op-countdown { font-size:16px; font-variant-numeric:tabular-nums; color:var(--warn); }
-.op-stages { display:flex; flex-wrap:wrap; gap:4px 12px; padding:0; margin:3px 0 0; list-style:none; color:var(--muted); font-size:12px; }
-.op-stages li { display:inline-flex; align-items:center; gap:4px; }
-.op-stages [aria-current=step] { color:var(--ink); }
-.op-stages [aria-current=step]::before { content:""; width:12px; flex:none; }
-.op-stage-check { width:12px; height:12px; flex:none; fill:none; stroke:var(--success); stroke-width:2; }
 .operation-loading { position:relative; }
 .operation-loading > :not(.operation-loader) { filter:blur(2px); opacity:.5; }
 .operation-loader { position:absolute; inset-inline:0; top:min(50%, 180px); transform:translateY(-50%); display:flex; align-items:center; justify-content:center; gap:10px; padding-inline:16px; pointer-events:none; color:var(--ink); font-size:13px; }

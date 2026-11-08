@@ -144,33 +144,41 @@
 
   <main class="main" data-od-id="main">
     <section class="opbar" id="opbar" hidden aria-label="Текущая операция" role="status">
-      <span class="op-spin" aria-hidden="true"></span>
-      <div class="op-text"><strong id="opPhase"></strong><ol id="opStages" class="op-stages" aria-label="Стадии операции" hidden></ol><span id="opMsg" class="sr-only"></span></div>
-      <span class="mono op-countdown" id="opCountdown" aria-label="Обратный отсчёт" aria-live="off" hidden></span>
-      <a class="btn" href="#/console">Логи</a>
-      <button class="btn" id="btnCancelUpdate" hidden>Отменить обновление сервера</button>
-      <button class="btn" id="btnCancelMods" hidden>Отменить обновление модов</button>
+      <strong id="opPhase" class="op-title"></strong>
+      <ol id="opStages" class="op-stages route-stepper" aria-label="Стадии операции"></ol>
+      <div class="op-detail">
+        <p id="opMsg" hidden></p>
+        <div id="opTimer" class="op-timer" aria-live="off" hidden>
+          <span class="op-timer-label">Обратный отсчёт</span>
+          <span class="mono op-countdown" id="opCountdown" aria-label="Обратный отсчёт" hidden></span>
+        </div>
+      </div>
+      <div class="op-actions">
+        <a class="btn" href="#/console">Логи</a>
+        <button class="btn" id="btnCancelUpdate" hidden>Отменить обновление сервера</button>
+        <button class="btn" id="btnCancelMods" hidden>Отменить обновление модов</button>
+      </div>
     </section>
     <section id="editorAttention" class="card attention" hidden aria-label="Требуют внимания"></section>
-    <ol id="configFlow" class="config-flow" aria-label="Стадии изменения конфигурации" hidden>
-      <li>
-        <button type="button" data-flow="draft">
-          <span class="flow-indicator" aria-hidden="true"><span class="flow-number">1</span><svg viewBox="0 0 24 24" class="flow-check"><path d="m5 12 4 4L19 6"/></svg><svg viewBox="0 0 24 24" class="flow-error"><path d="M12 5v9m0 4v1"/></svg></span>
-          <span class="flow-copy"><strong>Черновик</strong><span id="flowDraft">Загрузка…</span></span>
+    <ol id="configFlow" class="config-flow route-stepper" aria-label="Стадии изменения конфигурации" hidden>
+      <li class="route-step">
+        <button type="button" class="route-step-body" data-flow="draft">
+          <span class="flow-indicator route-marker" aria-hidden="true"><span class="flow-number">1</span><svg viewBox="0 0 24 24" class="flow-check"><path d="m5 12 4 4L19 6"/></svg><svg viewBox="0 0 24 24" class="flow-error"><path d="M12 5v9m0 4v1"/></svg></span>
+          <span class="flow-copy route-copy"><strong>Черновик</strong><span id="flowDraft">Загрузка…</span></span>
         </button>
-        <span class="flow-connector" aria-hidden="true"></span>
+        <span class="flow-connector route-connector" aria-hidden="true"></span>
       </li>
-      <li>
-        <button type="button" data-flow="files">
-          <span class="flow-indicator" aria-hidden="true"><span class="flow-number">2</span><svg viewBox="0 0 24 24" class="flow-check"><path d="m5 12 4 4L19 6"/></svg><svg viewBox="0 0 24 24" class="flow-error"><path d="M12 5v9m0 4v1"/></svg></span>
-          <span class="flow-copy"><strong>Файлы</strong><span id="flowFiles">Проверить различия</span></span>
+      <li class="route-step">
+        <button type="button" class="route-step-body" data-flow="files">
+          <span class="flow-indicator route-marker" aria-hidden="true"><span class="flow-number">2</span><svg viewBox="0 0 24 24" class="flow-check"><path d="m5 12 4 4L19 6"/></svg><svg viewBox="0 0 24 24" class="flow-error"><path d="M12 5v9m0 4v1"/></svg></span>
+          <span class="flow-copy route-copy"><strong>Файлы</strong><span id="flowFiles">Проверить различия</span></span>
         </button>
-        <span class="flow-connector" aria-hidden="true"></span>
+        <span class="flow-connector route-connector" aria-hidden="true"></span>
       </li>
-      <li>
-        <button type="button" data-flow="launch">
-          <span class="flow-indicator" aria-hidden="true"><span class="flow-number">3</span><svg viewBox="0 0 24 24" class="flow-check"><path d="m5 12 4 4L19 6"/></svg><svg viewBox="0 0 24 24" class="flow-error"><path d="M12 5v9m0 4v1"/></svg></span>
-          <span class="flow-copy"><strong>Запуск</strong><span id="flowLaunch">Проверить применение</span></span>
+      <li class="route-step">
+        <button type="button" class="route-step-body" data-flow="launch">
+          <span class="flow-indicator route-marker" aria-hidden="true"><span class="flow-number">3</span><svg viewBox="0 0 24 24" class="flow-check"><path d="m5 12 4 4L19 6"/></svg><svg viewBox="0 0 24 24" class="flow-error"><path d="M12 5v9m0 4v1"/></svg></span>
+          <span class="flow-copy route-copy"><strong>Запуск</strong><span id="flowLaunch">Проверить применение</span></span>
         </button>
       </li>
     </ol>

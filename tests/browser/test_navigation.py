@@ -70,6 +70,7 @@ def test_sidebar_preferences_survive_reload_and_resize_without_changing_mobile(p
     page.set_viewport_size({"width": 390, "height": 844})
     expect(toggle).to_be_hidden()
     nav = page.locator(".nav")
+    expect(nav).to_be_visible()
     assert nav.bounding_box()["width"] == 390
     assert nav.locator("a:visible").count() == 3
     page.locator("#navMore").click()

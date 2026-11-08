@@ -18,6 +18,7 @@ def open_order(page, dashboard, width=1440, language="ru"):
     if language == "en":
         page.evaluate("localStorage.setItem('pz-language', 'en')")
         page.reload()
+    page.evaluate("ConfigEditor.ready")
     expect(page.locator("#configProfile")).to_have_value("world.ini")
     navigate(page, "mods")
     page.locator('#modTabs [data-tab="order"]').click()

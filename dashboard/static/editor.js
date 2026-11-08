@@ -89,7 +89,7 @@ window.ConfigEditor = (() => {
     setDomProperty($("configFlow").querySelector('[data-flow="launch"]'), "disabled", !edited && !recorded && !draft.conflict && draft.status !== "error");
     setDomProperty($("flowDraft"), "textContent", edited ? I18n.t("Есть правки") : I18n.t("Без новых правок"));
     setDomProperty($("flowFiles"), "textContent", draft.conflict ? I18n.t("Конфликт с диском") : edited ? I18n.t("Ожидают записи") : recorded ? I18n.t("Записаны") : I18n.t("Проверить различия"));
-    setDomProperty($("flowLaunch"), "textContent", busy ? I18n.t("Идёт операция") : verified ? I18n.t("Подтверждён") : draft.status === "error" ? I18n.t("Проверьте ошибку") : recorded ? I18n.t("Нужна проверка") : I18n.t("После записи файлов"));
+    setDomProperty($("flowLaunch"), "textContent", verified ? I18n.t("Подтверждён") : draft.status === "error" ? I18n.t("Проверьте ошибку") : recorded ? I18n.t("Нужна проверка") : I18n.t("После записи файлов"));
     $("configFlow").querySelectorAll("[data-flow]").forEach(el => {
       setDomAttribute(el, "aria-current", el.dataset.flow === stage ? "step" : "false");
       const failed = el.dataset.flow === "files" && draft.conflict || el.dataset.flow === "launch" && draft.status === "error";

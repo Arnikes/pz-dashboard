@@ -46,7 +46,9 @@ def test_update_check_has_persistent_result_and_serializes_requests(page, dashbo
     assert len(held) == 1
     snapshot["active"] = {"op": "check-update", "phase": "Проверка актуального образа"}
     held[0].fulfill(json={"ok": True, "started": "check-update"})
-    expect(page.locator("#opPhase")).to_contain_text("Проверка актуального образа")
+    expect(page.locator('#opStages [aria-current="step"]')).to_contain_text(
+        "Проверка актуального образа"
+    )
     snapshot.update(
         active=None,
         history=[
@@ -279,7 +281,7 @@ def test_operation_visible_on_all_routes_and_result_survives_navigation(page, da
         page.evaluate("route => {location.hash = '#/' + route}", route)
         expect(page.locator(f"#view-{route}")).to_be_visible()
         expect(page.locator("#opbar")).to_be_visible()
-        expect(page.locator("#opPhase")).to_contain_text("Ожидание")
+        expect(page.locator('#opStages [aria-current="step"]')).to_contain_text("Ожидание")
         expect(page.locator("#opCountdown")).to_contain_text(":")
         expect(page.locator("#opElapsed")).to_have_count(0)
         expect(page.locator("#btnCancelMods")).to_be_hidden()
