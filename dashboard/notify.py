@@ -8,11 +8,13 @@
 """
 
 import json
+import logging
 import queue
 import threading
 import time
 import urllib.error
 import urllib.request
+import urllib.parse
 
 import config
 import i18n
@@ -54,6 +56,36 @@ KIND_ICON = {
 _QUEUE = queue.Queue(maxsize=50)
 _LAST = {"at": None, "ok": None, "error": None}
 _LOCK = threading.Lock()
+_LOGGER = logging.getLogger(__name__)
+
+
+def _safe_error(error, settings):
+    """Redact credentials before an error reaches UI, events, or process logs."""
+    error = str(error) or "ошибка отправки"
+    for key in ("botToken", "apiHash", "mtproxySecret"):
+        secret = settings.get(key)
+        if not isinstance(secret, str) or not secret.strip():
+            continue
+        secret = secret.strip()
+        variants = {secret, urllib.parse.quote(secret, safe=""), urllib.parse.quote_plus(secret)}
+        if key in ("apiHash", "mtproxySecret"):
+            variants.update((secret.lower(), secret.upper()))
+        if key == "mtproxySecret" and len(secret) == 34 and secret[:2].lower() == "dd":
+            variants.update((secret[2:], secret[2:].lower(), secret[2:].upper()))
+        for value in sorted(variants, key=len, reverse=True):
+            error = error.replace(value, "•••")
+    return error[:1000]
+
+
+def _proxy_failure(settings, error):
+    import ops  # noqa: PLC0415 — avoid the operations/notifications import cycle
+
+    error = _safe_error(error, settings)
+    if not error.startswith("Telegram MTProxy:"):
+        error = "Telegram MTProxy: " + error
+    _LOGGER.error("%s", error)
+    ops.log_event("error", error, notify=False)
+    return False, error
 
 
 def state():
@@ -103,6 +135,11 @@ def fetch_recent_chats():
     супергрупп с префиксом -100, а из ссылок/дев-тулзов его часто копируют без него.
     (chats, error)."""
     tg = _telegram_settings()
+    proxy = tg.get("mtproxyEnabled", False)
+    if not isinstance(proxy, bool):
+        return None, _proxy_failure(tg, "telegram.mtproxyEnabled должен быть true/false")[1]
+    if proxy:
+        return None, "Поиск чатов через MTProxy недоступен. Введите Chat ID вручную."
     token = (tg.get("botToken") or "").strip()
     if not token:
         return None, "не задан токен бота"
@@ -146,6 +183,17 @@ def fetch_recent_chats():
 def send_message(text):
     """Отправить сообщение прямо сейчас. (ok, error)."""
     tg = _telegram_settings()
+    proxy = tg.get("mtproxyEnabled", False)
+    if not isinstance(proxy, bool):
+        return _proxy_failure(tg, "telegram.mtproxyEnabled должен быть true/false")
+    if proxy:
+        try:
+            import telegram_mtproxy  # noqa: PLC0415 — direct Bot API needs no client
+
+            ok, error = telegram_mtproxy.send_message(tg, text[:3500])
+        except Exception as error:  # noqa: BLE001 — notifications must not kill their worker
+            return _proxy_failure(tg, error)
+        return (True, None) if ok else _proxy_failure(tg, error or "ошибка отправки")
     token = (tg.get("botToken") or "").strip()
     chat = (tg.get("chatId") or "").strip()
     if not token or not chat:
@@ -191,6 +239,7 @@ def test_message():
     with _LOCK:
         _LAST.update({"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "ok": ok, "error": err})
     if not ok:
+        err = i18n.translate(err)
         chat = (tg.get("chatId") or "").strip()
         if chat:
             err = f"{err} · chat id: {chat}"

@@ -21,7 +21,8 @@ without leaving your browser. Built with Python and plain HTML, CSS, and JavaScr
 - **Backups that fit your routine.** Manual and daily backups, retention, archive verification,
   downloads, and a restore workflow with explicit confirmation.
 - **Server operations with context.** Player warnings before restarts, image and mod update
-  scheduling, an RCON watchdog, optional Telegram notifications, and an event journal.
+  scheduling, an RCON watchdog, optional Telegram notifications with MTProxy support,
+  and an event journal.
 - **At home on desktop, tablet, or phone.** Responsive navigation, quick commands with `Ctrl/Cmd+K`,
   English and Russian interfaces, and an installable PWA.
 - **Self-contained UI assets.** Fonts, icons, scripts, and styles are served locally.

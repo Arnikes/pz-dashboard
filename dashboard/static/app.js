@@ -1185,6 +1185,20 @@ function renderOverview(o) {
   const tgEnabled = !!tg.enabled;
   if (settingsCanRender("tgSwitch")) $("tgSwitch").checked = tgEnabled;
   if (settingsCanRender("tgChat")) $("tgChat").value = tg.chatId || "";
+  if (settingsCanRender("tgMtproxySwitch")) {
+    // Malformed persisted/env values must keep the protected route selected.
+    const configured = Object.hasOwn(tg, "mtproxyEnabled");
+    $("tgMtproxySwitch").checked = configured && tg.mtproxyEnabled !== false;
+    $("tgMtproxyConfigHint").hidden = !configured || typeof tg.mtproxyEnabled === "boolean";
+  }
+  if (settingsCanRender("tgMtproxyHost")) $("tgMtproxyHost").value = tg.mtproxyHost || "";
+  if (settingsCanRender("tgMtproxyPort")) $("tgMtproxyPort").value = tg.mtproxyPort ?? 443;
+  if (settingsCanRender("tgApiId")) $("tgApiId").value = tg.apiId || "";
+  $("tgMtproxySecretState").textContent = tg.hasMtproxySecret ? I18n.t("Секрет MTProxy сохранён.") : "";
+  $("tgMtproxySecretState").hidden = !tg.hasMtproxySecret;
+  $("tgApiHashState").textContent = tg.hasApiHash ? I18n.t("API hash сохранён.") : "";
+  $("tgApiHashState").hidden = !tg.hasApiHash;
+  updateTelegramProxyFields();
   if (settingsCanRender("playerLanguage")) $("playerLanguage").value = o.settings?.playerNotifications?.language === "ru" ? "ru" : "en";
   if (settingsCanRender("tgLanguage")) $("tgLanguage").value = tg.language === "ru" ? "ru" : "en";
   const groups = tg.groups || {};
@@ -1363,7 +1377,7 @@ function updateButtons() {
     const disabled = ["telegram", "playerNotifications"].includes(group) ? busy : hostOnly;
     for (const id of definition.ids) setDomProperty($(id), "disabled", disabled);
   }
-  setDomProperty($("btnTgChats"), "disabled", busy || !!S.telegramChatsPending);
+  setDomProperty($("btnTgChats"), "disabled", busy || !!S.telegramChatsPending || $("tgMtproxySwitch").checked);
   setDomProperty($("btnTgTest"), "disabled", busy || !!S.telegramTestPending);
   document.querySelectorAll(".settings-feedback button, #tgChatsBody .chat-chip").forEach(button => {
     setDomProperty(button, "disabled", busy || remote && !button.closest("#sec-notify, #playerNotifications"));
@@ -2435,7 +2449,7 @@ const SETTING_GROUPS = {
   autoUpdate: { ids: ["autoSwitch", "autoInterval", "autoWarn", "buBackup"], card: "sec-updates", title: I18n.t("Автообновление образа") },
   watchdog: { ids: ["wdSwitch", "wdThreshold", "wdGracePeriod", "wdRestart"], card: "sec-watchdog", title: "Watchdog RCON" },
   modsUpdate: { ids: ["modsAutoSwitch", "modsAutoInterval", "modsAutoAction", "modsAutoWarn"], card: "sec-mods-update", title: I18n.t("Автообновление модов") },
-  telegram: { ids: ["tgSwitch", "tgToken", "tgChat", "tgLanguage", "tgOps", "tgBackup", "tgUpdate", "tgProblems"], card: "sec-notify", title: "Telegram" },
+  telegram: { ids: ["tgSwitch", "tgToken", "tgChat", "tgMtproxySwitch", "tgMtproxyHost", "tgMtproxyPort", "tgMtproxySecret", "tgApiId", "tgApiHash", "tgLanguage", "tgOps", "tgBackup", "tgUpdate", "tgProblems"], card: "sec-notify", title: "Telegram" },
   autoBackup: { ids: ["bkAutoSwitch", "bkAutoTime", "bkAutoKeep", "bkAutoStop"], card: "sec-bkauto", title: I18n.t("Расписание бэкапов") },
 };
 const settingStates = new Map();
@@ -2504,7 +2518,11 @@ function saveSettingsGroup(group, body) {
       if (res.error || res.ok === false) throw new Error(res.error || I18n.t("Сохранение не принято"));
       // Only the latest local edit can release the fields or clear the secret.
       if (generation === state.generation) {
-        if (group === "telegram" && $("tgToken").value.trim() === body.telegram.botToken) $("tgToken").value = "";
+        if (group === "telegram") {
+          for (const [id, key] of [["tgToken", "botToken"], ["tgMtproxySecret", "mtproxySecret"], ["tgApiHash", "apiHash"]]) {
+            if ($(id).value.trim() === body.telegram[key]) $(id).value = "";
+          }
+        }
         state.dirty = false;
         if (res.settings) acceptSettings(res.settings);
         settingsFeedback(group, "ok", group === "telegram" && body.telegram.botToken
@@ -2529,6 +2547,7 @@ function saveSettingsGroup(group, body) {
 function pushSettings(eventOrGroup) {
   const group = typeof eventOrGroup === "string" ? eventOrGroup : settingGroup(eventOrGroup?.target?.id) || "telegram";
   if (group === "watchdog" && !$("wdGracePeriod").reportValidity()) return Promise.resolve(false);
+  if (group === "telegram" && ["tgMtproxyPort", "tgApiId"].some(id => !$(id).reportValidity())) return Promise.resolve(false);
   const body = {
     playerNotifications: { language: $("playerLanguage").value },
     autoUpdate: {
@@ -2554,6 +2573,12 @@ function pushSettings(eventOrGroup) {
       language: $("tgLanguage").value,
       botToken: $("tgToken").value.trim(),
       chatId: $("tgChat").value.trim(),
+      mtproxyEnabled: $("tgMtproxySwitch").checked,
+      mtproxyHost: $("tgMtproxyHost").value.trim(),
+      mtproxyPort: $("tgMtproxyPort").value === "" ? "" : Number($("tgMtproxyPort").value),
+      mtproxySecret: $("tgMtproxySecret").value.trim(),
+      apiId: $("tgApiId").value === "" ? "" : Number($("tgApiId").value),
+      apiHash: $("tgApiHash").value.trim(),
       groups: {
         ops: $("tgOps").checked,
         backup: $("tgBackup").checked,
@@ -2614,17 +2639,39 @@ $("tgLanguage").addEventListener("change", pushSettings);
 $("playerLanguage").addEventListener("change", pushSettings);
 $("tgChat").addEventListener("change", pushSettings);
 $("tgToken").addEventListener("change", pushSettings);
+["tgMtproxyHost", "tgMtproxyPort", "tgMtproxySecret", "tgApiId", "tgApiHash"].forEach((id) => $(id).addEventListener("change", pushSettings));
+function updateTelegramProxyFields() {
+  const enabled = $("tgMtproxySwitch").checked;
+  $("tgMtproxyFields").hidden = !enabled;
+  $("tgMtproxyChatsHint").hidden = !enabled;
+  if (enabled) $("tgChatsBody").hidden = true;
+}
+$("tgMtproxySwitch").addEventListener("change", (event) => {
+  updateTelegramProxyFields();
+  updateButtons();
+  pushSettings(event);
+});
+async function flushTelegramSettings() {
+  const state = settingState("telegram");
+  do {
+    if (!await pushSettings("telegram")) return false;
+  } while (state.pending || state.dirty);
+  return true;
+}
 ["tgOps", "tgBackup", "tgUpdate", "tgProblems"].forEach((id) => $(id).addEventListener("change", pushSettings));
 /* «Найти чаты бота»: getUpdates показывает, где бот реально состоит,
    и подставляет настоящий chat id вместо копипасты с ошибками */
 $("btnTgChats").addEventListener("click", async () => {
+  if ($("tgMtproxySwitch").checked) return;
   const btn = $("btnTgChats");
   const body = $("tgChatsBody");
   try {
     S.telegramChatsPending = true;
     btn.disabled = true;
-    if (!await pushSettings()) return; // токен мог быть введён только что
+    if (!await flushTelegramSettings()) return; // токен мог быть введён только что
+    if ($("tgMtproxySwitch").checked) return;
     const res = await api("/api/telegram-chats");
+    if ($("tgMtproxySwitch").checked) return;
     if (res.error) throw new Error(res.error);
     const chats = res.chats || [];
     body.hidden = false;
@@ -2658,8 +2705,8 @@ $("btnTgTest").addEventListener("click", async () => {
   try {
     // если токен/chat ввели и сразу нажали «Проверить» — сначала дожимаем сохранение,
     // иначе проверка уйдёт со старыми настройками и скажет «не задан токен»
-    if (!await pushSettings()) return;
-    const res = await api("/api/notify-test", { method: "POST", body: {} });
+    if (!await flushTelegramSettings()) return;
+    const res = await api("/api/notify-test", { method: "POST", body: {}, timeout: 20000 });
     if (res.error) throw new Error(res.error);
     toast(I18n.t("Отправлено — проверьте чат Telegram"), "ok");
   } catch (e) {

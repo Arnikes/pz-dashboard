@@ -13,6 +13,7 @@ RU_CATALOG = {
 }
 PLACEHOLDER = re.compile(r"{{(\d+)}}")
 NESTED_MESSAGES = {
+    "Telegram MTProxy: {{0}}": (0,),
     "S3: список бэкапов недоступен ({{0}})": (0,),
     "S3: скачивание бэкапа не удалось ({{0}})": (0,),
     "S3: удаление бэкапа не удалось ({{0}})": (0,),
@@ -191,13 +192,15 @@ def resolve(headers, path=""):
 def translate(text, _depth=0, *, locale=None):
     """Translate presentation copy in a request or an explicitly chosen locale."""
     locale = language() if locale is None else locale
-    if not isinstance(text, str) or not re.search("[А-Яа-яЁё]", text):
+    if not isinstance(text, str):
         return text
     catalog = CATALOG if locale == "en" else RU_CATALOG
     messages = MESSAGES if locale == "en" else RU_MESSAGES
     key = re.sub(r"\s+", " ", text).strip()
     if isinstance(catalog.get(key), str):
         return catalog[key]
+    if not re.search("[А-Яа-яЁё]", text):
+        return text
     for _, expression, slots, translation, source in messages:
         match = expression.fullmatch(text.strip())
         if match:

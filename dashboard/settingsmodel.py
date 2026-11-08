@@ -1,6 +1,7 @@
 """Settings normalization and validation, without persistence or shared state."""
 
 import math
+import ipaddress
 import re
 from copy import deepcopy
 
@@ -24,6 +25,12 @@ DEFAULTS = {
         "language": "en",
         "botToken": "",
         "chatId": "",
+        "mtproxyEnabled": False,
+        "mtproxyHost": "",
+        "mtproxyPort": 443,
+        "mtproxySecret": "",
+        "apiId": "",
+        "apiHash": "",
         "groups": {"ops": True, "backup": True, "update": True, "problems": True},
     },
     "backup": {"stopServer": False, "maxBackups": 7},
@@ -60,6 +67,84 @@ RULES = {
     "autoBackup": {"enabled": "enabled", "time": None, "stopServer": "stopServer"},
 }
 TIME_RE = re.compile(r"^(\d{1,2}):(\d{2})$")
+HEX32_RE = re.compile(r"[0-9a-fA-F]{32}")
+
+
+def _telegram_integer(value, maximum):
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return ""
+        if not value.isascii() or not value.isdecimal() or len(value) > len(str(maximum)):
+            return None
+        value = int(value)
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value if 1 <= value <= maximum else None
+
+
+def _telegram_host(value):
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    if not value:
+        return ""
+    if value.startswith("[") and value.endswith("]"):
+        value = value[1:-1]
+    try:
+        return str(ipaddress.ip_address(value))
+    except ValueError:
+        pass
+    try:
+        hostname = value.encode("idna").decode("ascii")
+    except UnicodeError:
+        return None
+    if len(hostname) > 253:
+        return None
+    labels = hostname.rstrip(".").split(".")
+    if not all(
+        re.fullmatch(r"[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?", label) for label in labels
+    ):
+        return None
+    return hostname
+
+
+def _validate_mtproxy(values):
+    if "mtproxyEnabled" in values and not isinstance(values["mtproxyEnabled"], bool):
+        return "telegram.mtproxyEnabled должен быть true/false"
+    for key, maximum in (("mtproxyPort", 65535), ("apiId", 2147483647)):
+        if key not in values:
+            continue
+        normalized = _telegram_integer(values[key], maximum)
+        if normalized is None:
+            return f"telegram.{key} должен быть целым числом 1–{maximum}"
+        values[key] = normalized
+    if "mtproxyHost" in values:
+        host = _telegram_host(values["mtproxyHost"])
+        if host is None:
+            return "telegram.mtproxyHost должен быть именем хоста или IP-адресом"
+        values["mtproxyHost"] = host
+    for key in ("apiHash", "mtproxySecret"):
+        if key not in values:
+            continue
+        value = values[key]
+        if value is None or isinstance(value, str) and (not value.strip() or "•" in value):
+            values.pop(key)
+            continue
+        if not isinstance(value, str):
+            return f"telegram.{key} должен быть строкой"
+        value = value.strip()
+        valid = HEX32_RE.fullmatch(value)
+        if key == "mtproxySecret":
+            valid = valid or (value[:2].lower() == "dd" and HEX32_RE.fullmatch(value[2:]))
+        if not valid:
+            return (
+                "telegram.apiHash должен содержать 32 шестнадцатеричных символа"
+                if key == "apiHash"
+                else "telegram.mtproxySecret должен содержать 32 шестнадцатеричных символа или dd и 32 символа; FakeTLS не поддерживается"
+            )
+        values[key] = value
+    return None
 
 
 def clamp_int(value, lo, hi):
@@ -136,7 +221,7 @@ def _validate_telegram(values):
         values["chatId"] = chat_id.strip()[:32]
     else:
         return "chatId должен быть строкой"
-    return None
+    return _validate_mtproxy(values)
 
 
 def prepare_patch(current, patch, next_daily_run):
@@ -204,6 +289,16 @@ def normalize_loaded(settings):
         if not isinstance(defaults, dict):
             continue
         for key, default in defaults.items():
+            if section == "telegram" and key in (
+                "mtproxyEnabled",
+                "mtproxyHost",
+                "mtproxyPort",
+                "apiId",
+                "apiHash",
+                "mtproxySecret",
+            ):
+                # Preserve invalid proxy data for fail-closed send-time validation.
+                continue
             if isinstance(default, bool) and not isinstance(settings[section].get(key), bool):
                 settings[section][key] = default
             elif isinstance(default, str) and not isinstance(settings[section].get(key), str):

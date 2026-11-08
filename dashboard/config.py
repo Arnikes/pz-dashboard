@@ -12,6 +12,36 @@ def _int(name, default):
         return default
 
 
+def telegram_env():
+    """Read optional bootstrap settings; persisted keys override them individually."""
+    names = {
+        "enabled": "TELEGRAM_ENABLED",
+        "botToken": "TELEGRAM_BOT_TOKEN",
+        "chatId": "TELEGRAM_CHAT_ID",
+        "language": "TELEGRAM_LANGUAGE",
+        "mtproxyEnabled": "TELEGRAM_MTPROXY_ENABLED",
+        "mtproxyHost": "TELEGRAM_MTPROXY_HOST",
+        "mtproxyPort": "TELEGRAM_MTPROXY_PORT",
+        "mtproxySecret": "TELEGRAM_MTPROXY_SECRET",
+        "apiId": "TELEGRAM_API_ID",
+        "apiHash": "TELEGRAM_API_HASH",
+    }
+    settings = {}
+    for key, name in names.items():
+        if name not in os.environ:
+            continue
+        value = os.environ[name].strip()
+        if key in ("enabled", "mtproxyEnabled"):
+            # Retain malformed values so an intended proxy cannot become direct.
+            normalized = value.lower()
+            if normalized in ("true", "1"):
+                value = True
+            elif normalized in ("false", "0"):
+                value = False
+        settings[key] = value
+    return settings
+
+
 IMAGE = os.getenv("PZ_IMAGE", "indifferentbroccoli/projectzomboid-server-docker:latest")
 _REPO, _TAG = IMAGE.rsplit(":", 1) if ":" in IMAGE.rsplit("/", 1)[-1] else (IMAGE, "latest")
 

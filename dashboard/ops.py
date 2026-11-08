@@ -193,6 +193,7 @@ def _next_daily_run(time_str, now=None):
 
 
 def _load_settings():
+    _SETTINGS["telegram"].update(config.telegram_env())
     try:
         with open(config.CFG["settings_file"], encoding="utf-8") as stream:
             data = json.load(stream)
@@ -239,6 +240,12 @@ def get_settings():
         tok = tg["botToken"]
         tg["botTokenMasked"] = ("•••" + tok[-4:]) if len(tok) >= 8 else "•••"
         tg["botToken"] = ""
+    if tg:
+        for key, flag in (("apiHash", "hasApiHash"), ("mtproxySecret", "hasMtproxySecret")):
+            present = bool(tg.get(key))
+            tg[flag] = present
+            tg[key + "Masked"] = "•••" if present else ""
+            tg[key] = ""
     return data
 
 

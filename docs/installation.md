@@ -244,6 +244,61 @@ immutable image, or `:latest` to follow the most recently published stable tag.
 Private packages require `docker login ghcr.io` with read access; public packages
 can be pulled anonymously. See [release setup](../CONTRIBUTING.md#publish-a-github-release).
 
+## Telegram and MTProxy
+
+Open **Maintenance → Notifications** to configure the bot token, Chat ID,
+notification language and event subscriptions. Telegram uses the HTTPS Bot API
+by default. Enable **Use MTProxy** to send notifications and connection tests
+through an MTProto proxy. This requires the proxy host, port and secret, plus
+your Telegram application API ID and API hash from [my.telegram.org](https://my.telegram.org).
+Bot authorization still uses the bot token; no phone-number login is needed.
+
+The host accepts a DNS name, IPv4 or IPv6 address, without a URL scheme or path.
+The port must be 1–65535 and the API ID must be a positive integer. The API hash
+contains 32 hexadecimal characters. Proxy secrets support 32 hexadecimal
+characters or `dd` followed by 32 hexadecimal characters. Extended `ee` FakeTLS
+secrets, base64 secrets and pasted proxy links are not supported. A plain
+32-character secret beginning with `dd` or `ee` is supported.
+
+The same settings can bootstrap a new installation through `.env`:
+
+```dotenv
+TELEGRAM_ENABLED=true
+TELEGRAM_BOT_TOKEN=123456:replace-with-your-bot-token
+TELEGRAM_CHAT_ID=-1001234567890
+TELEGRAM_LANGUAGE=en
+TELEGRAM_MTPROXY_ENABLED=true
+TELEGRAM_MTPROXY_HOST=proxy.example.com
+TELEGRAM_MTPROXY_PORT=443
+TELEGRAM_MTPROXY_SECRET=0123456789abcdef0123456789abcdef
+TELEGRAM_API_ID=123456
+TELEGRAM_API_HASH=abcdef0123456789abcdef0123456789
+```
+
+Both Compose examples pass these variables only to the panel. Environment
+values initialize each setting; keys already saved in
+`dashboard-data/settings.json` take precedence, including a saved disabled proxy.
+Changes in Notifications persist the effective settings. Recreate the panel
+after changing its environment. Edit the saved settings in the app when an
+environment change is overridden by an existing saved value.
+
+API hash and proxy secret stay on the server, like the bot token. Leaving a
+secret input empty keeps its saved value; enter a new value to replace it.
+Credentials and the settings volume must remain private. MTProto authorization
+state is kept only in memory and recreated after a panel restart.
+
+Use a numeric Chat ID: a positive private-chat ID, negative group ID, or
+`-100…` supergroup/channel ID. The bot must already be started by the recipient
+or added to the target group/channel with permission to send messages.
+Automatic **Find bot chats** discovery is available with the direct Bot API;
+when MTProxy is enabled, enter the Chat ID manually. The panel never bypasses
+an enabled MTProxy through a direct Bot API request.
+
+Use **Test** after saving the configuration. Proxy failures appear in the panel
+event journal and panel container logs, with credentials redacted. Failed proxy
+connections do not send additional Telegram notifications. Incomplete or invalid
+proxy settings fail the test instead of falling back to a direct connection.
+
 ## Language and PWA
 
 The interface supports English and Russian. Its selector is available on the login,
