@@ -898,6 +898,7 @@ $("btnLogout").addEventListener("click", async () => {
 });
 
 let pendingMutations = 0;
+let updateGuardBusy = false;
 let opsGeneration = 0;
 let opsRefreshSequence = 0;
 let opsAppliedRefresh = 0;
@@ -1009,7 +1010,10 @@ async function api(path, opts = {}) {
     throw error;
   } finally {
     clearTimeout(timer);
-    if (mutation) pendingMutations--;
+    if (mutation) {
+      pendingMutations--;
+      document.dispatchEvent(new Event("pz:update-guard-changed"));
+    }
   }
 }
 
@@ -1330,6 +1334,10 @@ function setAvailability(id, message) {
 
 function updateOperationWidgets() {
   const busy = operationBusy();
+  if (updateGuardBusy !== busy) {
+    updateGuardBusy = busy;
+    document.dispatchEvent(new Event("pz:update-guard-changed"));
+  }
   const operation = S.op?.active?.op || S.pendingOperation;
   const loadingLabel = operation ? I18n.msg`Идёт операция: ${OP_TITLES[operation] || operation}` : I18n.t("Идёт операция");
   if (!busy) {
@@ -2486,8 +2494,15 @@ const SETTING_GROUPS = {
 };
 const settingStates = new Map();
 document.addEventListener("pz:before-update", (event) => {
-  if (S.op?.active || S.actionPending || pendingMutations || [...settingStates.values()].some(state => state.pending || state.dirty)
-      || !$('modalRoot').hidden || $('commandDialog').open || $('consoleInput').value.trim()) event.preventDefault();
+  const settings = [...settingStates.values()];
+  const reasons = [];
+  if (S.op?.active || S.actionPending || pendingMutations || settings.some(state => state.pending)) reasons.push("operation");
+  if (settings.some(state => state.dirty) || $('consoleInput').value.trim()) reasons.push("unsaved");
+  if (!$('modalRoot').hidden || $('commandDialog').open) reasons.push("dialog");
+  if (reasons.length) {
+    event.preventDefault();
+    event.detail?.reasons?.push(...reasons);
+  }
 });
 let settingsQueue = Promise.resolve();
 
@@ -2591,6 +2606,7 @@ function saveSettingsGroup(group, body) {
       return false;
     } finally {
       state.pending--;
+      document.dispatchEvent(new Event("pz:update-guard-changed"));
     }
   };
   const result = settingsQueue.then(run);

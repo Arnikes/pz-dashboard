@@ -11,6 +11,7 @@ window.ConfigEditor = (() => {
   let profileLoad = Promise.resolve();
   let pendingRequests = 0;
   let resolvingWorkshop = false;
+  let updateGuardState = "";
   let workshopResult = null;
   const compositionPager = { page: 0, size: 25 };
   const pendingFields = new Map();
@@ -66,6 +67,11 @@ window.ConfigEditor = (() => {
     }
   }
   function updateBar() {
+    const guardState = JSON.stringify([sourceDirty, fieldDirty, !!pendingFields.size, !!unsaved.length, !!pendingPatches, loading, resolvingWorkshop]);
+    if (guardState !== updateGuardState) {
+      updateGuardState = guardState;
+      document.dispatchEvent(new Event("pz:update-guard-changed"));
+    }
     updateLoading();
     const busy = operationBusy();
     const editorView = ["settings", "mods"].includes(activeView);
@@ -1208,7 +1214,13 @@ window.ConfigEditor = (() => {
   document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("moreMenu").hidden) { $("moreMenu").hidden = true; $("navMore").setAttribute("aria-expanded", "false"); $("navMore").focus(); } });
   document.addEventListener("click", e => { if (!e.target.closest("#moreMenu, #navMore")) { $("moreMenu").hidden = true; $("navMore").setAttribute("aria-expanded", "false"); } });
   document.addEventListener("pz:before-update", e => {
-    if (sourceDirty || fieldDirty || pendingFields.size || unsaved.length || pendingPatches || loading || resolvingWorkshop) e.preventDefault();
+    const reasons = [];
+    if (pendingPatches || loading || resolvingWorkshop) reasons.push("operation");
+    if (sourceDirty || fieldDirty || pendingFields.size || unsaved.length || $("workshopInput").value.trim()) reasons.push("unsaved");
+    if (reasons.length) {
+      e.preventDefault();
+      e.detail?.reasons?.push(...reasons);
+    }
   });
   window.addEventListener("beforeunload", e => { if (sourceDirty || fieldDirty || pendingFields.size || unsaved.length) { e.preventDefault(); e.returnValue = ""; } });
   window.addEventListener("hashchange", updateBar);

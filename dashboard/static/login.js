@@ -36,5 +36,6 @@ form.addEventListener("submit", async (event) => {
   } finally {
     button.disabled = false;
     button.textContent = I18n.t("Войти");
+    document.dispatchEvent(new Event("pz:update-guard-changed"));
   }
 });

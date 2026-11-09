@@ -12,6 +12,7 @@ import app
 import auth
 
 from browser_evidence import capture_evidence
+from test_editors import editing, editor, env  # noqa: F401
 
 pytestmark = [pytest.mark.browser, pytest.mark.browser_context_args(service_workers="allow")]
 
@@ -97,6 +98,86 @@ def pwa_server(monkeypatch, tmp_path, page):
 def ready(page, server):
     page.goto(server["url"] + "/login")
     page.wait_for_function("!!navigator.serviceWorker.controller")
+    expect(page.locator("#pwaUpdate")).to_be_hidden()
+
+
+def controlled_update(page, *, controlled=True, waiting=True, language="ru"):
+    """Control browser lifecycle boundaries that real workers cannot reliably delay."""
+    page.clock.install()
+    page.add_init_script(f"localStorage.setItem('pz-language', '{language}')")
+    script = """(() => {
+      sessionStorage.pwaTestLoads = Number(sessionStorage.pwaTestLoads || 0) + 1;
+      const registration = new EventTarget();
+      let controller = __CONTROLLED__ ? {scriptURL: location.origin + '/sw.js'} : null;
+      const lifecycle = window.pwaLifecycle = {
+        registration, messages: [], mode: 'hold', disappear: false,
+        worker(name) {
+          const worker = new EventTarget();
+          worker.state = 'installed';
+          worker.scriptURL = location.origin + '/sw.js';
+          worker.postMessage = message => {
+            lifecycle.messages.push({name, type: message.type});
+            if (lifecycle.mode === 'throw') throw new Error('Activation transport failed');
+            if (lifecycle.disappear) lifecycle.activating(worker);
+            if (lifecycle.mode === 'activate') queueMicrotask(() => lifecycle.activate(worker));
+          };
+          return worker;
+        },
+        offer(name) {
+          registration.waiting = lifecycle.worker(name);
+          registration.installing = registration.waiting;
+          registration.dispatchEvent(new Event('updatefound'));
+          registration.waiting.dispatchEvent(new Event('statechange'));
+          registration.installing = null;
+          return registration.waiting;
+        },
+        activating(worker = lifecycle.current) {
+          registration.waiting = null;
+          worker.state = 'activating';
+          worker.dispatchEvent(new Event('statechange'));
+        },
+        activate(worker = lifecycle.current) {
+          registration.waiting = null;
+          registration.active = controller = worker;
+          worker.state = 'activated';
+          worker.dispatchEvent(new Event('statechange'));
+          navigator.serviceWorker.dispatchEvent(new Event('controllerchange'));
+        },
+        redundant(worker = lifecycle.current) {
+          if (registration.waiting === worker) registration.waiting = null;
+          worker.state = 'redundant';
+          worker.dispatchEvent(new Event('statechange'));
+        },
+      };
+      lifecycle.current = lifecycle.worker('one');
+      registration.waiting = __WAITING__ ? lifecycle.current : null;
+      registration.installing = null;
+      registration.active = controller;
+      registration.update = async () => {};
+      Object.defineProperty(navigator.serviceWorker, 'controller', {get: () => controller});
+      navigator.serviceWorker.register = async () => registration;
+      navigator.serviceWorker.getRegistration = async () => registration;
+    })();"""
+    page.add_init_script(
+        script.replace("__CONTROLLED__", str(controlled).lower()).replace(
+            "__WAITING__", str(waiting).lower()
+        )
+    )
+
+
+def pause_update_clock(page):
+    page.clock.pause_at(page.evaluate("Date.now() / 1000 + 1"))
+
+
+def assert_not_reloaded(page):
+    assert page.evaluate("Number(sessionStorage.pwaTestLoads)") == 1
+
+
+def finish_controlled_update(page):
+    page.evaluate("pwaLifecycle.mode = 'activate'")
+    with page.expect_navigation(wait_until="load"):
+        page.locator("#pwaUpdate").click()
+    assert page.evaluate("Number(sessionStorage.pwaTestLoads)") == 2
 
 
 def test_offline_launch_reconnect_and_private_cache(page, context, pwa_server):
@@ -138,7 +219,7 @@ def test_update_waits_for_password_and_does_not_reload_other_tab(page, context, 
     expect(page.locator("#pwaUpdate")).to_be_visible()
     page.locator("#password").fill("do-not-lose-this")
     page.locator("#pwaUpdate").click()
-    expect(page.locator("#pwaUpdateNote")).to_contain_text("Сохраните введённые изменения")
+    expect(page.locator("#pwaUpdateNote")).to_contain_text("Завершите вход или очистите пароль")
     expect(page.locator("#password")).to_have_value("do-not-lose-this")
     assert page.evaluate("navigator.serviceWorker.getRegistration().then(r => !!r.waiting)")
     page.locator("#password").fill("")
@@ -540,3 +621,265 @@ def test_install_bar_stays_clear_of_navigation(page, dashboard, tmp_path, width)
     button.click()
     assert page.evaluate("window.installCalls") == 1
     expect(page.locator(".pwa-bar")).to_be_hidden()
+
+
+def test_activation_transport_error_can_retry_without_stale_timeout(page, pwa_server):
+    controlled_update(page)
+    page.goto(pwa_server["url"] + "/login")
+    pause_update_clock(page)
+    page.evaluate("pwaLifecycle.mode = 'throw'")
+    page.locator("#pwaUpdate").click()
+    alert = page.locator(".pwa-update-alert")
+    expect(alert).to_have_attribute("aria-busy", "false")
+    expect(page.locator("#pwaUpdateNote")).to_contain_text("Повторите попытку")
+    expect(page.locator("#pwaUpdate")).to_be_enabled()
+    assert_not_reloaded(page)
+    page.clock.run_for(5000)
+    page.evaluate("pwaLifecycle.mode = 'hold'")
+    page.locator("#pwaUpdate").click()
+    expect(alert).to_have_attribute("aria-busy", "true")
+    page.clock.run_for(10001)
+    expect(alert).to_have_attribute("aria-busy", "true")
+    assert page.evaluate("pwaLifecycle.messages.length") == 2
+    with page.expect_navigation(wait_until="load"):
+        page.evaluate("pwaLifecycle.activate()")
+    assert page.evaluate("Number(sessionStorage.pwaTestLoads)") == 2
+
+
+@pytest.mark.parametrize("disappear", [False, True])
+def test_activation_timeout_retains_offer_and_can_retry(page, pwa_server, disappear):
+    controlled_update(page)
+    page.goto(pwa_server["url"] + "/login")
+    pause_update_clock(page)
+    page.evaluate("value => pwaLifecycle.disappear = value", disappear)
+    page.locator("#pwaUpdate").click()
+    alert = page.locator(".pwa-update-alert")
+    expect(alert).to_be_visible()
+    expect(alert).to_have_attribute("aria-busy", "true")
+    expect(page.locator("#pwaUpdate")).to_be_disabled()
+    expect(alert.locator(".pwa-update-message")).to_have_text("Применяем обновление…")
+    page.clock.run_for(15001)
+    expect(alert).to_be_visible()
+    expect(alert).to_have_attribute("aria-busy", "false")
+    expect(page.locator("#pwaUpdate")).to_be_enabled()
+    expect(page.locator("#pwaUpdate")).to_have_accessible_name("Повторить обновление приложения")
+    assert_not_reloaded(page)
+    if disappear:
+        page.evaluate("pwaLifecycle.current = pwaLifecycle.offer('replacement')")
+    finish_controlled_update(page)
+
+
+def test_late_activation_requires_explicit_reload_after_timeout(page, pwa_server):
+    controlled_update(page)
+    page.goto(pwa_server["url"] + "/login")
+    pause_update_clock(page)
+    page.evaluate("pwaLifecycle.disappear = true")
+    page.locator("#pwaUpdate").click()
+    page.clock.run_for(15001)
+    page.evaluate("pwaLifecycle.activate()")
+    expect(page.locator("#pwaUpdate")).to_contain_text("Перезагрузить")
+    expect(page.locator(".pwa-update-alert")).to_have_attribute("aria-busy", "false")
+    assert_not_reloaded(page)
+    finish_controlled_update(page)
+
+
+def test_input_entered_during_activation_is_preserved(page, pwa_server):
+    controlled_update(page)
+    page.goto(pwa_server["url"] + "/login")
+    pause_update_clock(page)
+    page.locator("#pwaUpdate").click()
+    page.locator("#password").fill("entered-while-activating")
+    page.evaluate("pwaLifecycle.activate()")
+    expect(page.locator("#password")).to_have_value("entered-while-activating")
+    expect(page.locator("#pwaUpdateNote")).to_contain_text("очистите пароль")
+    expect(page.locator("#pwaUpdate")).to_be_enabled()
+    assert_not_reloaded(page)
+    page.locator("#password").fill("")
+    finish_controlled_update(page)
+
+
+def test_offline_activation_preserves_page_until_explicit_online_retry(page, pwa_server):
+    controlled_update(page)
+    page.goto(pwa_server["url"] + "/login")
+    pause_update_clock(page)
+    page.locator("#pwaUpdate").click()
+    page.context.set_offline(True)
+    page.evaluate("pwaLifecycle.activate()")
+    expect(page.locator(".pwa-update-alert")).to_have_attribute("aria-busy", "false")
+    expect(page.locator("#pwaUpdate")).to_be_disabled()
+    expect(page.locator("#pwaUpdateNote")).to_contain_text("Нет сети")
+    assert_not_reloaded(page)
+    page.context.set_offline(False)
+    expect(page.locator("#pwaUpdate")).to_be_enabled()
+    assert_not_reloaded(page)
+    finish_controlled_update(page)
+
+
+def test_redundant_worker_retry_uses_current_registration(page, pwa_server):
+    controlled_update(page)
+    page.goto(pwa_server["url"] + "/login")
+    pause_update_clock(page)
+    page.locator("#pwaUpdate").click()
+    page.evaluate("pwaLifecycle.redundant()")
+    expect(page.locator("#pwaUpdate")).to_be_enabled()
+    expect(page.locator(".pwa-update-alert")).to_have_attribute("aria-busy", "false")
+    page.evaluate("""() => {
+      pwaLifecycle.registration.update = async () => {
+        pwaLifecycle.current = pwaLifecycle.offer('replacement');
+      };
+    }""")
+    finish_controlled_update(page)
+
+
+def test_initial_install_does_not_offer_update_but_other_tab_activation_does(page, pwa_server):
+    controlled_update(page, controlled=False, waiting=False)
+    page.goto(pwa_server["url"] + "/login")
+    pause_update_clock(page)
+    expect(page.locator("#pwaUpdate")).to_be_hidden()
+    page.evaluate("pwaLifecycle.activate()")
+    expect(page.locator("#pwaUpdate")).to_be_hidden()
+    page.locator("#password").fill("other-tab-must-preserve-this")
+    page.evaluate("pwaLifecycle.current = pwaLifecycle.offer('other-tab'); pwaLifecycle.activate()")
+    expect(page.locator("#pwaUpdate")).to_be_visible()
+    expect(page.locator("#password")).to_have_value("other-tab-must-preserve-this")
+    assert_not_reloaded(page)
+
+
+def test_different_controller_does_not_complete_pending_attempt(page, pwa_server):
+    controlled_update(page)
+    page.goto(pwa_server["url"] + "/login")
+    pause_update_clock(page)
+    page.locator("#pwaUpdate").click()
+    page.evaluate("""() => {
+      pwaLifecycle.old = pwaLifecycle.current;
+      pwaLifecycle.current = pwaLifecycle.worker('other-tab');
+      pwaLifecycle.activate();
+    }""")
+    expect(page.locator(".pwa-update-alert")).to_have_attribute("aria-busy", "false")
+    expect(page.locator("#pwaUpdate")).to_contain_text("Перезагрузить")
+    assert_not_reloaded(page)
+    page.evaluate("pwaLifecycle.redundant(pwaLifecycle.old)")
+    page.clock.run_for(15001)
+    expect(page.locator("#pwaUpdate")).to_contain_text("Перезагрузить")
+    expect(page.locator(".pwa-update-message")).to_have_text("Доступна новая версия")
+    page.locator("#password").fill("keep-after-other-controller")
+    page.locator("#pwaUpdate").click()
+    expect(page.locator("#pwaUpdateNote")).to_contain_text("очистите пароль")
+    assert_not_reloaded(page)
+    page.locator("#password").fill("")
+    finish_controlled_update(page)
+
+
+@pytest.mark.parametrize("guard", ["external", "password", "login-pending"])
+def test_update_respects_existing_cancelable_and_login_guards(page, pwa_server, guard):
+    controlled_update(page)
+    page.goto(pwa_server["url"] + "/login")
+    if guard == "external":
+        page.evaluate("""document.addEventListener('pz:before-update', event => {
+          window.receivedCancelableGuard = event.cancelable;
+          event.preventDefault();
+        }, {once: true})""")
+    elif guard == "password":
+        page.locator("#password").fill("must-not-discard")
+    else:
+        page.locator("#loginSubmit").evaluate("button => button.disabled = true")
+    page.locator("#pwaUpdate").click()
+    expect(page.locator("#pwaUpdateNote")).to_be_visible()
+    expect(page.locator(".pwa-update-alert")).to_have_attribute("aria-busy", "false")
+    assert page.evaluate("pwaLifecycle.messages.length") == 0
+    assert_not_reloaded(page)
+    if guard == "external":
+        assert page.evaluate("window.receivedCancelableGuard")
+        expect(page.locator("#pwaUpdateNote")).to_contain_text("защиты вашей работы")
+    elif guard == "password":
+        expect(page.locator("#pwaUpdateNote")).to_contain_text("очистите пароль")
+    else:
+        expect(page.locator("#pwaUpdateNote")).to_contain_text("вход")
+
+
+@pytest.mark.browser_context_args(service_workers="block")
+def test_workshop_entry_blocks_update_until_cleared_or_submitted(page, dashboard, editing):  # noqa: F811
+    page.goto(dashboard["url"] + "/#/mods")
+    expect(page.locator("#workshopInput")).to_be_enabled()
+    page.wait_for_function("ConfigEditor.ready")
+    allowed = (
+        "() => document.dispatchEvent(new CustomEvent('pz:before-update', {cancelable: true}))"
+    )
+    assert page.evaluate(allowed)
+    page.locator("#modQuery").fill("library")
+    page.locator("#modFilter").select_option("selected")
+    assert page.evaluate(allowed)
+    page.locator("#workshopInput").fill("111")
+    assert not page.evaluate(allowed)
+    page.locator("#workshopInput").fill("")
+    assert page.evaluate(allowed)
+    page.route(
+        "**/api/workshop-resolve",
+        lambda route: route.fulfill(json={"ok": True, "items": [{"workshopId": "111"}]}),
+    )
+    page.locator("#workshopInput").fill("111")
+    page.locator("#workshopInput").press("Enter")
+    expect(page.locator("#workshopInput")).to_have_value("")
+    expect(page.locator("#workshopInput")).to_be_enabled()
+    assert page.evaluate(allowed)
+
+
+@pytest.mark.parametrize(
+    "language,width,motion",
+    [("ru", 320, "reduce"), ("en", 390, "no-preference"), ("en", 1440, "reduce")],
+)
+def test_update_retry_and_blocked_copy_remain_accessible(page, pwa_server, language, width, motion):
+    controlled_update(page, language=language)
+    page.set_viewport_size({"width": width, "height": 550})
+    page.emulate_media(reduced_motion=motion)
+    page.goto(pwa_server["url"] + "/login")
+    pause_update_clock(page)
+    action = page.locator("#pwaUpdate")
+    alert = page.locator(".pwa-update-alert")
+    expect(action).to_have_text("Обновить" if language == "ru" else "Update")
+    action.click()
+    expect(action).to_have_text("Обновляем…" if language == "ru" else "Updating…")
+    page.clock.run_for(15001)
+    expect(action).to_be_enabled()
+    expect(action).to_have_text("Повторить" if language == "ru" else "Retry")
+    expect(alert.locator(".pwa-update-message")).to_have_attribute("role", "status")
+    expect(alert.locator(".pwa-update-message")).to_have_attribute("aria-live", "polite")
+    expect(action).to_have_accessible_name(
+        "Повторить обновление приложения" if language == "ru" else "Retry application update"
+    )
+    expect(action).to_have_attribute("aria-describedby", "pwaUpdateNote")
+    assert (
+        page.evaluate("""async () => {
+      let announcements = 0;
+      const observer = new MutationObserver(records => announcements += records.length);
+      document.querySelectorAll('.pwa-update-alert [role="status"]').forEach(element => {
+        observer.observe(element, {childList: true, characterData: true, subtree: true});
+      });
+      window.dispatchEvent(new Event('online'));
+      await Promise.resolve();
+      observer.disconnect();
+      return announcements;
+    }""")
+        == 0
+    )
+    if language == "ru":
+        page.locator("[data-language-switch]").select_option("en")
+        expect(action).to_have_accessible_name("Retry application update")
+        expect(action).to_have_text("Retry")
+        expect(alert.locator(".pwa-update-message")).to_have_text("Update not completed")
+        page.locator("[data-language-switch]").select_option("ru")
+    page.evaluate(
+        "document.addEventListener('pz:before-update', event => event.preventDefault(), {once: true})"
+    )
+    action.click()
+    expect(page.locator("#pwaUpdateNote")).to_be_visible()
+    expect(action).to_be_focused()
+    expect(alert).to_have_attribute("aria-busy", "false")
+    assert_not_reloaded(page)
+    box = alert.bounding_box()
+    assert box["x"] >= 0 and box["x"] + box["width"] <= width
+    assert box["y"] >= 0 and box["y"] + box["height"] <= 550
+    assert action.bounding_box()["height"] >= 44
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    if language == "en":
+        assert "Сохраните" not in alert.inner_text()

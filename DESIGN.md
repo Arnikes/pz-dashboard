@@ -197,7 +197,10 @@ of changed draft lines when a draft has changes.
 A separate PWA update alert floats below the top bar at the trailing edge. It
 uses a compact pill, olive border and beige update action with an arrow, without
 a status dot or dismiss control. It never shifts the workspace or steals focus.
-Input-protection and offline explanations expand within the same alert.
+Input-protection, offline and retry explanations expand within the same alert.
+Applying an update has a bounded busy state; a failure restores an explicit retry.
+Late activation offers a reload action without reloading automatically. Messages
+distinguish sign-in, pending input, operations and dialogs without clearing input.
 On mobile it is centered horizontally above the footer, bottom navigation and draft actions, with
 ordinary notifications stacked above it. The update button has a short visible
 label and retains its full accessible name.

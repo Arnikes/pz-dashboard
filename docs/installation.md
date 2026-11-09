@@ -363,12 +363,17 @@ for HTML and API responses. The offline shell keeps its assets in the worker's
 separate content-derived cache.
 
 An available PWA update appears in a floating alert below the header (above the
-bottom controls on mobile) without shifting the page. It can be dismissed for
-that version; a newer release
-shows a new alert. The panel does not reload automatically.
+bottom controls on mobile) without shifting the page or moving keyboard focus.
+The alert stays available until the update is applied. The panel does not reload automatically.
 The open, visible app checks for updates every minute and on returning to the app or
 reconnecting. Its update action checks unsaved input and in-progress operations, then
-reloads the current section with the latest HTML, styles, and scripts. Other open
+applies the new version and reloads the current section with the latest HTML, styles,
+and scripts. Activation waits for up to 15 seconds; a failure restores an explicit
+retry action and preserves input. The action explains whether to finish signing in,
+save or clear pending input (including an unsubmitted Workshop link), finish an operation,
+or close a dialog. Network availability and input protection are checked again before
+reloading. If activation finishes after a failed attempt, the alert offers a reload;
+it does not reload by itself. Other open
 windows keep their input and offer their own update action. Clear browser site data
 to remove offline assets completely.
 
