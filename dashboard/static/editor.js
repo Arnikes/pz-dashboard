@@ -271,7 +271,16 @@ window.ConfigEditor = (() => {
           for (const [id, field] of pendingFields) {
             const sent = updates[0][field.dataset.kind]?.[field.dataset.key], value = formValue(field);
             const savedValue = Array.isArray(value) ? Array.isArray(sent) && sent.length === value.length && value.every((v, i) => v === sent[i]) : sent === value;
-            if (field.checkValidity() && savedValue) pendingFields.delete(id);
+            if (field.checkValidity() && savedValue) {
+              pendingFields.delete(id);
+              if (field.type === "password") {
+                field.value = "";
+                const saved = (field.dataset.kind === "ini" ? draft.fields : draft.sandboxFields).find(rec => rec.key === field.dataset.key);
+                const state = field.closest(".config-control").querySelector(".secret-state");
+                state.textContent = secretPresence(saved?.hasValue === true);
+                state.dataset.set = String(saved?.hasValue === true);
+              }
+            }
           }
           updates.shift();
         }
@@ -321,7 +330,7 @@ window.ConfigEditor = (() => {
     const known = new Map(customFields().map(o => [o.key, o]));
     const allModOptions = new Set((mods?.workshop || []).flatMap(w => w.available || []).flatMap(r => r.options || []).map(o => o.key));
     const present = new Map((draft.sandboxFields || []).map(o => [o.key, o]));
-    const combined = [...present.values()].map(o => known.has(o.key) ? { ...o, ...known.get(o.key), value: o.value } : allModOptions.has(o.key) || o.group === I18n.t("Неизвестные / сохранённые параметры") ? { ...o, group: I18n.t("Выключенные / отсутствующие моды"), preserved: true } : o);
+    const combined = [...present.values()].map(o => known.has(o.key) ? { ...o, ...known.get(o.key), value: o.value, hasValue: o.hasValue } : allModOptions.has(o.key) || o.group === I18n.t("Неизвестные / сохранённые параметры") ? { ...o, group: I18n.t("Выключенные / отсутствующие моды"), preserved: true } : o);
     for (const o of known.values()) {
       if (!present.has(o.key)) combined.push({ ...o, value: o.default ?? "", absent: true });
     }
@@ -329,6 +338,7 @@ window.ConfigEditor = (() => {
   }
   function fieldControl(rec, i, describedBy) {
     const attrs = `id="config-field-${i}" data-key="${esc(rec.key)}" data-owner="${esc(rec.owner || "")}" data-kind="${configTab === "server" ? "ini" : "sandbox"}" data-type="${esc(rec.type)}" aria-describedby="${esc(describedBy)}" ${rec.owner || S.demo ? "disabled" : ""}`;
+    if (rec.secret) return `<input ${attrs} type="password" value="" ${I18n.t('placeholder="Введите новое значение"')} autocomplete="new-password" />`;
     if (rec.type === "boolean") return `<label class="config-toggle"><input type="checkbox" ${attrs} ${rec.value === true ? "checked" : ""} /><span aria-hidden="true"><span class="toggle-on">${esc(I18n.t("Включено"))}</span><span class="toggle-off">${esc(I18n.t("Выключено"))}</span></span></label>`;
     if (rec.type === "multiline" || rec.type === "string" && typeof rec.value === "string" && (rec.value.includes("\n") || rec.value.length > 140)) {
       const value = rec.lineSeparator ? String(rec.value).split(rec.lineSeparator).join("\n") : rec.value;
@@ -340,9 +350,11 @@ window.ConfigEditor = (() => {
       return `<select ${attrs}>${unknown ? I18n.msg`<option value="${esc(rec.value)}">${esc(rec.value)} · вне схемы</option>` : ""}${rec.choices.map(c => `<option value="${esc(c.value)}" ${Number(c.value) === Number(rec.value) ? "selected" : ""}>${esc(c.label)}</option>`).join("")}</select>`;
     }
     const numeric = ["integer", "double"].includes(rec.type);
-    return `<input ${attrs} type="${rec.secret ? "password" : numeric ? "number" : "text"}" value="${rec.secret ? "" : esc(rec.value)}" ${rec.secret ? I18n.t('placeholder="Сохранённый пароль скрыт" autocomplete="new-password"') : ""} ${numeric ? `required step="${rec.type === "integer" ? "1" : "any"}"` : ""} ${rec.min !== undefined ? `min="${esc(rec.min)}"` : ""} ${rec.max !== undefined ? `max="${esc(rec.max)}"` : ""} />`;
+    return `<input ${attrs} type="${numeric ? "number" : "text"}" value="${esc(rec.value)}" ${numeric ? `required step="${rec.type === "integer" ? "1" : "any"}"` : ""} ${rec.min !== undefined ? `min="${esc(rec.min)}"` : ""} ${rec.max !== undefined ? `max="${esc(rec.max)}"` : ""} />`;
   }
   function formValue(field) {
+    if (field.type === "password" && field.value === "") return "";
+    if (field.type === "password" && field.dataset.type === "boolean" && ["true", "false"].includes(field.value)) return field.value === "true";
     if (field.dataset.type === "map-list") return field.value.split(";").map(v => v.trim()).filter(Boolean);
     return field.type === "checkbox" ? field.checked : ["integer", "double", "enum"].includes(field.dataset.type) ? Number(field.value) : field.dataset.lineSeparator ? field.value.replace(/\r?\n/g, field.dataset.lineSeparator) : field.dataset.listDelimiter ? field.value.split(/\r?\n/).map(v => v.trim()).filter(Boolean).join(field.dataset.listDelimiter) : field.value;
   }
@@ -389,9 +401,10 @@ window.ConfigEditor = (() => {
       const range = rec.min !== undefined && rec.max !== undefined ? `${rec.min}–${rec.max}`
         : rec.min !== undefined ? I18n.msg`Минимум: ${rec.min}`
         : rec.max !== undefined ? I18n.msg`Максимум: ${rec.max}` : "";
-      const note = rec.owner ? I18n.msg`Источник: ${rec.owner}. Измените в окружении контейнера.` : rec.type === "list" ? I18n.t("По одной записи в строке.") : "";
-      const describedBy = [`config-meta-${i}`, description ? `config-hint-${i}` : "", rec.applicationScope ? `config-scope-${i}` : "", note ? `config-note-${i}` : ""].filter(Boolean).join(" ");
-      groups.get(rec.group).push(`<div class="config-field"${rec.changed ? ' data-changed="true"' : ""}><div class="config-label"><label for="config-field-${i}"><strong>${esc(rec.label)}</strong></label><span class="config-change">${esc(I18n.t("Изменено"))}</span>${description ? helpTip(description, I18n.msg`О настройке «${rec.label}»`, `config-hint-${i}`) : ""}</div><div class="config-control">${fieldControl(rec, i, describedBy)}<p id="config-meta-${i}" class="config-meta"><code class="config-key">${esc(rec.key)}</code>${range ? ` · ${esc(range)}` : ""}</p></div>${rec.applicationScope ? `<p id="config-scope-${i}" class="config-scope" data-scope="${esc(rec.applicationScope.kind)}"><strong>${esc(rec.applicationScope.label)}</strong></p>` : ""}${note ? `<p id="config-note-${i}" class="hint">${esc(note)}</p>` : ""}<p class="field-error" data-error-key="${esc(rec.key)}" role="alert" hidden></p>${configTab !== "server" && rec.preserved ? I18n.msg`<button type="button" class="btn small" data-remove-option="${esc(rec.key)}">Удалить параметр…</button>` : ""}</div>`);
+      const note = rec.owner ? I18n.msg`Источник: ${rec.owner}. Измените в окружении контейнера.` : !rec.secret && rec.type === "list" ? I18n.t("По одной записи в строке.") : "";
+      const describedBy = [`config-meta-${i}`, rec.secret ? `config-secret-${i}` : "", description ? `config-hint-${i}` : "", rec.applicationScope ? `config-scope-${i}` : "", note ? `config-note-${i}` : ""].filter(Boolean).join(" ");
+      const secretState = rec.secret ? `<p id="config-secret-${i}" class="secret-state" data-set="${!rec.absent && rec.hasValue === true}">${esc(secretPresence(!rec.absent && rec.hasValue === true))}</p>` : "";
+      groups.get(rec.group).push(`<div class="config-field"${rec.changed ? ' data-changed="true"' : ""}><div class="config-label"><label for="config-field-${i}"><strong>${esc(rec.label)}</strong></label><span class="config-change">${esc(I18n.t("Изменено"))}</span>${description ? helpTip(description, I18n.msg`О настройке «${rec.label}»`, `config-hint-${i}`) : ""}</div><div class="config-control">${fieldControl(rec, i, describedBy)}${secretState}<p id="config-meta-${i}" class="config-meta"><code class="config-key">${esc(rec.key)}</code>${range ? ` · ${esc(range)}` : ""}</p></div>${rec.applicationScope ? `<p id="config-scope-${i}" class="config-scope" data-scope="${esc(rec.applicationScope.kind)}"><strong>${esc(rec.applicationScope.label)}</strong></p>` : ""}${note ? `<p id="config-note-${i}" class="hint">${esc(note)}</p>` : ""}<p class="field-error" data-error-key="${esc(rec.key)}" role="alert" hidden></p>${configTab !== "server" && rec.preserved ? I18n.msg`<button type="button" class="btn small" data-remove-option="${esc(rec.key)}">Удалить параметр…</button>` : ""}</div>`);
     });
     const order = [I18n.t("Доступ и игроки"), "PvP", I18n.t("Чат"), I18n.t("Сохранение мира"), I18n.t("Безопасные дома"), I18n.t("Сеть"), I18n.t("Дополнительные параметры")];
     const ordered = [...groups].sort(([a], [b]) => configTab === "server" ? order.indexOf(a) - order.indexOf(b) : 0);

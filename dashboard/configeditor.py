@@ -552,13 +552,13 @@ def response(saved, current):
     texts = saved["texts"]
     schema = configschema.catalog(saved["base"]["ini"], saved["base"]["sandbox"], ctx["version"])
     translations = workshop.vanilla_translations(ctx["version"], ctx.get("dockerAvailable", False))
+    current_entries = ini_entries(texts["ini"])
     fields = [
         configschema.field(key, rec["value"], schema=schema)
-        for key, rec in ini_entries(texts["ini"]).items()
+        for key, rec in current_entries.items()
         if key not in MOD_KEYS
     ]
     base_entries = ini_entries(saved["base"]["ini"])
-    current_entries = ini_entries(texts["ini"])
     for rec in fields:
         rec["changed"] = (
             rec["key"] not in base_entries
@@ -566,6 +566,7 @@ def response(saved, current):
         )
         rec["secret"] = bool(SECRET_KEY.search(rec["key"]))
         if rec["secret"]:
+            rec["hasValue"] = current_entries[rec["key"]]["value"] != ""
             rec["value"] = SECRET
         rec["owner"] = owners.get(rec["key"])
     sandbox_fields, diagnostic = [], None
@@ -591,6 +592,7 @@ def response(saved, current):
                 )
                 rec["secret"] = bool(SECRET_KEY.search(key))
                 if rec["secret"]:
+                    rec["hasValue"] = entry["value"] != ""
                     rec["value"] = SECRET
                 sandbox_fields.append(rec)
     except FormatError as error:

@@ -1599,5 +1599,9 @@
   "Telegram MTProxy: API ID must be an integer from 1 to 2147483647": "Telegram MTProxy: API ID must be an integer from 1 to 2147483647",
   "Telegram MTProxy: API hash must contain 32 hexadecimal characters": "Telegram MTProxy: API hash must contain 32 hexadecimal characters",
   "Telegram MTProxy: MTProxy secret must contain 32 hexadecimal characters, dd and 32 hexadecimal characters, or ee, 32 hexadecimal characters and a hexadecimal DNS hostname": "Telegram MTProxy: MTProxy secret must contain 32 hexadecimal characters, dd and 32 hexadecimal characters, or ee, 32 hexadecimal characters and a hexadecimal DNS hostname",
-  "Telegram MTProxy: MTProxy FakeTLS secret must contain a valid hexadecimal DNS hostname of up to 182 bytes": "Telegram MTProxy: MTProxy FakeTLS secret must contain a valid hexadecimal DNS hostname of up to 182 bytes"
+  "Telegram MTProxy: MTProxy FakeTLS secret must contain a valid hexadecimal DNS hostname of up to 182 bytes": "Telegram MTProxy: MTProxy FakeTLS secret must contain a valid hexadecimal DNS hostname of up to 182 bytes",
+  "Значение задано · скрыто": "Value set · hidden",
+  "Не задано": "Not set",
+  "placeholder=\"Введите новое значение\"": "placeholder=\"Enter a new value\"",
+  "Пустое поле сохраняет текущий токен.": "An empty field keeps the current token."
 }

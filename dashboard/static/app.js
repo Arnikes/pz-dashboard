@@ -1218,10 +1218,7 @@ function renderOverview(o) {
   if (settingsCanRender("tgMtproxyHost")) $("tgMtproxyHost").value = tg.mtproxyHost || "";
   if (settingsCanRender("tgMtproxyPort")) $("tgMtproxyPort").value = tg.mtproxyPort ?? 443;
   if (settingsCanRender("tgApiId")) $("tgApiId").value = tg.apiId || "";
-  $("tgMtproxySecretState").textContent = tg.hasMtproxySecret ? I18n.t("Секрет MTProxy сохранён.") : "";
-  $("tgMtproxySecretState").hidden = !tg.hasMtproxySecret;
-  $("tgApiHashState").textContent = tg.hasApiHash ? I18n.t("API hash сохранён.") : "";
-  $("tgApiHashState").hidden = !tg.hasApiHash;
+  if (!settingState("telegram").pending && !settingState("telegram").dirty) renderTelegramSecretStates(tg);
   updateTelegramProxyFields();
   if (settingsCanRender("playerLanguage")) $("playerLanguage").value = o.settings?.playerNotifications?.language === "ru" ? "ru" : "en";
   if (settingsCanRender("tgLanguage")) $("tgLanguage").value = tg.language === "ru" ? "ru" : "en";
@@ -2508,6 +2505,17 @@ function settingsCanRender(id) {
   return !state.pending && !state.dirty && !$(id).matches(":focus");
 }
 
+function secretPresence(hasValue) {
+  return hasValue ? I18n.t("Значение задано · скрыто") : I18n.t("Не задано");
+}
+
+function renderTelegramSecretStates(telegram) {
+  for (const [id, hasValue] of [["tgTokenState", !!telegram.botTokenMasked], ["tgMtproxySecretState", !!telegram.hasMtproxySecret], ["tgApiHashState", !!telegram.hasApiHash]]) {
+    $(id).textContent = secretPresence(hasValue);
+    $(id).dataset.set = String(hasValue);
+  }
+}
+
 function staleSettings(version) {
   return !!(version && S.settingsVersion && version.epoch === S.settingsVersion.epoch && version.revision < S.settingsVersion.revision);
 }
@@ -2559,7 +2567,10 @@ function saveSettingsGroup(group, body) {
           }
         }
         state.dirty = false;
-        if (res.settings) acceptSettings(res.settings);
+        if (res.settings) {
+          const settings = acceptSettings(res.settings);
+          if (group === "telegram") renderTelegramSecretStates(settings.telegram || {});
+        }
         settingsFeedback(group, "ok", group === "telegram" && body.telegram.botToken
           ? I18n.t("Токен сохранён. Введите новый, чтобы заменить.")
           : I18n.msg`${SETTING_GROUPS[group].title}: сохранено`);

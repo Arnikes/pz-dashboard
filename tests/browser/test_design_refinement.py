@@ -7,9 +7,11 @@ from test_editors import editing, env, navigate  # noqa: F401
 pytestmark = pytest.mark.browser
 
 
-@pytest.mark.parametrize("width", [320, 390, 1440])
+@pytest.mark.parametrize("width", [320, 390, 1440, 2560])
 def test_draft_stays_reachable(page, dashboard, editing, width):  # noqa: F811
     data, _ = editing
+    ini = data / "Server/world.ini"
+    ini.write_bytes(ini.read_bytes() + b"MaxPlayers=16\r\n")
     original = (data / "Server/world.ini").read_bytes()
     page.set_viewport_size({"width": width, "height": 844})
     page.goto(dashboard["url"])
@@ -30,6 +32,8 @@ def test_draft_stays_reachable(page, dashboard, editing, width):  # noqa: F811
         + field.locator("input").bounding_box()["height"]
     )
     assert page.locator("#configSearch").bounding_box()["width"] <= 600
+    assert page.locator("#configFlow").bounding_box()["width"] <= min(840, width)
+    assert page.locator('[data-key="MaxPlayers"]').bounding_box()["width"] <= 224
     assert (
         page.locator("#configFlow").bounding_box()["y"]
         < page.locator("#configTabs").bounding_box()["y"]
@@ -52,6 +56,21 @@ def test_draft_stays_reachable(page, dashboard, editing, width):  # noqa: F811
     expect(page.locator('[data-key="PublicName"]')).to_have_value("Review season")
     expect(page.locator(".config-field[data-changed=true] .config-change")).to_have_text("Изменено")
     assert (data / "Server/world.ini").read_bytes() == original
+    assert dashboard["actions"] == []
+
+
+@pytest.mark.parametrize("language", ["ru", "en"])
+@pytest.mark.parametrize("width", [320, 834, 2560])
+def test_mod_tools_keep_a_readable_measure(page, dashboard, editing, language, width):  # noqa: F811
+    page.add_init_script(f"localStorage.setItem('pz-language', '{language}')")
+    page.set_viewport_size({"width": width, "height": 900})
+    page.goto(dashboard["url"] + "/#/mods")
+    expect(page.locator("#configProfile")).to_have_value("world.ini")
+    expect(page.locator("#workshopInput")).to_be_enabled()
+    for selector, limit in (("#configFlow", 840), ("#modQuery", 600), ("#workshopAdd", 720)):
+        assert page.locator(selector).bounding_box()["width"] <= min(limit, width)
+    assert page.locator("#workshopInput").bounding_box()["height"] >= 44
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     assert dashboard["actions"] == []
 
 

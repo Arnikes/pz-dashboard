@@ -189,6 +189,96 @@ def test_draft_is_persistent_and_does_not_write_server(env):
     assert "topsecret" not in encoded and "hidden-token" not in encoded
 
 
+@pytest.mark.parametrize(
+    "ini_value,lua_literal,present",
+    [
+        ("", '""', False),
+        ("presence-ini-secret", '"presence-lua-secret"', True),
+        ("0", "0", True),
+        ("false", "false", True),
+        ("true", "true", True),
+    ],
+)
+def test_secret_presence_uses_raw_values_without_exposing_them(
+    env, ini_value, lua_literal, present
+):
+    data, _ = env
+    (data / "Server/world.ini").write_bytes(INI.replace("topsecret", ini_value).encode())
+    (data / "Server/world_SandboxVars.lua").write_text(
+        LUA.replace('"hidden-token"', lua_literal), encoding="utf-8"
+    )
+
+    current = editor.draft("world.ini")
+    fields = current["fields"] + current["sandboxFields"]
+    secrets = {rec["key"]: rec for rec in fields if rec["secret"]}
+    assert set(secrets) == {"Password", "Mod.Password"}
+    for rec in secrets.values():
+        assert rec["hasValue"] is present
+        assert rec["value"] == SECRET
+    assert all("hasValue" not in rec for rec in fields if not rec["secret"])
+    encoded = json.dumps(current)
+    assert "presence-ini-secret" not in encoded and "presence-lua-secret" not in encoded
+
+
+def test_secret_presence_tracks_clear_replace_and_unchanged_markers(env):
+    data, _ = env
+    initial = editor.draft("world.ini")
+    unchanged = change(ini={"Password": SECRET}, sandbox={"Mod.Password": SECRET})
+    assert unchanged["texts"] == initial["texts"] and not unchanged["changed"]
+    saved = editor.load_json(editor.state_dir("world.ini") / "draft.json")["texts"]
+    assert ini_entries(saved["ini"])["Password"]["value"] == "topsecret"
+    assert LuaTable(saved["sandbox"]).values[("Mod", "Password")]["value"] == "hidden-token"
+
+    cleared = change(ini={"Password": ""}, sandbox={"Mod.Password": ""})
+    for current in (cleared, editor.draft("world.ini")):
+        secrets = [rec for rec in current["fields"] + current["sandboxFields"] if rec["secret"]]
+        assert all(rec["hasValue"] is False and rec["value"] == SECRET for rec in secrets)
+    saved = editor.load_json(editor.state_dir("world.ini") / "draft.json")["texts"]
+    assert ini_entries(saved["ini"])["Password"]["value"] == ""
+    assert LuaTable(saved["sandbox"]).values[("Mod", "Password")]["value"] == ""
+
+    replaced = change(
+        ini={"Password": "replacement-ini-secret"},
+        sandbox={"Mod.Password": "replacement-lua-secret"},
+    )
+    preserved = change(ini={"Password": SECRET}, sandbox={"Mod.Password": SECRET})
+    assert preserved["texts"] == replaced["texts"]
+    for current in (replaced, preserved, editor.draft("world.ini")):
+        secrets = [rec for rec in current["fields"] + current["sandboxFields"] if rec["secret"]]
+        assert all(rec["hasValue"] is True and rec["value"] == SECRET for rec in secrets)
+        assert "replacement-ini-secret" not in json.dumps(current)
+        assert "replacement-lua-secret" not in json.dumps(current)
+    saved = editor.load_json(editor.state_dir("world.ini") / "draft.json")["texts"]
+    assert ini_entries(saved["ini"])["Password"]["value"] == "replacement-ini-secret"
+    assert (
+        LuaTable(saved["sandbox"]).values[("Mod", "Password")]["value"] == "replacement-lua-secret"
+    )
+    assert (data / "Server/world.ini").read_bytes() == INI.encode()
+    assert (data / "Server/world_SandboxVars.lua").read_text(encoding="utf-8") == LUA
+
+
+def test_absent_secret_mod_default_does_not_claim_a_saved_value(env):
+    data, _ = env
+    media = data / "steamapps/workshop/content/108600/111/mods/PluginFolder/42/media"
+    media.mkdir()
+    (media / "sandbox-options.txt").write_text(
+        "option Mod.NewPassword { type=string, default=public-default, }", encoding="utf-8"
+    )
+    current = editor.draft("world.ini")
+    options = editor.mod_response("world.ini", draft_mode=True)["workshop"][0]["available"]
+    option = next(
+        option for mod in options for option in mod["options"] if option["key"] == "Mod.NewPassword"
+    )
+    assert option["secret"] and option["default"] == "public-default"
+    assert "hasValue" not in option
+    assert not any(rec["key"] == "Mod.NewPassword" for rec in current["sandboxFields"])
+
+    changed = change(sandbox={"Mod.NewPassword": "new-mod-private-secret"})
+    rec = next(rec for rec in changed["sandboxFields"] if rec["key"] == "Mod.NewPassword")
+    assert rec["hasValue"] is True and rec["value"] == SECRET
+    assert "new-mod-private-secret" not in json.dumps(changed)
+
+
 def test_ini_alias_edits_keep_the_persisted_draft_readable(env):
     current = change(ini={"mods": "\\library", "password": "new-secret"})
     reloaded = editor.draft("world.ini")

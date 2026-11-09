@@ -1441,6 +1441,12 @@ select { cursor: pointer; }
 .config-control { display:flex; align-items:center; min-height:44px; }
 .config-field code { color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
 .config-field input:not([type=checkbox]), .config-field select, .config-field textarea { width:100%; min-width:0; }
+.config-field input[type=number] { max-width:14rem; }
+.config-field select { max-width:26rem; }
+.secret-field { min-width:0; }
+.secret-state { margin:6px 0 0; color:var(--muted); font-size:12px; line-height:1.5; }
+.secret-state[data-set=true] { color:var(--ok); }
+.secret-field > .hint { margin:6px 0 0; }
 .config-field textarea { resize:vertical; min-height:80px; white-space:pre-wrap; background:var(--bg-deep); border:1px solid var(--line-strong); border-radius:8px; color:var(--ink); padding:10px; font:inherit; }
 .config-field input[type=checkbox] { width:22px; height:22px; accent-color:var(--ok); }
 .config-field .hint { margin:8px 0; white-space:pre-line; overflow-wrap:anywhere; }
@@ -1690,7 +1696,7 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--footer-heig
 .route-stepper [data-state=ok] .route-marker { border-color:var(--ok); background:var(--surface); color:var(--ok); }
 .route-stepper [data-state=ok] > .route-connector, .route-stepper [data-state=ok] + .route-connector { background:var(--ok); }
 .op-stages [data-complete=true] .op-stage-label { color:var(--muted); }
-.config-flow { padding:8px 0; margin:14px 0 20px; }
+.config-flow { width:100%; max-width:840px; padding:8px 0; margin:14px 0 20px; }
 .config-flow button { width:100%; min-height:44px; padding:0; border:0; border-radius:var(--r-control); background:transparent; color:var(--muted); text-align:left; font:inherit; cursor:pointer; }
 .config-flow .flow-indicator svg { display:none; }
 .config-flow button[data-state=bad] .route-marker { border-color:var(--danger-text); background:var(--surface); color:var(--danger-text); }
@@ -1797,8 +1803,8 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--footer-heig
 #view-mods .editor-toolbar { gap:8px; margin:12px 0; }
 #view-mods .editor-toolbar select { flex-basis:200px; width:200px; }
 #view-mods .mod-composition > .editor-toolbar:first-child { align-items:flex-end; margin:20px 0; }
-#view-mods #workshopAdd { margin:12px 0 4px; }
-.mod-search { flex:1 1 230px; min-width:0; }
+#view-mods #workshopAdd { max-width:720px; margin:12px 0 4px; }
+.mod-search { flex:1 1 230px; min-width:0; max-width:600px; }
 .mod-search > span { display:block; color:var(--muted); font-size:12px; margin-bottom:6px; }
 .mod-search input { width:100%; }
 #view-mods .mod-secondary-actions { gap:4px 16px; margin:4px 0 12px; }

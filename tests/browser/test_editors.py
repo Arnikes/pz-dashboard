@@ -2109,12 +2109,103 @@ def test_new_mod_password_is_masked_before_first_save(page, dashboard, editing):
     field = page.locator('[data-key="Mod.NewPassword"]')
     expect(field).to_have_attribute("type", "password")
     expect(field).to_have_value("")
+    state = field.locator("..").locator(".secret-state")
+    expect(state).to_have_text("Не задано")
+    assert state.get_attribute("id") in field.get_attribute("aria-describedby").split()
     field.fill("private-editor-token")
     field.press("Tab")
     expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
+    expect(field).to_have_value("")
+    expect(state).to_have_text("Значение задано · скрыто")
     page.get_by_role("tab", name="Исходники", exact=True).click()
     assert "private-editor-token" not in page.locator("#sandboxSource").input_value()
     assert "Mod.NewPassword" not in editor.modpack({"file": "world.ini"})["pack"]["sandbox"]
+
+
+@pytest.mark.parametrize("language", ["ru", "en"])
+def test_secret_presence_tracks_saved_draft_without_losing_failed_input(
+    page, dashboard, editing, language
+):
+    page.add_init_script(f"localStorage.setItem('pz-language', '{language}')")
+    page.goto(dashboard["url"] + "/#/settings")
+    page.locator("#configSearch").fill("Password")
+    field = page.locator('[data-key="Password"]')
+    state = field.locator("..").locator(".secret-state")
+    present = "Значение задано · скрыто" if language == "ru" else "Value set · hidden"
+    absent = "Не задано" if language == "ru" else "Not set"
+    expect(state).to_have_text(present)
+    expect(field).to_have_value("")
+    assert state.get_attribute("id") in field.get_attribute("aria-describedby").split()
+    page.route(
+        "**/api/config-draft",
+        lambda route: route.fulfill(status=503, json={"error": "Try again"}),
+        times=1,
+    )
+    field.fill("replacement-fixture-secret")
+    field.press("Tab")
+    expect(page.locator("#configError")).to_contain_text("Try again")
+    expect(field).to_have_value("replacement-fixture-secret")
+    expect(state).to_have_text(present)
+    field.dispatch_event("change")
+    expect(field).to_have_value("")
+    expect(state).to_have_text(present)
+    assert (
+        "Password=replacement-fixture-secret"
+        in editor.load_json(editor.state_dir("world.ini") / "draft.json")["texts"]["ini"]
+    )
+    field.fill("temporary")
+    field.fill("")
+    field.dispatch_event("change")
+    expect(state).to_have_text(absent)
+    page.reload()
+    page.locator("#configSearch").fill("Password")
+    expect(state).to_have_text(absent)
+    expect(field).to_have_value("")
+    assert "replacement-fixture-secret" not in page.locator("#configFields").inner_html()
+    assert dashboard["actions"] == []
+
+
+@pytest.mark.parametrize("literal", ["false", "0"])
+def test_typed_secret_values_use_empty_password_controls(page, dashboard, editing, literal):
+    data, _ = editing
+    (data / "Server/world.ini").write_text(f"Password={literal}\n", encoding="utf-8")
+    (data / "Server/world_SandboxVars.lua").write_text(
+        f"SandboxVars = {{ Password = {literal}, }}", encoding="utf-8"
+    )
+    page.goto(dashboard["url"] + "/#/settings")
+    for tab in ("server", "custom"):
+        page.locator(f'#configTabs [data-tab="{tab}"]').click()
+        page.locator("#configSearch").fill("Password")
+        field = page.locator('[data-key="Password"]')
+        expect(field).to_have_attribute("type", "password")
+        expect(field).to_have_value("")
+        expect(field.locator("..").locator(".secret-state")).to_have_text(
+            "Значение задано · скрыто"
+        )
+        value = "true" if literal == "false" else "7"
+        field.fill(value)
+        with page.expect_request("**/api/config-draft") as request:
+            field.press("Tab")
+        kind = "ini" if tab == "server" else "sandbox"
+        submitted = request.value.post_data_json[kind]["Password"]
+        if tab == "server":
+            assert submitted == value
+        elif literal == "false":
+            assert submitted is True
+        else:
+            assert submitted == 7
+        expect(field).to_have_value("")
+        saved = editor.load_json(editor.state_dir("world.ini") / "draft.json")["texts"]
+        if kind == "sandbox":
+            parsed = editor.LuaTable(saved[kind]).values[("Password",)]["value"]
+            assert type(parsed) is (bool if literal == "false" else int)
+            assert parsed == (True if literal == "false" else 7)
+        field.fill("temporary")
+        field.fill("")
+        with page.expect_request("**/api/config-draft") as request:
+            field.dispatch_event("change")
+        assert request.value.post_data_json[kind]["Password"] == ""
+        expect(field.locator("..").locator(".secret-state")).to_have_text("Не задано")
 
 
 @pytest.mark.parametrize("width", [390, 1440])

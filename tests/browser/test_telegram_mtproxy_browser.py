@@ -16,6 +16,7 @@ def public_settings(values):
     return {
         **values,
         "botToken": "",
+        "botTokenMasked": "•••" if values.get("botToken") or values.get("botTokenMasked") else "",
         "apiHash": "",
         "mtproxySecret": "",
         "hasApiHash": bool(values.get("apiHash") or values.get("hasApiHash")),
@@ -42,6 +43,9 @@ def test_proxy_controls_save_reload_and_explain_manual_chat_id(page, dashboard, 
 
     page.route("**/api/settings", settings)
     page.goto(dashboard["url"] + "/#/maintenance")
+    absent = "Не задано" if language == "ru" else "Not set"
+    present = "Значение задано · скрыто" if language == "ru" else "Value set · hidden"
+    expect(page.locator("#tgTokenState")).to_have_text(absent)
     expect(page.locator("#tgMtproxyFields")).to_be_hidden()
     proxy_switch = page.get_by_role(
         "switch",
@@ -50,6 +54,8 @@ def test_proxy_controls_save_reload_and_explain_manual_chat_id(page, dashboard, 
     proxy_switch.focus()
     page.keyboard.press("Space")
     expect(page.locator("#tgMtproxyFields")).to_be_visible()
+    for control in ("tgMtproxySecret", "tgApiHash"):
+        expect(page.locator(f"#{control}State")).to_have_text(absent)
     expect(page.locator("#btnTgChats")).to_be_disabled()
     expect(page.locator("#tgMtproxyChatsHint")).to_contain_text(
         "вручную" if language == "ru" else "manually"
@@ -60,6 +66,7 @@ def test_proxy_controls_save_reload_and_explain_manual_chat_id(page, dashboard, 
     )
     assert page.locator("#tgMtproxySecret").get_attribute("maxlength") is None
     for control, value in (
+        ("tgToken", "123456:fixture-token"),
         ("tgMtproxyHost", "proxy.example.com"),
         ("tgMtproxyPort", "8443"),
         ("tgMtproxySecret", FAKETLS_SECRET),
@@ -73,6 +80,13 @@ def test_proxy_controls_save_reload_and_explain_manual_chat_id(page, dashboard, 
     expect(page.locator("#tgApiHash")).to_have_value("")
     expect(page.locator("#tgMtproxySecretState")).to_be_visible()
     expect(page.locator("#tgApiHashState")).to_be_visible()
+    for control in ("tgToken", "tgMtproxySecret", "tgApiHash"):
+        expect(page.locator(f"#{control}State")).to_have_text(present)
+        expect(page.locator(f"#{control}")).to_have_value("")
+        assert (
+            f"{control}State"
+            in page.locator(f"#{control}").get_attribute("aria-describedby").split()
+        )
     assert any(value["mtproxySecret"] == FAKETLS_SECRET for value in requests)
     assert saved["mtproxySecret"] == FAKETLS_SECRET
     assert requests[-1]["mtproxySecret"] == ""
@@ -89,6 +103,8 @@ def test_proxy_controls_save_reload_and_explain_manual_chat_id(page, dashboard, 
     expect(page.locator("#tgMtproxySecret")).to_have_attribute("type", "password")
     expect(page.locator("#tgApiHash")).to_have_attribute("type", "password")
     expect(page.locator("#tgMtproxySecret")).to_have_value("")
+    for control in ("tgToken", "tgMtproxySecret", "tgApiHash"):
+        expect(page.locator(f"#{control}State")).to_have_text(present)
     assert saved["mtproxySecret"] == FAKETLS_SECRET
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     assert page.locator("#tgMtproxyHost").evaluate("el => el.labels.length") == 1
@@ -108,10 +124,14 @@ def test_proxy_controls_save_reload_and_explain_manual_chat_id(page, dashboard, 
 
 def test_proxy_secret_new_generation_survives_failed_save_and_stale_overview(page, dashboard):
     pending = []
-    dashboard["overview"]["settings"] = {"telegram": {"mtproxyEnabled": True}}
+    dashboard["overview"]["settings"] = {
+        "telegram": {"mtproxyEnabled": True, "hasMtproxySecret": True},
+        "version": {"epoch": "secret-fixture", "revision": 2},
+    }
     page.route("**/api/settings", lambda route: pending.append(route))
     page.goto(dashboard["url"] + "/#/maintenance")
     secret = page.locator("#tgMtproxySecret")
+    expect(page.locator("#tgMtproxySecretState")).to_have_text("Значение задано · скрыто")
     secret.fill("a1" * 16)
     with page.expect_request("**/api/settings"):
         secret.dispatch_event("change")
@@ -120,6 +140,7 @@ def test_proxy_secret_new_generation_survives_failed_save_and_stale_overview(pag
         secret.dispatch_event("change")
         pending.pop(0).fulfill(json={"ok": True})
     expect(secret).to_have_value("b2" * 16)
+    expect(page.locator("#tgMtproxySecretState")).to_have_text("Значение задано · скрыто")
     pending.pop(0).fulfill(status=503, json={"error": "Сервис недоступен"})
     expect(page.locator('.settings-feedback[data-state="error"]')).to_be_visible()
     page.evaluate("renderOverview({...S.overview,settings:{telegram:{mtproxyEnabled:false}}})")
@@ -129,9 +150,21 @@ def test_proxy_secret_new_generation_survives_failed_save_and_stale_overview(pag
         page.get_by_role("button", name="Повторить сохранение").click()
     values = pending[0].request.post_data_json["telegram"]
     assert values["mtproxySecret"] == "b2" * 16
-    pending.pop(0).fulfill(json={"ok": True, "settings": {"telegram": public_settings(values)}})
+    pending.pop(0).fulfill(
+        json={
+            "ok": True,
+            "settings": {
+                "telegram": public_settings(values),
+                "version": {"epoch": "secret-fixture", "revision": 3},
+            },
+        }
+    )
     expect(secret).to_have_value("")
     expect(page.locator("#tgMtproxySwitch")).to_be_checked()
+    page.evaluate("""renderOverview({...S.overview, settings:{
+        telegram:{mtproxyEnabled:false,hasMtproxySecret:false},
+        version:{epoch:'secret-fixture',revision:1}}})""")
+    expect(page.locator("#tgMtproxySecretState")).to_have_text("Значение задано · скрыто")
 
 
 def test_proxy_test_waits_for_edits_made_while_save_is_pending(page, dashboard):
