@@ -91,6 +91,7 @@ def fmt_size(n):
 
 _EV_LOCK = threading.Lock()
 _EV_MEM = deque(maxlen=300)
+_CONSOLE_EVENT_TEXT = "Команда консоли отправлена"
 
 _EVENT_TYPES = {
     "start",
@@ -112,12 +113,22 @@ _EVENT_TYPES = {
 }
 
 
+def _redact_console_event(record):
+    """Keep arbitrary command arguments out of new and historical event payloads."""
+    if record.get("type") == "console":
+        record["text"] = _CONSOLE_EVENT_TEXT
+        record.pop("detail", None)
+    return record
+
+
 def log_event(kind, text, detail=None, notify=True, *, level=None):
     kind = kind if kind in _EVENT_TYPES else "error"
     severity = logging_utils.event_level(kind, level)
     rec = {"ts": now_iso(), "type": kind, "text": text, "level": severity}
-    if detail:
+    if detail and kind != "console":
         rec["detail"] = str(detail)[:400]
+    _redact_console_event(rec)
+    text = rec["text"]
     with _EV_LOCK:
         _load_events()
         _EV_MEM.appendleft(rec)
@@ -127,10 +138,7 @@ def log_event(kind, text, detail=None, notify=True, *, level=None):
             logging_utils.get_logger("events").warning(
                 "Event persistence unavailable (%s)", type(error).__name__
             )
-    # Commands can contain player/admin credentials. Their existing journal
-    # contract is preserved, while process logs receive only a fixed summary.
-    message = "Console command submitted" if kind == "console" else text
-    logging_utils.get_logger("events").log(getattr(logging, severity), "[%s] %s", kind, message)
+    logging_utils.get_logger("events").log(getattr(logging, severity), "[%s] %s", kind, text)
     if notify:
         try:
             notifylib.enqueue(kind, text)
@@ -164,7 +172,7 @@ def _load_events():
                 try:
                     entry = json.loads(line)
                     if isinstance(entry, dict):
-                        _EV_MEM.append(entry)
+                        _EV_MEM.append(_redact_console_event(entry))
                 except (ValueError, RecursionError):
                     pass
         except OSError:
@@ -335,7 +343,7 @@ def console_command(command):
     """Keep user commands from racing lifecycle operations or other mutations."""
     with mutation_guard():
         output = rcon(command)
-        log_event("console", command[:200])
+        log_event("console", _CONSOLE_EVENT_TEXT)
         return output
 
 

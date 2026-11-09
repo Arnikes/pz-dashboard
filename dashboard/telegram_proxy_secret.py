@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass, field
 
 MAX_DOMAIN_LENGTH = 182
-SECRET_FORMAT_ERROR = (
+FORMAT_DIAGNOSTIC = (
     "MTProxy secret must contain 32 hexadecimal characters, dd and 32 hexadecimal "
     "characters, or ee, 32 hexadecimal characters and a hexadecimal DNS hostname"
 )
@@ -30,18 +30,18 @@ class ProxySecret:
 def parse_secret(raw):
     """Return a complete plain/dd/FakeTLS secret, without truncating its domain."""
     if not isinstance(raw, str):
-        raise ValueError(SECRET_FORMAT_ERROR)
+        raise ValueError(FORMAT_DIAGNOSTIC)
     value = raw.strip()
     if _HEX32.fullmatch(value):
         return ProxySecret("plain", bytes.fromhex(value), None, value.upper())
     if len(value) == 34 and value[:2].lower() == "dd" and _HEX32.fullmatch(value[2:]):
         return ProxySecret("dd", bytes.fromhex(value[2:]), None, value.upper())
     if value[:2].lower() != "ee":
-        raise ValueError(SECRET_FORMAT_ERROR)
+        raise ValueError(FORMAT_DIAGNOSTIC)
     if not 36 <= len(value) <= 34 + 2 * MAX_DOMAIN_LENGTH or len(value) % 2:
         raise ValueError(FAKETLS_DOMAIN_ERROR)
     if not _HEX.fullmatch(value):
-        raise ValueError(SECRET_FORMAT_ERROR)
+        raise ValueError(FORMAT_DIAGNOSTIC)
     key, encoded_domain = bytes.fromhex(value[2:34]), bytes.fromhex(value[34:])
     try:
         domain = encoded_domain.decode("ascii")

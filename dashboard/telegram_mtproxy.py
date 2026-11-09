@@ -8,7 +8,7 @@ import threading
 import time
 import warnings
 
-from telegram_proxy_secret import FAKETLS_DOMAIN_ERROR, SECRET_FORMAT_ERROR, parse_secret
+from telegram_proxy_secret import FAKETLS_DOMAIN_ERROR, FORMAT_DIAGNOSTIC, parse_secret
 
 OPERATION_TIMEOUT = 15.0
 _CLEANUP_TIMEOUT = 1.0
@@ -21,7 +21,7 @@ _INVALID_HOST = "Telegram MTProxy: proxy host must be a hostname or IP address"
 _INVALID_PORT = "Telegram MTProxy: proxy port must be an integer from 1 to 65535"
 _INVALID_API_ID = "Telegram MTProxy: API ID must be an integer from 1 to 2147483647"
 _INVALID_API_HASH = "Telegram MTProxy: API hash must contain 32 hexadecimal characters"
-_INVALID_SECRET = "Telegram MTProxy: " + SECRET_FORMAT_ERROR
+_INVALID_KEY_FORMAT = "Telegram MTProxy: " + FORMAT_DIAGNOSTIC
 _INVALID_FAKETLS = "Telegram MTProxy: " + FAKETLS_DOMAIN_ERROR
 # These authored diagnostics contain no supplied values, including invalid secrets.
 CONFIGURATION_ERRORS = frozenset(
@@ -31,7 +31,7 @@ CONFIGURATION_ERRORS = frozenset(
         _INVALID_PORT,
         _INVALID_API_ID,
         _INVALID_API_HASH,
-        _INVALID_SECRET,
+        _INVALID_KEY_FORMAT,
         _INVALID_FAKETLS,
     }
 )
@@ -95,7 +95,7 @@ def validate_settings(settings):
         normalize_secret(settings.get("mtproxySecret"))
     except ValueError as error:
         # Return only known parser diagnostics, never an arbitrary exception text.
-        return _INVALID_FAKETLS if str(error) == FAKETLS_DOMAIN_ERROR else _INVALID_SECRET
+        return _INVALID_FAKETLS if str(error) == FAKETLS_DOMAIN_ERROR else _INVALID_KEY_FORMAT
     return None
 
 

@@ -17,9 +17,11 @@ import pytest
 import app
 import auth
 import config
+import i18n
 import logging_utils
 import ops
 from test_dashboard_update import startup as startup
+from test_auth import auth_server as auth_server, request, sign_in
 
 
 @pytest.fixture
@@ -181,9 +183,12 @@ def test_event_levels_persist_emit_and_preserve_notification_contract(
     record = ops.get_events()[0]
     normalized = "error" if kind == "invalid" else kind
     assert record["type"] == normalized and record["level"] == expected
-    assert record["text"] == "event text" and record["detail"] == "detail"
+    if kind == "console":
+        assert record["text"] == "Команда консоли отправлена" and "detail" not in record
+    else:
+        assert record["text"] == "event text" and record["detail"] == "detail"
     assert json.loads(Path(config.CFG["events_file"]).read_text(encoding="utf-8")) == record
-    enqueue.assert_called_once_with(normalized, "event text")
+    enqueue.assert_called_once_with(normalized, record["text"])
     assert len(output.getvalue().splitlines()) == 1
     assert f" {expected} pz.events [{normalized}] " in output.getvalue()
 
@@ -229,14 +234,68 @@ def test_persistence_failure_keeps_memory_and_reports_category_without_recursion
     assert "path-secret" not in output and "credential" not in output
 
 
-def test_console_commands_are_not_copied_into_process_logs(event_log):
-    output, _ = event_log
+def test_console_commands_are_not_copied_into_any_event_sink(event_log):
+    output, enqueue = event_log
     logging_utils.configure("DEBUG")
     command = 'adduser "test" "fictional-password"'
-    ops.log_event("console", command, notify=False)
-    assert ops.get_events()[0]["text"] == command
-    assert "Console command submitted" in output.getvalue()
-    assert "fictional-password" not in output.getvalue()
+    ops.log_event("console", command, detail={"command": command})
+    record = ops.get_events()[0]
+    assert record["text"] == "Команда консоли отправлена" and "detail" not in record
+    assert list(ops._EV_MEM) == [record]
+    saved = Path(config.CFG["events_file"]).read_text(encoding="utf-8")
+    assert json.loads(saved) == record
+    enqueue.assert_called_once_with("console", record["text"])
+    assert record["text"] in output.getvalue()
+    assert "fictional-password" not in saved + output.getvalue() + repr(enqueue.call_args)
+
+
+def test_console_command_reaches_transport_unchanged_without_persisting_arguments(
+    event_log, monkeypatch
+):
+    command = 'adduser "fictional player" "fictional-password with spaces"'
+    run = Mock(return_value="User created")
+    monkeypatch.setattr(ops.rconlib, "run_command", run)
+    monkeypatch.setattr(ops, "op_busy", lambda: False)
+    monkeypatch.setattr(ops, "_RCON_CACHE", {"state": "ok", "error": None, "at": None})
+    assert ops.console_command(command) == "User created"
+    run.assert_called_once_with(
+        config.CFG["rcon_host"], config.CFG["rcon_port"], config.CFG["rcon_password"], command
+    )
+    assert ops.get_events()[0]["text"] == "Команда консоли отправлена"
+    assert "fictional-password" not in Path(config.CFG["events_file"]).read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_legacy_console_arguments_are_hidden_from_events_http_without_rewriting_disk(
+    event_log, auth_server, language
+):
+    path = Path(config.CFG["events_file"])
+    path.parent.mkdir(parents=True)
+    old = {
+        "id": 7,
+        "ts": "2026-01-01T00:00:00+00:00",
+        "type": "console",
+        "text": 'adduser "test" "legacy-fictional-password"',
+        "detail": {"command": "legacy-fictional-password"},
+        "level": "INFO",
+    }
+    raw = (json.dumps(old) + "\n").encode()
+    path.write_bytes(raw)
+    cookie = sign_in(auth_server)
+    status, _, body = request(
+        auth_server, "GET", "/api/events", cookie=cookie, headers={"X-PZ-Language": language}
+    )
+    assert status == 200 and len(body["items"]) == 1
+    expected_text = (
+        "Console command submitted" if language == "en" else "Команда консоли отправлена"
+    )
+    assert body["items"][0] == {
+        **{key: value for key, value in old.items() if key not in ("text", "detail")},
+        "text": expected_text,
+    }
+    assert "legacy-fictional-password" not in json.dumps(body) + json.dumps(list(ops._EV_MEM))
+    assert path.read_bytes() == raw
+    assert i18n.translate("Команда консоли отправлена", locale=language) == expected_text
 
 
 @pytest.mark.parametrize("failure", ["closed", "write", "flush"])
