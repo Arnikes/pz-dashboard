@@ -154,6 +154,7 @@ when redistributing the skill.
 | --- | --- |
 | `dashboard/app.py`, `auth.py` | HTTP/API and administrator sessions |
 | `dashboard/ops.py`, `actions.py` | Operations, schedulers, action dispatch |
+| `dashboard/extensions.py`, `runtime.py` | Trusted extension contracts and explicit application composition |
 | `dashboard/config*.py`, `settingsmodel.py` | Profiles, revisions, parsing, recovery, validation |
 | `dashboard/workshop.py` | Workshop metadata and B42 resolution |
 | `dashboard/payloads.py`, `dockerlib.py`, `rcon.py` | Shared live data, Docker and RCON |
@@ -163,6 +164,9 @@ when redistributing the skill.
 | `docs/` | Installation, workflows, acceptance, screenshot source |
 | `.github/workflows/ci.yml` | GitHub checks, Docker smoke test, GHCR and releases |
 | `.gitea/workflows/` | Existing Gitea checks and optional registry/deploy jobs |
+
+See [modules and trusted extensions](docs/extensions.md) for the architecture audit,
+extension contracts, a deployment example, and the remaining extraction roadmap.
 
 ## GitHub and Gitea CI
 

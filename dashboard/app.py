@@ -29,6 +29,8 @@ import ops
 import payloads
 import pwa
 import rcon
+import runtime
+from extensions import ExtensionRegistry
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 _STREAM_CACHE_LOCK = threading.Lock()
@@ -36,6 +38,23 @@ _STREAM_CACHE_LOCK = threading.Lock()
 
 class ThreadingHTTPServer(_ThreadingHTTPServer):
     """Keep uncaught request failures in the same safe process log as the app."""
+
+    def __init__(
+        self,
+        server_address,
+        RequestHandlerClass,
+        bind_and_activate=True,
+        *,
+        plugins=(),
+        registry=None,
+    ):
+        plugins = tuple(plugins)
+        if registry is not None and plugins:
+            raise ValueError("Supply a registry or plugins, not both")
+        if registry is not None and not isinstance(registry, ExtensionRegistry):
+            raise TypeError("Expected an ExtensionRegistry")
+        self.extensions = runtime.build_registry(plugins) if registry is None else registry
+        super().__init__(server_address, RequestHandlerClass, bind_and_activate)
 
     def handle_error(self, request, client_address):
         logging_utils.get_logger("http").error(
@@ -93,6 +112,14 @@ class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
     # ── helpers ──
+    def _extensions(self):
+        # Embedded callers can keep using a standard-library HTTP server. Its
+        # default composition is private to that server, just like stream data.
+        with _STREAM_CACHE_LOCK:
+            if not hasattr(self.server, "extensions"):
+                self.server.extensions = runtime.build_registry()
+            return self.server.extensions
+
     def end_headers(self):
         # This administrator panel has no indexable responses, including redirects,
         # errors, downloads, and the public login/PWA assets.
@@ -351,9 +378,10 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.flush()
 
     def _serve_stream(self, *, logs=True):
+        registry = self._extensions()
         with _STREAM_CACHE_LOCK:
             if not hasattr(self.server, "stream_cache"):
-                self.server.stream_cache = payloads.StreamCache()
+                self.server.stream_cache = payloads.StreamCache(registry=registry)
         cache = self.server.stream_cache
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
@@ -366,7 +394,7 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.connection.settimeout(75)
         plan = tuple(
-            (name, interval) for name, interval in payloads.STREAM_PLAN if logs or name != "logs"
+            (name, interval) for name, interval in registry.stream_plan if logs or name != "logs"
         )
         last = {name: float("-inf") for name, _ in plan}
         last_beat = time.monotonic()
@@ -424,6 +452,7 @@ class Handler(BaseHTTPRequestHandler):
             public = False
         if not public and not self._require_auth():
             return
+        registry = self._extensions()
 
         if path in ("/", "/index.html"):
             self._static_file("index.html")
@@ -456,7 +485,7 @@ class Handler(BaseHTTPRequestHandler):
             self._static_file("favicon.svg")
         elif path == "/api/health":
             self._send_json({"ok": True, "now": ops.now_iso()})
-        elif path in payloads.GET_CHANNELS:
+        elif path in registry.poll_routes:
             if path == "/api/logs":
                 try:
                     tail = min(10000, max(1, int(qs.get("tail", [config.CFG["log_lines"]])[0])))
@@ -483,7 +512,9 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 self._send_json(payloads.logs_payload(tail, **scope))
             else:
-                self._send_json(payloads.stream_payload(payloads.GET_CHANNELS[path]))
+                self._send_json(
+                    payloads.stream_payload(registry.poll_routes[path], registry=registry)
+                )
         elif path == "/api/backups/journal":
             try:
                 limit = min(100, max(1, int(qs.get("limit", [25])[0])))
@@ -708,14 +739,15 @@ class Handler(BaseHTTPRequestHandler):
     # ── операции ──
     def _handle_action(self, data):
         try:
-            result = actions.dispatch(data)
+            result = actions.dispatch(data, registry=self._extensions())
         except actions.ActionError as error:
             self._send_error_json(error.status, str(error))
             return
         self._send_json(result)
 
 
-def main():
+def main(*, plugins=()):
+    registry = runtime.build_registry(plugins)
     cfg = config.CFG
     logging_utils.configure()
     try:
@@ -795,7 +827,7 @@ def main():
     except rcon.RCONError:
         pass
 
-    server = ThreadingHTTPServer(("0.0.0.0", cfg["port"]), Handler)
+    server = ThreadingHTTPServer(("0.0.0.0", cfg["port"]), Handler, registry=registry)
     server.auth = manager
     server.daemon_threads = True
     logging_utils.get_logger("startup").info(

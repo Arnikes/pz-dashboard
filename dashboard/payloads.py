@@ -4,12 +4,14 @@ import json
 import i18n
 import threading
 import time
+from types import MappingProxyType
 
 import config
 import dockerlib
 import ops
 import rcon
 from errors import OpsError
+from extensions import ChannelSpec, ExtensionRegistry, extension_failure
 
 
 def players_payload(*, state_provider=None):
@@ -77,20 +79,6 @@ def events_payload(limit=100):
     return {"ok": True, "items": ops.get_events(limit)}
 
 
-# каналы SSE: имя события → интервал отправки, секунды
-STREAM_PLAN = (
-    ("ops", 1.0),
-    ("overview", 3.0),
-    ("players", 5.0),
-    ("stats", 5.0),
-    ("logs", 5.0),
-    ("backups", 10.0),
-    ("events", 12.0),
-    ("stats-history", 30.0),
-    ("players-history", 60.0),
-)
-
-
 class StreamCache:
     """Bounded monitoring snapshots and localized frames per HTTP server.
 
@@ -98,8 +86,12 @@ class StreamCache:
     and direct HTTP reads never use the short-lived container inspection snapshot.
     """
 
-    def __init__(self):
-        self._channels = {name: [threading.Lock(), None, 0.0, {}] for name, _ in STREAM_PLAN}
+    def __init__(self, registry=None):
+        self.registry = _BUILTINS if registry is None else registry
+        self._explicit_registry = registry is not None
+        self._channels = {
+            name: [threading.Lock(), None, 0.0, {}] for name, _ in self.registry.stream_plan
+        }
         self._state_lock = threading.Lock()
         self._state = None
         self._state_container = None
@@ -123,24 +115,32 @@ class StreamCache:
             refreshed = channel[1] is None or time.monotonic() >= channel[2]
             if refreshed:
                 try:
-                    channel[1] = stream_payload(name, telemetry=self)
+                    options = {"registry": self.registry} if self._explicit_registry else {}
+                    channel[1] = stream_payload(name, telemetry=self, **options)
                 except Exception as error:  # noqa: BLE001 — share failures too
-                    channel[1] = {"ok": False, "error": str(error)}
+                    channel[1] = {"ok": False, "error": self._error(name, error)}
                 channel[3] = {}
             if language not in channel[3]:
                 try:
                     encoded = json.dumps(
                         i18n.present(channel[1]), ensure_ascii=False, separators=(",", ":")
                     )
+                    frame = f"event: {name}\ndata: {encoded}\n\n".encode("utf-8")
                 except Exception as error:  # noqa: BLE001 — share encoding failures too
                     encoded = json.dumps(
-                        i18n.present({"ok": False, "error": str(error)}), ensure_ascii=False
+                        i18n.present({"ok": False, "error": self._error(name, error)}),
+                        ensure_ascii=False,
                     )
-                channel[3][language] = f"event: {name}\ndata: {encoded}\n\n".encode("utf-8")
+                    frame = f"event: {name}\ndata: {encoded}\n\n".encode("utf-8")
+                channel[3][language] = frame
             if refreshed:
                 # Start TTL after collection/encoding: slow calls must not stampede.
                 channel[2] = time.monotonic() + interval
             return channel[3][language]
+
+    def _error(self, name, error):
+        owner = self.registry.channel_owners.get(name)
+        return extension_failure(owner, error) if owner is not None else str(error)
 
 
 def overview_payload(*, state_provider=None):
@@ -160,37 +160,32 @@ def players_history_payload():
     return {"ok": True, "points": ops.get_players_history()}
 
 
-# Shared providers keep polling and streaming responses consistent.
-PAYLOADS = {
-    "overview": overview_payload,
-    "players": players_payload,
-    "stats": stats_payload,
-    "logs": logs_payload,
-    "backups": backups_payload,
-    "events": events_payload,
-    "ops": operation_payload,
-    "stats-history": stats_history_payload,
-    "players-history": players_history_payload,
-}
-
-GET_CHANNELS = {
-    "/api/overview": "overview",
-    "/api/players": "players",
-    "/api/players/history": "players-history",
-    "/api/stats/history": "stats-history",
-    "/api/stats": "stats",
-    "/api/logs": "logs",
-    "/api/backups": "backups",
-    "/api/ops": "ops",
-}
-
-TELEMETRY_CHANNELS = frozenset(("overview", "players", "stats"))
+def builtin_channels():
+    """Declare polling, SSE timing and telemetry policy together, with late binding."""
+    return (
+        ChannelSpec("ops", lambda: operation_payload(), 1.0, "/api/ops"),
+        ChannelSpec("overview", lambda **kw: overview_payload(**kw), 3.0, "/api/overview", True),
+        ChannelSpec("players", lambda **kw: players_payload(**kw), 5.0, "/api/players", True),
+        ChannelSpec("stats", lambda **kw: stats_payload(**kw), 5.0, "/api/stats", True),
+        ChannelSpec("logs", lambda: logs_payload(), 5.0, "/api/logs"),
+        ChannelSpec("backups", lambda: backups_payload(), 10.0, "/api/backups"),
+        # The host retains the parameterized events polling route.
+        ChannelSpec("events", lambda: events_payload(), 12.0),
+        ChannelSpec("stats-history", lambda: stats_history_payload(), 30.0, "/api/stats/history"),
+        ChannelSpec(
+            "players-history", lambda: players_history_payload(), 60.0, "/api/players/history"
+        ),
+    )
 
 
-def stream_payload(name, *, telemetry=None):
-    provider = PAYLOADS.get(name)
-    if provider is None:
-        return {"ok": False, "error": "нет такого потока"}
-    if telemetry is not None and name in TELEMETRY_CHANNELS:
-        return provider(state_provider=telemetry.container_state)
-    return provider()
+_BUILTINS = ExtensionRegistry(channels=builtin_channels())
+# Compatibility views are derived from the same registrations, never maintained separately.
+PAYLOADS = MappingProxyType({name: spec.collect for name, spec in _BUILTINS.channels.items()})
+GET_CHANNELS = _BUILTINS.poll_routes
+STREAM_PLAN = _BUILTINS.stream_plan
+TELEMETRY_CHANNELS = frozenset(name for name, spec in _BUILTINS.channels.items() if spec.telemetry)
+
+
+def stream_payload(name, *, telemetry=None, registry=None):
+    registry = _BUILTINS if registry is None else registry
+    return registry.collect(name, telemetry=telemetry)

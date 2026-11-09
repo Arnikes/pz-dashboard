@@ -1,4 +1,5 @@
 {
+  "Ошибка модуля расширения": "Extension module failed",
   "Загрузить пакеты с рестартом…": "Download packages with restart…",
   "Пакеты ожидают загрузки": "Packages need downloading",
   "Добавлено пакетов в черновик: {{0}}.": "Packages added to draft: {{0}}.",

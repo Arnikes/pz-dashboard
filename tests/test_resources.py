@@ -16,6 +16,7 @@ import app
 import auth
 import config
 import dockerlib
+import extensions
 import i18n
 import ops
 import payloads
@@ -122,8 +123,6 @@ def test_stream_localizes_once_per_snapshot_and_preserves_raw_data(monkeypatch, 
 def test_stream_skips_unsubscribed_logs_and_sleeps_until_due(monkeypatch, logs, empty):
     clock = [0.0]
     monkeypatch.setattr(app.time, "monotonic", lambda: clock[0])
-    if empty:
-        monkeypatch.setattr(payloads, "STREAM_PLAN", ())
     collected = []
 
     def collect(name, **_kwargs):
@@ -134,6 +133,8 @@ def test_stream_skips_unsubscribed_logs_and_sleeps_until_due(monkeypatch, logs, 
     monkeypatch.setattr(payloads, "stream_payload", collect)
     handler = object.__new__(app.Handler)
     handler.server = SimpleNamespace(auth=Mock())
+    if empty:
+        handler.server.extensions = extensions.ExtensionRegistry()
     handler.server.auth.is_active.return_value = True
     handler.auth_session = "test-session"
     handler.connection = Mock()
@@ -154,7 +155,8 @@ def test_stream_skips_unsubscribed_logs_and_sleeps_until_due(monkeypatch, logs, 
     monkeypatch.setattr(app.time, "sleep", sleep)
     handler._serve_stream(logs=logs)
     assert ("logs" in collected) is (logs and not empty)
-    assert {name for name, _ in payloads.STREAM_PLAN} - {"logs"} <= set(collected)
+    if not empty:
+        assert {name for name, _ in payloads.STREAM_PLAN} - {"logs"} <= set(collected)
     assert sleeps == pytest.approx([1.0 if empty else 1.02 - 0.02 * len(collected)])
     assert chunks[-1] == b"event: auth-expired\ndata: {}\n\n"
 
