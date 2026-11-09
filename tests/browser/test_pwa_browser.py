@@ -598,6 +598,8 @@ def test_install_bar_stays_clear_of_navigation(page, dashboard, tmp_path, width)
     }""")
     button = page.locator("#pwaInstall")
     expect(button).to_be_visible()
+    # The shell is visible but remains inert while the loader exits.
+    expect(page.locator("#startupLoader")).to_be_hidden()
     capture_evidence(page, path=str(tmp_path / f"install-bar-{width}.png"))
     page.locator("#view-overview").evaluate("""async element => {
       await Promise.all(element.getAnimations().map(animation => animation.finished));
