@@ -562,9 +562,9 @@
             <div class="auto-grid">
               <div class="secret-field">
                 <label class="field">Bot token
-                  <input type="password" id="tgToken" placeholder="123456:ABC-DEF…" autocomplete="off" aria-describedby="tgTokenState tgTokenHint" />
+                  <input type="password" id="tgToken" placeholder="Введите новое значение" autocomplete="off" data-secret-description="tgTokenDescription" aria-describedby="tgTokenDescription tgTokenHint" />
                 </label>
-                <p class="secret-state" id="tgTokenState" aria-live="polite"></p>
+                <span class="sr-only" id="tgTokenDescription"></span>
                 <p class="hint" id="tgTokenHint">Пустое поле сохраняет текущий токен.</p>
               </div>
               <label class="field">Chat ID
@@ -589,9 +589,9 @@
               </label>
               <div class="secret-field">
                 <label class="field">Секрет MTProxy
-                  <input type="password" id="tgMtproxySecret" autocomplete="off" aria-describedby="tgMtproxySecretState tgMtproxySecretHint" />
+                  <input type="password" id="tgMtproxySecret" placeholder="Введите новое значение" autocomplete="off" data-secret-description="tgMtproxySecretDescription" aria-describedby="tgMtproxySecretDescription tgMtproxySecretHint" />
                 </label>
-                <p class="secret-state" id="tgMtproxySecretState" aria-live="polite"></p>
+                <span class="sr-only" id="tgMtproxySecretDescription"></span>
                 <p class="hint" id="tgMtproxySecretHint">32 шестнадцатеричных символа, dd + 32 символа или ee + 32 символа + DNS-имя в hex. Вставьте секрет целиком. Пустое поле сохраняет текущий секрет.</p>
               </div>
               <label class="field">Telegram API ID
@@ -599,9 +599,9 @@
               </label>
               <div class="secret-field">
                 <label class="field">Telegram API hash
-                  <input type="password" id="tgApiHash" autocomplete="off" aria-describedby="tgApiHashState tgApiCredentialsHint tgApiHashHint" />
+                  <input type="password" id="tgApiHash" placeholder="Введите новое значение" autocomplete="off" data-secret-description="tgApiHashDescription" aria-describedby="tgApiHashDescription tgApiCredentialsHint tgApiHashHint" />
                 </label>
-                <p class="secret-state" id="tgApiHashState" aria-live="polite"></p>
+                <span class="sr-only" id="tgApiHashDescription"></span>
                 <p class="hint" id="tgApiHashHint">32 шестнадцатеричных символа. Пустое поле сохраняет текущий API hash.</p>
               </div>
               <p class="hint" id="tgApiCredentialsHint">API ID и API hash приложения можно получить на my.telegram.org. Они нужны дополнительно к токену бота.</p>

@@ -9,6 +9,81 @@ from browser_evidence import capture_evidence
 pytestmark = pytest.mark.browser
 
 
+def assert_visible_stepper_geometry(page, width):
+    metrics = page.locator("#configFlow").evaluate("""flow => {
+        const box = el => {
+            const r = el.getBoundingClientRect();
+            return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height};
+        };
+        return {flow:box(flow), steps:[...flow.children].map(step => ({
+            button:box(step.querySelector('button')), marker:box(step.querySelector('.route-marker')),
+            copy:box(step.querySelector('.route-copy')),
+            connector:step.querySelector('.route-connector') ? box(step.querySelector('.route-connector')) : null,
+        }))};
+    }""")
+    flow, steps = metrics["flow"], metrics["steps"]
+    for step in steps:
+        button, copy = step["button"], step["copy"]
+        assert round(button["height"], 2) >= 44 and round(button["width"], 2) >= 44
+        assert button["left"] - 1 <= copy["left"] <= copy["right"] <= button["right"] + 1
+    if width <= 540:
+        for index, step in enumerate(steps):
+            assert abs(step["marker"]["left"] - flow["left"]) <= 1
+            if step["connector"]:
+                assert abs(step["connector"]["width"] - 1) <= 0.01
+                assert step["marker"]["bottom"] < step["connector"]["top"]
+                assert step["connector"]["bottom"] < steps[index + 1]["marker"]["top"]
+        return
+    first, middle, last = [step["marker"] for step in steps]
+    assert abs(first["left"] - flow["left"]) <= 1
+    assert abs(last["right"] - flow["right"]) <= 1
+    assert abs((middle["left"] + middle["right"]) / 2 - (flow["left"] + flow["right"]) / 2) <= 1
+    widths = [step["button"]["width"] for step in steps]
+    assert max(widths) - min(widths) <= 1
+    for index, step in enumerate(steps[:-1]):
+        connector, marker, following = step["connector"], step["marker"], steps[index + 1]["marker"]
+        assert abs(connector["left"] - marker["right"] - 12) <= 1
+        assert abs(following["left"] - connector["right"] - 12) <= 1
+        assert connector["width"] > 0 and abs(connector["height"] - 1) <= 0.01
+        assert abs(connector["top"] - (marker["top"] + marker["bottom"]) / 2) <= 1
+        assert abs(marker["top"] - following["top"]) <= 1
+
+
+@pytest.mark.parametrize("width", [390, 541, 1440, 2048, 2560])
+@pytest.mark.parametrize("language", ["ru", "en"])
+def test_visible_stage_markers_and_connectors_fill_the_editor_lane(
+    page,
+    dashboard,
+    editing,  # noqa: F811
+    width,
+    language,
+):
+    data, _ = editing
+    page.set_viewport_size({"width": width, "height": 900})
+    page.add_init_script(f"localStorage.setItem('pz-language', '{language}')")
+    page.goto(dashboard["url"] + "/#/settings")
+    for route in ("settings", "mods"):
+        page.locator(f'.nav [data-route="{route}"]').click()
+        expect(page.locator(f"#view-{route}")).to_be_visible()
+        expect(page.locator("#configProfile")).to_be_enabled()
+        page.evaluate("document.fonts.ready")
+        assert_visible_stepper_geometry(page, width)
+        first = page.locator('#configFlow [data-flow="draft"]')
+        first.focus()
+        page.keyboard.press("Tab")
+        expect(page.locator('#configFlow [data-flow="files"]')).to_be_focused()
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        capture_evidence(
+            page.locator("#configFlow"),
+            path=str(data.parent / f"stepper-anchors-{language}-{width}-{route}.png"),
+        )
+        if width == 541:
+            # Stress the existing localized status text without replacing product copy.
+            page.locator("#flowLaunch").evaluate("el => {el.textContent += ' ' + el.textContent;}")
+            assert_visible_stepper_geometry(page, width)
+    assert dashboard["actions"] == []
+
+
 @pytest.mark.parametrize("width", [320, 390, 768, 1440])
 @pytest.mark.parametrize("language", ["ru", "en"])
 def test_stepper_keeps_statuses_and_draft_actions(
@@ -146,11 +221,13 @@ def test_unrelated_operations_preserve_the_configuration_lifecycle(
 
 
 @pytest.mark.parametrize("language", ["ru", "en"])
+@pytest.mark.parametrize("width", [320, 541, 1440])
 def test_failed_startup_uses_a_warning_marker_in_high_contrast_mode(
     page,
     dashboard,
     editing,  # noqa: F811
     language,
+    width,
 ):
     current = editor.draft("world.ini")
     editor.save_json(
@@ -161,7 +238,7 @@ def test_failed_startup_uses_a_warning_marker_in_high_contrast_mode(
             "error": "PZ readiness timed out",
         },
     )
-    page.set_viewport_size({"width": 320, "height": 900})
+    page.set_viewport_size({"width": width, "height": 900})
     page.add_init_script(f"localStorage.setItem('pz-language','{language}')")
     page.emulate_media(forced_colors="active", reduced_motion="reduce")
     page.goto(dashboard["url"] + "/#/settings")
@@ -172,4 +249,5 @@ def test_failed_startup_uses_a_warning_marker_in_high_contrast_mode(
     )
     expect(launch.locator(".flow-error")).to_be_visible()
     expect(launch.locator(".flow-check")).to_be_hidden()
+    assert_visible_stepper_geometry(page, width)
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")

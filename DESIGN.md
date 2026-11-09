@@ -240,10 +240,13 @@ use the same connected Route grammar: round numbered indicators, thin connecting
 lines, and a title for every stage. Editor descriptions and the active operation's
 current status remain visible. The current
 stage has a beige indicator; recorded stages use olive checkmarks and errors use a
-brick-red warning mark. Desktop labels sit below the indicators. At widths up to
-540 pixels the route becomes vertical, keeping every description visible. Editor
-stages remain interactive targets of at least 44 pixels and reflect persisted draft,
-file-write, and verified-startup evidence independently of an unrelated operation.
+brick-red warning mark. Desktop labels sit below the indicators. The desktop
+configuration rail places its first and last markers at the content edges, with
+the middle marker centered; connectors span the gaps between adjacent rings.
+At widths up to 540 pixels the route becomes vertical, keeping every description
+visible. Editor stages remain interactive targets of at least 44 pixels and reflect
+persisted draft, file-write, and verified-startup evidence independently of an
+unrelated operation.
 On mobile, draft actions stay
 fixed above the bottom navigation. Viewports up to 600 pixels high keep the draft
 bar in the document flow. Stage selection reviews changes
@@ -320,9 +323,18 @@ Source editing preserves native formats and masks secrets. Tabs expose linked
 panels and clear selected states. Field help opens on hover, focus, or tap,
 uses aria-describedby, stays within the viewport, and closes with Escape.
 Mobile help controls have 44-pixel touch targets. Desktop labels are bounded
-to 260 pixels and controls to 560 pixels; labeled setting search is bounded to
-600 pixels. Boolean draft fields use one transparent clickable 44-pixel row.
+to 260 pixels; controls fill the remaining row. Setting search, the configuration
+stage rail, and Mods tools fill their available content lanes. Mobile labels stack
+above their controls. Source editors and scrollable tables retain their viewport
+boundaries. Boolean draft fields use one transparent clickable 44-pixel row.
 Setting search names its current section and links to matching neighboring sections.
+Saved secrets use an empty input value and a fixed eight-bullet placeholder,
+independent of their actual length. Unset secrets use a localized entry hint.
+Labels and existing hints stay in place; a localized, visually hidden description
+linked through `aria-describedby` conveys whether a value is set. There is no
+separate visible secret-status line.
+An empty Telegram field preserves its saved secret; explicitly clearing a
+configuration field clears that draft value.
 Technical keys, numeric bounds (including one-sided bounds), and input instructions
 sit below the controls. General lifecycle and stock-setting hints are omitted.
 Unique explanations, applicability details and absent defaults open on demand;

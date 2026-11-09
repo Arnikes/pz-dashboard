@@ -1,6 +1,7 @@
 """MTProxy controls preserve settings and secrets across autosave and errors."""
 
 from pathlib import Path
+import re
 
 import pytest
 from playwright.sync_api import expect
@@ -45,7 +46,14 @@ def test_proxy_controls_save_reload_and_explain_manual_chat_id(page, dashboard, 
     page.goto(dashboard["url"] + "/#/maintenance")
     absent = "Не задано" if language == "ru" else "Not set"
     present = "Значение задано · скрыто" if language == "ru" else "Value set · hidden"
-    expect(page.locator("#tgTokenState")).to_have_text(absent)
+    prompt = "Введите новое значение" if language == "ru" else "Enter a new value"
+    expect(page.locator("#tgToken")).to_have_attribute("placeholder", prompt)
+    expect(page.locator("#tgToken")).to_have_accessible_description(
+        re.compile(re.escape(absent) + r".*(?:токен|token)")
+    )
+    expect(
+        page.locator(".secret-state, #tgTokenState, #tgMtproxySecretState, #tgApiHashState")
+    ).to_have_count(0)
     expect(page.locator("#tgMtproxyFields")).to_be_hidden()
     proxy_switch = page.get_by_role(
         "switch",
@@ -55,7 +63,10 @@ def test_proxy_controls_save_reload_and_explain_manual_chat_id(page, dashboard, 
     page.keyboard.press("Space")
     expect(page.locator("#tgMtproxyFields")).to_be_visible()
     for control in ("tgMtproxySecret", "tgApiHash"):
-        expect(page.locator(f"#{control}State")).to_have_text(absent)
+        expect(page.locator(f"#{control}")).to_have_attribute("placeholder", prompt)
+        expect(page.locator(f"#{control}")).to_have_accessible_description(
+            re.compile(re.escape(absent) + r".*32")
+        )
     expect(page.locator("#btnTgChats")).to_be_disabled()
     expect(page.locator("#tgMtproxyChatsHint")).to_contain_text(
         "вручную" if language == "ru" else "manually"
@@ -78,15 +89,16 @@ def test_proxy_controls_save_reload_and_explain_manual_chat_id(page, dashboard, 
         expect(page.locator("#sec-notify > .settings-feedback")).to_have_count(0)
     expect(page.locator("#tgMtproxySecret")).to_have_value("")
     expect(page.locator("#tgApiHash")).to_have_value("")
-    expect(page.locator("#tgMtproxySecretState")).to_be_visible()
-    expect(page.locator("#tgApiHashState")).to_be_visible()
     for control in ("tgToken", "tgMtproxySecret", "tgApiHash"):
-        expect(page.locator(f"#{control}State")).to_have_text(present)
-        expect(page.locator(f"#{control}")).to_have_value("")
-        assert (
-            f"{control}State"
-            in page.locator(f"#{control}").get_attribute("aria-describedby").split()
+        expect(page.locator(f"#{control}")).to_have_attribute("placeholder", "••••••••")
+        expect(page.locator(f"#{control}")).to_have_accessible_description(
+            re.compile(re.escape(present) + r".*(?:32|токен|token)")
         )
+        expect(page.locator(f"#{control}")).to_have_value("")
+        assert page.locator(f"#{control}").evaluate("el => el.labels.length") == 1
+        assert page.locator(f"#{control}").evaluate(r"""el =>
+            el.getAttribute('aria-describedby').split(/\s+/)
+              .every(id => document.getElementById(id))""")
     assert any(value["mtproxySecret"] == FAKETLS_SECRET for value in requests)
     assert saved["mtproxySecret"] == FAKETLS_SECRET
     assert requests[-1]["mtproxySecret"] == ""
@@ -104,7 +116,10 @@ def test_proxy_controls_save_reload_and_explain_manual_chat_id(page, dashboard, 
     expect(page.locator("#tgApiHash")).to_have_attribute("type", "password")
     expect(page.locator("#tgMtproxySecret")).to_have_value("")
     for control in ("tgToken", "tgMtproxySecret", "tgApiHash"):
-        expect(page.locator(f"#{control}State")).to_have_text(present)
+        expect(page.locator(f"#{control}")).to_have_attribute("placeholder", "••••••••")
+        expect(page.locator(f"#{control}")).to_have_accessible_description(
+            re.compile(re.escape(present) + r".*(?:32|токен|token)")
+        )
     assert saved["mtproxySecret"] == FAKETLS_SECRET
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     assert page.locator("#tgMtproxyHost").evaluate("el => el.labels.length") == 1
@@ -131,7 +146,8 @@ def test_proxy_secret_new_generation_survives_failed_save_and_stale_overview(pag
     page.route("**/api/settings", lambda route: pending.append(route))
     page.goto(dashboard["url"] + "/#/maintenance")
     secret = page.locator("#tgMtproxySecret")
-    expect(page.locator("#tgMtproxySecretState")).to_have_text("Значение задано · скрыто")
+    expect(secret).to_have_attribute("placeholder", "••••••••")
+    expect(secret).to_have_accessible_description(re.compile(r"Значение задано · скрыто.*32"))
     secret.fill("a1" * 16)
     with page.expect_request("**/api/settings"):
         secret.dispatch_event("change")
@@ -140,7 +156,8 @@ def test_proxy_secret_new_generation_survives_failed_save_and_stale_overview(pag
         secret.dispatch_event("change")
         pending.pop(0).fulfill(json={"ok": True})
     expect(secret).to_have_value("b2" * 16)
-    expect(page.locator("#tgMtproxySecretState")).to_have_text("Значение задано · скрыто")
+    expect(secret).to_have_attribute("placeholder", "••••••••")
+    expect(secret).to_have_accessible_description(re.compile(r"Значение задано · скрыто.*32"))
     pending.pop(0).fulfill(status=503, json={"error": "Сервис недоступен"})
     expect(page.locator('.settings-feedback[data-state="error"]')).to_be_visible()
     page.evaluate("renderOverview({...S.overview,settings:{telegram:{mtproxyEnabled:false}}})")
@@ -164,7 +181,8 @@ def test_proxy_secret_new_generation_survives_failed_save_and_stale_overview(pag
     page.evaluate("""renderOverview({...S.overview, settings:{
         telegram:{mtproxyEnabled:false,hasMtproxySecret:false},
         version:{epoch:'secret-fixture',revision:1}}})""")
-    expect(page.locator("#tgMtproxySecretState")).to_have_text("Значение задано · скрыто")
+    expect(secret).to_have_attribute("placeholder", "••••••••")
+    expect(secret).to_have_accessible_description(re.compile(r"Значение задано · скрыто.*32"))
 
 
 def test_proxy_test_waits_for_edits_made_while_save_is_pending(page, dashboard):

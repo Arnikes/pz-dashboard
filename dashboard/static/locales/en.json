@@ -1602,6 +1602,6 @@
   "Telegram MTProxy: MTProxy FakeTLS secret must contain a valid hexadecimal DNS hostname of up to 182 bytes": "Telegram MTProxy: MTProxy FakeTLS secret must contain a valid hexadecimal DNS hostname of up to 182 bytes",
   "Значение задано · скрыто": "Value set · hidden",
   "Не задано": "Not set",
-  "placeholder=\"Введите новое значение\"": "placeholder=\"Enter a new value\"",
-  "Пустое поле сохраняет текущий токен.": "An empty field keeps the current token."
+  "Пустое поле сохраняет текущий токен.": "An empty field keeps the current token.",
+  "Введите новое значение": "Enter a new value"
 }

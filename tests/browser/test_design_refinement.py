@@ -7,6 +7,19 @@ from test_editors import editing, env, navigate  # noqa: F401
 pytestmark = pytest.mark.browser
 
 
+def assert_fills_content_lane(controls, lane):
+    edges = lane.evaluate("""el => {
+        const rect = el.getBoundingClientRect(), style = getComputedStyle(el);
+        return {left: rect.left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft),
+          right: rect.right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight)};
+    }""")
+    boxes = controls.evaluate_all("""els => els.map(el => {
+        const rect = el.getBoundingClientRect(); return {left:rect.left,right:rect.right};
+    })""")
+    assert abs(min(box["left"] for box in boxes) - edges["left"]) <= 1
+    assert abs(max(box["right"] for box in boxes) - edges["right"]) <= 1
+
+
 @pytest.mark.parametrize("width", [320, 390, 1440, 2560])
 def test_draft_stays_reachable(page, dashboard, editing, width):  # noqa: F811
     data, _ = editing
@@ -31,9 +44,17 @@ def test_draft_stays_reachable(page, dashboard, editing, width):  # noqa: F811
         >= field.locator("input").bounding_box()["y"]
         + field.locator("input").bounding_box()["height"]
     )
-    assert page.locator("#configSearch").bounding_box()["width"] <= 600
-    assert page.locator("#configFlow").bounding_box()["width"] <= min(840, width)
-    assert page.locator('[data-key="MaxPlayers"]').bounding_box()["width"] <= 224
+    assert_fills_content_lane(page.locator("#configSearch"), page.locator("#configSharedFields"))
+    assert_fills_content_lane(
+        page.locator("#configFlow"), page.locator("#view-settings .editor-card")
+    )
+    players = page.locator('.config-field:has([data-key="MaxPlayers"])')
+    assert_fills_content_lane(players.locator("input"), players.locator(".config-control"))
+    control = players.locator(".config-control").bounding_box()
+    row = players.bounding_box()
+    assert abs(control["x"] + control["width"] - row["x"] - row["width"]) <= 1
+    if width >= 1440:
+        assert control["width"] > 560
     assert (
         page.locator("#configFlow").bounding_box()["y"]
         < page.locator("#configTabs").bounding_box()["y"]
@@ -61,15 +82,17 @@ def test_draft_stays_reachable(page, dashboard, editing, width):  # noqa: F811
 
 @pytest.mark.parametrize("language", ["ru", "en"])
 @pytest.mark.parametrize("width", [320, 834, 2560])
-def test_mod_tools_keep_a_readable_measure(page, dashboard, editing, language, width):  # noqa: F811
+def test_mod_tools_fill_the_available_lane(page, dashboard, editing, language, width):  # noqa: F811
     page.add_init_script(f"localStorage.setItem('pz-language', '{language}')")
     page.set_viewport_size({"width": width, "height": 900})
     page.goto(dashboard["url"] + "/#/mods")
     expect(page.locator("#configProfile")).to_have_value("world.ini")
     expect(page.locator("#workshopInput")).to_be_enabled()
-    for selector, limit in (("#configFlow", 840), ("#modQuery", 600), ("#workshopAdd", 720)):
-        assert page.locator(selector).bounding_box()["width"] <= min(limit, width)
-    assert page.locator("#workshopInput").bounding_box()["height"] >= 44
+    assert_fills_content_lane(page.locator("#configFlow"), page.locator("#view-mods .editor-card"))
+    composition = page.locator("#modComposition")
+    assert_fills_content_lane(page.locator("#modQuery, #modFilter, #modSortNew"), composition)
+    assert_fills_content_lane(page.locator("#workshopInput, #workshopAdd button"), composition)
+    assert round(page.locator("#workshopInput").bounding_box()["height"], 2) >= 44
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     assert dashboard["actions"] == []
 

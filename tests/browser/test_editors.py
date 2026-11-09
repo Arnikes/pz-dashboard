@@ -1,6 +1,7 @@
 """Browser editors use the real draft/metadata service with isolated file fixtures."""
 
 import json
+import re
 import sys
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -292,13 +293,17 @@ def test_editor_layout_controls_and_draft_do_not_cover_content(page, dashboard, 
         const box = s => document.querySelector(s).getBoundingClientRect();
         const bar = box('#draftBar'), nav = box('.nav'), header = box('.topbar');
         const search = box('#configSearch'), card = box('#view-settings .card');
+        const cardStyle = getComputedStyle(document.querySelector('#view-settings .card'));
         const columns = getComputedStyle(document.querySelector('.config-grid')).gridTemplateColumns.split(' ').length;
         return {barTop:bar.top,barBottom:bar.bottom,navTop:nav.top,navBottom:nav.bottom,
-            headerBottom:header.bottom,headerHeight:header.height,searchWidth:search.width,cardWidth:card.width,
+            headerBottom:header.bottom,headerHeight:header.height,searchLeft:search.left,searchRight:search.right,cardWidth:card.width,
+            contentLeft:card.left+parseFloat(cardStyle.borderLeftWidth)+parseFloat(cardStyle.paddingLeft),
+            contentRight:card.right-parseFloat(cardStyle.borderRightWidth)-parseFloat(cardStyle.paddingRight),
             columns,overflow:document.documentElement.scrollWidth > innerWidth};
     }""")
     assert not metrics["overflow"] and metrics["columns"] <= 3, metrics
-    assert min(500, metrics["cardWidth"] - 50) <= metrics["searchWidth"] <= 600
+    assert abs(metrics["searchLeft"] - metrics["contentLeft"]) <= 1
+    assert abs(metrics["searchRight"] - metrics["contentRight"]) <= 1
     if width <= 740:
         assert metrics["headerHeight"] < 170
         assert page.locator("#draftBar").evaluate("el=>getComputedStyle(el).position") == "fixed"
@@ -2109,14 +2114,18 @@ def test_new_mod_password_is_masked_before_first_save(page, dashboard, editing):
     field = page.locator('[data-key="Mod.NewPassword"]')
     expect(field).to_have_attribute("type", "password")
     expect(field).to_have_value("")
-    state = field.locator("..").locator(".secret-state")
-    expect(state).to_have_text("Не задано")
-    assert state.get_attribute("id") in field.get_attribute("aria-describedby").split()
+    expect(field).to_have_attribute("placeholder", "Введите новое значение")
+    expect(field).to_have_accessible_description(re.compile(r"Не задано.*Mod.NewPassword"))
+    assert field.evaluate("el => el.labels.length") == 1
+    expect(page.locator(".secret-state, [id^=config-secret-]")).to_have_count(0)
     field.fill("private-editor-token")
     field.press("Tab")
     expect(page.locator("#draftSaved")).to_have_text("Черновик сохранён")
     expect(field).to_have_value("")
-    expect(state).to_have_text("Значение задано · скрыто")
+    expect(field).to_have_attribute("placeholder", "••••••••")
+    expect(field).to_have_accessible_description(
+        re.compile(r"Значение задано · скрыто.*Mod.NewPassword")
+    )
     page.get_by_role("tab", name="Исходники", exact=True).click()
     assert "private-editor-token" not in page.locator("#sandboxSource").input_value()
     assert "Mod.NewPassword" not in editor.modpack({"file": "world.ini"})["pack"]["sandbox"]
@@ -2130,12 +2139,16 @@ def test_secret_presence_tracks_saved_draft_without_losing_failed_input(
     page.goto(dashboard["url"] + "/#/settings")
     page.locator("#configSearch").fill("Password")
     field = page.locator('[data-key="Password"]')
-    state = field.locator("..").locator(".secret-state")
     present = "Значение задано · скрыто" if language == "ru" else "Value set · hidden"
     absent = "Не задано" if language == "ru" else "Not set"
-    expect(state).to_have_text(present)
+    prompt = "Введите новое значение" if language == "ru" else "Enter a new value"
+    expect(field).to_have_attribute("placeholder", "••••••••")
+    expect(field).to_have_accessible_description(re.compile(re.escape(present) + r".*Password"))
     expect(field).to_have_value("")
-    assert state.get_attribute("id") in field.get_attribute("aria-describedby").split()
+    assert field.evaluate("el => el.labels.length") == 1
+    expect(page.locator(".secret-state, [id^=config-secret-]")).to_have_count(0)
+    assert field.evaluate(r"""el => el.getAttribute('aria-describedby').split(/\s+/)
+        .every(id => document.getElementById(id))""")
     page.route(
         "**/api/config-draft",
         lambda route: route.fulfill(status=503, json={"error": "Try again"}),
@@ -2145,10 +2158,12 @@ def test_secret_presence_tracks_saved_draft_without_losing_failed_input(
     field.press("Tab")
     expect(page.locator("#configError")).to_contain_text("Try again")
     expect(field).to_have_value("replacement-fixture-secret")
-    expect(state).to_have_text(present)
+    expect(field).to_have_attribute("placeholder", "••••••••")
+    expect(field).to_have_accessible_description(re.compile(re.escape(present) + r".*Password"))
     field.dispatch_event("change")
     expect(field).to_have_value("")
-    expect(state).to_have_text(present)
+    expect(field).to_have_attribute("placeholder", "••••••••")
+    expect(field).to_have_accessible_description(re.compile(re.escape(present) + r".*Password"))
     assert (
         "Password=replacement-fixture-secret"
         in editor.load_json(editor.state_dir("world.ini") / "draft.json")["texts"]["ini"]
@@ -2156,10 +2171,12 @@ def test_secret_presence_tracks_saved_draft_without_losing_failed_input(
     field.fill("temporary")
     field.fill("")
     field.dispatch_event("change")
-    expect(state).to_have_text(absent)
+    expect(field).to_have_attribute("placeholder", prompt)
+    expect(field).to_have_accessible_description(re.compile(re.escape(absent) + r".*Password"))
     page.reload()
     page.locator("#configSearch").fill("Password")
-    expect(state).to_have_text(absent)
+    expect(field).to_have_attribute("placeholder", prompt)
+    expect(field).to_have_accessible_description(re.compile(re.escape(absent) + r".*Password"))
     expect(field).to_have_value("")
     assert "replacement-fixture-secret" not in page.locator("#configFields").inner_html()
     assert dashboard["actions"] == []
@@ -2179,8 +2196,9 @@ def test_typed_secret_values_use_empty_password_controls(page, dashboard, editin
         field = page.locator('[data-key="Password"]')
         expect(field).to_have_attribute("type", "password")
         expect(field).to_have_value("")
-        expect(field.locator("..").locator(".secret-state")).to_have_text(
-            "Значение задано · скрыто"
+        expect(field).to_have_attribute("placeholder", "••••••••")
+        expect(field).to_have_accessible_description(
+            re.compile(r"Значение задано · скрыто.*Password")
         )
         value = "true" if literal == "false" else "7"
         field.fill(value)
@@ -2205,7 +2223,8 @@ def test_typed_secret_values_use_empty_password_controls(page, dashboard, editin
         with page.expect_request("**/api/config-draft") as request:
             field.dispatch_event("change")
         assert request.value.post_data_json[kind]["Password"] == ""
-        expect(field.locator("..").locator(".secret-state")).to_have_text("Не задано")
+        expect(field).to_have_attribute("placeholder", "Введите новое значение")
+        expect(field).to_have_accessible_description(re.compile(r"Не задано.*Password"))
 
 
 @pytest.mark.parametrize("width", [390, 1440])
