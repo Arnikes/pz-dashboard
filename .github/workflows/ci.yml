@@ -153,8 +153,15 @@ jobs:
           IMAGE: ${{ steps.publish.outputs.image }}
           DIGEST: ${{ steps.publish.outputs.digest }}
         run: |
+          notes_file="docs/releases/$RELEASE_TAG.md"
+          if [[ -f "$notes_file" ]]; then
+            cat "$notes_file" > "$RUNNER_TEMP/release-notes.md"
+            printf '\n\n' >> "$RUNNER_TEMP/release-notes.md"
+          else
+            : > "$RUNNER_TEMP/release-notes.md"
+          fi
           printf 'Container image (linux/amd64): `%s`\n\nPinned image: `%s`\n\n```bash\ndocker pull %s\n```\n' \
-            "$IMAGE" "$DIGEST" "$DIGEST" > "$RUNNER_TEMP/release-notes.md"
+            "$IMAGE" "$DIGEST" "$DIGEST" >> "$RUNNER_TEMP/release-notes.md"
           flags=()
           if [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+- ]]; then
             flags+=(--prerelease --latest=false)

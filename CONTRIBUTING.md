@@ -207,6 +207,10 @@ default to private; set package visibility to public for anonymous pulls. See
 
 Commit the workflow, screenshots, and release changes before tagging. Push the
 commit and tag to **GitHub** (a tag pushed only to Gitea does not run GitHub Actions).
+Add curated release notes in English at `docs/releases/<tag>.md` (for example,
+`docs/releases/v1.9.0.md`) before creating the tag. When that file exists, the
+workflow includes it before the image details and generated change notes. Tags
+without a matching file keep the image details and generated change notes.
 If `origin` points to Gitea, first add your GitHub repository as a separate remote:
 
 ```bash
