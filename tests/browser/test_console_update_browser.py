@@ -171,6 +171,7 @@ def test_overview_console_update_summary(page, dashboard, language, width):
     page.add_init_script(f"localStorage.setItem('pz-language','{language}')")
     page.set_viewport_size({"width": width, "height": 1000})
     page.goto(dashboard["url"])
+    expect(page.locator("#startupLoader")).to_be_hidden()
     page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
     summary = page.locator("#sumDashboardPill")
     expect(summary).to_be_visible()

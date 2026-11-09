@@ -2628,6 +2628,7 @@ def test_editor_tabs_have_roving_focus_and_linked_named_panels(
 ):
     page.goto(dashboard["url"] + "/#/" + route)
     expect(page.locator("#configProfile")).to_have_value("world.ini")
+    expect(page.locator("#configProfile")).to_be_enabled()
     tabs = page.locator(f"#{tablist} [role=tab]")
     first = tabs.first
     first.focus()

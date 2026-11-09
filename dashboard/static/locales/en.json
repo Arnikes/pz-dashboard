@@ -1616,5 +1616,10 @@
   "Значение задано · скрыто": "Value set · hidden",
   "Не задано": "Not set",
   "Пустое поле сохраняет текущий токен.": "An empty field keeps the current token.",
-  "Введите новое значение": "Enter a new value"
+  "Введите новое значение": "Enter a new value",
+  "Профиль ещё загружается. Можно открыть другие разделы или перезагрузить страницу.": "The profile is still loading. You can open other sections or reload the page.",
+  "Не удалось загрузить профиль. Перезагрузите страницу, чтобы повторить попытку.": "Could not load the profile. Reload the page to try again.",
+  "Профиль ещё загружается": "The profile is still loading",
+  "Состав модов ещё не загружен": "Mod metadata has not loaded yet",
+  "Не удалось загрузить данные. Повторите попытку.": "Could not load data. Try again."
 }

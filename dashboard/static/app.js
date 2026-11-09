@@ -1372,7 +1372,8 @@ function updateOperationWidgets() {
 
 function updateButtons() {
   const o = S.overview;
-  const busy = operationBusy() || S.demo || document.body.classList.contains("is-booting");
+  const opening = document.body.classList.contains("is-booting");
+  const busy = operationBusy() || S.demo || opening;
   const remote = !!(o && o.mode === "remote");
   const rconOk = !!(o && o.rcon && o.rcon.state === "ok");
   const running = !remote && !!(o && o.containerInfo && o.containerInfo.running);
@@ -1420,7 +1421,7 @@ function updateButtons() {
   }
   $("btnBackup").disabled = busy || S.demo || remote;
   $("logsDownload").style.display = (remote || S.demo) ? "none" : "";
-  $("logsFilter").disabled = remote || S.demo;
+  $("logsFilter").disabled = remote || S.demo || opening;
   document.querySelectorAll("#playersBody .p-actions .icon-btn").forEach((b) => { if (b.disabled !== !consoleLive) b.disabled = !consoleLive; });
   document.querySelectorAll("#backupsBody .icon-btn").forEach((b) => { const disabled = busy || S.demo || remote || b.dataset.verified === "true"; if (b.disabled !== disabled) b.disabled = disabled; });
   document.querySelectorAll("#quickCmds .chip").forEach((b) => { b.disabled = !consoleLive; });
@@ -1575,6 +1576,9 @@ function setListMessage(body, state, html) {
   body.tabIndex = -1;
   if (focused && !body.contains(document.activeElement)) body.focus({ preventScroll: true });
 }
+function loadFailureMarkup(kind, message) {
+  return `<p class="list-error">${esc(message || I18n.t("Не удалось загрузить данные. Повторите попытку."))}</p><button type="button" class="btn small" data-load-retry="${kind}">${esc(I18n.t("Повторить"))}</button>`;
+}
 
 // Keep identities and interactive children, even when data or row order changes.
 function syncRows(body, items, keyOf, create, update = () => {}) {
@@ -1609,7 +1613,7 @@ function renderPlayers(data) {
   S.players = data;
   const body = $("playersBody");
   if (!data.ok) {
-    setListMessage(body, "error", `<p class="list-error">${esc(data.error || I18n.t("нет данных"))}</p>`);
+    setListMessage(body, "error", loadFailureMarkup("players", data.error));
     $("playersCount").textContent = "–";
     return;
   }
@@ -1766,6 +1770,7 @@ async function refreshStatsHistory() {
 
 function renderStats(st) {
   S.stats = st;
+  setDomProperty($("ramSub").dataset, "state", st.ok ? "ok" : "error");
   if (S.overview && S.overview.mode === "remote") {
     $("cpuVal").textContent = "—"; $("ramVal").textContent = "—";
     $("ramSub").textContent = I18n.t("метрики — только с хоста сервера");
@@ -1775,7 +1780,7 @@ function renderStats(st) {
   }
   if (!st.ok) {
     $("cpuVal").textContent = "—"; $("ramVal").textContent = "—";
-    $("ramSub").textContent = st.error || "—";
+    setListMessage($("ramSub"), "error", loadFailureMarkup("stats", st.error));
     $("netIn").textContent = "—"; $("netOut").textContent = "—"; $("pids").textContent = "—";
     $("cpuBar").style.width = "0%"; $("ramBar").style.width = "0%";
     return;
@@ -1801,6 +1806,7 @@ function setBar(id, pct) {
 /* ───────────────────────── бэкапы ───────────────────────── */
 
 const backupsPager = { page: 0, size: 10 };
+let backupsLoaded = false;
 
 function renderBackups(data) {
   const body = $("backupsBody");
@@ -1809,10 +1815,11 @@ function renderBackups(data) {
   if (!data.ok) {
     S.backupsItems = [];
     setDomProperty($("backupsPager"), "hidden", true);
-    setListMessage(body, "error", `<p class="list-error">${esc(data.error || I18n.t("нет данных"))}</p>`);
+    setListMessage(body, "error", loadFailureMarkup("backups", data.error));
     return;
   }
   renderBkSchedule(data);
+  backupsLoaded = true;
   renderBkJournal(data.journal || [], !!data.journalHasMore);
   S.backupsItems = data.items || [];
   renderKpis();
@@ -2101,8 +2108,8 @@ function renderEvents(data) {
   const body = $("eventsBody");
   if (!data.ok) {
     setDomProperty($("eventsPager"), "hidden", true);
-    setDomProperty(body.dataset, "state", "error");
-    setStaticMarkup(body, `<p class="list-error">${esc(data.error || I18n.t("нет данных"))}</p>`);
+    setListMessage(body, "error", loadFailureMarkup("events", data.error));
+    setListMessage($("recentBody"), "error", loadFailureMarkup("events", data.error));
     return;
   }
   const items = data.items || [];
@@ -2840,16 +2847,17 @@ function scheduleConnectionRetry() {
   }, 100);
 }
 
-async function retryConnection() {
-  if (S.demo || document.hidden || connectionAttempt) return;
+async function retryConnection(options = {}) {
+  const initial = options.initial === true;
+  if (S.demo || document.hidden && !initial || connectionAttempt) return;
   clearConnectionRetry();
   const attempt = new AbortController();
   connectionAttempt = attempt;
   renderConnectionWarning();
   try {
     // A fresh authenticated snapshot proves recovery; health alone is not enough.
-    const overview = await api("/api/overview", { timeout: 5000, signal: attempt.signal });
-    if (connectionAttempt !== attempt || document.hidden) return;
+    const overview = await api("/api/overview", { timeout: initial ? 9000 : 5000, signal: attempt.signal });
+    if (connectionAttempt !== attempt || document.hidden && !initial) return;
     if (!overview.ok || overview.error) throw new Error("Console unavailable");
     connectionAttempt = null;
     applyOverview(overview);
@@ -2860,7 +2868,7 @@ async function retryConnection() {
       startSse();
     }
   } catch {
-    if (connectionAttempt !== attempt || document.hidden) return;
+    if (connectionAttempt !== attempt || document.hidden && !initial) return;
     connectionAttempt = null;
     connectionAlert.element.hidden = false;
     scheduleConnectionRetry();
@@ -2881,11 +2889,11 @@ function applyOverview(o) {
   renderOverview(o);
 }
 
-function applyPlayers(data) { renderPlayers(data); renderKpis(); }
-function applyStats(data) { renderStats(data); renderKpis(); }
+function applyPlayers(data) { if (data.ok || !S.players?.ok) renderPlayers(data); renderKpis(); }
+function applyStats(data) { if (data.ok || !S.stats?.ok) renderStats(data); renderKpis(); }
 const applyOps = renderOp;
-const applyBackups = renderBackups;
-const applyEvents = renderEvents;
+function applyBackups(data) { if (data.ok || !backupsLoaded) renderBackups(data); }
+function applyEvents(data) { if (data.ok || !eventsData?.ok) renderEvents(data); }
 
 function applyLogs(data) {
   renderLogs(data);
@@ -2897,11 +2905,11 @@ async function refreshOverview() {
 }
 
 async function refreshPlayers() {
-  try { applyPlayers(await api("/api/players")); } catch (e) { /* тихо */ }
+  try { applyPlayers(await api("/api/players")); } catch { applyPlayers({ ok: false }); }
 }
 
 async function refreshStats() {
-  try { applyStats(await api("/api/stats")); } catch (e) { /* тихо */ }
+  try { applyStats(await api("/api/stats")); } catch { applyStats({ ok: false }); }
 }
 
 async function refreshLogs() {
@@ -2919,12 +2927,19 @@ async function refreshLogs() {
 }
 
 async function refreshBackups() {
-  try { applyBackups(await api("/api/backups")); } catch (e) { /* тихо */ }
+  try { applyBackups(await api("/api/backups")); } catch { applyBackups({ ok: false }); }
 }
 
 async function refreshEvents() {
-  try { applyEvents(await api("/api/events?limit=200")); } catch (e) { /* тихо */ }
+  try { applyEvents(await api("/api/events?limit=200")); } catch { applyEvents({ ok: false }); }
 }
+document.addEventListener("click", async event => {
+  const button = event.target.closest("[data-load-retry]");
+  const load = { players: refreshPlayers, stats: refreshStats, backups: refreshBackups, events: refreshEvents }[button?.dataset.loadRetry];
+  if (!load || button.disabled) return;
+  button.disabled = true;
+  try { await load(); } finally { if (button.isConnected) button.disabled = false; }
+});
 
 async function refreshOps() {
   const generation = opsGeneration;
@@ -3067,10 +3082,13 @@ adaptSidebar();
 function adaptConfigFlow() {
   const editing = /^(settings|mods)$/.test(location.hash.replace(/^#\/?/, ""));
   const main = document.querySelector(".main"), flow = $("configFlow"), feedback = $("configFeedback");
+  const startup = $("configStartup");
   if (editing) {
-    const card = $("view-" + location.hash.replace(/^#\/?/, "")).querySelector(".editor-card");
+    const view = $("view-" + location.hash.replace(/^#\/?/, ""));
+    view.before(startup);
+    const card = view.querySelector(".editor-card");
     card.querySelector(".editor-tabs").before(flow);
-  } else main.querySelector(".view").before(flow);
+  } else main.querySelector(".view").before(startup, flow);
   flow.before(feedback);
 }
 adaptConfigFlow();
@@ -3097,11 +3115,13 @@ for (const [route, label] of Object.entries(VIEWS)) {
   view.setAttribute("aria-labelledby", "page-" + route);
 }
 const modSettingsLink = document.createElement("a");
+modSettingsLink.id = "modSettingsLink";
 modSettingsLink.className = "btn";
 modSettingsLink.href = "#/settings";
 modSettingsLink.textContent = I18n.t("Настройки модов");
 modSettingsLink.addEventListener("click", async event => {
   event.preventDefault();
+  if (modSettingsLink.getAttribute("aria-disabled") === "true") return;
   try {
     await window.ConfigEditor.focusSettings("custom");
     location.hash = "#/settings";
@@ -3120,6 +3140,7 @@ for (const link of $("moreMenu").querySelectorAll("a[data-route]")) {
 
 let activeView = null;
 let consoleBootLine = null;
+let startupRouteLoad = null;
 
 function currentRoute() {
   const h = location.hash.replace(/^#\/?/, "");
@@ -3143,6 +3164,7 @@ function applyRoute() {
   const view = $("view-" + r);
   if (view && !document.body.classList.contains("is-booting")) view.focus({ preventScroll: true });
   window.ConfigEditor?.route(r);
+  startupRouteLoad?.(r);
   pollVisibleLogs();
 }
 
@@ -3160,6 +3182,7 @@ const commands = (() => {
     });
   };
   const settings = tab => async () => { await navigate("settings"); await window.ConfigEditor.focusSettings(tab); };
+  const profileReason = () => window.ConfigEditor?.initialPending ? I18n.t("Профиль ещё загружается") : !window.ConfigEditor?.file ? I18n.t("Выберите доступный профиль") : "";
   const confirmedAction = id => async () => {
     await navigate("overview");
     const button = $(id);
@@ -3168,12 +3191,12 @@ const commands = (() => {
   };
   const entries = () => [
     ...Object.entries(VIEWS).map(([route, label]) => ({ label: I18n.t("Открыть: ") + label, hint: I18n.t("Раздел пульта"), run: () => navigate(route) })),
-    { label: I18n.t("Найти настройку сервера"), hint: I18n.t("По названию или техническому ключу"), reason: !window.ConfigEditor?.file ? I18n.t("Выберите доступный профиль") : "", run: settings("server") },
-    { label: I18n.t("Найти настройку мира"), hint: I18n.t("Параметры Sandbox"), reason: !window.ConfigEditor?.file ? I18n.t("Выберите доступный профиль") : "", run: settings("world") },
-    { label: I18n.t("Найти мод в порядке загрузки"), hint: I18n.t("ModID или название; без изменения порядка"), reason: !window.ConfigEditor?.file ? I18n.t("Выберите доступный профиль") : "", run: async () => { await navigate("mods"); await window.ConfigEditor.focusModOrder(); } },
+    { label: I18n.t("Найти настройку сервера"), hint: I18n.t("По названию или техническому ключу"), reason: profileReason(), run: settings("server") },
+    { label: I18n.t("Найти настройку мира"), hint: I18n.t("Параметры Sandbox"), reason: profileReason(), run: settings("world") },
+    { label: I18n.t("Найти мод в порядке загрузки"), hint: I18n.t("ModID или название; без изменения порядка"), reason: profileReason() || (!window.ConfigEditor?.modsReady ? I18n.t("Состав модов ещё не загружен") : ""), run: async () => { await navigate("mods"); await window.ConfigEditor.focusModOrder(); } },
     { label: I18n.t("Найти строку в логах"), hint: I18n.t("Перейти к фильтру логов"), reason: $("logsFilter").disabled ? I18n.t("Логи контейнера недоступны в demo и remote") : "", run: async () => { await navigate("console"); $("logsFilter").focus(); } },
     { label: I18n.t("Посмотреть текущую операцию"), hint: I18n.t("Фаза, время и переход к логам"), reason: !S.op?.active ? I18n.t("Сейчас нет активной операции") : "", run: () => { $("opbar").tabIndex = -1; $("opbar").focus(); } },
-    { label: I18n.t("Скопировать имя профиля"), hint: I18n.t("Имя файла конфигурации"), reason: !window.ConfigEditor?.file ? I18n.t("Выберите доступный профиль") : "", run: () => copyText(window.ConfigEditor.file) },
+    { label: I18n.t("Скопировать имя профиля"), hint: I18n.t("Имя файла конфигурации"), reason: profileReason(), run: () => copyText(window.ConfigEditor.file) },
     { label: I18n.t("Скопировать digest образа"), hint: I18n.t("Полный идентификатор Docker"), reason: !$("updLocalCopy").dataset.copy ? I18n.t("Идентификатор ещё не получен") : "", run: () => copyText($("updLocalCopy").dataset.copy, $("updLocalCopy")) },
     { label: I18n.t("Остановить сервер…"), hint: I18n.t("Открыть подтверждение с предупреждением игроков"), reason: $("btnStop").disabled ? I18n.t("Недоступно при операции, в demo/remote или без работающего сервера") : "", run: confirmedAction("btnStop") },
     { label: I18n.t("Перезапустить сервер…"), hint: I18n.t("Открыть подтверждение с предупреждением игроков"), reason: $("btnRestart").disabled ? I18n.t("Недоступно при операции, в demo/remote или без работающего сервера") : "", run: confirmedAction("btnRestart") },
@@ -3299,9 +3322,43 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
+async function revealDashboard() {
+  const loader = $("startupLoader");
+  document.body.classList.add("is-opening");
+  // Resolve the inert layout once: fonts and the exit must not depend on rAF.
+  document.body.getBoundingClientRect();
+  // The revealed inert layout requests its own fonts; unavailable fonts use fallback.
+  let fontTimer;
+  await Promise.race([
+    document.fonts?.ready?.catch(() => {}),
+    new Promise(resolve => { fontTimer = setTimeout(resolve, 300); }),
+  ]);
+  clearTimeout(fontTimer);
+  loader.querySelector(".startup-content").setAttribute("aria-busy", "false");
+  loader.setAttribute("aria-busy", "false");
+  if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    await new Promise(resolve => {
+      const finish = event => {
+        if (event && (event.target !== loader || event.propertyName !== "opacity")) return;
+        clearTimeout(timer);
+        loader.removeEventListener("transitionend", finish);
+        resolve();
+      };
+      const timer = setTimeout(finish, 230);
+      loader.addEventListener("transitionend", finish);
+      loader.dataset.state = "leaving";
+    });
+  }
+  loader.hidden = true;
+  $("dashboardShell").inert = false;
+  document.body.classList.remove("is-booting", "is-opening");
+  updateButtons();
+  $("view-" + activeView)?.focus({ preventScroll: true });
+}
+
 async function boot() {
-  const slowTimer = setTimeout(() => { $("startupSlow").hidden = false; }, 15000);
-  $("startupRetry").addEventListener("click", () => location.reload());
+  let deadlineTimer;
+  const deadline = new Promise(resolve => { deadlineTimer = setTimeout(resolve, 15000); });
   setInterval(() => {
     if (document.hidden) return;
     updateConnectionWarning();
@@ -3310,17 +3367,17 @@ async function boot() {
   consoleBootLine = consoleAppend(I18n.t("Пульт подключается к серверу…"), "c-dim");
   applyRoute();
   let liveReady = false;
-  if (location.protocol === "file:" || new URLSearchParams(location.search).get("demo") === "1") {
-    enterDemo();
-  } else {
+  if (S.demo) enterDemo();
+  const connection = (async () => {
+    if (S.demo) return refreshOverview();
     try {
       const h = await api("/api/health", { timeout: 3500 });
       if (!h.ok) throw new Error("no health");
       liveReady = true;
-    } catch (e) {
-      // Complete the initial attempts before starting recurring recovery.
+    } catch {
+      // The snapshot is still useful when a separate health probe is unavailable.
     }
-  }
+  })();
   // The initial snapshot cannot depend on the timing or completeness of SSE.
   // Load the visible route and shared state together; later updates stay live.
   const routeLoads = {
@@ -3330,18 +3387,29 @@ async function boot() {
     events: [refreshEvents],
     console: [refreshLogs],
   };
-  await Promise.allSettled([
-    liveReady || S.demo ? refreshOverview() : retryConnection(), refreshOps(),
-    ...(routeLoads[activeView] || []).map(load => load()),
-    window.ConfigEditor?.ready,
-  ]);
-  clearTimeout(slowTimer);
-  $("startupLoader").hidden = true;
-  $("startupLoader").setAttribute("aria-busy", "false");
-  $("dashboardShell").inert = false;
-  document.body.classList.remove("is-booting");
-  updateButtons();
-  $("view-" + activeView)?.focus({ preventScroll: true });
+  const routeRequests = new Map();
+  const loadRoute = route => {
+    for (const load of routeLoads[route] || []) {
+      if (!routeRequests.has(load)) routeRequests.set(load, load());
+    }
+    return Promise.allSettled((routeLoads[route] || []).map(load => routeRequests.get(load)));
+  };
+  startupRouteLoad = loadRoute;
+  const shared = Promise.allSettled([connection, S.demo ? null : retryConnection({ initial: true }), refreshOps(), window.ConfigEditor?.ready]);
+  loadRoute(activeView);
+  const initial = (async () => {
+    await shared;
+    let route;
+    do {
+      route = activeView;
+      await loadRoute(route);
+    } while (route !== activeView);
+  })();
+  await Promise.race([initial, deadline]);
+  clearTimeout(deadlineTimer);
+  // Leave the original editor requests running; their transport budget is unchanged.
+  startupRouteLoad = null;
+  await revealDashboard();
   if (liveReady && typeof EventSource !== "undefined") startSse();
   else startPolling(false);
 }

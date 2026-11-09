@@ -257,6 +257,19 @@ or focuses an action; it does not execute an operation.
 
 ## Forms, source, and feedback
 
+Initial entry uses the existing brand and an indeterminate loading track. Reserve
+localized copy until the language catalog is ready, so a cold English entry does
+not show Russian text. Initial route and shared reads start together. The closed
+shell waits at most 15 seconds from boot entry; long profile and Workshop reads
+continue with their existing transport limits. An unfinished profile exposes an
+inline loading message and Reload in Settings and Mods while profile selection,
+editor controls, and profile commands remain locked until that original read settles.
+Metadata failures retain a valid profile snapshot and leave mod mutations locked
+until metadata is reread. First route failures show a retry action; later failures
+retain the last successful data. The inert workspace requests its fonts with a
+300ms cap, then the loading screen fades over 180ms before focus enters the current
+route. Reduced motion skips the fade. Late profile completion never moves focus.
+
 Preserve draft input after failed requests. Separate loading, stale data,
 pending operations, saved drafts, and verified startup results. Editors load snapshots
 on entry and explicit actions; live updates do not refresh their contents. External

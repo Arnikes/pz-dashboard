@@ -32,6 +32,7 @@ def test_footer_stays_visible_on_short_and_scrolling_pages(page, dashboard, widt
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
         last = page.locator(f"#view-{route}").bounding_box()
         assert last["y"] + last["height"] <= box["y"]
+    expect(page.locator("#startupLoader")).to_be_hidden()
     link.focus()
     expect(link).to_be_focused()
     evidence = Path(__file__).resolve().parents[2] / ".tmp-footer-render"

@@ -48,6 +48,7 @@ def test_composition_navigation_sizes_and_draft_preservation(page, composition):
     expect(page.locator("#modCompositionPageSize")).to_have_value("25")
     expect(page.locator("#modCompositionPrev")).to_be_disabled()
     expect(page.locator("#modCompositionRange")).to_have_text("1–25 из 61 · Страница 1")
+    expect(page.locator("#startupLoader")).to_be_hidden()
     page.locator("#modCompositionNext").focus()
     page.keyboard.press("Enter")
     expect(rows.first).to_have_attribute("data-item", ids[25])

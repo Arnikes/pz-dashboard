@@ -43,16 +43,12 @@
   <link rel="stylesheet" href="/static/pwa.css" />
 </head>
 <body class="dashboard-page is-booting">
-  <div id="startupLoader" class="startup-loader" role="status" aria-live="polite" aria-busy="true">
-    <div class="startup-content">
+  <div id="startupLoader" class="startup-loader">
+    <div class="startup-content" role="status" aria-live="polite" aria-busy="true">
       <svg class="startup-brand" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a8 8 0 0 0-8 8c0 3 1.6 5.4 4 6.8V20a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-3.2c2.4-1.4 4-3.8 4-6.8a8 8 0 0 0-8-8Z" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="9" cy="10.5" r="1.6" fill="currentColor"/><circle cx="15" cy="10.5" r="1.6" fill="currentColor"/><path d="M10.5 15.5h3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
       <div class="startup-title">PZ Пульт</div>
       <div class="startup-track" aria-hidden="true"><span></span></div>
       <p class="startup-label">Загружаем данные сервера…</p>
-      <div id="startupSlow" class="startup-slow" hidden>
-        <p>Загрузка занимает больше времени, чем обычно.</p>
-        <button id="startupRetry" class="btn" type="button">Перезагрузить</button>
-      </div>
     </div>
   </div>
   <div id="dashboardShell" inert>
@@ -160,6 +156,10 @@
       </div>
     </section>
     <section id="editorAttention" class="card attention" hidden aria-label="Требуют внимания"></section>
+    <div id="configStartup" class="editor-startup" role="status" hidden>
+      <p id="configStartupMessage">Профиль ещё загружается. Можно открыть другие разделы или перезагрузить страницу.</p>
+      <button id="configStartupReload" class="btn" type="button">Перезагрузить</button>
+    </div>
     <div id="configFeedback" hidden>
       <div id="configError" class="editor-error" role="alert" hidden></div>
       <p id="configActionHelp" class="hint" role="status" hidden></p>

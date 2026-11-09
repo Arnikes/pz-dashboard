@@ -59,6 +59,7 @@ def test_proxy_controls_save_reload_and_explain_manual_chat_id(page, dashboard, 
         "switch",
         name="Подключаться через MTProxy" if language == "ru" else "Connect through MTProxy",
     )
+    expect(proxy_switch).to_be_enabled()
     proxy_switch.focus()
     page.keyboard.press("Space")
     expect(page.locator("#tgMtproxyFields")).to_be_visible()
@@ -123,6 +124,7 @@ def test_proxy_controls_save_reload_and_explain_manual_chat_id(page, dashboard, 
     assert saved["mtproxySecret"] == FAKETLS_SECRET
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     assert page.locator("#tgMtproxyHost").evaluate("el => el.labels.length") == 1
+    expect(page.locator("#tgMtproxyHost")).to_be_enabled()
     page.locator("#tgMtproxyHost").focus()
     page.keyboard.press("Tab")
     expect(page.locator("#tgMtproxyPort")).to_be_focused()

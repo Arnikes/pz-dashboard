@@ -349,5 +349,7 @@ def test_s3_error_preserves_local_actions_and_catalog_errors_do_not_resurrect_st
         "renderBackups({ok:false,error:'Ошибка каталога'});renderOp({active:null,history:[]})"
     )
     expect(page.locator("#backupsBody")).to_contain_text("Ошибка каталога")
-    expect(page.locator("#backupsBody button")).to_have_count(0)
+    expect(page.locator("#backupsBody .backup-row")).to_have_count(0)
+    expect(page.locator("#backupsBody [data-b]")).to_have_count(0)
+    expect(page.locator('#backupsBody [data-load-retry="backups"]')).to_be_enabled()
     expect(page.locator("#backupsStorageError")).to_be_hidden()

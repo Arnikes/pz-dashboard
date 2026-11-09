@@ -20,6 +20,7 @@ window.ConfigEditor = (() => {
   let unsaved = [];
   let previousBarBusy = false;
   let modsReady = false, profileContext = null, contextGeneration = 0;
+  let initialPending = true, initialError = "";
   let historyRequest = 0;
   const groupStates = new Map();
   let fieldQuery = "";
@@ -30,7 +31,7 @@ window.ConfigEditor = (() => {
   }
   const statuses = { draft: I18n.t("Есть черновик"), saved: I18n.t("Сохранено, требуется запуск"), applying: I18n.t("Применение"), applied: I18n.t("Применено"), error: I18n.t("Ошибка"), unconfirmed: I18n.t("Применение не подтверждено"), "select-mods": I18n.t("Пакеты загружены; выберите ModID") };
   function updateLoading() {
-    const active = loading || pendingRequests > 0;
+    const active = initialPending || loading || pendingRequests > 0 || document.body.classList.contains("is-booting");
     for (const view of ["settings", "mods"]) {
       setDomProperty($(view + "Loading"), "hidden", !active);
       setDomAttribute($("view-" + view), "aria-busy", String(active));
@@ -67,23 +68,31 @@ window.ConfigEditor = (() => {
     }
   }
   function updateBar() {
-    const guardState = JSON.stringify([sourceDirty, fieldDirty, !!pendingFields.size, !!unsaved.length, !!pendingPatches, loading, resolvingWorkshop]);
+    const guardState = JSON.stringify([sourceDirty, fieldDirty, !!pendingFields.size, !!unsaved.length, !!pendingPatches, loading, initialPending, resolvingWorkshop]);
     if (guardState !== updateGuardState) {
       updateGuardState = guardState;
       document.dispatchEvent(new Event("pz:update-guard-changed"));
     }
     updateLoading();
     const busy = operationBusy();
+    const opening = document.body.classList.contains("is-booting");
     const editorView = ["settings", "mods"].includes(activeView);
     setDomProperty($("configFeedback"), "hidden", !editorView);
     renderWorkshopResult();
-    setDomProperty($("configProfile"), "disabled", busy || loading);
+    setDomProperty($("configStartup"), "hidden", !editorView || !initialPending && !initialError);
+    setDomProperty($("configStartupMessage"), "textContent", initialError || I18n.t("Профиль ещё загружается. Можно открыть другие разделы или перезагрузить страницу."));
+    setDomProperty($("configProfile"), "disabled", busy || loading || initialPending || opening);
+    for (const id of ["configSearch", "modQuery", "orderQuery", "modFilter", "modSortNew", "modCompositionPageSize"]) setDomProperty($(id), "disabled", opening);
+    const settingsUnavailable = initialPending || loading || !draft || opening;
+    setDomAttribute($("modSettingsLink"), "aria-disabled", String(settingsUnavailable));
+    setDomProperty($("modSettingsLink"), "tabIndex", settingsUnavailable ? -1 : 0);
+    for (const view of ["settings", "mods"]) setDomProperty($("view-" + view).querySelector(".editor-card"), "inert", initialPending || view === "mods" && loading);
+    for (const id of ["configFlow", "draftBar"]) setDomProperty($(id), "inert", initialPending);
     if (!draft) { setDomProperty($("draftBar"), "hidden", true); setDomProperty($("configFlow"), "hidden", true); setDomProperty($("navDraftCount"), "hidden", true); attention(); return; }
-    const locked = busy || loading || S.demo;
+    const locked = busy || loading || S.demo || opening;
     const modsLocked = locked || !modsReady;
     const running = S.overview?.containerInfo?.running;
-    setDomProperty($("view-mods"), "inert", loading || !draft);
-    for (const kind of ["ini", "sandbox"]) setDomProperty($(kind + "Source"), "readOnly", busy || loading);
+    for (const kind of ["ini", "sandbox"]) setDomProperty($(kind + "Source"), "readOnly", busy || loading || opening);
     setDomProperty($("configFlow"), "hidden", !editorView);
     const edited = draft.changed || sourceDirty || fieldDirty || pendingFields.size || unsaved.length;
     const overviewDraft = $("overviewDraft");
@@ -111,7 +120,7 @@ window.ConfigEditor = (() => {
     setDomProperty($("draftLabel"), "textContent", (pendingFields.size ? I18n.t("Есть несохранённые поля") : pendingWorkshop() ? I18n.t("Пакеты ожидают загрузки") : statuses[draft.status] || I18n.t("Конфигурация")) + (draft.changed ? I18n.msg` · строк: ${draft.changedLines || 1}` : ""));
     setDomProperty($("configStatus"), "textContent", statuses[draft.status] || I18n.t("Конфигурация"));
     setDomProperty($("configStatus").dataset, "state", draft.conflict || draft.status === "error" ? "bad" : draft.changed || draft.status !== "applied" ? "warn" : "ok");
-    setDomProperty($("configApply"), "disabled", busy || !draft.canApply || !draft.canWrite || S.demo || loading || !needsAction);
+    setDomProperty($("configApply"), "disabled", busy || !draft.canApply || !draft.canWrite || S.demo || loading || opening || !needsAction);
     setDomProperty($("configApply"), "textContent", pendingWorkshop() ? I18n.t("Загрузить пакеты с рестартом…") : I18n.t("Применить с рестартом…"));
     setDomProperty($("configApply"), "title", draft.canApply ? "" : I18n.t("Выбран неактивный или неподтверждённый профиль"));
     const reason = S.demo ? I18n.t("Демо: запись файлов и применение отключены.")
@@ -124,12 +133,12 @@ window.ConfigEditor = (() => {
     if (reason) setDomAttribute($("configApply"), "aria-describedby", busy ? (activeView === "mods" ? "modsAvailability" : "settingsAvailability") : "configActionHelp");
     else $("configApply").removeAttribute("aria-describedby");
     setDomProperty($("configVerifyHelp"), "hidden", !draft.canApply || !draft.state?.savedRevision || !S.overview?.containerInfo?.running);
-    setDomProperty($("configVerify"), "disabled", busy || S.demo || loading);
+    setDomProperty($("configVerify"), "disabled", busy || S.demo || loading || opening);
     if (busy) setDomProperty($("draftSaved"), "textContent", S.op?.active ? `${S.op.active.phase || I18n.t("Операция")} · ${S.op.active.message || ""}` : operationAvailabilityReason());
     else if (previousBarBusy) setDomProperty($("draftSaved"), "textContent", unsaved.length || fieldSaveFailed ? I18n.t("Сохранение требует повтора") : draft.status === "applying" ? I18n.t("Ожидаем результата применения") : draft.changed ? I18n.t("Черновик сохранён") : "");
     setDomProperty($("draftContext"), "textContent", busy || draft.conflict || draft.status === "error" ? "" : edited ? I18n.t("Сервер пока использует прежние значения") : recorded && !verified ? I18n.t("Файлы записаны · запуск ещё не подтверждён") : "");
     previousBarBusy = busy;
-    $("configFields").querySelectorAll("[data-key]").forEach(el => { setDomProperty(el, "disabled", busy || loading || S.demo || !!el.dataset.owner); });
+    $("configFields").querySelectorAll("[data-key]").forEach(el => { setDomProperty(el, "disabled", busy || loading || S.demo || opening || !!el.dataset.owner); });
     const incompatible = new Set((mods?.workshop || []).flatMap(w => w.available || []).filter(r => r.compatible === false).map(r => r.modId));
     $("modPackages").querySelectorAll("[data-modid]").forEach(el => { setDomProperty(el, "disabled", modsLocked || incompatible.has(el.dataset.modid) && !el.checked); });
     document.querySelectorAll("#modPackages button, #modMapEditor input, #modMapEditor button, #modProblems button, #legacyMods button, #installNotice button").forEach(el => { setDomProperty(el, "disabled", modsLocked); });
@@ -224,6 +233,7 @@ window.ConfigEditor = (() => {
       }
       file = data.file;
       draft = data;
+      initialError = "";
       $("configProfile").value = file;
       sourceDirty = fieldDirty = false;
       clearError();
@@ -235,8 +245,10 @@ window.ConfigEditor = (() => {
     if (configTab === "history") await history();
   }
   async function init() {
+    let profilesLoaded = false;
     try {
       const data = await call("/api/server-configs");
+      profilesLoaded = true;
       const profiles = data.profiles || [];
       $("configProfile").innerHTML = I18n.msg`<option value="">Выберите профиль…</option>` + profiles.map(p => `<option value="${esc(p.file)}">${esc(p.file)}</option>`).join("");
       let preferred = "";
@@ -245,10 +257,17 @@ window.ConfigEditor = (() => {
       if (next && profiles.some(p => p.file === next)) await loadProfile(next);
       if (!profiles.length) $("configFields").innerHTML = I18n.html('<p class="hint">В каталоге Server нет доступных .ini. Проверьте монтирование данных сервера.</p>');
     } catch (e) {
-      $("configProfile").innerHTML = I18n.html('<option value="">Профили недоступны</option>');
-      $("configFields").textContent = e.message;
-    } finally { updateBar(); }
+      if (draft) {
+        // Metadata failure must not discard a usable profile snapshot.
+        error(e.message);
+      } else {
+        if (!profilesLoaded) $("configProfile").innerHTML = I18n.html('<option value="">Профили недоступны</option>');
+        initialError = I18n.t("Не удалось загрузить профиль. Перезагрузите страницу, чтобы повторить попытку.") + " " + e.message;
+        $("configFields").textContent = e.message;
+      }
+    } finally { initialPending = false; updateBar(); }
   }
+  $("configStartupReload").addEventListener("click", () => location.reload());
   function patch(body, redraw = true, review = null) {
     if (sourceDirty && !(body && typeof body === "object" && (body.texts || body.discard === true))) return flushSources().then(() => patch(body, redraw, review));
     const target = file;
@@ -1215,7 +1234,7 @@ window.ConfigEditor = (() => {
   document.addEventListener("click", e => { if (!e.target.closest("#moreMenu, #navMore")) { $("moreMenu").hidden = true; $("navMore").setAttribute("aria-expanded", "false"); } });
   document.addEventListener("pz:before-update", e => {
     const reasons = [];
-    if (pendingPatches || loading || resolvingWorkshop) reasons.push("operation");
+    if (pendingPatches || loading || initialPending || resolvingWorkshop) reasons.push("operation");
     if (sourceDirty || fieldDirty || pendingFields.size || unsaved.length || $("workshopInput").value.trim()) reasons.push("unsaved");
     if (reasons.length) {
       e.preventDefault();
@@ -1227,6 +1246,8 @@ window.ConfigEditor = (() => {
   const ready = init();
   return {
     get ready() { return Promise.all([ready, profileLoad]); },
+    get initialPending() { return initialPending; },
+    get modsReady() { return modsReady; },
     get file() { return file; },
     async prepareLanguageChange() {
       if (!draft) return;
@@ -1237,7 +1258,12 @@ window.ConfigEditor = (() => {
       if (unsaved.length || pendingFields.size || sourceDirty || fieldDirty) throw new Error(I18n.t("Сначала сохраните черновик после восстановления связи"));
     },
     async focusSettings(tab = "server") {
-      await profileLoad;
+      if (initialPending) throw new Error(I18n.t("Профиль ещё загружается"));
+      try { await profileLoad; }
+      catch (failure) {
+        // Settings can use the retained snapshot when only metadata failed.
+        if (!file || !draft) throw failure;
+      }
       if (!file || !draft) throw new Error(I18n.t("Сначала выберите доступный профиль конфигурации"));
       await chain; await flushFields();
       if (unsaved.length) throw new Error(I18n.t("Сначала повторите сохранение черновика после восстановления связи"));
@@ -1247,7 +1273,9 @@ window.ConfigEditor = (() => {
       renderFields(); renderSources(); $("configSearch").focus();
     },
     async focusModOrder() {
-      await profileLoad;
+      if (initialPending || !modsReady) throw new Error(I18n.t("Состав модов ещё не загружен"));
+      try { await profileLoad; }
+      catch (failure) { if (!file || !draft || !modsReady) throw failure; }
       modTab = "order";
       $("modTabs").querySelectorAll("[role=tab]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === modTab)));
       updateModTab(); $("orderQuery").focus();

@@ -205,6 +205,7 @@ def test_explicit_apply_overwrites_external_changes_and_reloads_once(
     page.route("**/api/action", save)
     page.goto(dashboard["url"] + "/#/settings")
     expect(page.locator("#configProfile")).to_have_value("world.ini")
+    expect(page.locator("#startupLoader")).to_be_hidden()
     page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
     field = page.locator('[data-key="PublicName"]')
     field.fill("Page wins")

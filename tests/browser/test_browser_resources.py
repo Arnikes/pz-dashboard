@@ -128,6 +128,7 @@ def test_identical_logs_keep_dom_and_recover_after_error_or_remote_mode(page, da
     page.add_init_script("window.setInterval = () => 0;")
     page.goto(dashboard["url"] + "/?demo=1#/console")
     page.wait_for_function("S.logsUpdatedAt > 0")
+    expect(page.locator("#startupLoader")).to_be_hidden()
     page.evaluate("""() => {
         window.logFrame = {ok:true,text:'2026-10-01T12:00:00Z ERROR test'};
         applyLogs(window.logFrame);

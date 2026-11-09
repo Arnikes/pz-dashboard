@@ -21,6 +21,7 @@ def test_render_measurement(page, dashboard, editing):  # noqa: F811 (imported f
     cdp.send("Performance.enable")
     page.goto(dashboard["url"] + "/#/settings")
     expect(page.locator("#configProfile")).to_have_value("world.ini")
+    expect(page.locator("#startupLoader")).to_be_hidden()
     page.evaluate(r"""() => {
       liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer);
       const overview = structuredClone(S.overview);
