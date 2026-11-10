@@ -3048,7 +3048,6 @@ async function refreshLogs() {
   S.logsRefreshing = true;
   $("logsRefresh").disabled = true;
   $("logsRefresh").setAttribute("aria-busy", "true");
-  $("logsRefresh").textContent = I18n.t("Обновление…");
   const params = new URLSearchParams();
   if (since) params.set("since", new Date(since).toISOString());
   if (until) params.set("until", new Date(until).toISOString());
@@ -3062,7 +3061,6 @@ async function refreshLogs() {
     if (sequence === logsRefreshSequence) {
       S.logsRefreshing = false;
       $("logsRefresh").setAttribute("aria-busy", "false");
-      $("logsRefresh").textContent = I18n.t("Обновить");
       updateButtons();
     }
   }
