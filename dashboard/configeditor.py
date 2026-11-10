@@ -334,6 +334,8 @@ def context(refresh=False):
             owners[ini_key] = variable
     value = {
         "activeFile": active,
+        "serverIdentity": hashlib.sha256(repr(identity).encode()).hexdigest(),
+        "serverStartedAt": started_at or None,
         "version": version,
         "versionSource": "startup-log" if observed else "configured" if hint else "unknown",
         "versionDiagnostic": f"PZ_VERSION={hint} не совпадает с версией сервера {observed}; используется версия из запуска PZ"

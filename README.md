@@ -154,7 +154,7 @@ or [publishing a release with a `v*` tag](CONTRIBUTING.md#publish-a-github-relea
 | Overview | Check status, load, updates, recent events, and server controls |
 | Settings | Edit INI and SandboxVars, review diffs, manage drafts and history |
 | Mods | Resolve packages, select ModIDs, dependencies, load order, maps, and modpacks |
-| Players | Inspect online players, view activity, kick or ban through RCON |
+| Players | Locate online players on the world map, view activity, kick or ban through RCON |
 | Maintenance | Configure updates, watchdog recovery, and Telegram notifications |
 | Backups | Schedule, create, verify, download, restore, and rotate world archives |
 | Events | Filter the persistent server activity journal |
@@ -163,6 +163,7 @@ or [publishing a release with a `v*` tag](CONTRIBUTING.md#publish-a-github-relea
 ## Documentation
 
 - [Installation and environment variables](docs/installation.md)
+- [Player world map and server integration](docs/player-map.md)
 - [B42 configuration and Workshop workflow](docs/config-editor.md)
 - [Backups, updates, watchdog, and API](docs/operations.md)
 - [Development and quality checks](CONTRIBUTING.md)

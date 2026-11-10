@@ -11,6 +11,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY *.py ./
 COPY schemas ./schemas
 COPY static ./static
+COPY integrations ./integrations
 
 EXPOSE 8080
 ENV PYTHONUNBUFFERED=1

@@ -1626,6 +1626,7 @@ function syncRows(body, items, keyOf, create, update = () => {}) {
 
 function renderPlayers(data) {
   S.players = data;
+  window.PlayersMap?.update(data);
   const body = $("playersBody");
   if (!data.ok) {
     setListMessage(body, "error", loadFailureMarkup("players", data.error));
@@ -1639,12 +1640,18 @@ function renderPlayers(data) {
       (raw && !/players/i.test(raw) ? `<p class="list-empty mono">${esc(raw)}</p>` : ""));
     return;
   }
-  syncRows(body, [...new Set(data.names)], (name) => name, (n) => {
+  const names = window.PlayersMap?.filterNames([...new Set(data.names)]) || [...new Set(data.names)];
+  if (!names.length) {
+    setListMessage(body, "empty", I18n.msg`<p class="list-empty">Игроки не найдены.</p>`);
+    return;
+  }
+  syncRows(body, names, (name) => name, (n) => {
     const template = document.createElement("template");
     template.innerHTML = I18n.msg`
     <div class="player-row">
       <span class="dot"></span>
       <span class="p-name" title="${esc(n)}">${esc(n)}</span>
+      <button type="button" class="p-locate btn small ghost" data-locate="${esc(n)}" disabled>На карте</button>
       <span class="p-actions">
         <button class="icon-btn player-action" data-p="kick" data-name="${esc(n)}" title="Кикнуть" aria-label="Кикнуть ${esc(n)}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v18h-6M10 17l5-5-5-5M15 12H3"/></svg><span>Кикнуть</span>
@@ -1656,6 +1663,7 @@ function renderPlayers(data) {
     </div>`;
     return template.content.firstElementChild;
   });
+  window.PlayersMap?.syncRoster();
   updateButtons();
 }
 
@@ -3081,7 +3089,7 @@ function applyOverview(o) {
   renderOverview(o);
 }
 
-function applyPlayers(data) { if (data.ok || !S.players?.ok) renderPlayers(data); renderKpis(); }
+function applyPlayers(data) { if (data.ok || !S.players?.ok) renderPlayers(data); else window.PlayersMap?.outage(); renderKpis(); }
 function applyStats(data) { if (data.ok || !S.stats?.ok) renderStats(data); renderKpis(); }
 const applyOps = renderOp;
 function applyBackups(data) { if (data.ok || !backupsLoaded) renderBackups(data); }
@@ -3236,6 +3244,11 @@ $("playersBody").addEventListener("click", (event) => {
   const button = event.target.closest("button[data-p]");
   if (button && !button.disabled) confirmPlayerAction(button.dataset.p, button.dataset.name);
 });
+window.PlayersMap?.configure({
+  request: () => api("/api/players/map/geometry", { timeout: 30000 }),
+  demo: () => S.demo,
+  filterChanged: () => { if (S.players) renderPlayers(S.players); },
+});
 
 /* ───────────────────────── запуск ───────────────────────── */
 
@@ -3367,6 +3380,7 @@ function applyRoute() {
   if (r === activeView) return;
   activeView = r;
   document.querySelectorAll(".view").forEach((v) => { v.hidden = v.id !== "view-" + r; });
+  window.PlayersMap?.route(r === "players");
   document.querySelectorAll(".nav a, .more-menu a").forEach((a) => {
     if (a.dataset.route === r) a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
@@ -3515,6 +3529,7 @@ function startSse() {
   // или умер уже после того, как работал
   es.onerror = () => {
     if (document.hidden || liveSource !== es) return;
+    window.PlayersMap?.outage();
     api("/api/auth/session").catch(() => {});
     errors++;
     updateConnectionWarning();

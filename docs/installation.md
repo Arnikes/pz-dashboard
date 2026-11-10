@@ -41,6 +41,10 @@ configuration writes. A mismatched/read-only data mount, an ambiguous profile,
 or environment-generated settings can block applying a draft. See
 [the editor guide](config-editor.md).
 
+The optional [player world map](player-map.md) uses those same volumes plus a
+small supplied server integration for current player coordinates. Download it
+from Players and follow its one-time setup instructions.
+
 ## Administrator authentication
 
 Set `PZ_ADMIN_LOGIN`, `PZ_ADMIN_PASSWORD`, and `PZ_AUTH_KEY` before startup.
@@ -126,6 +130,7 @@ These are application defaults; the Compose examples explicitly set some values.
 | `PZ_CONFIG_FILE` | Auto-detected | Active INI filename override |
 | `PZ_VERSION` | Auto-detected | Exact B42 version fallback |
 | `SERVER_FILES_DIR` | `/server-files` | Mounted game files/Workshop metadata |
+| `PZ_MAP_CELL_SIZE` | Empty | Explicit vector XML scale (`256` or `300`) when the map does not declare `cellSize` |
 | `WORKSHOP_DIR` | Auto-detected | Explicit Workshop content directory |
 | `LOG_LINES` | `250` | Default log tail length |
 | `PZ_LOG_LEVEL` | `INFO` | Minimum level for panel process logs |

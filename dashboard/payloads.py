@@ -9,6 +9,7 @@ from types import MappingProxyType
 import config
 import dockerlib
 import ops
+import playermap
 import rcon
 from errors import OpsError
 from extensions import ChannelSpec, ExtensionRegistry, extension_failure
@@ -24,6 +25,8 @@ def players_payload(*, state_provider=None):
     # В удалённом режиме доступность сервера определяется самим RCON.
     try:
         data = ops.fetch_players()
+        if isinstance(data.get("names"), list):
+            data = {**data, "map": playermap.snapshot(data["names"])}
         return {"ok": True, **data}
     except rcon.RCONError as e:
         return {"ok": False, "error": str(e)}

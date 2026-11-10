@@ -50,6 +50,7 @@ services:
       PZ_SERVER_NAME: ${PZ_SERVER_NAME:-Project Zomboid}
       PZ_CONFIG_FILE: ${PZ_CONFIG_FILE:-}
       PZ_VERSION: ${PZ_VERSION:-}
+      PZ_MAP_CELL_SIZE: ${PZ_MAP_CELL_SIZE:-}
       COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:-pz}
       COMPOSE_FILE: /compose/docker-compose.yml:/compose/docker-compose.dashboard.yml
       TZ: ${TZ:-UTC}

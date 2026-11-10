@@ -1,0 +1,5 @@
+name=PZ Console Player Map
+id=PZConsoleMap
+description=Exports bounded player position snapshots for the authenticated PZ Console map. Runs only on a dedicated server.
+author=PZ Console contributors
+modversion=1.0.0

@@ -27,6 +27,7 @@ import dockerlib
 import notify
 import ops
 import payloads
+import playermap
 import pwa
 import rcon
 import runtime
@@ -485,6 +486,21 @@ class Handler(BaseHTTPRequestHandler):
             self._static_file("favicon.svg")
         elif path == "/api/health":
             self._send_json({"ok": True, "now": ops.now_iso()})
+        elif path == "/api/players/map/geometry":
+            self._send_json(playermap.geometry())
+        elif path == "/api/players/map/integration.zip":
+            try:
+                body = playermap.integration_archive()
+            except (OSError, playermap.MapError):
+                self._send_error_json(503, "Мод карты игроков недоступен")
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "application/zip")
+            self.send_header("Content-Disposition", 'attachment; filename="PZConsoleMap.zip"')
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
         elif path in registry.poll_routes:
             if path == "/api/logs":
                 try:

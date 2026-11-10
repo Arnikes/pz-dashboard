@@ -291,14 +291,37 @@
     <!-- ИГРОКИ -->
     <div class="view" id="view-players" tabindex="-1" hidden>
       <p id="playersAvailability" class="hint availability" role="status" hidden></p>
+      <div class="players-workspace">
+      <section class="card player-map-card" aria-labelledby="hPlayerMap">
+        <header class="card-head"><h2 id="hPlayerMap">Карта мира</h2><span class="hint" id="playerMapCoverage"></span></header>
+        <div class="player-map-toolbar">
+          <div class="player-map-zoom"><button type="button" class="btn small" id="playerMapZoomIn" aria-label="Приблизить карту"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button><button type="button" class="btn small" id="playerMapZoomOut" aria-label="Отдалить карту"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button></div>
+          <button type="button" class="btn small" id="playerMapFit">Весь мир</button><button type="button" class="btn small" id="playerMapFitPlayers">К игрокам</button>
+          <button type="button" class="btn small ghost" id="playerMapRefresh">Обновить карту</button>
+        </div>
+        <div class="player-map-viewport" id="playerMapViewport" role="region" aria-label="Карта игроков" aria-describedby="playerMapHelp" tabindex="0" data-state="loading">
+          <canvas id="playerMapCanvas" aria-hidden="true"></canvas><div id="playerMapMarkers" class="player-map-markers"></div>
+          <p class="player-map-placeholder" id="playerMapPlaceholder">Загрузка карты…</p>
+          <span class="player-map-scale mono" id="playerMapScale"></span>
+        </div>
+        <p class="sr-only" id="playerMapHelp">Стрелки перемещают карту, плюс и минус меняют масштаб. Выберите игрока в списке или на карте.</p>
+        <div class="player-map-meta"><span id="playerMapStatus" class="hint" role="status"></span><span id="playerMapTime" class="hint mono"></span></div>
+        <p id="playerMapGeometryStatus" class="hint" hidden></p>
+        <div class="player-map-selection" id="playerMapSelection" hidden><strong id="playerMapSelectedName"></strong><span id="playerMapSelectedPosition" class="mono"></span></div>
+        <details id="playerMapSetup" class="player-map-setup" hidden><summary>Подключение карты</summary><p>Установите мод PZConsoleMap в папку mods сервера, добавьте его к текущему списку Mods и перезапустите сервер.</p><p>Пульту нужны общие данные /data и файлы игры /server-files только для чтения. Координаты обновляются раз в 5 секунд.</p><a class="btn small" href="/api/players/map/integration.zip" download>Скачать мод карты</a></details>
+      </section>
       <section class="card c-players" id="sec-players" data-od-id="players" aria-labelledby="hPlayers">
         <header class="card-head">
           <h2 id="hPlayers">Игроки онлайн</h2>
           <span class="count mono" id="playersCount">–</span>
         </header>
+        <label class="player-search" for="playerQuery"><span>Найти игрока</span><input type="search" id="playerQuery" placeholder="Имя игрока…" autocomplete="off" /></label>
         <div id="playersBody" class="list" data-state="loading">
           <p class="skeleton-line"></p><p class="skeleton-line short"></p><p class="skeleton-line"></p>
         </div>
+      </section>
+      </div>
+      <section class="card player-history" aria-label="История игроков">
         <div class="ph-block">
           <div class="metric-row"><span>Онлайн за сутки</span><span class="mono" id="phPeak"></span></div>
           <div class="ph-wrap">
@@ -855,6 +878,7 @@
   <script src="/static/i18n.js"></script>
   <script src="/static/localize.js"></script>
   <script src="/static/alerts.js"></script>
+  <script src="/static/players-map.js"></script>
   <script src="static/app.js"></script>
   <script src="static/editor.js"></script>
   <script src="/static/pwa.js"></script>

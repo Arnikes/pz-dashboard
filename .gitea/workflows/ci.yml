@@ -24,6 +24,8 @@ jobs:
 
       - name: Development dependencies and Chromium
         run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.1
           python3 -m venv .venv
           ./.venv/bin/python -m pip install -r requirements-dev.txt
           ./.venv/bin/python -m playwright install --with-deps chromium

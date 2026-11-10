@@ -1,7 +1,10 @@
 # Contributing
 
 Use Python **3.12** (matching `.python-version` and the Docker image) and Node.js **24**
-for JavaScript syntax checks. The UI uses plain HTML/CSS/JavaScript; no frontend build
+for JavaScript syntax checks. Install **Lua 5.1** with `lua5.1` or `lua` on `PATH`
+for the executable player-map integration checks (`sudo apt-get install lua5.1`
+on Ubuntu; the Windows Lua 5.1 interpreter also works). CI installs this interpreter.
+The UI uses plain HTML/CSS/JavaScript; no frontend build
 step is required. Runtime and development dependencies are pinned.
 
 ## Setup and checks
