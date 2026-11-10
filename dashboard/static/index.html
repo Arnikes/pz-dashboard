@@ -757,7 +757,7 @@
                    maxlength="500" placeholder="Например: servermsg &quot;Привет&quot;" aria-label="Команда RCON" />
             <button class="btn primary" type="submit">Отправить</button>
           </form>
-          <p id="consoleStatus" class="hint console-status" role="status" aria-live="polite"></p>
+          <p id="consoleStatus" class="sr-only" role="status" aria-live="polite"></p>
           <p class="hint console-history-hint">↑ ↓ — история команд. Команды отправляются по одной.</p>
         </div>
       </section>
@@ -782,7 +782,7 @@
             <button type="button" class="btn small" id="logsRefresh">Обновить</button>
             <a class="btn small" id="logsDownload" href="/api/logs/full" download title="Полный лог файлом">Скачать лог</a>
           </div>
-          <p id="logsFreshness" class="hint logs-freshness" role="status"></p>
+          <p id="logsFreshness" class="hint logs-freshness"></p>
           <div id="logsResult" class="logs-result" hidden><p id="logsCount" class="hint" role="status"></p><button type="button" id="logsResetFilters" class="btn small" hidden>Сбросить фильтры</button></div>
           <div class="logs-scope" id="logsScope" hidden><span id="logsPeriod" class="hint"></span><button type="button" class="btn small" id="logsClearPeriod">Сбросить период</button></div>
           <p id="logsError" class="hint logs-error" role="alert" hidden></p>

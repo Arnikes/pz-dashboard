@@ -154,7 +154,7 @@ def test_open_announcement_rechecks_operation_lock_and_keeps_text(page, dashboar
     page.locator("#modalOk").click()
     expect(page.locator("#modalRoot")).to_be_hidden()
     expect(page.locator("#consoleInput")).to_have_value("Unsent draft")
-    expect(page.locator("#consoleOut .console-response")).to_have_text("Announced")
+    expect(page.locator("#consoleOut .console-response").last).to_have_text("Announced")
     assert commands == [{"command": 'servermsg "Server restarts later"'}]
 
 
@@ -398,3 +398,200 @@ def test_console_regions_and_command_field_remain_usable(page, dashboard, langua
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     expect(page.locator("#logsLatest")).to_have_accessible_name(re.compile(r"\S"))
     expect(page.locator("#logsRefresh")).to_have_accessible_name(re.compile(r"\S"))
+
+
+def test_background_logs_stay_quiet_and_manual_refresh_owns_its_busy_state(page, dashboard):
+    page.route(
+        "**/api/logs**", lambda route: route.fulfill(json={"ok": True, "text": "INFO initial"})
+    )
+    open_console(page, dashboard, language="en")
+    expect(page.locator("#logsOut")).to_contain_text("initial")
+    button = page.locator("#logsRefresh")
+    caption = button.inner_text()
+    original_opacity = button.evaluate("el => getComputedStyle(el).opacity")
+    held = []
+
+    def hold(route):
+        held.append(route)
+        page.evaluate("count => window.noiseHeldLogs=count", len(held))
+
+    page.route("**/api/logs**", hold)
+    page.evaluate("() => {window.firstBackground=refreshLogs();}")
+    page.wait_for_function("window.noiseHeldLogs === 1")
+    expect(button).to_be_enabled()
+    expect(button).not_to_have_attribute("aria-busy", "true")
+    assert button.evaluate("el => getComputedStyle(el).opacity") == original_opacity
+    expect(button).to_have_text(caption)
+
+    button.click()
+    page.wait_for_function("window.noiseHeldLogs === 2")
+    expect(button).to_be_disabled()
+    expect(button).to_have_attribute("aria-busy", "true")
+    page.evaluate("() => {window.secondBackground=refreshLogs();}")
+    page.wait_for_function("window.noiseHeldLogs === 3")
+    held[1].fulfill(json={"ok": True, "text": "INFO superseded manual result"})
+    expect(button).to_be_enabled()
+    expect(button).to_have_attribute("aria-busy", "false")
+
+    # Overlapping explicit callers must retain the newer manual request's lock.
+    page.evaluate("() => {window.firstManual=refreshLogs({manual:true});}")
+    page.wait_for_function("window.noiseHeldLogs === 4")
+    page.evaluate("() => {window.secondManual=refreshLogs({manual:true});}")
+    page.wait_for_function("window.noiseHeldLogs === 5")
+    held[3].fulfill(json={"ok": True, "text": "INFO older manual result"})
+    page.evaluate("async () => {await window.firstManual;}")
+    expect(button).to_be_disabled()
+    expect(button).to_have_attribute("aria-busy", "true")
+    held[2].fulfill(json={"ok": True, "text": "INFO older background result"})
+    page.evaluate("async () => {await window.secondBackground;}")
+    expect(button).to_be_disabled()
+    held[4].fulfill(json={"ok": True, "text": "INFO newest manual result"})
+    page.evaluate("async () => {await window.secondManual;}")
+    expect(button).to_be_enabled()
+    expect(button).to_have_attribute("aria-busy", "false")
+    held[0].fulfill(json={"ok": False, "error": "Stale background error"})
+    page.evaluate("async () => {await window.firstBackground;}")
+    expect(page.locator("#logsOut")).to_contain_text("newest manual result")
+    expect(page.locator("#logsError")).to_be_hidden()
+    expect(button).to_have_text(caption)
+    assert button.evaluate("el => getComputedStyle(el).opacity") == original_opacity
+
+
+@pytest.mark.parametrize("language,width", [("ru", 320), ("en", 1440)])
+def test_rcon_pending_and_result_do_not_move_console_panels(page, dashboard, language, width):
+    held = []
+    page.route("**/api/rcon", lambda route: held.append(route))
+    open_console(page, dashboard, language=language, width=width)
+    page.locator("#consoleInput").fill("save")
+    boxes = """() => Object.fromEntries(['consoleOut','logsOut','sec-logs','consoleForm'].map(id => {
+        const r=document.getElementById(id).getBoundingClientRect();
+        return [id,{x:r.x+scrollX,y:r.y+scrollY,width:r.width,height:r.height}];
+    }))"""
+    before = page.evaluate(boxes)
+    page.locator("#consoleInput").press("Enter")
+    entry = page.locator("#consoleOut .console-entry").last
+    expect(entry).to_have_attribute("data-state", "pending")
+    expect(entry.locator(".console-response")).to_be_visible()
+    expect(page.locator("#consoleAvailability")).to_be_hidden()
+    for stage in ["pending", "unknown"]:
+        if stage == "unknown":
+            held[0].fulfill(json={"ok": False, "error": "RCON reply interrupted"})
+            expect(entry).to_have_attribute("data-state", "unknown")
+            expect(entry.locator(".console-response")).to_contain_text("RCON reply interrupted")
+            expect(entry.locator(".console-response")).to_be_visible()
+        current = page.evaluate(boxes)
+        for selector, previous in before.items():
+            for dimension, value in previous.items():
+                assert abs(current[selector][dimension] - value) <= 1, (stage, selector, dimension)
+
+
+def test_preflight_refusal_remains_visible_without_sending_a_command(page, dashboard):
+    commands = []
+    page.route("**/api/rcon", lambda route: commands.append(route.request.post_data_json))
+    open_console(page, dashboard)
+    stopped = {**dashboard["overview"], "containerInfo": {"running": False}}
+    page.evaluate("frame => applyOverview(frame)", stopped)
+    # A queued caller can reach the executor after an availability update.
+    page.evaluate("async () => {try {await runRconCommand('save');} catch {}}")
+    entry = page.locator("#consoleOut .console-entry").last
+    expect(entry).to_have_attribute("data-state", "error")
+    expect(entry.locator(".console-command")).to_contain_text("save")
+    expect(entry.locator(".console-response")).to_be_visible()
+    expect(entry.locator(".console-response")).to_contain_text("Сервер остановлен")
+    assert commands == []
+
+
+def test_hidden_log_updates_preserve_visible_nodes_selection_and_reading_position(page, dashboard):
+    errors = [
+        f'2026-11-10T12:00:00.001Z ERROR visible row {i}: "quoted" & <trace> it\'s intact'
+        for i in range(80)
+    ]
+    frame = {"ok": True, "text": "\n".join(errors + ["INFO hidden row"])}
+    page.route("**/api/logs**", lambda route: route.fulfill(json=frame))
+    open_console(page, dashboard)
+    page.locator('#logLevels [data-level="error"]').click()
+    page.locator("#logsAuto").uncheck()
+    page.locator("#logsOut").evaluate("el => el.scrollTop=120")
+    selected = page.locator("#logsOut > span").nth(10)
+    selected.evaluate("""el => {
+        window.selectedLogRow=el;
+        const range=document.createRange(); range.selectNodeContents(el);
+        const selection=getSelection(); selection.removeAllRanges(); selection.addRange(range);
+    }""")
+    selection = page.evaluate("getSelection().toString()")
+    assert "visible row 10" in selection
+    before = page.locator("#logsOut").evaluate("el => el.scrollTop")
+    frame["text"] += "\nINFO another hidden row"
+    page.evaluate("async () => {await refreshLogs();}")
+    expect(page.locator("#logsCount")).to_have_text("Строк: 80 из 82")
+    assert selected.evaluate("el => el === window.selectedLogRow")
+    assert page.evaluate("getSelection().toString()") == selection
+    assert abs(page.locator("#logsOut").evaluate("el => el.scrollTop") - before) <= 1
+    # An exact timestamp remains a visible row dependency even if its rendered
+    # local second and message are unchanged.
+    frame["text"] = frame["text"].replace(
+        ".001Z ERROR visible row 10:", ".002Z ERROR visible row 10:"
+    )
+    page.evaluate("async () => {await refreshLogs();}")
+    expect(page.locator("#logsOut > span").nth(10)).to_have_attribute(
+        "title", "2026-11-10T12:00:00.002Z"
+    )
+
+
+def test_repeated_log_error_does_not_rewrite_alert_and_same_projection_recovers(page, dashboard):
+    page.clock.install()
+    source = "2026-11-10T12:00:00Z ERROR retained row"
+    frame = {"ok": True, "text": source}
+    page.route("**/api/logs**", lambda route: route.fulfill(json=frame))
+    open_console(page, dashboard, language="en")
+    page.locator('#logLevels [data-level="error"]').click()
+    page.locator("#logsOut > span").evaluate("el => window.retainedErrorRow=el")
+    frame.clear()
+    frame.update(ok=False, error="Docker temporarily unavailable")
+    page.evaluate("async () => {await refreshLogs();}")
+    expect(page.locator("#logsError")).to_contain_text("Docker temporarily unavailable")
+    page.locator("#logsError").evaluate("""el => {
+        window.errorMutations=[];
+        window.errorObserver=new MutationObserver(records=>window.errorMutations.push(...records));
+        window.errorObserver.observe(el,{childList:true,subtree:true,attributes:true});
+    }""")
+    page.evaluate("async () => {await refreshLogs();}")
+    assert page.evaluate("window.errorMutations.length") == 0
+    page.clock.run_for(2000)
+    frame.clear()
+    frame.update(ok=True, text=source + "\nINFO invisible recovery update")
+    page.evaluate("async () => {await refreshLogs();}")
+    expect(page.locator("#logsError")).to_be_hidden()
+    assert page.locator("#logsOut > span").evaluate("el => el === window.retainedErrorRow")
+    freshness = page.locator("#logsFreshness")
+    assert freshness.get_attribute("role") != "status"
+    assert freshness.get_attribute("aria-live") in (None, "off")
+    assert "tabular-nums" in freshness.evaluate("el => getComputedStyle(el).fontVariantNumeric")
+
+
+@pytest.mark.parametrize("language", ["ru", "en"])
+def test_log_count_digit_rollovers_keep_reset_at_the_edge_without_overlap(
+    page, dashboard, language
+):
+    frame = {"ok": True, "text": "\n".join(f"ERROR row {i}" for i in range(9))}
+    page.route("**/api/logs**", lambda route: route.fulfill(json=frame))
+    open_console(page, dashboard, language=language, width=320)
+    page.locator('#logLevels [data-level="error"]').click()
+    reset = page.locator("#logsResetFilters")
+    original = reset.bounding_box()
+    right_edge = original["x"] + original["width"]
+    for count in [10, 99, 100]:
+        frame["text"] = "\n".join(f"ERROR row {i}" for i in range(count))
+        page.evaluate("async () => {await refreshLogs();}")
+        expect(page.locator("#logsCount")).to_have_text(
+            f"Строк: {count} из {count}" if language == "ru" else f"Lines: {count} of {count}"
+        )
+        current = reset.bounding_box()
+        assert abs(current["x"] + current["width"] - right_edge) <= 1
+        text = page.locator("#logsCount").bounding_box()
+        assert (
+            text["x"] + text["width"] <= current["x"] + 1
+            or text["y"] + text["height"] <= current["y"] + 1
+            or current["y"] + current["height"] <= text["y"] + 1
+        )
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")

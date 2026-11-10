@@ -974,8 +974,6 @@ select { cursor: pointer; }
 .console-entry[data-state="pending"] .console-response { color: var(--muted); }
 .console-entry[data-state="error"] .console-response { color: var(--error-text); }
 .console-entry[data-state="unknown"] .console-response { color: var(--warning); }
-.console-status { margin: 12px 0 0; overflow-wrap: anywhere; }
-.console-status:empty { display: none; }
 .console-history-hint { margin: 8px 0 0; }
 .console-out:focus-visible, .logs-out:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 
@@ -1351,7 +1349,7 @@ select { cursor: pointer; }
 .logs-footer { display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-height:44px; margin-top:12px; }
 .logs-footer .check { min-height: 44px; margin-right: auto; }
 .logs-footer .btn { min-height: 44px; }
-.logs-freshness { margin: 8px 0 0; }
+.logs-freshness { margin: 8px 0 0; font-variant-numeric: tabular-nums; }
 .logs-tools input[type="search"] {
   flex: 1 1 220px;
   width: 220px;
@@ -1359,8 +1357,8 @@ select { cursor: pointer; }
 .logs-tools .btn { text-decoration: none; display: inline-flex; align-items: center; }
 .logs-scope { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:12px; }
 .logs-scope .hint { margin:0; }
-.logs-result { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin-top:12px; }
-.logs-result .hint { margin:0; }
+.logs-result { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:8px 12px; min-height:var(--control-height); margin-top:12px; }
+.logs-result .hint { min-width:0; margin:0; font-variant-numeric:tabular-nums; }
 .logs-error { color:var(--warn); }
 
 @media (min-width: 1181px) {

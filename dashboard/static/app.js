@@ -787,6 +787,7 @@ const S = {
   logsUntil: 0,
   logsProfile: "",
   logsRefreshing: false,
+  logsManualPending: 0,
   backupsItems: [],
   phPoints: [],
   lastDataOk: 0,
@@ -1431,7 +1432,7 @@ function updateButtons() {
   $("btnBackup").disabled = busy || S.demo || remote;
   $("logsDownload").style.display = (remote || S.demo) ? "none" : "";
   $("logsFilter").disabled = remote || S.demo || opening;
-  $("logsRefresh").disabled = remote || S.demo || opening || S.logsRefreshing;
+  updateLogsRefreshButton();
   $("logsAuto").disabled = remote || opening;
   $("logsLatest").disabled = remote || opening || !S.logsLines.length;
   document.querySelectorAll("#logLevels button").forEach(button => { button.disabled = remote || opening; });
@@ -1449,7 +1450,7 @@ function updateButtons() {
   setAvailability("playersAvailability", commonReason || (!consoleLive ? I18n.t("RCON недоступен. Проверьте запуск сервера, пароль и порт RCON; последние ответы сохранены.") : ""));
   setAvailability("modsAvailability", commonReason);
   setAvailability("settingsAvailability", commonReason);
-  setAvailability("consoleAvailability", rconAvailabilityReason() || (o && !rconOk ? I18n.t("Последняя проверка RCON не подтвердила связь. Можно отправить команду повторно; проверьте пароль и порт RCON.") : ""));
+  setAvailability("consoleAvailability", rconAvailabilityReason({ includePending: false }) || (o && !rconOk ? I18n.t("Последняя проверка RCON не подтвердила связь. Можно отправить команду повторно; проверьте пароль и порт RCON.") : ""));
   if (consoleBootLine?.isConnected) {
     const consoleStatus = commonReason || (!o ? I18n.t("Пульт подключается к серверу…")
       : !consoleLive ? I18n.t("Ожидаем доступность RCON. Последние ответы сохранены.")
@@ -1461,7 +1462,7 @@ function updateButtons() {
   for (const id of ["btnCheckUpd", "btnApplyUpd"]) $(id).setAttribute("aria-describedby", "maintenanceAvailability");
   for (const id of ["btnCheckDashboardUpd", "btnApplyDashboardUpd"]) $(id).setAttribute("aria-describedby", "maintenanceAvailability dashboardUpdNote");
   $("btnBackup").setAttribute("aria-describedby", "backupAvailability");
-  $("consoleInput").setAttribute("aria-describedby", "consoleAvailability");
+  $("consoleInput").setAttribute("aria-describedby", "consoleAvailability consoleStatus");
   window.ConfigEditor?.operationChanged();
   renderActiveOperation();
   updateOperationWidgets();
@@ -1473,7 +1474,7 @@ function updateButtons() {
   })) {
     document.querySelectorAll(`#view-${view} button:disabled, #view-${view} input:disabled, #view-${view} select:disabled, #view-${view} textarea[readonly]`).forEach(control => {
       const ids = new Set((control.getAttribute("aria-describedby") || "").split(/\s+/).filter(Boolean));
-      ids.add(operationBusy() ? "opbar" : description);
+      ids.add(operationBusy() ? "opbar" : view === "console" && S.rconPending ? "consoleStatus" : description);
       if (!operationBusy()) ids.delete("opbar");
       setDomAttribute(control, "aria-describedby", [...ids].join(" "));
     });
@@ -2287,36 +2288,52 @@ function consoleAppend(text, cls = "") {
   return line;
 }
 
-function rconAvailabilityReason() {
-  if (operationBusy() || S.demo || S.rconPending) return operationAvailabilityReason();
+function rconAvailabilityReason({ includePending = true } = {}) {
+  if (operationBusy() || S.demo || includePending && S.rconPending) return operationAvailabilityReason();
   if (!S.overview || document.body.classList.contains("is-booting")) return I18n.t("Пульт подключается к серверу…");
   if (S.overview.rconConfigured === false) return I18n.t("RCON не настроен. Проверьте пароль и порт RCON в настройках подключения.");
   if (S.overview.mode !== "remote" && !S.overview.containerInfo?.running) return I18n.t("Сервер остановлен — RCON недоступен");
   return "";
 }
 
-async function runRconCommand(command) {
-  const unavailable = rconAvailabilityReason();
-  if (unavailable) throw new Error(unavailable);
-  command = command.trim();
-  if (!command || command.length > 500) throw new Error(I18n.t("Пустая или слишком длинная команда"));
-  S.rconPending = true;
+function createConsoleEntry(command, state, text) {
   const out = $("consoleOut");
   const follow = out.scrollHeight - out.scrollTop - out.clientHeight < 30;
+  if (consoleBootLine?.isConnected) {
+    const separator = consoleBootLine.nextSibling;
+    if (separator?.nodeType === Node.TEXT_NODE && separator.textContent === "\n") separator.remove();
+    consoleBootLine.remove();
+    consoleBootLine = null;
+  }
   const entry = document.createElement("div");
   entry.className = "console-entry";
-  entry.dataset.state = "pending";
+  entry.dataset.state = state;
   const heading = document.createElement("span");
   heading.className = "console-command";
   heading.textContent = `> ${command}`;
   const response = document.createElement("span");
   response.className = "console-response";
-  response.textContent = I18n.t("Ожидается ответ RCON…");
+  response.textContent = text;
   entry.append(heading, response);
   out.appendChild(entry);
   while (out.childNodes.length > 400) out.removeChild(out.firstChild);
   if (follow) out.scrollTop = out.scrollHeight;
-  $("consoleStatus").textContent = I18n.t("Ожидается ответ RCON…");
+  return { entry, response };
+}
+
+async function runRconCommand(command) {
+  const unavailable = rconAvailabilityReason();
+  command = command.trim();
+  const refusal = unavailable || (!command || command.length > 500 ? I18n.t("Пустая или слишком длинная команда") : "");
+  if (refusal) {
+    createConsoleEntry(command, "error", refusal);
+    setDomProperty($("consoleStatus"), "textContent", refusal);
+    throw new Error(refusal);
+  }
+  S.rconPending = true;
+  const out = $("consoleOut");
+  const { entry, response } = createConsoleEntry(command, "pending", I18n.t("Ожидается ответ RCON…"));
+  setDomProperty($("consoleStatus"), "textContent", I18n.t("Ожидается ответ RCON…"));
   updateButtons();
   let followResponse = false;
   try {
@@ -2329,7 +2346,7 @@ async function runRconCommand(command) {
     followResponse = out.scrollHeight - out.scrollTop - out.clientHeight < 30;
     response.textContent = result.output || I18n.t("(без ответа)");
     entry.dataset.state = "success";
-    $("consoleStatus").textContent = I18n.t("Ответ RCON получен.");
+    setDomProperty($("consoleStatus"), "textContent", I18n.t("Ответ RCON получен."));
     return result;
   } catch (error) {
     followResponse = out.scrollHeight - out.scrollTop - out.clientHeight < 30;
@@ -2338,7 +2355,7 @@ async function runRconCommand(command) {
     }
     entry.dataset.state = error.outcomeUnknown ? "unknown" : "error";
     response.textContent = error.message || String(error);
-    $("consoleStatus").textContent = response.textContent;
+    setDomProperty($("consoleStatus"), "textContent", response.textContent);
     throw error;
   } finally {
     S.rconPending = false;
@@ -2364,7 +2381,7 @@ $("consoleForm").addEventListener("submit", async (e) => {
     if (input.value === draft) input.value = "";
     consoleHistory.draft = input.value;
   } catch (err) {
-    $("consoleStatus").textContent = err.message || String(err);
+    setDomProperty($("consoleStatus"), "textContent", err.message || String(err));
   }
 });
 
@@ -2390,7 +2407,7 @@ document.querySelectorAll("#quickCmds .chip").forEach((chip) => {
   chip.addEventListener("click", async () => {
     if (chip.dataset.cmd) {
       try { await runRconCommand(chip.dataset.cmd); }
-      catch (error) { $("consoleStatus").textContent = error.message || String(error); }
+      catch (error) { setDomProperty($("consoleStatus"), "textContent", error.message || String(error)); }
     } else if (chip.dataset.act === "broadcast") {
       modal.open({
         title: I18n.t("Объявление игрокам"),
@@ -2448,24 +2465,28 @@ function renderLogs(data) {
   if (S.overview && S.overview.mode === "remote") {
     S.logsText = null;
     S.logsLines = [];
-    $("logsResult").hidden = true;
-    $("logsError").hidden = true;
-    $("logsLimit").hidden = true;
-    $("logsScope").hidden = true;
-    $("logsFreshness").textContent = "";
-    $("logsOut").textContent = I18n.t("Логи контейнера доступны только при запуске пульта на хосте сервера.");
+    setDomProperty($("logsResult"), "hidden", true);
+    setDomProperty($("logsError"), "hidden", true);
+    setDomProperty($("logsLimit"), "hidden", true);
+    setDomProperty($("logsScope"), "hidden", true);
+    setDomProperty($("logsFreshness"), "textContent", "");
+    renderedMarkup.delete($("logsOut"));
+    setDomProperty($("logsOut"), "textContent", I18n.t("Логи контейнера доступны только при запуске пульта на хосте сервера."));
     return;
   }
   if (!data.ok) {
-    $("logsError").textContent = (data.error || I18n.t("Логи недоступны")) + (S.logsUpdatedAt ? I18n.msg` · последние данные: ${fmtTime(S.logsUpdatedAt)}` : "");
-    $("logsError").hidden = false;
-    if (!S.logsUpdatedAt) $("logsOut").textContent = I18n.t("Нет данных логов");
+    setDomProperty($("logsError"), "textContent", (data.error || I18n.t("Логи недоступны")) + (S.logsUpdatedAt ? I18n.msg` · последние данные: ${fmtTime(S.logsUpdatedAt)}` : ""));
+    setDomProperty($("logsError"), "hidden", false);
+    if (!S.logsUpdatedAt) {
+      renderedMarkup.delete($("logsOut"));
+      setDomProperty($("logsOut"), "textContent", I18n.t("Нет данных логов"));
+    }
     return;
   }
-  $("logsError").hidden = true;
-  $("logsLimit").hidden = !data.truncated;
+  setDomProperty($("logsError"), "hidden", true);
+  setDomProperty($("logsLimit"), "hidden", !data.truncated);
   S.logsUpdatedAt = Date.now();
-  $("logsFreshness").textContent = I18n.msg`Обновлено: ${timeFullFmt.format(S.logsUpdatedAt)}`;
+  setDomProperty($("logsFreshness"), "textContent", I18n.msg`Обновлено: ${timeFullFmt.format(S.logsUpdatedAt)}`);
   // Keep freshness/error recovery, but avoid parsing and rebuilding unchanged logs.
   const text = data.text || "";
   if (S.logsText === text) return;
@@ -2481,17 +2502,17 @@ function renderLogsFiltered() {
   const f = ($("logsFilter")?.value || "").trim().toLowerCase();
   const level = S.logsLevel || "all";
   const source = S.logsLines || [];
-  $("logsLatest").disabled = !source.length || S.overview?.mode === "remote";
+  setDomProperty($("logsLatest"), "disabled", !source.length || S.overview?.mode === "remote");
   const filtered = !!f || level !== "all" || !!S.logsSince || !!S.logsUntil;
   const lines = source.filter((l) =>
     (level === "all" || l.level === level) && (!f || l.view.toLowerCase().includes(f)) &&
     (!S.logsSince || Date.parse(l.raw.slice(0, l.raw.indexOf(" "))) >= S.logsSince) &&
     (!S.logsUntil || Date.parse(l.raw.slice(0, l.raw.indexOf(" "))) <= S.logsUntil));
-  $("logsScope").hidden = !S.logsSince;
-  $("logsPeriod").textContent = S.logsSince ? I18n.msg`Логи операции${S.logsProfile ? ` · ${S.logsProfile}` : ""} · ${fmtTime(S.logsSince)}${S.logsUntil ? ` — ${fmtTime(S.logsUntil)}` : I18n.t(" · продолжается")}` : "";
-  $("logsResult").hidden = false;
-  $("logsCount").textContent = I18n.msg`Строк: ${lines.length} из ${source.length}`;
-  $("logsResetFilters").hidden = !filtered;
+  setDomProperty($("logsScope"), "hidden", !S.logsSince);
+  setDomProperty($("logsPeriod"), "textContent", S.logsSince ? I18n.msg`Логи операции${S.logsProfile ? ` · ${S.logsProfile}` : ""} · ${fmtTime(S.logsSince)}${S.logsUntil ? ` — ${fmtTime(S.logsUntil)}` : I18n.t(" · продолжается")}` : "");
+  setDomProperty($("logsResult"), "hidden", false);
+  setDomProperty($("logsCount"), "textContent", I18n.msg`Строк: ${lines.length} из ${source.length}`);
+  setDomProperty($("logsResetFilters"), "hidden", !filtered);
   // Only identical source records can share a row: identifiers and timestamps matter.
   const merged = [];
   for (const l of lines) {
@@ -2500,12 +2521,13 @@ function renderLogsFiltered() {
     if (last && last.key === key) last.n += 1;
     else merged.push({ view: l.view, level: l.level, timestamp: l.timestamp, key, n: 1 });
   }
-  pre.innerHTML = merged.length ? merged.map((l) => {
+  const markup = merged.length ? merged.map((l) => {
     const cls = l.level === "error" ? ' class="l-err"' : l.level === "warn" ? ' class="l-warn"' : "";
     const dup = l.n > 1 ? `<span class="l-dup">× ${l.n}</span>` : "";
     const timestamp = l.timestamp ? ` title="${esc(l.timestamp)}"` : "";
     return `<span${cls}${timestamp}>${esc(l.view)}${dup}</span>`;
   }).join("\n") : esc(source.length ? I18n.t("Нет строк по выбранным фильтрам.") : I18n.t("Нет данных логов"));
+  setStaticMarkup(pre, markup);
   if (atBottom && S.logsAuto) pre.scrollTop = pre.scrollHeight;
   else pre.scrollTop = scrollTop;
 }
@@ -2528,7 +2550,7 @@ $("logsOut").addEventListener("scroll", () => {
   }
 });
 $("logsLatest").addEventListener("click", followLatestLogs);
-$("logsRefresh").addEventListener("click", refreshLogs);
+$("logsRefresh").addEventListener("click", () => refreshLogs({ manual: true }));
 $("logsResetFilters").addEventListener("click", () => {
   $("logsFilter").value = "";
   S.logsLevel = "all";
@@ -3083,12 +3105,22 @@ async function refreshStats() {
 }
 
 let logsRefreshSequence = 0;
-async function refreshLogs() {
+let logsManualRefreshSequence = 0;
+function updateLogsRefreshButton() {
+  const unavailable = S.overview?.mode === "remote" || S.demo || document.body.classList.contains("is-booting");
+  setDomProperty($("logsRefresh"), "disabled", unavailable || !!S.logsManualPending);
+  setDomAttribute($("logsRefresh"), "aria-busy", String(!!S.logsManualPending));
+}
+
+async function refreshLogs({ manual = false } = {}) {
   const sequence = ++logsRefreshSequence;
+  const manualToken = manual ? ++logsManualRefreshSequence : 0;
   const since = S.logsSince, until = S.logsUntil;
   S.logsRefreshing = true;
-  $("logsRefresh").disabled = true;
-  $("logsRefresh").setAttribute("aria-busy", "true");
+  if (manualToken) {
+    S.logsManualPending = manualToken;
+    updateLogsRefreshButton();
+  }
   const params = new URLSearchParams();
   if (since) params.set("since", new Date(since).toISOString());
   if (until) params.set("until", new Date(until).toISOString());
@@ -3101,8 +3133,10 @@ async function refreshLogs() {
   } finally {
     if (sequence === logsRefreshSequence) {
       S.logsRefreshing = false;
-      $("logsRefresh").setAttribute("aria-busy", "false");
-      updateButtons();
+    }
+    if (manualToken && S.logsManualPending === manualToken) {
+      S.logsManualPending = 0;
+      updateLogsRefreshButton();
     }
   }
 }

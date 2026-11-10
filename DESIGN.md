@@ -417,11 +417,21 @@ never retries automatically. RCON availability distinguishes an unavailable
 server from a failed last connection check that still permits a manual attempt.
 The mobile command field occupies its own input row with the send action below.
 Transcript and log windows are named, keyboard-focusable scroll regions; only
-the short command status is live. Logs show their last successful refresh and
+the short, visually hidden command status is live. Command entries carry the
+visible pending and result messages, including requests refused before sending.
+The initial connection note leaves the transcript when the first command entry
+appears. A pending command does not insert a banner above the panels; actual
+connection and availability problems remain visible. Logs show their last successful refresh and
 offer Refresh and Latest. Latest and enabling auto-scroll resume following;
 scrolling to older lines pauses following. Late responses cannot replace newer
 log snapshots. Error filtering uses log prefixes and recognized Java stack frames,
 preserving literal player text and precise raw timestamps in row tooltips.
+Background log checks leave Refresh visually unchanged. Explicit refreshes own
+their disabled and busy state independently of automatic requests. Unchanged
+visible rows retain their DOM nodes, selection and scroll position even when
+filtered-out records arrive. Freshness is passive and uses tabular numerals;
+identical errors do not rewrite the alert. Log counts also use tabular numerals,
+with Reset filters anchored at the trailing edge of its in-flow metadata row.
 Backup archives use aligned name, size, date, and action columns, sharing desktop
 column widths with their headings; mobile places them on separate rows.
 Download, verify and restore actions have visible labels;
