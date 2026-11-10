@@ -1,0 +1,16 @@
+{
+  "files": {
+    "42/media/lua/server/PZConsoleMap.lua": "d5d1f73f88119cd910f9b190afb9ab6f3b7b0a8df42f228f82f5c46bc383de9c",
+    "42/mod.info": "aa12e2c814dc0bd205e7417e77f7a3df77c5dc3410911aa7d8518612ed8d7bcf",
+    "42/poster.png": "591c865a368b9126ebb07a7d89396a775f00fe71e2d284cdf459147e9ea656b9",
+    "42/pzconsolemap-icon.png": "d750f96c3abdf81f168ce6165dbfc36bf50cc11abb33a2e3057a833f079c793c",
+    "LICENSE": "229db28c22d20bea863ab99e4b7bb6d10f0c32f8a32cb7e702b98edf6697241e",
+    "README.md": "6f6a64cd10bbd59dffb4e97fd6a5af9013d69396ea4cdc4923f49315cc3d972c",
+    "common/README.md": "ee30d28d69ddc6c01077d3151750654ac8f26ea14dfb676702da4b9e7b9e3f66"
+  },
+  "schemaVersion": 1,
+  "sourceCommit": "19fa489f74b0ec034168b18bdefe7252dc718e87",
+  "sourceRepository": "pz-console-map",
+  "sourceVersion": "v1.0.0",
+  "upstreamOriginCommit": "af58d65683250451d92bcd82125c8edde6293ed2"
+}

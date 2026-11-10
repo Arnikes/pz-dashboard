@@ -5,6 +5,7 @@ import io
 import json
 import math
 import os
+import re
 import threading
 import time
 import zipfile
@@ -21,6 +22,7 @@ from errors import EditorError
 
 MAX_AGE_MS = 15_000
 MAX_SNAPSHOT_BYTES = 128 * 1024
+MAX_INTEGRATION_FILE_BYTES = 4 * 1024 * 1024
 MAX_XML_BYTES = 256 * 1024 * 1024
 MAX_INPUT_POINTS = 2_000_000
 MAX_OUTPUT_POINTS = 150_000
@@ -626,12 +628,50 @@ def geometry(*, context=None):
 def integration_archive():
     """Only the fixed, public integration package can enter this archive."""
     root = Path(__file__).resolve().parent / "integrations/PZConsoleMap"
-    names = ("README.md", "common/README.md", "42/mod.info", "42/media/lua/server/PZConsoleMap.lua")
+    names = (
+        "README.md",
+        "LICENSE",
+        "common/README.md",
+        "42/mod.info",
+        "42/media/lua/server/PZConsoleMap.lua",
+        "42/poster.png",
+        "42/pzconsolemap-icon.png",
+    )
+    provenance_path = _file(root.parent, "PZConsoleMap.bundle.json")
+    with provenance_path.open("rb") as stream:
+        provenance_bytes = stream.read(64 * 1024 + 1)
+    if len(provenance_bytes) > 64 * 1024:
+        raise MapError("integration-unavailable")
+    try:
+        provenance = json.loads(provenance_bytes)
+    except (ValueError, UnicodeError, RecursionError):
+        raise MapError("integration-unavailable") from None
+    if (
+        not isinstance(provenance, dict)
+        or type(provenance.get("schemaVersion")) is not int
+        or provenance["schemaVersion"] != 1
+        or provenance.get("sourceRepository") != "pz-console-map"
+        or provenance.get("sourceVersion") != "v1.0.0"
+        or not isinstance(provenance.get("sourceCommit"), str)
+        or not re.fullmatch(r"[0-9a-f]{40}", provenance["sourceCommit"])
+        or not isinstance(provenance.get("files"), dict)
+        or set(provenance["files"]) != set(names)
+    ):
+        raise MapError("integration-unavailable")
+    payloads = {}
+    for name in names:
+        path = _file(root, name)
+        with path.open("rb") as stream:
+            payload = stream.read(MAX_INTEGRATION_FILE_BYTES + 1)
+        if (
+            len(payload) > MAX_INTEGRATION_FILE_BYTES
+            or hashlib.sha256(payload).hexdigest() != provenance["files"][name]
+        ):
+            raise MapError("integration-unavailable")
+        payloads[name] = payload
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for name in names:
-            path = _file(root, name)
-            if path.stat().st_size > MAX_SNAPSHOT_BYTES:
-                raise MapError("integration-unavailable")
-            archive.writestr("PZConsoleMap/" + name, path.read_bytes())
+        for name, payload in payloads.items():
+            archive.writestr("PZConsoleMap/" + name, payload)
+        archive.writestr("PZConsoleMap/BUNDLE_SOURCE.json", provenance_bytes)
     return output.getvalue()

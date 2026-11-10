@@ -2,6 +2,7 @@
 
 import io
 import json
+from pathlib import Path
 import time
 import zipfile
 from datetime import datetime, timezone
@@ -388,8 +389,67 @@ def test_packaged_archive_contains_only_fixed_mod_files():
     archive = zipfile.ZipFile(io.BytesIO(playermap.integration_archive()))
     assert set(archive.namelist()) == {
         "PZConsoleMap/README.md",
+        "PZConsoleMap/LICENSE",
         "PZConsoleMap/common/README.md",
         "PZConsoleMap/42/mod.info",
         "PZConsoleMap/42/media/lua/server/PZConsoleMap.lua",
+        "PZConsoleMap/42/poster.png",
+        "PZConsoleMap/42/pzconsolemap-icon.png",
+        "PZConsoleMap/BUNDLE_SOURCE.json",
     }
     assert b"id=PZConsoleMap" in archive.read("PZConsoleMap/42/mod.info")
+    assert b"Copyright (c) 2026 Arnike" in archive.read("PZConsoleMap/LICENSE")
+    provenance = json.loads(archive.read("PZConsoleMap/BUNDLE_SOURCE.json"))
+    assert provenance["sourceRepository"] == "pz-console-map"
+    assert provenance["sourceVersion"] == "v1.0.0"
+    for name, expected in provenance["files"].items():
+        assert (
+            playermap.hashlib.sha256(archive.read("PZConsoleMap/" + name)).hexdigest() == expected
+        )
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "modified",
+        "oversized",
+        "manifest-directory",
+        "malformed-json",
+        "invalid-utf8",
+        "recursive-json",
+    ],
+)
+def test_integration_download_rejects_unverified_or_oversized_bundle(
+    tmp_path, monkeypatch, failure
+):
+    import shutil
+
+    source = Path(playermap.__file__).parent / "integrations"
+    shutil.copytree(source, tmp_path / "integrations")
+    monkeypatch.setattr(playermap, "__file__", str(tmp_path / "playermap.py"))
+    if failure == "modified":
+        (tmp_path / "integrations/PZConsoleMap/README.md").write_text("local change")
+    elif failure == "oversized":
+        monkeypatch.setattr(playermap, "MAX_INTEGRATION_FILE_BYTES", 1)
+    elif failure == "manifest-directory":
+        manifest = tmp_path / "integrations/PZConsoleMap.bundle.json"
+        manifest.unlink()
+        manifest.mkdir()
+    else:
+        content = {
+            "malformed-json": b"{broken",
+            "invalid-utf8": b"\xff\xfe\xff",
+            "recursive-json": b"[" * 1100 + b"]" * 1100,
+        }[failure]
+        (tmp_path / "integrations/PZConsoleMap.bundle.json").write_bytes(content)
+    with pytest.raises((playermap.MapError, OSError)):
+        playermap.integration_archive()
+
+
+def test_malformed_bundle_provenance_returns_controlled_503(api, tmp_path, monkeypatch):  # noqa: F811
+    integrations = tmp_path / "integrations"
+    integrations.mkdir()
+    (integrations / "PZConsoleMap.bundle.json").write_bytes(b"{malformed")
+    monkeypatch.setattr(playermap, "__file__", str(tmp_path / "playermap.py"))
+    status, result = api("GET", "/api/players/map/integration.zip")
+    assert status == 503 and result == {"ok": False, "error": "Мод карты игроков недоступен"}

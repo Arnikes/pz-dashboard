@@ -14,6 +14,8 @@ pytestmark = pytest.mark.browser
 def test_footer_stays_visible_on_short_and_scrolling_pages(page, dashboard, width, height):
     page.set_viewport_size({"width": width, "height": height})
     page.goto(dashboard["url"] + "/#/players")
+    expect(page.locator("#startupLoader")).to_be_hidden()
+    page.evaluate("document.fonts.ready")
     footer = page.get_by_role("contentinfo")
     expect(footer).to_contain_text("© 2026 Arnike")
     link = footer.get_by_role("link", name="GitHub")
@@ -24,15 +26,27 @@ def test_footer_stays_visible_on_short_and_scrolling_pages(page, dashboard, widt
         page.evaluate("route => location.hash = '#/' + route", route)
         expect(page.locator(f"#view-{route}")).to_be_visible()
         for scroll in [0, 100000]:
-            page.evaluate("y => scrollTo(0, y)", scroll)
-            box = footer.bounding_box()
-            nav = page.locator(".nav").bounding_box()
+            geometry = page.evaluate(
+                """({route, y}) => {
+                    scrollTo(0, y);
+                    return {
+                        footer: document.querySelector('.site-footer').getBoundingClientRect().toJSON(),
+                        nav: document.querySelector('.nav').getBoundingClientRect().toJSON(),
+                        view: document.getElementById('view-' + route).getBoundingClientRect().toJSON(),
+                        fits: document.documentElement.scrollWidth <= innerWidth,
+                    };
+                }""",
+                {"route": route, "y": scroll},
+            )
+            box = geometry["footer"]
+            nav = geometry["nav"]
             expected_bottom = nav["y"] if width <= 740 else height
             assert abs(box["y"] + box["height"] - expected_bottom) <= 1
-            assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
-        last = page.locator(f"#view-{route}").bounding_box()
+            assert geometry["fits"]
+        # SSE/status updates can grow the page between browser round trips.
+        # Compare the view and footer from the same scroll/layout observation.
+        last = geometry["view"]
         assert last["y"] + last["height"] <= box["y"]
-    expect(page.locator("#startupLoader")).to_be_hidden()
     link.focus()
     expect(link).to_be_focused()
     evidence = Path(__file__).resolve().parents[2] / ".tmp-footer-render"

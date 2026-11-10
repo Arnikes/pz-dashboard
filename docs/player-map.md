@@ -15,6 +15,25 @@ copy the intact local mod into the game's cachedir `mods` directory, append
 server maintenance flow. Preserve other mods; no Workshop item is required.
 The panel does not install mods or restart the game automatically.
 
+The canonical mod source and Workshop preparation live in the separate
+`pz-console-map` repository, version `v1.0.0`. This checkout retains a generated
+snapshot so Docker images and the authenticated download remain self-contained.
+`dashboard/integrations/PZConsoleMap.bundle.json` records its source commit and
+SHA-256 hashes; the download includes that record as `BUNDLE_SOURCE.json`, along
+with the original MIT license and mod artwork. No Workshop item has been
+published by this preparation.
+
+For maintainers, edit the canonical repository and run its explicit sync command
+from a clean, reviewed commit:
+
+```powershell
+.\.venv\Scripts\python.exe tools/release.py sync --dashboard C:\git\pz-console
+```
+
+The helper checks the previous bundle hashes before replacing files and writes
+the new provenance last. Do not edit the generated bundle directly. The panel
+does not import code or read files from a sibling repository at runtime.
+
 Both processes need the same game cachedir: `/project-zomboid-config` in the
 supplied game image and `/data` in the panel. Base map geometry additionally
 needs the game installation at `/server-files:ro`; this mount is already present
