@@ -1634,5 +1634,18 @@
   "Если сервер работает, пульт запросит сохранение через RCON. Бэкап без остановки не гарантирует согласованность файлов.": "If the server is running, the panel will request a save through RCON. A backup without stopping cannot guarantee consistent files.",
   "Если сервер работает, игроки получат предупреждение за 60 секунд. Пульт остановит сервер на время создания архива и запустит его снова. Остановленный сервер останется выключенным.": "If the server is running, players will receive a 60-second warning. The panel will stop the server while creating the archive, then restart it. A stopped server will stay off.",
   "Сервер сейчас остановлен. Пульт создаст бэкап и оставит сервер выключенным.": "The server is currently stopped. The panel will create a backup and leave the server off.",
-  "Состояние сервера неизвестно. Пульт проверит его при запуске бэкапа.": "The server state is unknown. The panel will check it when the backup starts."
+  "Состояние сервера неизвестно. Пульт проверит его при запуске бэкапа.": "The server state is unknown. The panel will check it when the backup starts.",
+  "Ожидается ответ RCON. Дождитесь результата команды.": "Waiting for RCON. Wait for the command result.",
+  "Последняя проверка RCON не подтвердила связь. Можно отправить команду повторно; проверьте пароль и порт RCON.": "The last RCON check could not confirm a connection. You can send a command manually; check the RCON password and port.",
+  "RCON не настроен. Проверьте пароль и порт RCON в настройках подключения.": "RCON is not configured. Check the password and port in the connection settings.",
+  "Ожидается ответ RCON…": "Waiting for RCON…",
+  "Пульт вернул некорректный ответ на команду.": "The panel returned an invalid command response.",
+  "Ответ RCON получен.": "RCON response received.",
+  "{{0}} Команда могла выполниться. Проверьте состояние сервера и логи перед повтором.": "{{0}} The command may have run. Check the server state and logs before trying again.",
+  "Ответы RCON": "RCON responses",
+  "↑ ↓ — история команд. Команды отправляются по одной.": "↑ ↓ — command history. Commands are sent one at a time.",
+  "Строки лога контейнера": "Container log lines",
+  "К последним": "Latest",
+  "Обновлено: {{0}}": "Updated: {{0}}",
+  "Обновление…": "Refreshing…"
 }

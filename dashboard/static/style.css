@@ -943,8 +943,7 @@ select { cursor: pointer; }
   background: var(--bg-deep);
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
-  font-size: 12.5px;
-  line-height: 1.55;
+  font: var(--type-source);
   color: var(--ink);
   white-space: pre-wrap;
   word-break: break-word;
@@ -952,6 +951,17 @@ select { cursor: pointer; }
 
 .console-out .c-err { color: var(--blood-text); }
 .console-out .c-dim { color: var(--faint); }
+.console-entry { padding-block: 12px; border-top: 1px solid var(--line); }
+.console-entry:first-child { padding-top: 0; border-top: 0; }
+.console-command, .console-response { display: block; }
+.console-command { color: var(--ink); margin-bottom: 4px; }
+.console-entry[data-state="pending"] .console-response { color: var(--muted); }
+.console-entry[data-state="error"] .console-response { color: var(--error-text); }
+.console-entry[data-state="unknown"] .console-response { color: var(--warning); }
+.console-status { margin: 12px 0 0; overflow-wrap: anywhere; }
+.console-status:empty { display: none; }
+.console-history-hint { margin: 8px 0 0; }
+.console-out:focus-visible, .logs-out:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 
 .console-content, .logs-content { min-width: 0; }
 .console-form { display: flex; align-items: center; gap: 10px; }
@@ -960,6 +970,12 @@ select { cursor: pointer; }
 
 .console-form input {
   flex: 1;
+  min-width: 0;
+}
+@media (max-width: 540px) {
+  .console-form { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; }
+  .console-form input { width: 100%; font-size: 16px; }
+  .console-form button { grid-column: 2; justify-self: end; min-width: 112px; }
 }
 
 .console-form input::placeholder { color: var(--faint); }
@@ -985,8 +1001,7 @@ select { cursor: pointer; }
   background: var(--bg-deep);
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
-  font-size: 12px;
-  line-height: 1.55;
+  font: var(--type-source);
   color: var(--muted);
   white-space: pre-wrap;
   word-break: break-word;
@@ -1317,7 +1332,10 @@ select { cursor: pointer; }
 
 .logs-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .console-tools { min-width:0; margin-bottom:14px; }
-.logs-footer { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 16px; min-height:44px; margin-top:12px; }
+.logs-footer { display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-height:44px; margin-top:12px; }
+.logs-footer .check { min-height: 44px; margin-right: auto; }
+.logs-footer .btn { min-height: 44px; }
+.logs-freshness { margin: 8px 0 0; }
 .logs-tools input[type="search"] {
   flex: 1 1 220px;
   width: 220px;

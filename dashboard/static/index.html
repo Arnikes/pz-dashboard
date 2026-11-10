@@ -750,13 +750,15 @@
           <button class="chip" data-act="broadcast">Объявить…</button>
         </div>
         <div class="console-content">
-          <pre class="console-out mono" id="consoleOut" aria-live="polite"></pre>
+          <div class="console-out mono" id="consoleOut" role="region" tabindex="0" aria-label="Ответы RCON"></div>
           <form class="console-form" id="consoleForm">
             <span class="console-prompt mono" aria-hidden="true">rcon&gt;</span>
             <input id="consoleInput" class="mono" type="text" autocomplete="off" spellcheck="false"
-                   placeholder="Например: servermsg &quot;Привет&quot;" aria-label="Команда RCON" />
+                   maxlength="500" placeholder="Например: servermsg &quot;Привет&quot;" aria-label="Команда RCON" />
             <button class="btn primary" type="submit">Отправить</button>
           </form>
+          <p id="consoleStatus" class="hint console-status" role="status" aria-live="polite"></p>
+          <p class="hint console-history-hint">↑ ↓ — история команд. Команды отправляются по одной.</p>
         </div>
       </section>
 
@@ -773,11 +775,14 @@
           <input type="search" id="logsFilter" class="mono" placeholder="фильтр строк…" aria-label="Фильтр логов" />
         </div>
         <div class="logs-content">
-          <pre class="logs-out mono" id="logsOut">Загрузка логов…</pre>
+          <pre class="logs-out mono" id="logsOut" role="region" tabindex="0" aria-label="Строки лога контейнера">Загрузка логов…</pre>
           <div class="logs-footer">
             <label class="check"><input type="checkbox" id="logsAuto" checked /> Автопрокрутка</label>
+            <button type="button" class="btn small" id="logsLatest">К последним</button>
+            <button type="button" class="btn small" id="logsRefresh">Обновить</button>
             <a class="btn small" id="logsDownload" href="/api/logs/full" download title="Полный лог файлом">Скачать лог</a>
           </div>
+          <p id="logsFreshness" class="hint logs-freshness" role="status"></p>
           <div id="logsResult" class="logs-result" hidden><p id="logsCount" class="hint" role="status"></p><button type="button" id="logsResetFilters" class="btn small" hidden>Сбросить фильтры</button></div>
           <div class="logs-scope" id="logsScope" hidden><span id="logsPeriod" class="hint"></span><button type="button" class="btn small" id="logsClearPeriod">Сбросить период</button></div>
           <p id="logsError" class="hint logs-error" role="alert" hidden></p>

@@ -133,8 +133,11 @@ def test_console_status_tracks_disabled_available_and_busy_states(page, dashboar
     expect(page.locator("#consoleOut")).to_contain_text("Запрос отправляется")
     page.evaluate("S.actionPending=false;updateButtons()")
     page.evaluate("data=>applyOverview({...data,mode:'remote',rcon:{state:'down'}})", original)
-    expect(page.locator("#consoleInput")).to_be_disabled()
-    expect(page.locator("#consoleOut")).to_contain_text("Ожидаем доступность RCON")
+    expect(page.locator("#consoleInput")).to_be_enabled()
+    expect(page.locator("#consoleOut")).to_contain_text(
+        "Последняя проверка RCON не подтвердила связь"
+    )
+    expect(page.locator("#consoleOut")).not_to_contain_text("Консоль доступна")
 
 
 @pytest.mark.parametrize("language", ["ru", "en"])

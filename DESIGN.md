@@ -390,6 +390,20 @@ Desktop console panels share three rows for titles, compact filter/command tools
 and aligned output windows. Log counts, download and auto-scroll controls, errors,
 and period feedback sit below the log output so their changes do not stretch the
 RCON command area or shift the aligned windows.
+RCON submits one command at a time through the same executor, including quick
+commands, announcements, world saves and player actions. Each command retains
+its matching response and pending or failed result. Form input survives failures;
+quick actions preserve the form's draft, and history navigation restores that
+draft. A missing or interrupted reply explicitly leaves execution uncertain and
+never retries automatically. RCON availability distinguishes an unavailable
+server from a failed last connection check that still permits a manual attempt.
+The mobile command field occupies its own input row with the send action below.
+Transcript and log windows are named, keyboard-focusable scroll regions; only
+the short command status is live. Logs show their last successful refresh and
+offer Refresh and Latest. Latest and enabling auto-scroll resume following;
+scrolling to older lines pauses following. Late responses cannot replace newer
+log snapshots. Error filtering uses log prefixes and recognized Java stack frames,
+preserving literal player text and precise raw timestamps in row tooltips.
 Backup archives use aligned name, size, date, and action columns, sharing desktop
 column widths with their headings; mobile places them on separate rows.
 Download, verify and restore actions have visible labels;

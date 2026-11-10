@@ -751,7 +751,7 @@ const modal = (() => {
   });
 
   function error(e) {
-    $("modalError").textContent = I18n.msg`${e.message || e} Параметры сохранены — повторите действие.`;
+    $("modalError").textContent = e.outcomeUnknown ? e.message : I18n.msg`${e.message || e} Параметры сохранены — повторите действие.`;
     $("modalError").hidden = false;
   }
   return { open, close, error };
@@ -771,6 +771,7 @@ const S = {
   opsLoaded: false,
   localResultId: null,
   actionPending: false,
+  rconPending: false,
   operationUncertain: false,
   pendingRequest: null,
   pendingOperation: null,
@@ -782,6 +783,7 @@ const S = {
   logsSince: 0,
   logsUntil: 0,
   logsProfile: "",
+  logsRefreshing: false,
   backupsItems: [],
   phPoints: [],
   lastDataOk: 0,
@@ -944,6 +946,7 @@ function operationAvailabilityReason() {
   return S.demo ? I18n.t("Демо: операции отключены. Откройте пульт своего сервера для управления.")
     : S.op?.active ? I18n.t("Идёт операция: ") + (OP_TITLES[S.op.active.op] || S.op.active.op) + I18n.t(". Дождитесь результата; прогресс показан над разделом.")
     : S.actionPending ? I18n.t("Запрос отправляется. Дождитесь принятия или сообщения об ошибке.")
+    : S.rconPending ? I18n.t("Ожидается ответ RCON. Дождитесь результата команды.")
     : "";
 }
 
@@ -952,6 +955,9 @@ async function api(path, opts = {}) {
   const changing = opts.method && opts.method !== "GET";
   const inspection = path === "/api/config-validate" && !opts.body?.prepare
     || path === "/api/modpack" && !opts.body?.pack;
+  if (changing && S.rconPending && path !== "/api/rcon" && !path.startsWith("/api/auth/") && !inspection) {
+    throw new Error(operationAvailabilityReason());
+  }
   if (changing && operationBusy() && path !== "/api/action" && !path.startsWith("/api/auth/") && !inspection) {
     throw new Error(operationAvailabilityReason());
   }
@@ -1018,7 +1024,7 @@ async function api(path, opts = {}) {
 }
 
 async function requestOperation(body, { timeout } = {}) {
-  if (operationBusy()) throw new Error(operationAvailabilityReason());
+  if (operationBusy() || S.rconPending) throw new Error(operationAvailabilityReason());
   // Requests captured before this submission cannot describe its outcome.
   opsGeneration++;
   S.actionPending = true;
@@ -1373,13 +1379,13 @@ function updateOperationWidgets() {
 function updateButtons() {
   const o = S.overview;
   const opening = document.body.classList.contains("is-booting");
-  const busy = operationBusy() || S.demo || opening;
+  const busy = operationBusy() || S.rconPending || S.demo || opening;
   const remote = !!(o && o.mode === "remote");
   const rconOk = !!(o && o.rcon && o.rcon.state === "ok");
   const running = !remote && !!(o && o.containerInfo && o.containerInfo.running);
   const found = !!(o && o.containerInfo);
   const hostHint = I18n.t("Доступно только при запуске пульта на хосте сервера");
-  const consoleLive = busy ? false : (remote ? rconOk : running);
+  const consoleLive = !rconAvailabilityReason();
   $("btnStart").disabled = busy || remote || !found || running;
   $("btnStop").disabled = busy || S.demo || remote || !running;
   $("btnRestart").disabled = busy || S.demo || remote || !running;
@@ -1422,6 +1428,10 @@ function updateButtons() {
   $("btnBackup").disabled = busy || S.demo || remote;
   $("logsDownload").style.display = (remote || S.demo) ? "none" : "";
   $("logsFilter").disabled = remote || S.demo || opening;
+  $("logsRefresh").disabled = remote || S.demo || opening || S.logsRefreshing;
+  $("logsAuto").disabled = remote || opening;
+  $("logsLatest").disabled = remote || opening || !S.logsLines.length;
+  document.querySelectorAll("#logLevels button").forEach(button => { button.disabled = remote || opening; });
   document.querySelectorAll("#playersBody .p-actions .icon-btn").forEach((b) => { if (b.disabled !== !consoleLive) b.disabled = !consoleLive; });
   document.querySelectorAll("#backupsBody .icon-btn").forEach((b) => { const disabled = busy || S.demo || remote || b.dataset.verified === "true"; if (b.disabled !== disabled) b.disabled = disabled; });
   document.querySelectorAll("#quickCmds .chip").forEach((b) => { b.disabled = !consoleLive; });
@@ -1436,10 +1446,11 @@ function updateButtons() {
   setAvailability("playersAvailability", commonReason || (!consoleLive ? I18n.t("RCON недоступен. Проверьте запуск сервера, пароль и порт RCON; последние ответы сохранены.") : ""));
   setAvailability("modsAvailability", commonReason);
   setAvailability("settingsAvailability", commonReason);
-  setAvailability("consoleAvailability", commonReason || (!consoleLive ? I18n.t("RCON недоступен. Проверьте запуск сервера, пароль и порт RCON; последние ответы сохранены.") : ""));
+  setAvailability("consoleAvailability", rconAvailabilityReason() || (o && !rconOk ? I18n.t("Последняя проверка RCON не подтвердила связь. Можно отправить команду повторно; проверьте пароль и порт RCON.") : ""));
   if (consoleBootLine?.isConnected) {
     const consoleStatus = commonReason || (!o ? I18n.t("Пульт подключается к серверу…")
       : !consoleLive ? I18n.t("Ожидаем доступность RCON. Последние ответы сохранены.")
+      : !rconOk ? I18n.t("Последняя проверка RCON не подтвердила связь. Можно отправить команду повторно; проверьте пароль и порт RCON.")
       : I18n.t("Консоль доступна — команды отправляются на сервер по RCON."));
     setDomProperty(consoleBootLine, "textContent", consoleStatus);
   }
@@ -1663,10 +1674,7 @@ function confirmPlayerAction(kind, name) {
       const reason = ($("paReason")?.value || "").replace(/"/g, "'").trim();
       const cmd = `${cmdBase} "${name}"${reason ? ` "${reason}"` : ""}`;
       try {
-        const res = await api("/api/rcon", { method: "POST", body: { command: cmd } });
-        if (res.error) throw new Error(res.error);
-        consoleAppend(`> ${cmd}`, "c-dim");
-        consoleAppend(res.output || I18n.t("(без ответа)"));
+        await runRconCommand(cmd);
         toast(`${isKick ? I18n.t("Кикнут") : I18n.t("Забанен")}: ${name}`, "ok");
         refreshPlayers();
       } catch (e) {
@@ -2227,14 +2235,75 @@ function renderRecent(items) {
 
 function consoleAppend(text, cls = "") {
   const out = $("consoleOut");
+  const follow = out.scrollHeight - out.scrollTop - out.clientHeight < 30;
   const line = document.createElement("span");
   if (cls) line.className = cls;
   line.textContent = text;
   out.appendChild(line);
   out.appendChild(document.createTextNode("\n"));
   while (out.childNodes.length > 800) out.removeChild(out.firstChild);
-  out.scrollTop = out.scrollHeight;
+  if (follow) out.scrollTop = out.scrollHeight;
   return line;
+}
+
+function rconAvailabilityReason() {
+  if (operationBusy() || S.demo || S.rconPending) return operationAvailabilityReason();
+  if (!S.overview || document.body.classList.contains("is-booting")) return I18n.t("Пульт подключается к серверу…");
+  if (S.overview.rconConfigured === false) return I18n.t("RCON не настроен. Проверьте пароль и порт RCON в настройках подключения.");
+  if (S.overview.mode !== "remote" && !S.overview.containerInfo?.running) return I18n.t("Сервер остановлен — RCON недоступен");
+  return "";
+}
+
+async function runRconCommand(command) {
+  const unavailable = rconAvailabilityReason();
+  if (unavailable) throw new Error(unavailable);
+  command = command.trim();
+  if (!command || command.length > 500) throw new Error(I18n.t("Пустая или слишком длинная команда"));
+  S.rconPending = true;
+  const out = $("consoleOut");
+  const follow = out.scrollHeight - out.scrollTop - out.clientHeight < 30;
+  const entry = document.createElement("div");
+  entry.className = "console-entry";
+  entry.dataset.state = "pending";
+  const heading = document.createElement("span");
+  heading.className = "console-command";
+  heading.textContent = `> ${command}`;
+  const response = document.createElement("span");
+  response.className = "console-response";
+  response.textContent = I18n.t("Ожидается ответ RCON…");
+  entry.append(heading, response);
+  out.appendChild(entry);
+  while (out.childNodes.length > 400) out.removeChild(out.firstChild);
+  if (follow) out.scrollTop = out.scrollHeight;
+  $("consoleStatus").textContent = I18n.t("Ожидается ответ RCON…");
+  updateButtons();
+  let followResponse = false;
+  try {
+    const result = await api("/api/rcon", { method: "POST", body: { command }, timeout: 30000 });
+    if (result.ok !== true || result.httpStatus >= 400 || typeof result.output !== "string") {
+      const error = new Error(result.error || I18n.t("Пульт вернул некорректный ответ на команду."));
+      error.outcomeUnknown = !(result.httpStatus >= 400 && result.httpStatus < 500);
+      throw error;
+    }
+    followResponse = out.scrollHeight - out.scrollTop - out.clientHeight < 30;
+    response.textContent = result.output || I18n.t("(без ответа)");
+    entry.dataset.state = "success";
+    $("consoleStatus").textContent = I18n.t("Ответ RCON получен.");
+    return result;
+  } catch (error) {
+    followResponse = out.scrollHeight - out.scrollTop - out.clientHeight < 30;
+    if (error.outcomeUnknown) {
+      error.message = I18n.msg`${error.message} Команда могла выполниться. Проверьте состояние сервера и логи перед повтором.`;
+    }
+    entry.dataset.state = error.outcomeUnknown ? "unknown" : "error";
+    response.textContent = error.message || String(error);
+    $("consoleStatus").textContent = response.textContent;
+    throw error;
+  } finally {
+    S.rconPending = false;
+    updateButtons();
+    if (followResponse) out.scrollTop = out.scrollHeight;
+  }
 }
 
 $("consoleForm").addEventListener("submit", async (e) => {
@@ -2243,41 +2312,44 @@ $("consoleForm").addEventListener("submit", async (e) => {
   const input = $("consoleInput");
   const cmd = input.value.trim();
   if (!cmd) return;
+  if (rconAvailabilityReason()) return;
   if (consoleHistory.items[consoleHistory.items.length - 1] !== cmd) consoleHistory.items.push(cmd);
+  if (consoleHistory.items.length > 100) consoleHistory.items.shift();
   consoleHistory.idx = consoleHistory.items.length;
-  input.value = "";
-  consoleAppend(`> ${cmd}`, "c-dim");
+  consoleHistory.draft = input.value;
+  const draft = input.value;
   try {
-    const res = await api("/api/rcon", { method: "POST", body: { command: cmd } });
-    if (res.error) consoleAppend(I18n.msg`Ошибка: ${res.error}`, "c-err");
-    else consoleAppend(res.output || I18n.t("(без ответа)"));
+    await runRconCommand(cmd);
+    if (input.value === draft) input.value = "";
+    consoleHistory.draft = input.value;
   } catch (err) {
-    consoleAppend(I18n.msg`Ошибка: ${err.message || err}`, "c-err");
+    $("consoleStatus").textContent = err.message || String(err);
   }
 });
 
-const consoleHistory = { items: [], idx: 0 };
+const consoleHistory = { items: [], idx: 0, draft: "" };
 
 $("consoleInput").addEventListener("keydown", (e) => {
   if (e.key === "ArrowUp" && consoleHistory.items.length) {
     e.preventDefault();
+    if (consoleHistory.idx === consoleHistory.items.length) consoleHistory.draft = $("consoleInput").value;
     consoleHistory.idx = consoleHistory.idx === consoleHistory.items.length
       ? consoleHistory.items.length - 1
       : Math.max(0, consoleHistory.idx - 1);
     $("consoleInput").value = consoleHistory.items[consoleHistory.idx] || "";
-  } else if (e.key === "ArrowDown" && consoleHistory.items.length) {
+  } else if (e.key === "ArrowDown" && consoleHistory.idx < consoleHistory.items.length) {
     e.preventDefault();
     consoleHistory.idx = Math.min(consoleHistory.items.length, consoleHistory.idx + 1);
     $("consoleInput").value = consoleHistory.idx === consoleHistory.items.length
-      ? "" : consoleHistory.items[consoleHistory.idx];
+      ? consoleHistory.draft : consoleHistory.items[consoleHistory.idx];
   }
 });
 
 document.querySelectorAll("#quickCmds .chip").forEach((chip) => {
-  chip.addEventListener("click", () => {
+  chip.addEventListener("click", async () => {
     if (chip.dataset.cmd) {
-      $("consoleInput").value = chip.dataset.cmd;
-      $("consoleForm").requestSubmit();
+      try { await runRconCommand(chip.dataset.cmd); }
+      catch (error) { $("consoleStatus").textContent = error.message || String(error); }
     } else if (chip.dataset.act === "broadcast") {
       modal.open({
         title: I18n.t("Объявление игрокам"),
@@ -2292,8 +2364,7 @@ document.querySelectorAll("#quickCmds .chip").forEach((chip) => {
           const text = ($("bcText")?.value || "").trim();
           if (!text) throw new Error(I18n.t("Введите текст объявления"));
           const safe = text.replace(/"/g, "'");
-          $("consoleInput").value = `servermsg "${safe}"`;
-          $("consoleForm").requestSubmit();
+          await runRconCommand(`servermsg "${safe}"`);
         },
       });
     }
@@ -2302,33 +2373,45 @@ document.querySelectorAll("#quickCmds .chip").forEach((chip) => {
 
 /* ───────────────────────── логи ───────────────────────── */
 
-/* docker-таймстемп «2026-09-08T11:36:05.990769902Z » → локальное «15:36:05 » */
-const LOG_LEVEL_ERR = /ERROR|SEVERE|Exception/i;
-const LOG_LEVEL_WARN = /WARN/i;
+const LOG_TIMESTAMP = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)\s/;
+const LOG_PREFIX = /^(?:\[(?:\d[\d: .-]*)\]\s*)?(?:\[([^\]]*\/(?:ERROR|FATAL|SEVERE|WARN|WARNING|INFO|DEBUG|TRACE))\]|\[(ERROR|FATAL|SEVERE|WARN|WARNING|INFO|DEBUG|TRACE|LOG)\]|(ERROR|FATAL|SEVERE|WARN|WARNING|INFO|DEBUG|TRACE|LOG)\b)/i;
+const JAVA_EXCEPTION = /^(?:Exception in thread "[^"]+"\s+)?(?:[\w$]+\.)*[\w$]*(?:Exception|Error)(?::|\s*$)/;
+const STACK_CONTINUATION = /^(?:at\s+\S+\(|Caused by:\s|Suppressed:\s|\.\.\.\s+\d+\s+(?:more|common frames omitted)\b)/;
 
 function classifyLog(line) {
-  if (LOG_LEVEL_ERR.test(line)) return "error";
-  if (LOG_LEVEL_WARN.test(line)) return "warn";
+  const body = line.replace(LOG_TIMESTAMP, "").trimStart();
+  const prefix = body.match(LOG_PREFIX);
+  const level = (prefix?.[1]?.split("/").pop() || prefix?.[2] || prefix?.[3] || "").toUpperCase();
+  if (["ERROR", "FATAL", "SEVERE"].includes(level) || (!prefix && JAVA_EXCEPTION.test(body))) return "error";
+  if (["WARN", "WARNING"].includes(level)) return "warn";
   return "";
 }
 
 function parseLogs(text) {
+  let previousLevel = "";
   return (text || "").split("\n").filter(raw => raw.trim()).map((raw) => {
-    const m = raw.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(?:\.(\d+))?Z\s/);
+    const m = raw.match(LOG_TIMESTAMP);
+    const body = raw.replace(LOG_TIMESTAMP, "");
     let view = raw;
     if (m) {
-      const ms = (m[3] || "0").slice(0, 3).padEnd(3, "0");
-      const dt = new Date(`${m[1]}T${m[2]}.${ms}Z`);
-      view = (isNaN(dt) ? m[2] : timeFullFmt.format(dt)) + " " + raw.slice(m[0].length);
+      const dt = new Date(m[1]);
+      view = (isNaN(dt) ? m[1] : `${dayFmt.format(dt)} ${timeFullFmt.format(dt)}`) + " " + body;
     }
-    return { raw, view, level: classifyLog(raw) };
+    const level = classifyLog(raw) || (STACK_CONTINUATION.test(body.trimStart()) ? previousLevel : "");
+    previousLevel = level;
+    return { raw, view, level, timestamp: m?.[1] || "" };
   });
 }
 
 function renderLogs(data) {
   if (S.overview && S.overview.mode === "remote") {
     S.logsText = null;
+    S.logsLines = [];
     $("logsResult").hidden = true;
+    $("logsError").hidden = true;
+    $("logsLimit").hidden = true;
+    $("logsScope").hidden = true;
+    $("logsFreshness").textContent = "";
     $("logsOut").textContent = I18n.t("Логи контейнера доступны только при запуске пульта на хосте сервера.");
     return;
   }
@@ -2341,6 +2424,7 @@ function renderLogs(data) {
   $("logsError").hidden = true;
   $("logsLimit").hidden = !data.truncated;
   S.logsUpdatedAt = Date.now();
+  $("logsFreshness").textContent = I18n.msg`Обновлено: ${timeFullFmt.format(S.logsUpdatedAt)}`;
   // Keep freshness/error recovery, but avoid parsing and rebuilding unchanged logs.
   const text = data.text || "";
   if (S.logsText === text) return;
@@ -2356,6 +2440,7 @@ function renderLogsFiltered() {
   const f = ($("logsFilter")?.value || "").trim().toLowerCase();
   const level = S.logsLevel || "all";
   const source = S.logsLines || [];
+  $("logsLatest").disabled = !source.length || S.overview?.mode === "remote";
   const filtered = !!f || level !== "all" || !!S.logsSince || !!S.logsUntil;
   const lines = source.filter((l) =>
     (level === "all" || l.level === level) && (!f || l.view.toLowerCase().includes(f)) &&
@@ -2372,19 +2457,37 @@ function renderLogsFiltered() {
     const key = l.raw;
     const last = merged[merged.length - 1];
     if (last && last.key === key) last.n += 1;
-    else merged.push({ view: l.view, level: l.level, key, n: 1 });
+    else merged.push({ view: l.view, level: l.level, timestamp: l.timestamp, key, n: 1 });
   }
   pre.innerHTML = merged.length ? merged.map((l) => {
     const cls = l.level === "error" ? ' class="l-err"' : l.level === "warn" ? ' class="l-warn"' : "";
     const dup = l.n > 1 ? `<span class="l-dup">× ${l.n}</span>` : "";
-    return `<span${cls}>${esc(l.view)}${dup}</span>`;
+    const timestamp = l.timestamp ? ` title="${esc(l.timestamp)}"` : "";
+    return `<span${cls}${timestamp}>${esc(l.view)}${dup}</span>`;
   }).join("\n") : esc(source.length ? I18n.t("Нет строк по выбранным фильтрам.") : I18n.t("Нет данных логов"));
   if (atBottom && S.logsAuto) pre.scrollTop = pre.scrollHeight;
   else pre.scrollTop = scrollTop;
 }
 
 $("logsFilter").addEventListener("input", renderLogsFiltered);
-$("logsAuto").addEventListener("change", () => { S.logsAuto = $("logsAuto").checked; });
+function followLatestLogs() {
+  S.logsAuto = true;
+  $("logsAuto").checked = true;
+  $("logsOut").scrollTop = $("logsOut").scrollHeight;
+}
+$("logsAuto").addEventListener("change", () => {
+  S.logsAuto = $("logsAuto").checked;
+  if (S.logsAuto) followLatestLogs();
+});
+$("logsOut").addEventListener("scroll", () => {
+  const pre = $("logsOut");
+  if (S.logsAuto && pre.scrollTop + pre.clientHeight < pre.scrollHeight - 30) {
+    S.logsAuto = false;
+    $("logsAuto").checked = false;
+  }
+});
+$("logsLatest").addEventListener("click", followLatestLogs);
+$("logsRefresh").addEventListener("click", refreshLogs);
 $("logsResetFilters").addEventListener("click", () => {
   $("logsFilter").value = "";
   S.logsLevel = "all";
@@ -2466,8 +2569,8 @@ $("btnRestart").addEventListener("click", () => {
   });
 });
 $("btnSaveWorld").addEventListener("click", async () => {
-  $("consoleInput").value = "save";
-  $("consoleForm").requestSubmit();
+  try { await runRconCommand("save"); }
+  catch (error) { toast(error.message || String(error), "error"); }
 });
 $("btnCheckUpd").addEventListener("click", async () => {
   await action("check-update");
@@ -2938,17 +3041,30 @@ async function refreshStats() {
   try { applyStats(await api("/api/stats")); } catch { applyStats({ ok: false }); }
 }
 
+let logsRefreshSequence = 0;
 async function refreshLogs() {
+  const sequence = ++logsRefreshSequence;
   const since = S.logsSince, until = S.logsUntil;
+  S.logsRefreshing = true;
+  $("logsRefresh").disabled = true;
+  $("logsRefresh").setAttribute("aria-busy", "true");
+  $("logsRefresh").textContent = I18n.t("Обновление…");
   const params = new URLSearchParams();
   if (since) params.set("since", new Date(since).toISOString());
   if (until) params.set("until", new Date(until).toISOString());
   if (since) params.set("tail", "10000");
   try {
     const data = await api("/api/logs" + (params.size ? `?${params}` : ""));
-    if (since === S.logsSince && until === S.logsUntil) applyLogs(data);
+    if (sequence === logsRefreshSequence && since === S.logsSince && until === S.logsUntil) applyLogs(data);
   } catch (e) {
-    if (since === S.logsSince && until === S.logsUntil) applyLogs({ ok: false, error: I18n.t("Не удалось получить логи. Повторное подключение идёт автоматически.") });
+    if (sequence === logsRefreshSequence && since === S.logsSince && until === S.logsUntil) applyLogs({ ok: false, error: I18n.t("Не удалось получить логи. Повторное подключение идёт автоматически.") });
+  } finally {
+    if (sequence === logsRefreshSequence) {
+      S.logsRefreshing = false;
+      $("logsRefresh").setAttribute("aria-busy", "false");
+      $("logsRefresh").textContent = I18n.t("Обновить");
+      updateButtons();
+    }
   }
 }
 
@@ -3192,6 +3308,7 @@ function applyRoute() {
   window.ConfigEditor?.route(r);
   startupRouteLoad?.(r);
   pollVisibleLogs();
+  if (r === "console" && S.logsAuto) $("logsOut").scrollTop = $("logsOut").scrollHeight;
 }
 
 window.addEventListener("hashchange", applyRoute);
@@ -3378,6 +3495,7 @@ async function revealDashboard() {
   loader.hidden = true;
   $("dashboardShell").inert = false;
   document.body.classList.remove("is-booting", "is-opening");
+  if (activeView === "console" && S.logsAuto) $("logsOut").scrollTop = $("logsOut").scrollHeight;
   updateButtons();
   $("view-" + activeView)?.focus({ preventScroll: true });
 }

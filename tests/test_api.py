@@ -547,6 +547,37 @@ def test_direct_mutation_routes_reject_busy_operations(
     mutation.assert_not_called()
 
 
+@pytest.mark.parametrize("language", ["en", "ru"])
+@pytest.mark.parametrize("output", ["", "Готово\nPlayers connected (0):"])
+def test_rcon_success_preserves_raw_output_for_the_client(api, monkeypatch, language, output):
+    monkeypatch.setattr(ops, "docker_ok_cached", lambda: False)
+    command = 'servermsg "fictional announcement"'
+    send = Mock(return_value=output)
+    monkeypatch.setattr(ops, "console_command", send)
+
+    assert api("POST", "/api/rcon", {"command": command}, headers={"X-PZ-Language": language}) == (
+        200,
+        {"ok": True, "output": output},
+    )
+    send.assert_called_once_with(command)
+
+
+@pytest.mark.parametrize(
+    "language,error",
+    [("en", "RCON: connection timed out"), ("ru", "RCON: таймаут соединения")],
+)
+def test_rcon_transport_failure_is_not_an_empty_success(api, monkeypatch, language, error):
+    monkeypatch.setattr(ops, "docker_ok_cached", lambda: False)
+    send = Mock(side_effect=rcon.RCONError("RCON: таймаут соединения"))
+    monkeypatch.setattr(ops, "console_command", send)
+
+    assert api("POST", "/api/rcon", {"command": "save"}, headers={"X-PZ-Language": language}) == (
+        200,
+        {"ok": False, "error": error},
+    )
+    send.assert_called_once_with("save")
+
+
 def test_notification_test_rejects_busy_operation_without_sending(api, monkeypatch):
     monkeypatch.setattr(ops, "op_busy", lambda: True)
     send = Mock()

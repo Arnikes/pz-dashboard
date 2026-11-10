@@ -628,7 +628,7 @@ class Handler(BaseHTTPRequestHandler):
             # в удалённом режиме живость сервера покажет сам RCON-запрос
             try:
                 out = ops.console_command(command)
-                self._send_json({"ok": True, "output": out or "(без ответа)"})
+                self._send_json({"ok": True, "output": out})
             except ops.OpsBusyError as error:
                 self._send_error_json(409, str(error))
             except rcon.RCONError as e:
