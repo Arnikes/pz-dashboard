@@ -1647,5 +1647,9 @@
   "Строки лога контейнера": "Container log lines",
   "К последним": "Latest",
   "Обновлено: {{0}}": "Updated: {{0}}",
-  "Обновление…": "Refreshing…"
+  "Обновление…": "Refreshing…",
+  "Предупреждение": "Warning",
+  "Критическая ошибка": "Critical error",
+  "Время неизвестно": "Time unknown",
+  "Сбросить фильтр": "Reset filter"
 }

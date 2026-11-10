@@ -174,7 +174,7 @@ def event_log(tmp_path, monkeypatch, process_log):
         ("console", "DEBUG", "DEBUG"),
     ],
 )
-def test_event_levels_persist_emit_and_preserve_notification_contract(
+def test_event_levels_persist_emit_and_forward_normalized_notification_level(
     event_log, kind, override, expected
 ):
     output, enqueue = event_log
@@ -188,7 +188,7 @@ def test_event_levels_persist_emit_and_preserve_notification_contract(
     else:
         assert record["text"] == "event text" and record["detail"] == "detail"
     assert json.loads(Path(config.CFG["events_file"]).read_text(encoding="utf-8")) == record
-    enqueue.assert_called_once_with(normalized, record["text"])
+    enqueue.assert_called_once_with(normalized, record["text"], level=expected)
     assert len(output.getvalue().splitlines()) == 1
     assert f" {expected} pz.events [{normalized}] " in output.getvalue()
 
@@ -200,7 +200,7 @@ def test_process_threshold_does_not_filter_events_or_notifications(event_log):
     assert output.getvalue() == ""
     assert ops.get_events()[0]["level"] == "ERROR"
     assert "still persisted" in Path(config.CFG["events_file"]).read_text(encoding="utf-8")
-    enqueue.assert_called_once_with("error", "still persisted")
+    enqueue.assert_called_once_with("error", "still persisted", level="ERROR")
 
 
 def test_legacy_event_records_are_not_rewritten_or_normalized(event_log):
@@ -225,7 +225,7 @@ def test_persistence_failure_keeps_memory_and_reports_category_without_recursion
     monkeypatch.setattr(ops.fileio, "append_jsonl", append)
     ops.log_event("warn", "still available")
     assert len(ops.get_events()) == 1 and ops.get_events()[0]["text"] == "still available"
-    enqueue.assert_called_once_with("warn", "still available")
+    enqueue.assert_called_once_with("warn", "still available", level="WARNING")
     append.assert_called_once()
     ops._journal_append({"name": "backup.tar.gz"})
     output = output.getvalue()
@@ -244,7 +244,7 @@ def test_console_commands_are_not_copied_into_any_event_sink(event_log):
     assert list(ops._EV_MEM) == [record]
     saved = Path(config.CFG["events_file"]).read_text(encoding="utf-8")
     assert json.loads(saved) == record
-    enqueue.assert_called_once_with("console", record["text"])
+    enqueue.assert_called_once_with("console", record["text"], level="INFO")
     assert record["text"] in output.getvalue()
     assert "fictional-password" not in saved + output.getvalue() + repr(enqueue.call_args)
 
@@ -316,7 +316,7 @@ def test_broken_process_stream_does_not_abort_persistence_or_notifications(
     assert len(ops.get_events()) == 1 and ops.get_events()[0]["text"] == "business event"
     saved = json.loads(Path(config.CFG["events_file"]).read_text(encoding="utf-8"))
     assert saved == ops.get_events()[0]
-    enqueue.assert_called_once_with("backup", "business event")
+    enqueue.assert_called_once_with("backup", "business event", level="INFO")
 
 
 @pytest.fixture

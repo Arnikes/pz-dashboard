@@ -306,6 +306,24 @@ updates preserve focus on the same action and keep the list's scroll position;
 unread rows use the second surface layer. Filters, read controls, links and toast
 dismiss controls share the visible focus outline. Long lists scroll independently
 of the center's heading, filters and footer.
+Opening the notification center marks the current filter's messages as read.
+Switching filters does not read incoming messages; their unread state remains
+until an explicit read action, a linked action, or the next matching opening.
+Generic warnings use the Warning label; cancelled operations name cancellation
+in their own titles.
+
+Events retain day groups and the shared 25/50/100-item journal pagination.
+Each row shows a compact local time with its complete localized timestamp
+available on the semantic time element. Day headings include the year for older
+years; yesterday follows the local calendar across daylight-saving changes.
+Unknown timestamps get their own group. On mobile, time and severity sit above
+the full-width message, including in Overview's compact recent-events list,
+which keeps visible dates because it has no day headings.
+Warning, Error and Critical error labels accompany their
+semantic colors; ordinary update and backup messages use the normal text color.
+Problems includes warning/error/critical severity as well as legacy problem types,
+while the original operation, backup and update categories still include them.
+An empty category offers Reset filter, returning focus to All and page one.
 All editing routes lock mutations from request submission through completion.
 Busy widgets blur their existing contents and show a centered loading indicator
 labeled "Operation in progress: <operation name>" in the selected language;

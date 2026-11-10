@@ -114,3 +114,171 @@ def test_events_layout_has_no_nested_scroll_or_overflow(page, events_page, width
         out = Path(__file__).resolve().parents[2] / ".tmp-events-pagination"
         out.mkdir(exist_ok=True)
         capture_evidence(page, path=str(out / f"events-{width}.png"), full_page=True)
+
+
+def test_problem_severity_keeps_original_categories_and_legacy_fallback(page, events_page):
+    entries = [
+        {"type": "update-check", "level": " error ", "text": "Update failed"},
+        {"type": "docker", "level": "warn", "text": "Container warning"},
+        {"type": "backup", "level": "CRITICAL", "text": "Archive failed"},
+        {"type": "update-check", "level": "INFO", "text": "No update"},
+        {"type": "rcon-error", "text": "Legacy error"},
+        {"type": "warn", "level": "invalid", "text": "Legacy warning"},
+        {"type": "delete", "text": "Legacy deletion"},
+        {"type": "update", "level": "invalid", "text": "Invalid level"},
+        {"type": "error", "level": "info", "text": "Explicit info"},
+    ]
+    page.evaluate("items => renderEvents({ok:true,items})", entries)
+    page.locator('#eventFilters [data-ef="problems"]').click()
+    rows = page.locator("#eventsBody .event-row")
+    expect(rows).to_have_count(7)
+    expect(rows.filter(has_text="Update failed")).to_have_attribute("data-level", "ERROR")
+    expect(rows.filter(has_text="Container warning")).to_have_attribute("data-level", "WARNING")
+    expect(rows.filter(has_text="Archive failed").locator(".event-severity")).to_have_text(
+        "Критическая ошибка"
+    )
+    expect(rows.filter(has_text="Legacy warning").locator(".event-severity")).to_have_text(
+        "Предупреждение"
+    )
+    expect(rows.filter(has_text="Legacy deletion").locator(".event-severity")).to_have_count(0)
+    expect(rows.filter(has_text="Explicit info").locator(".event-severity")).to_have_count(0)
+    page.locator('#eventFilters [data-ef="update"]').click()
+    expect(rows).to_have_count(3)
+    expect(rows.filter(has_text="Update failed")).to_have_count(1)
+    expect(rows.filter(has_text="Invalid level")).to_have_attribute("data-level", "INFO")
+    page.locator('#eventFilters [data-ef="backup"]').click()
+    expect(rows).to_have_count(1)
+    expect(rows.first).to_contain_text("Archive failed")
+
+
+def test_empty_category_reset_restores_all_focus_and_first_page(page, events_page):
+    page.locator("#eventsNext").click()
+    page.locator('#eventFilters [data-ef="problems"]').click()
+    reset = page.get_by_role("button", name="Сбросить фильтр", exact=True)
+    reset.focus()
+    page.keyboard.press("Enter")
+    all_filter = page.locator('#eventFilters [data-ef="all"]')
+    expect(all_filter).to_be_focused()
+    expect(all_filter).to_have_attribute("aria-pressed", "true")
+    expect(page.locator('#eventFilters [aria-pressed="true"]')).to_have_count(1)
+    expect(page.locator("#eventsRange")).to_have_text("1–25 из 61 · Страница 1")
+    expect(page.locator("#eventsBody .event-row").first).to_contain_text("Событие 000")
+
+
+@pytest.mark.browser_context_args(timezone_id="America/New_York")
+def test_dates_use_local_calendar_and_unknown_records_break_day_groups(page, events_page):
+    # After spring-forward, subtracting 24 hours would incorrectly select March 7.
+    page.clock.install(time="2026-03-09T04:30:00Z")
+    entries = [
+        {"type": "start", "ts": "2026-03-08T12:00:00Z", "text": "Yesterday"},
+        {"type": "start", "ts": "invalid", "text": "Broken timestamp"},
+        {"type": "start", "text": "Missing timestamp"},
+        {"type": "start", "ts": "2026-03-08T13:00:00Z", "text": "Yesterday again"},
+        {"type": "start", "ts": "2025-03-08T13:00:00Z", "text": "Last year"},
+    ]
+    page.evaluate("items => renderEvents({ok:true,items})", entries)
+    headings = page.locator("#eventsBody .event-day")
+    expect(headings).to_have_count(4)
+    expect(headings.nth(0)).to_have_text("Вчера")
+    expect(headings.nth(1)).to_have_text("Время неизвестно")
+    expect(headings.nth(2)).to_have_text("Вчера")
+    expect(headings.nth(3)).to_contain_text("2025")
+    expect(page.locator("#eventsBody time")).to_have_count(3)
+    expect(page.locator("#eventsBody time").first).to_have_attribute(
+        "datetime", "2026-03-08T12:00:00.000Z"
+    )
+    assert "2026" in page.locator("#eventsBody time").first.get_attribute("title")
+    # Recent has no day headings, so older entries keep a visible date.
+    expect(page.locator("#recentBody .event-row").last.locator("time")).to_contain_text("08.03")
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+@pytest.mark.parametrize("width", [320, 390, 1440])
+def test_events_localized_long_content_and_severity_layout(page, dashboard, language, width):
+    page.add_init_script(f"localStorage.setItem('pz-language', '{language}')")
+    page.set_viewport_size({"width": width, "height": 900})
+    page.goto(dashboard["url"] + "/#/events")
+    expect(page.locator("#startupLoader")).to_be_hidden()
+    page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
+    entries = [
+        {
+            "ts": "2026-11-09T12:00:00Z",
+            "type": "update-check",
+            "level": "ERROR",
+            "text": "Workshop: " + "1234567890" * 12 + " — проверка пакета не завершилась",
+        },
+        {
+            "ts": "2026-11-09T11:00:00Z",
+            "type": "backup",
+            "level": "INFO",
+            "text": "World archive saved / Архив мира сохранён",
+        },
+        {"type": "docker", "level": "WARN", "text": "Container needs attention"},
+    ]
+    page.evaluate("items => renderEvents({ok:true,items})", entries)
+    expect(page.locator("#eventsBody .event-severity")).to_have_text(
+        ["Error", "Warning"] if language == "en" else ["Ошибка", "Предупреждение"]
+    )
+    expect(page.locator("#eventsBody .event-day").last).to_have_text(
+        "Time unknown" if language == "en" else "Время неизвестно"
+    )
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    assert page.locator("#eventsBody").evaluate("el => el.scrollHeight === el.clientHeight")
+    first = page.locator("#eventsBody .event-row").first
+    meta, text = (
+        first.locator(".event-meta").bounding_box(),
+        first.locator(".e-text").bounding_box(),
+    )
+    if width <= 740:
+        assert text["y"] >= meta["y"] + meta["height"]
+        assert text["width"] >= first.bounding_box()["width"] - 1
+    else:
+        assert text["x"] > meta["x"] + meta["width"]
+    problems = page.locator('#eventFilters [data-ef="problems"]')
+    problems.focus()
+    page.keyboard.press("Enter")
+    expect(problems).to_be_focused()
+    expect(page.locator("#eventsBody .event-row")).to_have_count(2)
+    page.locator('#eventFilters [data-ef="all"]').click()
+    out = Path(".tmp-events-polish")
+    out.mkdir(exist_ok=True)
+    capture_evidence(page, path=str(out / f"events-{language}-{width}.png"), full_page=True)
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_recent_mobile_retains_dates_and_problem_labels(page, dashboard, language):
+    page.add_init_script(f"localStorage.setItem('pz-language', '{language}')")
+    page.set_viewport_size({"width": 320, "height": 900})
+    page.goto(dashboard["url"])
+    expect(page.locator("#startupLoader")).to_be_hidden()
+    page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
+    entries = [
+        {
+            "type": "update-check",
+            "level": "ERROR",
+            "ts": "2025-10-04T12:00:00Z",
+            "text": "Package " + "7" * 64,
+        },
+        {
+            "type": "backup",
+            "level": "INFO",
+            "ts": "2025-10-04T11:00:00Z",
+            "text": "World archive saved",
+        },
+        {"type": "docker", "level": "WARN", "text": "Container needs attention"},
+    ]
+    page.evaluate("items => renderRecent(items)", entries)
+    body = page.locator("#recentBody")
+    expect(body.locator("time").first).to_contain_text("10/04" if language == "en" else "04.10")
+    expect(body.locator(".event-severity")).to_have_text(
+        ["Error", "Warning"] if language == "en" else ["Ошибка", "Предупреждение"]
+    )
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    for row in body.locator(".event-row").all():
+        meta = row.locator(".event-meta").bounding_box()
+        text = row.locator(".e-text").bounding_box()
+        assert text["width"] >= row.bounding_box()["width"] - 1
+        assert text["y"] >= meta["y"] + meta["height"]
+    out = Path(".tmp-events-polish")
+    out.mkdir(exist_ok=True)
+    capture_evidence(page.locator("#sec-recent"), path=str(out / f"recent-{language}-320.png"))

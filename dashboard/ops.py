@@ -142,7 +142,7 @@ def log_event(kind, text, detail=None, notify=True, *, level=None):
     logging_utils.get_logger("events").log(getattr(logging, severity), "[%s] %s", kind, text)
     if notify:
         try:
-            notifylib.enqueue(kind, text)
+            notifylib.enqueue(kind, text, level=severity)
         except Exception:  # noqa: BLE001 — уведомления не ломают события
             pass
 

@@ -831,9 +831,10 @@ select { cursor: pointer; }
 
 /* события */
 .event-day {
-  font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--faint); padding: 8px 0 2px; border-bottom: 1px solid var(--line);
+  font-size: 13px; font-weight: 500;
+  color: var(--muted); padding: 20px 0 8px; border-bottom: 1px solid var(--line);
 }
+.event-day:first-child { padding-top: 4px; }
 
 .event-row {
   display: flex;
@@ -847,9 +848,24 @@ select { cursor: pointer; }
 .event-row:last-child { border-bottom: none; }
 .event-row .e-time { color: var(--faint); flex: none; font-size: 11.5px; }
 .event-row .e-text { min-width: 0; overflow-wrap: anywhere; }
-.event-row[data-kind="error"] .e-text, .event-row[data-kind="rcon-error"] .e-text { color: var(--blood-text); }
-.event-row[data-kind="update"] .e-text, .event-row[data-kind="auto"] .e-text { color: var(--warn); }
-.event-row[data-kind="backup"] .e-text, .event-row[data-kind="restore"] .e-text { color: var(--ok); }
+.event-meta { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; }
+.event-severity { font-size:13px; line-height:1.5; }
+.event-row[data-level="WARNING"] .event-severity { color:var(--warning); }
+.event-row:is([data-level="ERROR"], [data-level="CRITICAL"]) .event-severity { color:var(--danger-text); }
+.c-events .event-row { display:grid; grid-template-columns:150px minmax(0, 1fr); gap:16px; padding:14px 0; font-size:14.5px; line-height:1.5; }
+.c-events .event-meta { gap:4px; flex-direction:column; }
+.c-events .event-row .e-time { font-size:13px; color:var(--muted); }
+.c-events .e-text b { font-weight:500; }
+.c-recent .event-row { display:grid; grid-template-columns:132px minmax(0, 1fr); gap:12px; }
+.c-recent .event-meta { flex-direction:column; align-items:flex-start; gap:4px; }
+.events-empty { padding-bottom:20px; text-align:center; }
+.events-empty .list-empty { padding-bottom:12px; }
+@media (max-width:740px) {
+  .c-events .card-head { align-items:flex-start; }
+  .c-events .chips { width:100%; }
+  .c-events .event-row, .c-recent .event-row { grid-template-columns:minmax(0, 1fr); gap:6px; }
+  .c-events .event-meta, .c-recent .event-meta { flex-direction:row; gap:4px 12px; }
+}
 
 /* ───────────────────────── метрики ───────────────────────── */
 

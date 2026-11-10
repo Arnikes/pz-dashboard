@@ -170,6 +170,72 @@ def test_live_updates_preserve_focused_unread_control(page, dashboard):
     expect(page.locator('.notification-item[data-read="false"]')).to_have_count(1)
 
 
+def test_filter_switches_preserve_incoming_unread_and_explicit_read(page, dashboard):
+    page.goto(dashboard["url"])
+    expect(page.locator("#btnStop")).to_be_enabled()
+    render_history(page)
+    page.locator("#btnNotifications").click()
+    expect(page.locator("#notificationCount")).to_be_hidden()
+    page.evaluate("toast('New error', 'error', 120000); toast('New warning', 'warning', 120000)")
+    expect(page.locator("#notificationCount")).to_have_text("2")
+    for value, count in [("error", 2), ("unread", 2), ("all", 4), ("unread", 2)]:
+        control = page.locator(f'[data-notification-filter="{value}"]')
+        control.focus()
+        page.keyboard.press("Enter")
+        expect(control).to_be_focused()
+        expect(page.locator(".notification-item")).to_have_count(count)
+        expect(page.locator("#notificationCount")).to_have_text("2")
+    page.get_by_role("button", name="Прочитать уведомление: New error", exact=True).click()
+    expect(page.locator(".notification-item")).to_have_count(1)
+    expect(page.locator("#notificationCount")).to_have_text("1")
+    expect(page.locator('.toast[data-kind="error"]')).to_have_count(0)
+    page.locator("#notificationReadAll").click()
+    expect(page.locator(".notification-item")).to_have_count(0)
+    expect(page.locator("#notificationCount")).to_be_hidden()
+    expect(page.locator(".toast")).to_have_count(0)
+    page.locator("#notificationClose").click()
+    page.reload()
+    expect(page.locator("#btnStop")).to_be_enabled()
+    render_history(page)
+    expect(page.locator("#notificationCount")).to_be_hidden()
+
+
+def test_open_marks_only_current_filter_as_read(page, dashboard):
+    page.goto(dashboard["url"])
+    expect(page.locator("#btnStop")).to_be_enabled()
+    page.locator("#btnNotifications").click()
+    page.locator('[data-notification-filter="error"]').click()
+    page.locator("#notificationClose").click()
+    page.evaluate(
+        "toast('Filtered error', 'error', 120000); toast('Other message', 'info', 120000)"
+    )
+    page.locator("#btnNotifications").click()
+    expect(page.locator("#notificationCount")).to_have_text("1")
+    expect(page.locator('.notification-item[data-read="true"]')).to_have_count(1)
+    page.locator('[data-notification-filter="unread"]').click()
+    expect(page.locator("#notificationList")).to_contain_text("Other message")
+    expect(page.locator("#notificationCount")).to_have_text("1")
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_generic_warning_and_cancelled_operation_keep_distinct_labels(page, dashboard, language):
+    page.add_init_script(f"localStorage.setItem('pz-language', '{language}')")
+    page.goto(dashboard["url"])
+    expect(page.locator("#btnStop")).to_be_enabled()
+    page.locator("#btnNotifications").click()
+    page.evaluate("toast('Check the archive', 'warning', 120000)")
+    warning = page.locator(".notification-item").filter(has_text="Check the archive")
+    label = "Warning" if language == "en" else "Предупреждение"
+    expect(warning.locator("strong")).to_have_text(label)
+    expect(warning.locator(".notification-meta > span")).to_have_text(label)
+    render_history(page, [dict(HISTORY[0], id="cancelled", cancelled=True)])
+    cancelled = page.locator('[data-id="operation:cancelled"]')
+    expect(cancelled.locator("strong")).to_contain_text(
+        "cancelled" if language == "en" else "отменено"
+    )
+    expect(cancelled.locator(".notification-meta > span")).to_have_text(label)
+
+
 def test_identical_same_second_runs_use_server_ids(page, dashboard):
     page.goto(dashboard["url"])
     expect(page.locator("#btnStop")).to_be_enabled()

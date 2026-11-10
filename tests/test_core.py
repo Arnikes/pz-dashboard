@@ -887,6 +887,60 @@ def test_telegram_enqueue_filters(monkeypatch):
     config.CFG["server_name"] = "Project Zomboid"
 
 
+@pytest.mark.parametrize(
+    "category_enabled,problems_enabled",
+    [(False, False), (True, False), (False, True), (True, True)],
+)
+@pytest.mark.parametrize(
+    "kind,group,level,problem",
+    [
+        ("update-check", "update", "ERROR", True),
+        ("docker", "ops", "warn", True),
+        ("backup", "backup", "CRITICAL", True),
+        ("update-check", "update", None, False),
+        ("docker", "ops", "INFO", False),
+        ("backup", "backup", "DEBUG", False),
+    ],
+)
+def test_telegram_problems_supplement_categories_once(
+    monkeypatch, kind, group, level, problem, category_enabled, problems_enabled
+):
+    import notify
+
+    sent = []
+    monkeypatch.setattr(
+        ops,
+        "telegram_settings_raw",
+        lambda: {
+            "enabled": True,
+            "botToken": "123456:SECRET",
+            "chatId": "42",
+            "groups": {group: category_enabled, "problems": problems_enabled},
+        },
+    )
+    monkeypatch.setitem(config.CFG, "server_name", "")
+    monkeypatch.setattr(notify._QUEUE, "put_nowait", sent.append)
+    notify.enqueue(kind, "Original event text", level=level)
+    expected = category_enabled or problem and problems_enabled
+    assert sent == ([f"{notify.KIND_ICON[kind]} Original event text"] if expected else [])
+
+
+@pytest.mark.parametrize("kind", ["console", "delete", "unknown"])
+@pytest.mark.parametrize("level", [None, "WARNING", "ERROR", "CRITICAL"])
+def test_telegram_problem_levels_do_not_subscribe_unmapped_types(monkeypatch, kind, level):
+    import notify
+
+    monkeypatch.setattr(
+        ops,
+        "telegram_settings_raw",
+        lambda: {"enabled": True, "botToken": "123456:SECRET", "chatId": "42"},
+    )
+    enqueue = Mock()
+    monkeypatch.setattr(notify._QUEUE, "put_nowait", enqueue)
+    notify.enqueue(kind, "Unsubscribed event", level=level)
+    enqueue.assert_not_called()
+
+
 def test_telegram_send_and_test(monkeypatch):
     """sendMessage уходит с токеном из настроек; ответ API уважается; тест-кнопка."""
     import notify

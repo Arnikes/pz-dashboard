@@ -108,6 +108,9 @@ const timeFmt = new Intl.DateTimeFormat(I18n.locale, { hour: "2-digit", minute: 
 const dateFmt = new Intl.DateTimeFormat(I18n.locale, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 const timeFullFmt = new Intl.DateTimeFormat(I18n.locale, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 const dayFmt = new Intl.DateTimeFormat(I18n.locale, { day: "2-digit", month: "2-digit" });
+const eventFullFmt = new Intl.DateTimeFormat(I18n.locale, { dateStyle: "long", timeStyle: "medium" });
+const eventDayFmt = new Intl.DateTimeFormat(I18n.locale, { day: "numeric", month: "long" });
+const eventYearDayFmt = new Intl.DateTimeFormat(I18n.locale, { day: "numeric", month: "long", year: "numeric" });
 const relativeDayFmt = new Intl.RelativeTimeFormat(I18n.locale, { numeric: "auto" });
 
 function fmtTime(iso) {
@@ -295,7 +298,7 @@ const Notifications = (() => {
   const storageKey = "pz-notifications-v1";
   const panel = $("notificationCenter"), trigger = $("btnNotifications"), list = $("notificationList");
   let items = [], seen = [], ignoredBefore = 0, filter = "all";
-  const kindTitles = () => ({ ok: I18n.t("Готово"), error: I18n.t("Ошибка"), warning: I18n.t("Отменено"), pending: I18n.t("Выполняется"), info: I18n.t("Информация") });
+  const kindTitles = () => ({ ok: I18n.t("Готово"), error: I18n.t("Ошибка"), warning: I18n.t("Предупреждение"), pending: I18n.t("Выполняется"), info: I18n.t("Информация") });
   const matches = item => filter === "all" || (filter === "unread" ? !item.read : item.kind === filter);
   function load(value) {
     try {
@@ -404,7 +407,7 @@ const Notifications = (() => {
   panel.querySelectorAll("[data-notification-filter]").forEach(button => button.addEventListener("click", () => {
     filter = button.dataset.notificationFilter;
     panel.querySelectorAll("[data-notification-filter]").forEach(control => control.setAttribute("aria-pressed", String(control === button)));
-    render(); readVisible();
+    render();
   }));
   window.addEventListener("resize", position);
   window.addEventListener("scroll", position, true);
@@ -2137,6 +2140,40 @@ let eventsFilter = "all";
 let eventsData = null;
 const eventsPager = { page: 0, size: 25 };
 
+function eventLevel(ev) {
+  // Mirror logging_utils.event_level; tolerate invalid levels in older journal records.
+  let level = String(ev.level ?? "").trim().toUpperCase();
+  if (level === "WARN") level = "WARNING";
+  return ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"].includes(level)
+    ? level : ({ error: "ERROR", "rcon-error": "ERROR", warn: "WARNING" }[ev.type] || "INFO");
+}
+
+function eventSeverity(ev) {
+  const level = eventLevel(ev);
+  const label = { WARNING: I18n.t("Предупреждение"), ERROR: I18n.t("Ошибка"), CRITICAL: I18n.t("Критическая ошибка") }[level];
+  return label ? `<span class="event-severity">${esc(label)}</span>` : "";
+}
+
+function eventDate(ts) {
+  if (ts == null || ts === "") return null;
+  const date = new Date(ts);
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
+function eventTime(ts, grouped = false) {
+  const date = eventDate(ts);
+  if (!date) return `<span class="e-time mono">${esc(I18n.t("Время неизвестно"))}</span>`;
+  const full = eventFullFmt.format(date);
+  return `<time class="e-time mono" datetime="${esc(date.toISOString())}" title="${esc(full)}">${esc(grouped ? timeFmt.format(date) : relTime(ts) || fmtTime(ts))}</time>`;
+}
+
+function selectEventsFilter(filter) {
+  eventsFilter = filter;
+  eventsPager.page = 0;
+  document.querySelectorAll("#eventFilters .chip").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.ef === filter)));
+  if (eventsData) renderEvents(eventsData);
+}
+
 function renderEvents(data) {
   eventsData = data;
   const body = $("eventsBody");
@@ -2150,7 +2187,7 @@ function renderEvents(data) {
   renderRecent(items);
   const visible = eventsFilter === "all"
     ? items
-    : items.filter((ev) => (EVENT_GROUPS[eventsFilter] || []).includes(ev.type));
+    : items.filter((ev) => (EVENT_GROUPS[eventsFilter] || []).includes(ev.type) || (eventsFilter === "problems" && ["WARNING", "ERROR", "CRITICAL"].includes(eventLevel(ev))));
   eventsPager.page = Math.min(eventsPager.page, Math.max(0, Math.ceil(visible.length / eventsPager.size) - 1));
   const offset = eventsPager.page * eventsPager.size;
   const pageItems = visible.slice(offset, offset + eventsPager.size);
@@ -2163,25 +2200,26 @@ function renderEvents(data) {
     setDomProperty(body.dataset, "state", "empty");
     setStaticMarkup(body, eventsFilter === "all"
       ? I18n.msg`<p class="list-empty">Событий ещё нет.</p>`
-      : I18n.msg`<p class="list-empty">Нет событий в этой категории.</p>`);
+      : I18n.msg`<div class="events-empty"><p class="list-empty">Нет событий в этой категории.</p><button class="btn small" type="button" data-events-reset>Сбросить фильтр</button></div>`);
     return;
   }
   setDomProperty(body.dataset, "state", "ok");
   const today = new Date();
-  const yest = new Date(today.getTime() - 86400000);
+  const yest = new Date(today);
+  yest.setDate(yest.getDate() - 1);
   const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
   let html = "";
   let lastDay = "";
   for (const ev of pageItems) {
-    const d = new Date(ev.ts);
-    const key = isNaN(d) ? "" : d.toDateString();
-    if (key && key !== lastDay) {
+    const d = eventDate(ev.ts);
+    const key = d ? d.toDateString() : "unknown";
+    if (key !== lastDay) {
       lastDay = key;
-      const label = sameDay(d, today) ? I18n.t("Сегодня") : sameDay(d, yest) ? I18n.t("Вчера") : dayFmt.format(d);
+      const label = !d ? I18n.t("Время неизвестно") : sameDay(d, today) ? I18n.t("Сегодня") : sameDay(d, yest) ? I18n.t("Вчера") : (d.getFullYear() !== today.getFullYear() ? eventYearDayFmt : eventDayFmt).format(d);
       html += `<div class="event-day">${esc(label)}</div>`;
     }
-    html += `<div class="event-row" data-kind="${esc(ev.type)}">
-      <span class="e-time mono" title="${esc(ev.ts)}">${esc(relTime(ev.ts) || fmtTime(ev.ts))}</span>
+    html += `<div class="event-row" data-kind="${esc(ev.type)}" data-level="${eventLevel(ev)}">
+      <div class="event-meta">${eventTime(ev.ts, true)}${eventSeverity(ev)}</div>
       <span class="e-text"><b>${esc(EVENT_LABELS[ev.type] || ev.type)}.</b> ${esc(ev.text)}</span>
     </div>`;
   }
@@ -2191,10 +2229,13 @@ function renderEvents(data) {
 $("eventFilters").addEventListener("click", (e) => {
   const btn = e.target.closest(".chip[data-ef]");
   if (!btn) return;
-  eventsFilter = btn.dataset.ef;
-  eventsPager.page = 0;
-  document.querySelectorAll("#eventFilters .chip").forEach((c) => c.setAttribute("aria-pressed", String(c === btn)));
-  if (eventsData) renderEvents(eventsData);
+  selectEventsFilter(btn.dataset.ef);
+});
+
+$("eventsBody").addEventListener("click", event => {
+  if (!event.target.closest("[data-events-reset]")) return;
+  selectEventsFilter("all");
+  document.querySelector('#eventFilters [data-ef="all"]').focus({ preventScroll: true });
 });
 
 $("eventsPrev").addEventListener("click", () => {
@@ -2225,8 +2266,8 @@ function renderRecent(items) {
   }
   setDomProperty(body.dataset, "state", "ok");
   setStaticMarkup(body, slice.map((ev) => `
-    <div class="event-row" data-kind="${esc(ev.type)}">
-      <span class="e-time mono" title="${esc(ev.ts)}">${esc(relTime(ev.ts) || fmtTime(ev.ts))}</span>
+    <div class="event-row" data-kind="${esc(ev.type)}" data-level="${eventLevel(ev)}">
+      <div class="event-meta">${eventTime(ev.ts)}${eventSeverity(ev)}</div>
       <span class="e-text"><b>${esc(EVENT_LABELS[ev.type] || ev.type)}.</b> ${esc(ev.text)}</span>
     </div>`).join(""));
 }

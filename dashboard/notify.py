@@ -17,6 +17,7 @@ import urllib.parse
 
 import config
 import i18n
+import logging_utils
 
 # Каждому типу события — группа подписки и значок в сообщении.
 KIND_GROUP = {
@@ -156,14 +157,20 @@ def _format(kind, text, language="en"):
     return f"{icon} [{name}] {text}" if name else f"{icon} {text}"
 
 
-def enqueue(kind, text):
+def enqueue(kind, text, *, level=None):
     """Поставить событие в очередь отправки (никогда не бросает и не блокирует)."""
     try:
         tg = _telegram_settings()
         if not tg.get("enabled"):
             return
         group = KIND_GROUP.get(kind)
-        if not group or not (tg.get("groups") or {}).get(group, True):
+        if not group:
+            return
+        groups = tg.get("groups") or {}
+        severity = logging_utils.event_level(kind, level)
+        problem = severity in ("WARNING", "ERROR", "CRITICAL")
+        # Problems supplement the original category without sending duplicates.
+        if not (groups.get(group, True) or problem and groups.get("problems", True)):
             return
         if not (tg.get("botToken") or "").strip() or not (tg.get("chatId") or "").strip():
             return

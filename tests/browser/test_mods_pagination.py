@@ -37,7 +37,16 @@ def composition(page, dashboard, editing, monkeypatch):  # noqa: F811 (imported 
         lambda items: {item: f"Package {1060 - int(item):03}" for item in items},
     )
     editor.workshop.invalidate()
-    page.goto(dashboard["url"] + "/#/mods")
+    metadata_url = dashboard["url"] + "/api/mods?file=world.ini&draft=1"
+    # Finish the fixture's metadata scan before starting the UI rendering assertion.
+    with page.expect_response(
+        lambda response: response.url == metadata_url and response.request.method == "GET"
+    ) as metadata_read:
+        page.goto(dashboard["url"] + "/#/mods")
+    response = metadata_read.value
+    assert response.ok
+    assert response.finished() is None
+    assert response.json().get("ok") is True
     expect(page.locator("#modPackages details")).to_have_count(25)
     return data, ids, selected
 
