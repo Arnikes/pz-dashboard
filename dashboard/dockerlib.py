@@ -197,7 +197,7 @@ def inspect_container(name):
             "inspect",
             name,
             "--format",
-            "{{.State.Status}}|{{.State.Running}}|{{.State.StartedAt}}|{{.Config.Image}}|{{.Image}}",
+            "{{.State.Status}}|{{.State.Running}}|{{.State.StartedAt}}|{{.Config.Image}}|{{.Image}}|{{.Id}}",
         ],
         timeout=30,
     )
@@ -212,6 +212,7 @@ def inspect_container(name):
         "startedAt": parts[2],
         "image": parts[3],
         "imageId": parts[4] if len(parts) > 4 else None,
+        "containerId": parts[5] if len(parts) > 5 else None,
     }
 
 

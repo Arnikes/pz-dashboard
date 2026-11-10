@@ -330,10 +330,15 @@ All editing routes lock mutations from request submission through completion.
 Busy widgets blur their existing contents and show a centered loading indicator
 labeled "Operation in progress: <operation name>" in the selected language;
 repeated operation availability blocks are hidden. The shared operation bar uses
-the connected Route stepper for completed stages and the current stage, including
-a single stage and request preparation. Only stages actually visited by the
-operation appear; there is no inferred future sequence, percentage, or total.
-Routes with more than five visited stages become vertical on desktop as well.
+the connected Route stepper for the full planned operation, including request
+preparation and future stages. The server supplies stable step identities and
+pending, current, completed, or skipped states; completed stages represent actual
+work, while skipped branches remain distinct. Submission previews show the known
+route immediately and yield to the admitted worker's plan. Custom workers without
+a plan retain their recorded-stage fallback. No percentage is inferred from visits.
+Horizontal routes span the full inner lane: the first and last markers anchor its
+edges and intermediate markers are evenly spaced. Longer plans remain horizontal
+when their labels fit; narrow lanes and mobile use the connected vertical route.
 The current phase's detail is visible below the route on every input method.
 Countdown appears only for timed waits, uses tabular numerals, and stays separate
 from the stage sequence; there is no Elapsed row. Logs and the matching cancel

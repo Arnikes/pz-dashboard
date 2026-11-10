@@ -8,6 +8,7 @@ import uuid
 import config
 import dockerlib
 import fileio
+import operationprogress
 from errors import OpsError
 
 _CHECK = {}
@@ -221,7 +222,10 @@ def apply(phase):
         "phase": "Пересоздание контейнера пульта",
         "stages": ["Скачивание нового образа", "Пересоздание контейнера пульта"],
         "message": "Пульт перезапускается. Соединение восстановится автоматически.",
+        "plan": operationprogress.build("apply-dashboard-update"),
     }
+    operationprogress.advance(record["plan"], "Скачивание нового образа")
+    operationprogress.advance(record["plan"], record["phase"])
     _write(_path(), record)
     args = [
         "docker",
@@ -292,6 +296,7 @@ def run_helper(snapshot, container_name, service, project, image_id):
             raise OpsError("Обновление пульта не удалось. Проверьте контейнер и журнал Docker.")
         record["phase"] = "Проверка готовности пульта"
         record.setdefault("stages", []).append(record["phase"])
+        operationprogress.advance(record.get("plan"), record["phase"])
         _write(_path(), record)
         deadline = time.monotonic() + 180
         while time.monotonic() < deadline:
@@ -313,6 +318,8 @@ def run_helper(snapshot, container_name, service, project, image_id):
     except Exception as error:  # noqa: BLE001 — persist failure across replacement
         record.update(ok=False, message=str(error))
     finally:
+        if record.get("ok"):
+            operationprogress.finish(record.get("plan"))
         record.update(active=False, finishedAt=_now())
         _write(_path(), record)
         snapshot.unlink(missing_ok=True)

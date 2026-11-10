@@ -8,7 +8,13 @@ Lifecycle and world archive actions require local Docker/data access.
 Manual maintenance actions started by `POST /api/action` use the same serialized
 worker, operation bar, and result history; cancellation acts on the current worker.
 The bar appears while the request is being sent,
-then displays the server's completed and current stages. Only timed waits show a
+then displays the server's complete planned route, including pending stages.
+Each planned step has a stable ID and a pending, current, completed, or skipped
+state. Conditional branches remain pending until resolved; skipped work is never
+reported as completed. The phase history remains separate from the plan, including
+retries and nested work. Custom workers without a plan retain the visited-stage
+fallback. Wide layouts distribute markers across the whole operation bar; narrow
+layouts keep all labels readable in a vertical route. Only timed waits show a
 countdown; reaching zero does not release the operation lock. Phase diagnostics
 remain available through the operation heading's tooltip and accessible status.
 Editable widgets show the localized operation name while their controls are locked.
@@ -54,6 +60,11 @@ The API admits direct console commands, archive deletions, settings writes, and 
 mutations through the same atomic admission gate as operation starts. Concurrent
 mutations are rejected with HTTP 409, including requests sent from another tab or
 directly to the API; the worker's own lifecycle steps retain access to these services.
+Automatic verification of a saved configuration performs Docker, RCON, and Workshop
+probes outside this admission gate. Its short metadata commit rechecks the captured
+revisions, container identity, and admission generation. Starting an operation during
+the probe invalidates its result, even if that operation finishes before the probe.
+Read-only verification therefore does not make an idle operation bar reject actions.
 
 Image check actions now return `{"ok":true,"started":"check-update"}` or
 `{"ok":true,"started":"check-dashboard-update"}`, like other worker actions,

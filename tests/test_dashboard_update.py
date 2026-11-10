@@ -184,6 +184,13 @@ def test_detached_handoff_preserves_host_paths_and_secrets(deployment):
     dockerlib.image_pull.assert_called_once_with(deployment[0]["Config"]["Image"])
     assert ops.op_busy()
     assert ops.op_state()["active"]["op"] == "apply-dashboard-update"
+    plan = ops.op_state()["active"]["plan"]
+    assert [(row["id"], row["status"]) for row in plan] == [
+        ("prepare", "completed"),
+        ("image-download", "completed"),
+        ("dashboard-recreate", "current"),
+        ("dashboard-ready", "pending"),
+    ]
 
 
 def test_console_update_rejects_changed_bind_inside_mapped_host_mount(deployment):
@@ -336,6 +343,15 @@ def test_helper_only_replaces_console_and_persists_outcome(deployment, monkeypat
     monkeypatch.setattr(updater, "time", clock)
     log = Mock()
     monkeypatch.setattr(ops, "log_event", log)
+    writes = []
+    write = updater._write
+
+    def observe(path, record):
+        if "plan" in record:
+            writes.append(copy.deepcopy(record["plan"]))
+        return write(path, record)
+
+    monkeypatch.setattr(updater, "_write", observe)
     updater.run_helper(snapshot, "pz-dashboard", "pz-dashboard", "pz", NEW)
     args = command.call_args.args[0]
     assert args[-1] == "pz-dashboard"
@@ -345,6 +361,10 @@ def test_helper_only_replaces_console_and_persists_outcome(deployment, monkeypat
     result = ops.op_state()["history"][0]
     assert result["ok"] is (healthy is True)
     assert result["finishedAt"]
+    assert writes[0][-1]["id"] == "dashboard-ready"
+    assert writes[0][-1]["status"] == "current"
+    if healthy is True:
+        assert all(row["status"] == "completed" for row in result["plan"])
     log.assert_called_once()
 
 

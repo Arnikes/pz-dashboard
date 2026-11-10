@@ -938,6 +938,7 @@ function clearPendingOperation() {
   S.operationUncertain = false;
   S.actionPending = false;
   S.pendingOperation = null;
+  S.pendingPlan = null;
   S.pendingRequest = null;
   clearTimeout(operationRecoveryTimer);
 }
@@ -1034,6 +1035,11 @@ async function requestOperation(body, { timeout } = {}) {
   S.actionPending = true;
   S.operationUncertain = false;
   S.pendingOperation = body.op;
+  S.pendingPlan = OperationPlan.preview(body.op, {
+    running: S.overview?.containerInfo?.running,
+    backupBeforeUpdate: S.overview?.settings?.autoUpdate?.backupBeforeUpdate,
+    ...body,
+  });
   updateButtons();
   try {
     if (!S.opsLoaded && !await refreshOps()) throw new Error(I18n.t("Запрос не принят"));
@@ -1056,7 +1062,7 @@ async function requestOperation(body, { timeout } = {}) {
     const finished = res.operationId && S.op?.history?.some(row => row.id === res.operationId);
     if (finished && !hadActive && !S.op?.active) refreshAll();
     if (!S.op?.active && !finished && !hasReceipt) {
-      S.op = { ...S.op, active: { id: res.operationId, op: started, phase: I18n.t("Подготовка…"), startedAt: new Date().toISOString() } };
+      S.op = { ...S.op, active: { id: res.operationId, op: started, phase: I18n.t("Подготовка…"), plan: S.pendingPlan, startedAt: new Date().toISOString() } };
       S.lastOpActive = true;
       opsGeneration++;
       updateButtons();
@@ -1481,8 +1487,19 @@ function updateButtons() {
   }
 }
 
+function updateOperationStageLayout() {
+  const stages = $("opStages");
+  const count = stages.children.length;
+  const style = getComputedStyle(stages);
+  const width = stages.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  // Long routes remain horizontal whenever the lane has room for readable labels.
+  setDomProperty(stages.dataset, "layout", innerWidth <= 540 || width < (count - 1) * 88 + 32 ? "vertical" : "horizontal");
+}
+
+new ResizeObserver(updateOperationStageLayout).observe($("opStages"));
+
 function renderActiveOperation() {
-  const active = S.op?.active || (S.actionPending ? { op: S.pendingOperation, phase: I18n.t("Подготовка…") } : null);
+  const active = S.op?.active || (S.actionPending ? { op: S.pendingOperation, phase: I18n.t("Подготовка…"), plan: S.pendingPlan } : null);
   if (active) {
     setDomProperty($("opbar"), "hidden", false);
     setDomProperty($("opMsg"), "textContent", active.message || "");
@@ -1491,22 +1508,27 @@ function renderActiveOperation() {
     const done = ["Готово", I18n.t("Готово")];
     const phase = typeof active.phase === "string" ? active.phase.trim() : "";
     let stages = (Array.isArray(active.stages) ? active.stages : []).filter(stage => typeof stage === "string" && stage.trim() && !done.includes(stage));
-    // Stages are visits, not a plan: keep repeated visits and append a newer phase.
+    // Legacy/custom workers can still supply visits without a planned route.
     if (phase && !done.includes(phase) && stages.at(-1) !== phase) stages.push(phase);
     if (stages.some(stage => !preparing.includes(stage))) stages = stages.filter(stage => !preparing.includes(stage));
     if (!stages.length) stages = [I18n.t("Подготовка…")];
     // A nested worker may say Done before the outer operation finishes.
     // Its last real visit stays current until an authoritative terminal frame.
-    const markup = stages.map((stage, index) => {
-      const current = index === stages.length - 1;
-      const label = `${stage}: ${current ? I18n.t("Выполняется") : I18n.t("Завершено")}`;
-      const marker = current ? index + 1 : '<svg class="op-stage-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>';
-      return `<li class="route-step" data-state="${current ? "current" : "ok"}"${current ? ' aria-current="step"' : ' data-complete="true"'} aria-label="${esc(label)}"><div class="route-step-body"><span class="route-marker" aria-hidden="true">${marker}</span><span class="route-copy"><strong class="op-stage-label">${esc(stage)}</strong><span class="op-stage-state${current ? "" : " sr-only"}">${current ? I18n.t("Выполняется") : I18n.t("Завершено")}</span></span></div>${current ? "" : '<span class="route-connector" aria-hidden="true"></span>'}</li>`;
+    const plan = OperationPlan.valid(active.plan) ? active.plan : stages.map((label, index) => ({ id: `visit-${index}`, label, status: index === stages.length - 1 ? "current" : "completed" }));
+    const statuses = { pending: I18n.t("Ожидается"), current: I18n.t("Выполняется"), completed: I18n.t("Завершено"), skipped: I18n.t("Пропущено") };
+    const markup = plan.map((step, index) => {
+      const current = step.status === "current", completed = step.status === "completed";
+      const title = I18n.t(step.label), status = statuses[step.status];
+      const marker = completed ? '<svg class="op-stage-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>'
+        : step.status === "skipped" ? '<svg viewBox="0 0 24 24"><path d="M7 12h10"/></svg>' : index + 1;
+      const position = plan.length > 1 ? index / (plan.length - 1) : 0;
+      const next = plan.length > 1 ? (index + 1) / (plan.length - 1) : 0;
+      return `<li class="route-step" data-step-id="${esc(step.id)}" data-status="${step.status}" data-state="${completed ? "ok" : step.status}" style="--op-position:${position};--op-next-position:${next}"${current ? ' aria-current="step"' : completed ? ' data-complete="true"' : ""} aria-label="${esc(`${title}: ${status}`)}"><div class="route-step-body"><span class="route-marker" aria-hidden="true">${marker}</span><span class="route-copy"><strong class="op-stage-label">${esc(title)}</strong><span class="op-stage-state${completed ? " sr-only" : ""}">${esc(status)}</span></span></div>${index < plan.length - 1 ? '<span class="route-connector" aria-hidden="true"></span>' : ""}</li>`;
     }).join("");
     const title = OP_TITLES[active.op] || active.op;
     setDomProperty($("opPhase"), "textContent", title);
     if ($("opStages").innerHTML !== markup) $("opStages").innerHTML = markup;
-    setDomProperty($("opStages").dataset, "layout", stages.length > 5 ? "vertical" : "horizontal");
+    updateOperationStageLayout();
   } else {
     setDomProperty($("opbar"), "hidden", true);
   }

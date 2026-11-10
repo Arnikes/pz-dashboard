@@ -106,7 +106,10 @@ def test_checks_share_pending_progress_and_one_failure_result(
         "Подготовка…" if language == "ru" else "Preparing…"
     )
     expect(page.locator("#opStages")).to_be_visible()
-    expect(page.locator("#opStages li")).to_have_count(1)
+    expect(page.locator("#opStages li")).to_have_count(3 if operation == "check-mods-update" else 2)
+    expect(page.locator('#opStages [data-status="pending"]')).to_have_count(
+        2 if operation == "check-mods-update" else 1
+    )
     expect(page.locator("#btnRestart")).to_be_disabled()
     assert len(held) == 1
     assert held[0].request.post_data_json == {"op": operation}
@@ -321,3 +324,161 @@ def test_nested_completion_does_not_claim_the_active_operation_finished(page, da
     page.evaluate("active=>renderOp({active,history:[]})", active)
     expect(page.locator('#opStages [aria-current="step"]')).to_contain_text(warning)
     expect(page.locator('#opStages [data-complete="true"]')).to_have_count(2)
+
+
+@pytest.mark.parametrize("language,width", [("ru", 390), ("en", 1440)])
+def test_planned_route_keeps_future_and_skipped_steps_distinct(page, dashboard, language, width):
+    page.set_viewport_size({"width": width, "height": 900})
+    page.add_init_script(f"localStorage.setItem('pz-language','{language}')")
+    page.goto(dashboard["url"] + "/#/maintenance")
+    expect(page.locator("#startupLoader")).to_be_hidden()
+    page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
+    plan = page.evaluate(
+        "OperationPlan.preview('apply-update', {running:true,warnSeconds:300,backupBeforeUpdate:true})"
+    )
+    active = {"op": "apply-update", "phase": "Подготовка…", "stages": [], "plan": plan}
+    page.evaluate("active=>renderOp({active,history:[]})", active)
+    expect(page.locator("#opStages li")).to_have_count(len(plan))
+    expect(page.locator('#opStages [data-status="pending"]')).to_have_count(len(plan) - 1)
+    expect(page.locator('#opStages [aria-current="step"]')).to_have_attribute(
+        "data-step-id", "prepare"
+    )
+    expect(page.locator('#opStages [data-step-id="ready"]')).to_contain_text(
+        "Ожидается" if language == "ru" else "Pending"
+    )
+    expect(page.locator("#opStages button, #opStages a")).to_have_count(0)
+
+    # A skipped conditional branch stays visible without claiming work was done.
+    current_index = next(index for index, step in enumerate(plan) if step["id"] == "stop")
+    for index, step in enumerate(plan):
+        step["status"] = (
+            "skipped"
+            if step["id"] == "backup"
+            else "completed"
+            if index < current_index
+            else "current"
+            if index == current_index
+            else "pending"
+        )
+    active.update(phase="Остановка", plan=plan, stages=["Остановка"])
+    page.evaluate("active=>renderOp({active,history:[]})", active)
+    skipped = page.locator('#opStages [data-step-id="backup"]')
+    expect(skipped).to_have_attribute("data-status", "skipped")
+    expect(skipped).not_to_have_attribute("data-complete", "true")
+    expect(skipped).to_contain_text("Пропущено" if language == "ru" else "Skipped")
+    expect(page.locator('#opStages [aria-current="step"]')).to_have_count(1)
+    expect(page.locator('#opStages [data-status="pending"]')).to_have_count(2)
+    expect(page.locator("#btnRestart")).to_be_disabled()
+
+    # A nested Done does not finish the worker or erase its remaining route.
+    active["phase"] = "Готово"
+    page.evaluate("active=>renderOp({active,history:[]})", active)
+    expect(page.locator('#opStages [aria-current="step"]')).to_have_attribute(
+        "data-step-id", "stop"
+    )
+    expect(page.locator("#opStages li")).to_have_count(len(plan))
+    page.evaluate("renderOp({active:null,history:[]})")
+    expect(page.locator("#opbar")).to_be_hidden()
+    expect(page.locator("#btnRestart")).to_be_enabled()
+
+
+@pytest.mark.parametrize(
+    "language,width", [("ru", 390), ("en", 541), ("ru", 768), ("en", 1440), ("ru", 2560)]
+)
+@pytest.mark.parametrize("count", [1, 2, 3, 5, 8, 12])
+def test_planned_route_markers_fill_the_available_lane(page, dashboard, language, width, count):
+    page.set_viewport_size({"width": width, "height": 900})
+    page.add_init_script(f"localStorage.setItem('pz-language','{language}')")
+    page.goto(dashboard["url"] + "/#/maintenance")
+    expect(page.locator("#startupLoader")).to_be_hidden()
+    page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
+    labels = [
+        "Подготовка…",
+        "Проверка актуального образа",
+        "Скачивание нового образа",
+        "Страховочный бэкап",
+        "Предупреждение игроков",
+        "Остановка сервера",
+        "Пересоздание контейнера",
+        "Запуск сервера",
+        "Загрузка сервера",
+        "Проверка конфигурации",
+        "Проверка и распаковка в песочницу",
+        "Проверка готовности пульта",
+    ][:count]
+    active = {
+        "op": "apply-update",
+        "phase": labels[0],
+        "message": "Preparing the operation" if language == "en" else "Подготовка операции",
+        "plan": [
+            {"id": f"step-{index}", "label": label, "status": "pending" if index else "current"}
+            for index, label in enumerate(labels)
+        ],
+    }
+    page.evaluate("active=>renderOp({active,history:[]})", active)
+    page.evaluate("document.fonts.ready")
+    expect(page.locator("#opStages li")).to_have_count(count)
+    metrics = page.locator("#opStages").evaluate("""flow=>{
+        const box = el => {const r=el.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height};};
+        const style=getComputedStyle(flow), bounds=box(flow);
+        return {layout:flow.dataset.layout,left:bounds.left+parseFloat(style.paddingLeft),right:bounds.right-parseFloat(style.paddingRight),
+            steps:[...flow.children].map(step=>({marker:box(step.querySelector('.route-marker')),copy:box(step.querySelector('.route-copy')),
+                labelLines:(()=>{const range=document.createRange();range.selectNodeContents(step.querySelector('.op-stage-label'));return [...range.getClientRects()].map(r=>({left:r.left,right:r.right,top:r.top,width:r.width}));})(),
+                connector:step.querySelector('.route-connector')?box(step.querySelector('.route-connector')):null}))};
+    }""")
+    steps = metrics["steps"]
+    assert abs(steps[0]["marker"]["left"] - metrics["left"]) <= 1
+    if width >= 1440:
+        assert metrics["layout"] == "horizontal", "Wide routes must also fit more than five steps"
+    if metrics["layout"] == "horizontal" and count > 1:
+        assert abs(steps[-1]["marker"]["right"] - metrics["right"]) <= 1
+        intervals = [
+            steps[index + 1]["marker"]["left"] - step["marker"]["left"]
+            for index, step in enumerate(steps[:-1])
+        ]
+        assert max(intervals) - min(intervals) <= 1
+        for index, step in enumerate(steps[:-1]):
+            connector, following = step["connector"], steps[index + 1]["marker"]
+            assert abs(connector["left"] - step["marker"]["right"] - 12) <= 1
+            assert abs(following["left"] - connector["right"] - 12) <= 1
+            assert connector["width"] > 0
+        for index, step in enumerate(steps[:-1]):
+            for line in step["labelLines"]:
+                for following in steps[index + 1]["labelLines"]:
+                    if abs(line["top"] - following["top"]) <= 1:
+                        assert following["left"] - line["right"] >= 4
+        for step in steps:
+            if len(step["labelLines"]) > 1:
+                assert step["labelLines"][-1]["width"] >= 14, "Avoid a lone-letter final line"
+    elif metrics["layout"] == "vertical":
+        for index, step in enumerate(steps):
+            assert abs(step["marker"]["left"] - metrics["left"]) <= 1
+            if step["connector"]:
+                assert step["marker"]["bottom"] < step["connector"]["top"]
+                assert step["connector"]["bottom"] < steps[index + 1]["marker"]["top"]
+    assert steps[-1]["connector"] is None
+    assert all(
+        metrics["left"] - 1 <= step["copy"]["left"] <= step["copy"]["right"] <= metrics["right"] + 1
+        for step in steps
+    )
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    target = Path(__file__).resolve().parents[2] / ".tmp-operation-progress"
+    target.mkdir(exist_ok=True)
+    capture_evidence(
+        page.locator("#opbar"), path=str(target / f"plan-{count}-{language}-{width}.png")
+    )
+    if width <= 540 and count == 12:
+        # Tall routes remain reachable above the fixed footer and mobile navigation.
+        for element in [
+            page.locator("#opStages li").last,
+            page.locator("#opMsg"),
+            page.locator('#opbar a[href="#/console"]'),
+        ]:
+            element.evaluate("el=>el.scrollIntoView({block:'center',behavior:'instant'})")
+            expect(element).to_be_in_viewport()
+            box, footer = element.bounding_box(), page.locator(".site-footer").bounding_box()
+            assert box["y"] + box["height"] <= footer["y"]
+        capture_evidence(page, path=str(target / "plan-12-ru-390-scrolled.png"))
+    page.emulate_media(reduced_motion="reduce", forced_colors="active")
+    expect(page.locator('#opStages [aria-current="step"]')).to_be_visible()
+    expect(page.locator('#opStages [data-status="pending"]')).to_have_count(count - 1)

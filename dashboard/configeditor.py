@@ -1,6 +1,7 @@
 """Profile-scoped drafts, optimistic concurrency and recoverable file transactions."""
 
 import difflib
+from copy import deepcopy
 import hashlib
 import json
 import os
@@ -1424,7 +1425,9 @@ def run(data, prepare=False):
             and not (root / "transaction.json").exists()
             and revision(read_profile(file)) == saved["baseRevision"]
         ):
-            ops._set_phase("Запуск сервера", "Восстановление сервера после ошибки")
+            ops._set_phase(
+                "Запуск сервера", "Восстановление сервера после ошибки", interrupted=True
+            )
             code, out, err = ops._start_container()
             try:
                 if code != 0:
@@ -1448,11 +1451,11 @@ def auto_verify_running():
     container = ops.container_state() or {}
     if not container.get("running") or not container.get("startedAt"):
         return
+    file = context()["activeFile"]
+    if not file:
+        return
     with LOCK:
         if ops.op_busy():
-            return
-        file = context()["activeFile"]
-        if not file:
             return
         root = state_dir(file)
         state = load_json(root / "state.json")
@@ -1468,206 +1471,221 @@ def auto_verify_running():
             and state.get("appliedRevision") == state["savedRevision"] == revision(current)
         ):
             return
-        try:
-            verify_running(
-                {
-                    "file": file,
-                    "draftRevision": saved["draftRevision"],
-                    "currentRevision": revision(current),
-                },
-                automatic=True,
-            )
-        except EditorError as error:
-            # Startup readiness failures are expected. Other failures remain
-            # unconfirmed and are reported once per distinct failure/start.
-            failure = (file, container["startedAt"], state["savedRevision"], str(error))
-            if "PZ/RCON пока" not in str(error) and failure != _AUTO_VERIFY_FAILURE:
-                ops.log_event("warn", f"Автопроверка конфигурации {file}: {error}")
-            _AUTO_VERIFY_FAILURE = failure
-            return
-        _AUTO_VERIFY_FAILURE = None
+        request = {
+            "file": file,
+            "draftRevision": saved["draftRevision"],
+            "currentRevision": revision(current),
+        }
+    try:
+        verify_running(request, automatic=True)
+    except EditorError as error:
+        # Startup readiness failures are expected. Other failures remain
+        # unconfirmed and are reported once per distinct failure/start.
+        failure = (file, container["startedAt"], state["savedRevision"], str(error))
+        if "PZ/RCON пока" not in str(error) and failure != _AUTO_VERIFY_FAILURE:
+            ops.log_event("warn", f"Автопроверка конфигурации {file}: {error}")
+        _AUTO_VERIFY_FAILURE = failure
+        return
+    _AUTO_VERIFY_FAILURE = None
 
 
 _AUTO_VERIFY_FAILURE = None
 
 
+def _verification_fingerprint(file):
+    """Local inputs only: no Docker, RCON or Workshop work under admission locks."""
+    root = state_dir(file)
+    paths = [
+        root / "draft.json",
+        root / "state.json",
+        root / "transaction.json",
+        *profile_paths(file).values(),
+    ]
+    history_id = load_json(root / "state.json").get("historyId")
+    if history_id:
+        paths.append(root / "history" / history_id / "ini")
+    contents = tuple(path.read_bytes() if path.exists() else None for path in paths)
+    location = tuple(config.CFG.get(key) for key in ("data_dir", "dashboard_dir", "pz_container"))
+    environment = tuple(os.getenv(key) for key in ("PZ_CONFIG_FILE", "PZ_VERSION"))
+    return location, environment, contents
+
+
 def verify_running(data, *, automatic=False):
-    """Recheck a saved revision after an external restart; never write game files."""
+    """Probe without admission locks, then publish only an unchanged observation."""
     file = choose(data.get("file"))
+    root = state_dir(file)
     with LOCK, ops.mutation_guard(EditorError("Дождитесь завершения операции", 409)):
-        if ops.op_busy():
-            raise EditorError("Дождитесь завершения операции", 409)
-        saved = load_json(state_dir(file) / "draft.json")
+        generation = ops.operation_generation()
+        fingerprint = _verification_fingerprint(file)
+        saved = load_json(root / "draft.json")
         if not saved or saved["draftRevision"] != data.get("draftRevision"):
             raise EditorError("Черновик изменился: загрузите профиль заново", 409)
-        state = load_json(state_dir(file) / "state.json")
+        state = load_json(root / "state.json")
         expected = state.get("snapshots", {}).get("saved") or saved["base"]
         if state.get("savedRevision") != revision(expected):
             raise EditorError(
                 "Нет подтверждённой записанной ревизии для проверки. Просмотрите изменения и примените конфигурацию",
                 409,
             )
-        ctx = context(refresh=True)
-        container = confirmed_container()
-        if not ctx["activeFile"]:
-            raise EditorError(
-                "Активный профиль не определён. Проверьте SERVER_NAME или -servername сервера; при необходимости задайте PZ_CONFIG_FILE в пульте",
-                409,
-            )
-        if ctx["activeFile"] != file:
-            raise EditorError(
-                "Выбранный профиль не активен. Откройте активный профиль сервера и повторите проверку",
-                409,
-            )
-        version = str(ctx["version"])
-        if re.fullmatch(r"\d{2}\.\d+(?:\.\d+)?", version) and not version.startswith("42."):
-            raise EditorError(
-                "Версия сервера не поддерживается: для проверки требуется B42 (42.*)", 409
-            )
-        if not ctx["versionKnown"] or not version.startswith("42."):
-            raise EditorError(
-                "Версия сервера неизвестна. Проверьте доступность логов текущего запуска PZ из пульта",
-                409,
-            )
-        if not ctx["mountsKnown"]:
-            raise EditorError(
-                "Общий каталог данных сервера и пульта не подтверждён. Проверьте монтирование DATA_DIR и -cachedir сервера",
-                409,
-            )
-        if not container["running"]:
-            raise EditorError("Сервер остановлен: проверка запуска недоступна", 409)
-        try:
-            ready = ops.rcon("players", quiet=True)
-        except ops.rconlib.RCONError:
-            raise EditorError(
-                "PZ/RCON пока не готов. Проверьте логи и повторите проверку", 409
-            ) from None
-        if not isinstance(ready, str) or not re.search(
-            r"\bPlayers\s+connected\s*\(\d+\)", ready, re.I
-        ):
-            raise EditorError("PZ/RCON пока не подтвердил готовность", 409)
-        current = read_profile(file)
-        if data.get("currentRevision") != revision(current):
-            raise EditorError(
-                "Файлы изменились после загрузки страницы. Загрузите профиль заново", 409
-            )
-        # Older panel versions did not persist the permission. Recover it only
-        # from this operation's own pre-write backup, never from a guess.
-        allow_reset = state.get("allowRuntimeReset", False)
-        if "allowRuntimeReset" not in state and state.get("historyId"):
-            history = state_dir(file) / "history" / state["historyId"] / "ini"
-            if history.is_file():
-                old_reset = (
-                    ini_entries(history.read_text(encoding="utf-8")).get("ResetID", {}).get("value")
-                )
-                allow_reset = bool(
-                    old_reset
-                    and old_reset == ini_entries(expected["ini"]).get("ResetID", {}).get("value")
-                )
-        if not startup_profile_matches(
-            {**expected, "sandbox": current["sandbox"]}, current, allow_runtime_reset=allow_reset
-        ):
-            raise EditorError(
-                "Настройки на диске отличаются от записанных. Просмотрите различия; проверка не подтверждает применение",
-                409,
-            )
-        current_mods = mod_state(file, current, refresh=True)
-        discovered = {w["workshopId"]: w["available"] for w in current_mods["workshop"]}
-        defaults = startup_sandbox_defaults(
-            expected["sandbox"], current["sandbox"], discovered, current_mods["mods"]
+    ctx = deepcopy(context(refresh=True))
+    container = confirmed_container()
+    if not ctx["activeFile"]:
+        raise EditorError(
+            "Активный профиль не определён. Проверьте SERVER_NAME или -servername сервера; при необходимости задайте PZ_CONFIG_FILE в пульте",
+            409,
         )
-        if defaults is None:
-            raise EditorError(
-                "Значения SandboxVars отличаются от записанных. Просмотрите различия", 409
+    if ctx["activeFile"] != file:
+        raise EditorError(
+            "Выбранный профиль не активен. Откройте активный профиль сервера и повторите проверку",
+            409,
+        )
+    version = str(ctx["version"])
+    if re.fullmatch(r"\d{2}\.\d+(?:\.\d+)?", version) and not version.startswith("42."):
+        raise EditorError(
+            "Версия сервера не поддерживается: для проверки требуется B42 (42.*)", 409
+        )
+    if not ctx["versionKnown"] or not version.startswith("42."):
+        raise EditorError(
+            "Версия сервера неизвестна. Проверьте доступность логов текущего запуска PZ из пульта",
+            409,
+        )
+    if not ctx["mountsKnown"]:
+        raise EditorError(
+            "Общий каталог данных сервера и пульта не подтверждён. Проверьте монтирование DATA_DIR и -cachedir сервера",
+            409,
+        )
+    if not container["running"]:
+        raise EditorError("Сервер остановлен: проверка запуска недоступна", 409)
+    try:
+        ready = ops.rcon("players", quiet=True)
+    except ops.rconlib.RCONError:
+        raise EditorError(
+            "PZ/RCON пока не готов. Проверьте логи и повторите проверку", 409
+        ) from None
+    if not isinstance(ready, str) or not re.search(r"\bPlayers\s+connected\s*\(\d+\)", ready, re.I):
+        raise EditorError("PZ/RCON пока не подтвердил готовность", 409)
+    current = read_profile(file)
+    if data.get("currentRevision") != revision(current):
+        raise EditorError("Файлы изменились после загрузки страницы. Загрузите профиль заново", 409)
+    # Older panel versions did not persist the permission. Recover it only
+    # from this operation's own pre-write backup, never from a guess.
+    allow_reset = state.get("allowRuntimeReset", False)
+    if "allowRuntimeReset" not in state and state.get("historyId"):
+        history = state_dir(file) / "history" / state["historyId"] / "ini"
+        if history.is_file():
+            old_reset = (
+                ini_entries(history.read_text(encoding="utf-8")).get("ResetID", {}).get("value")
             )
-        failures = [
-            p
-            for p in current_mods["problems"]
-            if p["severity"] == "error" or p["code"] in ("unknown", "cached")
-        ]
-        if failures:
-            raise EditorError(
-                "Состав модов не подтверждён: " + "; ".join(p["message"] for p in failures), 409
+            allow_reset = bool(
+                old_reset
+                and old_reset == ini_entries(expected["ini"]).get("ResetID", {}).get("value")
             )
-        sandbox = literal_table(current["sandbox"]) if current["sandbox"] else None
-        failures.extend(configschema.mod_option_errors(sandbox, discovered, current_mods["mods"]))
-        if failures:
-            raise EditorError(
-                "Настройки модов не подтверждены: " + "; ".join(p["message"] for p in failures), 409
-            )
-        installation = state.get("installation")
-        stage = None
-        if installation:
-            added = installation.get("addedItems", [])
-            manifest = workshop.download_manifest(added)
-            if manifest is not None and not all(manifest.get(w, False) for w in added):
-                raise EditorError("Steam-манифест не подтверждает загрузку пакетов", 409)
+    if not startup_profile_matches(
+        {**expected, "sandbox": current["sandbox"]}, current, allow_runtime_reset=allow_reset
+    ):
+        raise EditorError(
+            "Настройки на диске отличаются от записанных. Просмотрите различия; проверка не подтверждает применение",
+            409,
+        )
+    current_mods = mod_state(file, current, refresh=True)
+    discovered = {w["workshopId"]: w["available"] for w in current_mods["workshop"]}
+    defaults = startup_sandbox_defaults(
+        expected["sandbox"], current["sandbox"], discovered, current_mods["mods"]
+    )
+    if defaults is None:
+        raise EditorError(
+            "Значения SandboxVars отличаются от записанных. Просмотрите различия", 409
+        )
+    failures = [
+        p
+        for p in current_mods["problems"]
+        if p["severity"] == "error" or p["code"] in ("unknown", "cached")
+    ]
+    if failures:
+        raise EditorError(
+            "Состав модов не подтверждён: " + "; ".join(p["message"] for p in failures), 409
+        )
+    sandbox = literal_table(current["sandbox"]) if current["sandbox"] else None
+    failures.extend(configschema.mod_option_errors(sandbox, discovered, current_mods["mods"]))
+    if failures:
+        raise EditorError(
+            "Настройки модов не подтверждены: " + "; ".join(p["message"] for p in failures), 409
+        )
+    installation = state.get("installation")
+    stage = None
+    if installation:
+        added = installation.get("addedItems", [])
+        manifest = workshop.download_manifest(added)
+        if manifest is not None and not all(manifest.get(w, False) for w in added):
+            raise EditorError("Steam-манифест не подтверждает загрузку пакетов", 409)
+        if any(
+            not discovered.get(w)
+            or not any(r.get("modId") and r.get("compatible") is not False for r in discovered[w])
+            for w in added
+        ):
+            raise EditorError("Не все новые пакеты содержат доступные ModID B42", 409)
+        stage = (
+            "select-mods"
             if any(
-                not discovered.get(w)
-                or not any(
-                    r.get("modId") and r.get("compatible") is not False for r in discovered[w]
-                )
+                not any(r.get("modId") in current_mods["mods"] for r in discovered[w])
                 for w in added
-            ):
-                raise EditorError("Не все новые пакеты содержат доступные ModID B42", 409)
-            stage = (
-                "select-mods"
-                if any(
-                    not any(r.get("modId") in current_mods["mods"] for r in discovered[w])
-                    for w in added
-                )
-                else None
             )
-        merged = merge_verified_profile(saved, current)
-        after_container = ops.container_state() or {}
-        if (
-            ops.op_busy()
-            or revision(read_profile(file)) != revision(current)
-            or not after_container.get("running")
-            or after_container.get("startedAt") != container.get("startedAt")
+            else None
+        )
+    merged = merge_verified_profile(saved, current)
+    after_context = context(refresh=True)
+    after_container = ops.container_state() or {}
+    if after_context != ctx or any(
+        after_container.get(key) != container.get(key)
+        for key in ("running", "startedAt", "containerId", "image", "imageId")
+    ):
+        raise EditorError("Сервер или файлы изменились во время проверки: повторите её", 409)
+    if state.get("error"):
+        state["lastFailure"] = {
+            k: state.get(k)
+            for k in ("error", "operationStartedAt", "operationCompletedAt", "historyId")
+        }
+    state.pop("error", None)
+    if stage:
+        installation.update(stage=stage, manifestVerified=manifest is not None)
+    else:
+        state.pop("installation", None)
+    state.update(
+        status=stage or "applied",
+        savedRevision=revision(current),
+        appliedRevision=revision(current),
+        snapshots={"saved": current.copy()},
+        allowRuntimeReset=allow_reset,
+        startedAt=container.get("startedAt"),
+        verifiedAt=ops.now_iso(),
+        verificationProblems=current_mods["problems"],
+    )
+    previous_draft_revision = saved["draftRevision"]
+    saved.update(
+        base=current.copy(),
+        texts=merged,
+        baseRevision=revision(current),
+        draftRevision=uuid.uuid4().hex,
+    )
+    if automatic:
+        state["autoVerifiedDraft"] = {
+            "from": previous_draft_revision,
+            "to": saved["draftRevision"],
+        }
+    else:
+        state.pop("autoVerifiedDraft", None)
+    with LOCK, ops.mutation_guard(EditorError("Дождитесь завершения операции", 409)):
+        if generation != ops.operation_generation() or fingerprint != _verification_fingerprint(
+            file
         ):
             raise EditorError("Сервер или файлы изменились во время проверки: повторите её", 409)
-        if state.get("error"):
-            state["lastFailure"] = {
-                k: state.get(k)
-                for k in ("error", "operationStartedAt", "operationCompletedAt", "historyId")
-            }
-        state.pop("error", None)
-        if stage:
-            installation.update(stage=stage, manifestVerified=manifest is not None)
-        else:
-            state.pop("installation", None)
-        state.update(
-            status=stage or "applied",
-            savedRevision=revision(current),
-            appliedRevision=revision(current),
-            snapshots={"saved": current.copy()},
-            allowRuntimeReset=allow_reset,
-            startedAt=container.get("startedAt"),
-            verifiedAt=ops.now_iso(),
-            verificationProblems=current_mods["problems"],
-        )
-        previous_draft_revision = saved["draftRevision"]
-        saved.update(
-            base=current.copy(),
-            texts=merged,
-            baseRevision=revision(current),
-            draftRevision=uuid.uuid4().hex,
-        )
-        if automatic:
-            state["autoVerifiedDraft"] = {
-                "from": previous_draft_revision,
-                "to": saved["draftRevision"],
-            }
-        else:
-            state.pop("autoVerifiedDraft", None)
-        save_json(state_dir(file) / "draft.json", saved)
-        save_json(state_dir(file) / "state.json", state)
-        ops.log_event(
-            "mods",
-            f"Конфигурация {file}: готовность PZ/RCON и записанные настройки проверены без рестарта",
-        )
-        return response(saved, current)
+        save_json(root / "draft.json", saved)
+        save_json(root / "state.json", state)
+    ops.log_event(
+        "mods",
+        f"Конфигурация {file}: готовность PZ/RCON и записанные настройки проверены без рестарта",
+    )
+    return response(saved, current)
 
 
 def queue(data, prepare=False):
@@ -1702,7 +1720,18 @@ def queue(data, prepare=False):
         if not prepare and not data.get("restart") and ops.is_running():
             raise EditorError("Сначала остановите сервер", 409)
     operation = "prepare-workshop" if prepare else "apply-config"
-    operation_id = ops.start_op(operation, lambda: run(dict(data, file=file), prepare))
+    worker = ops.operationprogress.planned(
+        lambda: run(dict(data, file=file), prepare),
+        operation,
+        {
+            **data,
+            "running": ops.is_running(),
+            "backupBeforeApply": data.get(
+                "backupBeforeApply", bool(result["modChanges"] or prepare)
+            ),
+        },
+    )
+    operation_id = ops.start_op(operation, worker)
     response = {"ok": True, "operation": operation}
     if isinstance(operation_id, str):
         response.update(operationId=operation_id, operationState=ops.op_state())

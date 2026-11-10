@@ -41,6 +41,7 @@ from errors import (
 import dockerlib
 import dashboardupdate
 import serverupdate
+import operationprogress
 import notify as notifylib
 import rcon as rconlib
 
@@ -558,6 +559,7 @@ _OP_CANCEL = threading.Event()
 _OP_HISTORY = deque(maxlen=10)
 _OP_SNAPSHOT_EPOCH = uuid.uuid4().hex
 _OP_SNAPSHOT_SEQUENCE = 0
+_OP_GENERATION = 0
 _OP_REQUEST_PENDING = set()
 _OP_REQUEST_FENCED = set()
 _UNTRACKED_REQUEST = object()
@@ -609,8 +611,8 @@ def op_state():
     global _OP_SNAPSHOT_SEQUENCE
     with _OP_LOCK:
         dashboard_op = dashboardupdate.operation()
-        active = {**_ACTIVE, "stages": list(_ACTIVE.get("stages", []))} if _ACTIVE["op"] else None
-        history = list(_OP_HISTORY)
+        active = deepcopy(_ACTIVE) if _ACTIVE["op"] else None
+        history = deepcopy(list(_OP_HISTORY))
         if dashboard_op:
             if dashboard_op.get("active"):
                 active = dashboard_op
@@ -632,6 +634,13 @@ def op_busy():
         return _ACTIVE["op"] is not None or bool((dashboardupdate.operation() or {}).get("active"))
 
 
+def operation_generation():
+    """Fence slow observations across worker starts and persisted helper handoffs."""
+    with _OP_LOCK:
+        helper = dashboardupdate.operation()
+        return _OP_GENERATION, json.dumps(helper, sort_keys=True)
+
+
 def cancel_mods_update(operation_id=None):
     """Отменить текущий авторестарт модов до начала остановки сервера."""
     with _OP_LOCK:
@@ -649,6 +658,7 @@ def cancel_mods_update(operation_id=None):
         _ACTIVE["message"] = "Отмена автообновления модов…"
         _ACTIVE["countdownEndsAt"] = None
         _ACTIVE.setdefault("stages", []).append("Отмена")
+        operationprogress.advance(_ACTIVE.get("plan"), "Отмена")
         _OP_CANCEL.set()
 
 
@@ -671,10 +681,11 @@ def cancel_image_update(operation_id=None):
             countdownEndsAt=None,
         )
         _ACTIVE.setdefault("stages", []).append("Отмена")
+        operationprogress.advance(_ACTIVE.get("plan"), "Отмена")
         _OP_CANCEL.set()
 
 
-def _set_phase(phase, message="", *, countdown_seconds=None):
+def _set_phase(phase, message="", *, countdown_seconds=None, interrupted=False):
     with _OP_LOCK:
         _ACTIVE["phase"] = phase
         _ACTIVE["message"] = message
@@ -684,6 +695,7 @@ def _set_phase(phase, message="", *, countdown_seconds=None):
         stages = _ACTIVE.setdefault("stages", [])
         if phase not in {"Подготовка…", "Готово"} and (not stages or stages[-1] != phase):
             stages.append(phase)
+        operationprogress.advance(_ACTIVE.get("plan"), phase, interrupted=interrupted)
 
 
 def _start_worker(op, fn):
@@ -692,8 +704,18 @@ def _start_worker(op, fn):
 
 
 def _launch_worker(op, fn):
+    global _OP_GENERATION
     notification_language = player_notification_language()
     operation_id = uuid.uuid4().hex
+    plan = getattr(fn, "__dict__", {}).get("operation_plan")
+    if plan is None:
+        plan = operationprogress.build(
+            op,
+            {
+                "backupBeforeUpdate": get_settings()["autoUpdate"].get("backupBeforeUpdate", True),
+                "s3": config.CFG.get("backup_s3_enabled", False),
+            },
+        )
 
     def worker():
         language_token = _PLAYER_LANGUAGE.set(notification_language)
@@ -702,6 +724,7 @@ def _launch_worker(op, fn):
             if result == "handoff":
                 return
             with _OP_LOCK:
+                operationprogress.finish(_ACTIVE.get("plan"))
                 _OP_HISTORY.appendleft(
                     {
                         "id": operation_id,
@@ -709,6 +732,7 @@ def _launch_worker(op, fn):
                         "ok": True,
                         "message": _ACTIVE["message"],
                         "finishedAt": now_iso(),
+                        "plan": deepcopy(_ACTIVE.get("plan")),
                         **({"cancelled": True} if result in ("cancelled", "aborted") else {}),
                         **(
                             {"archive": result}
@@ -766,12 +790,14 @@ def _launch_worker(op, fn):
                 _ACTIVE["cancelRequested"] = False
                 _ACTIVE["countdownEndsAt"] = None
                 _ACTIVE["stages"] = []
+                _ACTIVE["plan"] = None
                 _OP_CANCEL.clear()
 
     with _OP_LOCK:
         if _ACTIVE["op"] or (dashboardupdate.operation() or {}).get("active"):
             raise OpsError("Уже выполняется другая операция, подождите")
         previous_active = dict(_ACTIVE)
+        _OP_GENERATION += 1
         _OP_CANCEL.clear()
         _ACTIVE.update(
             {
@@ -784,6 +810,7 @@ def _launch_worker(op, fn):
                 "cancelRequested": False,
                 "countdownEndsAt": None,
                 "stages": ["Подготовка…"],
+                "plan": deepcopy(plan),
             }
         )
     try:
@@ -1136,6 +1163,7 @@ def _do_apply_update(warn_seconds, reason="Обновление сервера")
         _begin_watchdog_grace()
         code, out, err = serverupdate.recreate(model, snapshot)
         if code != 0:
+            _set_phase("Запуск сервера", "Восстановление сервера после ошибки", interrupted=True)
             start_code, _, _ = _start_container()
             recovered = start_code == 0 and wait_until_ready()
             recovery_message = (
@@ -1431,7 +1459,7 @@ def _do_backup(stop_server, trigger="manual", started=None):
         raise
     finally:
         if stop_server and was_running:
-            _set_phase("Запуск сервера", "docker start")
+            _set_phase("Запуск сервера", "docker start", interrupted=archive_error is not None)
             code, out, err = _start_container()
             restart_error = None
             if code != 0:

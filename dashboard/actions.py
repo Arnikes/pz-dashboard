@@ -4,6 +4,7 @@ from functools import partial
 
 import ops
 import dashboardupdate
+import operationprogress
 from extensions import ActionContext, ActionSpec, ExtensionRegistry, extension_failure
 
 
@@ -165,6 +166,24 @@ def dispatch(data, *, registry=None):
                 return prepared
 
             worker = _custom_worker(_custom_callback(prepare, owner), owner)
+        if owner is None:
+            running = (
+                ops.is_running()
+                if action
+                in {"stop", "restart", "apply-update", "apply-mods-update", "backup", "restore"}
+                else None
+            )
+            worker = operationprogress.planned(
+                worker,
+                action,
+                {
+                    "warnSeconds": warn,
+                    "stopServer": data.get("stopServer", False),
+                    "backupBeforeUpdate": settings["autoUpdate"].get("backupBeforeUpdate", True),
+                    "s3": ops.config.CFG.get("backup_s3_enabled", False),
+                    "running": running,
+                },
+            )
         with ops.mutation_guard():
             if spec.before_start is not None:
                 if owner is None:

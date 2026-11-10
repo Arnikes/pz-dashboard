@@ -16,6 +16,7 @@ import configprofiles  # noqa: E402
 import configeditor as editor  # noqa: E402
 import ops  # noqa: E402
 import workshop  # noqa: E402
+import operationprogress  # noqa: E402
 from configformats import (
     FormatError,
     LuaTable,
@@ -29,6 +30,7 @@ from configformats import (
 
 INI = "# keep comment\r\nPublicName=Сервер\r\nPassword=topsecret\r\nMods=\\library;\\plugin\r\nWorkshopItems=111\r\nMap=Muldraugh, KY\r\nUnknown=preserve\r\n"
 LUA = 'SandboxVars = {\n -- keep\n VERSION = 5,\n Zombies = 4,\n Mod = { Enabled = true, Count = 2, Password = "hidden-token", },\n}\n'
+SET_PHASE = ops._set_phase
 
 
 @pytest.fixture
@@ -82,7 +84,24 @@ def change(**kwargs):
 def test_controlled_config_restart_refreshes_watchdog_grace(env, monkeypatch, prepare):
     data, _ = env
     phases = []
-    monkeypatch.setattr(ops, "_set_phase", lambda phase, *args, **kwargs: phases.append(phase))
+    plans = []
+    operation = "prepare-workshop" if prepare else "apply-config"
+    monkeypatch.setattr(
+        ops,
+        "_ACTIVE",
+        {
+            "op": operation,
+            "stages": [],
+            "plan": operationprogress.build(operation, {"restart": True, "warnSeconds": 0}),
+        },
+    )
+
+    def observe(phase, *args, **kwargs):
+        SET_PHASE(phase, *args, **kwargs)
+        phases.append(phase)
+        plans.append(json.loads(json.dumps(ops._ACTIVE["plan"])))
+
+    monkeypatch.setattr(ops, "_set_phase", observe)
     current = (
         change(mods={"items": ["111", "222"]}) if prepare else change(ini={"PublicName": "New"})
     )
@@ -110,7 +129,7 @@ def test_controlled_config_restart_refreshes_watchdog_grace(env, monkeypatch, pr
 
     monkeypatch.setattr(ops, "graceful_stop", stop)
     monkeypatch.setattr(editor.dockerlib, "container_start", start)
-    monkeypatch.setattr(editor, "wait_ready", lambda: None)
+    monkeypatch.setattr(ops, "rcon", lambda *args, **kwargs: "Players connected (0):")
     editor.run(
         {
             "file": "world.ini",
@@ -123,6 +142,9 @@ def test_controlled_config_restart_refreshes_watchdog_grace(env, monkeypatch, pr
     assert ops.watchdog_state()["graceRemainingSec"] == 300
     assert phases.index("Запись конфигурации") < phases.index("Проверка конфигурации")
     assert phases[-1] == "Готово"
+    assert next(row["status"] for row in plans[0] if row["id"] == "config-write") == "pending"
+    assert next(row["status"] for row in plans[-1] if row["id"] == "config-verify") == "current"
+    assert all(sum(row["status"] == "current" for row in plan) == 1 for plan in plans)
 
 
 def test_ini_lossless_and_secret_masking():
@@ -1962,6 +1984,92 @@ def saved_verification(env, monkeypatch, installed=False):
     }
 
 
+@pytest.mark.parametrize("automatic", [False, True])
+@pytest.mark.parametrize(
+    "interference", ["worker", "draft", "state", "file", "container", "context", "handoff"]
+)
+def test_slow_verification_releases_both_locks_and_discards_stale_observation(
+    env, monkeypatch, automatic, interference
+):
+    data, request = saved_verification(env, monkeypatch)
+    root = editor.state_dir("world.ini")
+    before = {name: (root / name).read_bytes() for name in ("draft.json", "state.json")}
+    entered, release = threading.Event(), threading.Event()
+    monkeypatch.setattr(ops, "_ACTIVE", {"op": None, "stages": []})
+    monkeypatch.setattr(ops, "_OP_GENERATION", 0)
+    monkeypatch.setattr(ops, "op_busy", lambda: ops._ACTIVE["op"] is not None)
+    helper = [None]
+    monkeypatch.setattr(ops.dashboardupdate, "operation", lambda: helper[0])
+
+    def probe(*args, **kwargs):
+        entered.set()
+        assert release.wait(5)
+        return "Players connected (0):"
+
+    monkeypatch.setattr(ops, "rcon", probe)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(
+            editor.auto_verify_running if automatic else editor.verify_running,
+            *([] if automatic else [request]),
+        )
+        try:
+            assert entered.wait(5)
+            # Another thread can acquire both admission and editor metadata locks.
+            assert editor.LOCK.acquire(blocking=False)
+            editor.LOCK.release()
+            with ops.mutation_guard():
+                pass
+            if interference == "worker":
+                finished = threading.Event()
+                ops.start_op("check-update", finished.set)
+                assert finished.wait(3)
+                for thread in threading.enumerate():
+                    if thread.name == "op-check-update":
+                        thread.join(3)
+                assert not ops.op_busy()  # start + finish must still invalidate the probe (ABA).
+            elif interference == "draft":
+                editor.patch(
+                    {
+                        "file": "world.ini",
+                        "draftRevision": request["draftRevision"],
+                        "ini": {"PublicName": "Concurrent edit"},
+                    }
+                )
+            elif interference == "state":
+                state = editor.load_json(root / "state.json")
+                state["error"] = "Newer operation failure"
+                editor.save_json(root / "state.json", state)
+            elif interference == "file":
+                path = data / "Server/world.ini"
+                path.write_bytes(
+                    path.read_bytes().replace(b"Unknown=preserve", b"Unknown=external")
+                )
+            elif interference == "container":
+                monkeypatch.setattr(
+                    ops,
+                    "container_state",
+                    lambda: {
+                        "running": True,
+                        "startedAt": "external-start",
+                        "containerId": "replacement",
+                    },
+                )
+            elif interference == "context":
+                env[1]["activeFile"] = "other.ini"
+            else:
+                helper[0] = {"id": "replacement-helper", "active": False, "ok": True}
+            expected = {name: (root / name).read_bytes() for name in before}
+        finally:
+            release.set()
+        if automatic:
+            future.result(timeout=5)
+        else:
+            with pytest.raises(editor.EditorError):
+                future.result(timeout=5)
+    assert {name: (root / name).read_bytes() for name in before} == expected
+    assert not any(call.args[0] == "mods" for call in ops.log_event.call_args_list)
+
+
 @pytest.mark.parametrize(
     "context_changes,reason,hints",
     [
@@ -2746,6 +2854,9 @@ def test_changed_field_markers_survive_reload_and_reset_without_leaking_secrets(
 def test_failed_prewrite_apply_waits_for_recovery_before_reporting_error(env, monkeypatch, ready):
     current = change(ini={"PublicName": "Keep draft"})
     running = [True]
+    plan = operationprogress.build("apply-config", {"restart": True, "warnSeconds": 0})
+    monkeypatch.setattr(ops, "_ACTIVE", {"op": "apply-config", "stages": [], "plan": plan})
+    monkeypatch.setattr(ops, "_set_phase", SET_PHASE)
     monkeypatch.setattr(ops, "is_running", lambda: running[0])
     monkeypatch.setattr(ops, "run_backup_job", Mock(side_effect=ops.OpsError("Backup unavailable")))
 
@@ -2779,6 +2890,9 @@ def test_failed_prewrite_apply_waits_for_recovery_before_reporting_error(env, mo
     editor.wait_ready.assert_called_once()
     assert editor.read_profile("world.ini")["ini"] == INI
     assert editor.draft("world.ini")["state"]["status"] == "error"
+    assert next(row["status"] for row in plan if row["id"] == "backup") == "skipped"
+    assert next(row["status"] for row in plan if row["id"] == "config-write") == "skipped"
+    assert next(row["status"] for row in plan if row["id"] == "start") == "current"
     if not ready:
         import i18n
 

@@ -1689,5 +1689,7 @@
   "Файл карты повреждён или недоступен.": "The map file is invalid or unavailable.",
   "Карта показана частично: достигнут предел размера.": "The map is shown partially: size limit reached.",
   "Мод карты игроков недоступен": "Player map integration is unavailable",
-  "Наложение мод-карт не проверено. Геометрия может перекрываться.": "Mod map layering is unverified. Geometry may overlap."
+  "Наложение мод-карт не проверено. Геометрия может перекрываться.": "Mod map layering is unverified. Geometry may overlap.",
+  "Ожидается": "Pending",
+  "Пропущено": "Skipped"
 }
