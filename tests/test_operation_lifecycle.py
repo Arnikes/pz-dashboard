@@ -266,8 +266,15 @@ def test_launch_keeps_lock_and_history_pending_until_game_readiness(
             lambda *args: ("sample.tar", str(tmp_path / "sample.tar"), 5),
         )
         monkeypatch.setattr(ops, "_prune_backups", lambda keep: 0)
+        monkeypatch.setattr(ops, "verify_backup", Mock())
         monkeypatch.setattr(ops, "_journal_append", Mock())
     if operation == "restore":
+        data = tmp_path / "restore-data"
+        data.mkdir()
+        monkeypatch.setitem(ops.config.CFG, "data_dir", str(data))
+        restore_source = tmp_path / "restore-source"
+        restore_source.mkdir()
+        (restore_source / "world.bin").write_bytes(b"restored world")
         monkeypatch.setattr(ops, "container_state", lambda: {"running": False})
         monkeypatch.setattr(ops, "_restore_files", Mock())
     workers = {
@@ -278,7 +285,7 @@ def test_launch_keeps_lock_and_history_pending_until_game_readiness(
         "update-recovery": lambda: ops._do_apply_update(0),
         "apply-mods-update": lambda: ops._do_apply_mods_update(0),
         "backup": lambda: ops._do_backup(True),
-        "restore": lambda: ops._restore_prepared(tmp_path, "sample.tar"),
+        "restore": lambda: ops._restore_prepared(restore_source, "sample.tar"),
     }
     ops.start_op(operation, workers[operation])
     try:

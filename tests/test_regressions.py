@@ -165,6 +165,27 @@ def test_backups_in_same_second_preserve_both_world_versions(sandbox, monkeypatc
             assert tar.extractfile("./world.bin").read() == expected
 
 
+def test_logs_only_backup_cannot_replace_previous_recovery_copy(sandbox, monkeypatch):
+    sandbox.unlink()
+    logs = sandbox.parent / "Logs"
+    logs.mkdir()
+    (logs / "server.log").write_bytes(b"only excluded logs remain")
+    previous = Path(config.CFG["backup_dir"]) / "previous.tar.gz"
+    previous.write_bytes(b"previous recovery copy")
+    ops._SETTINGS["backup"]["maxBackups"] = 1
+    prune = Mock(wraps=ops._prune_backups)
+    monkeypatch.setattr(ops, "_prune_backups", prune)
+    with pytest.raises(ops.OpsErrorReported, match="Архив пуст"):
+        ops.run_backup_job("scheduled", False)
+    prune.assert_not_called()
+    assert previous.read_bytes() == b"previous recovery copy"
+    (record,) = ops.get_backup_journal()
+    assert record["status"] == "error" and record["trigger"] == "scheduled"
+    assert Path(record["path"]).exists() and record["name"] != previous.name
+    assert record["size"] == Path(record["path"]).stat().st_size
+    assert not list(Path(config.CFG["dashboard_dir"]).glob("verify-tmp-*"))
+
+
 def test_rotation_keeps_newest_backup_within_the_same_second(sandbox, monkeypatch):
     bdir = Path(config.CFG["backup_dir"])
     older = bdir / "older.tar.gz"

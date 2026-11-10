@@ -1428,7 +1428,12 @@ def test_restore_aborts_on_resurrect(tmp_path, monkeypatch):
     with pytest.raises(ops.OpsError, match="Docker сам перезапустил"):
         ops._do_restore(bak.name)
     stop.assert_called_once()
-    assert not any(Path(path).is_relative_to(data) for path in wiped)
+    removed_from_data = [Path(path) for path in wiped if Path(path).is_relative_to(data)]
+    assert all(
+        path.parent == data and path.name.startswith((".pz-restore-", ".pz-previous-"))
+        for path in removed_from_data
+    )
+    assert {path.name for path in data.iterdir()} == {"world", "keep.txt"}
     assert (data / "keep.txt").exists(), "файлы мира не должны удаляться"
 
 

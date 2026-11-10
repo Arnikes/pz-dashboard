@@ -272,8 +272,17 @@ def test_export_verifies_before_upload_and_deletes_after_readback(
 
 
 @pytest.mark.parametrize("broken", ["gzip", "crc", "unsafe", "empty"])
-def test_invalid_archive_never_contacts_s3(backup_env, s3_client, monkeypatch, broken):
+@pytest.mark.parametrize("s3_enabled", [False, True])
+def test_invalid_created_archive_never_prunes_or_exports(
+    backup_env, s3_client, monkeypatch, broken, s3_enabled
+):
     root, cfg = backup_env
+    cfg["backup_s3_enabled"] = s3_enabled
+    previous = root / "backups/previous.tar.gz"
+    previous.parent.mkdir()
+    previous.write_bytes(b"previous recovery copy")
+    prune = Mock()
+    monkeypatch.setattr(ops, "_prune_backups", prune)
     original = ops._create_backup_archive
 
     def create(bdir, ddir):
@@ -296,10 +305,15 @@ def test_invalid_archive_never_contacts_s3(backup_env, s3_client, monkeypatch, b
     with pytest.raises(ops.OpsErrorReported):
         ops.run_backup_job("scheduled", False)
     backups3.boto3.client.assert_not_called()
-    assert len(list((root / "backups").glob("*.tar.gz"))) == 1
+    prune.assert_not_called()
+    assert previous.read_bytes() == b"previous recovery copy"
+    assert len(list((root / "backups").glob("*.tar.gz"))) == 2
     (record,) = ops.get_backup_journal()
     assert record["status"] == "error" and record["name"]
     assert Path(record["path"]).exists()
+    assert record["size"] == Path(record["path"]).stat().st_size
+    assert len([call for call in ops.log_event.call_args_list if call.args[0] == "error"]) == 1
+    assert not any("Бэкап создан" in call.args[1] for call in ops.log_event.call_args_list)
     assert not (root / "escape").exists()
 
 
@@ -344,19 +358,66 @@ def test_export_failures_keep_current_and_previous_archives(
         assert s3_client.body.closed
 
 
-def test_local_mode_keeps_archive_and_retention_without_s3(backup_env, s3_client, monkeypatch):
+def test_local_mode_verifies_and_remembers_before_retention(backup_env, s3_client, monkeypatch):
     root, cfg = backup_env
     cfg["backup_s3_enabled"] = False
     cfg["backup_s3_bucket"] = ""
-    verify = Mock(side_effect=AssertionError("Local backups do not require verification"))
+    verify = Mock(wraps=ops.verify_backup)
     monkeypatch.setattr(ops, "verify_backup", verify)
-    prune = Mock(return_value=0)
+
+    def prune_verified(_keep):
+        (item,) = ops.list_backups()
+        assert item["verification"]["files"] == 2
+        return 0
+
+    prune = Mock(side_effect=prune_verified)
     monkeypatch.setattr(ops, "_prune_backups", prune)
     result = ops.run_backup_job("manual", False)
     assert result["storage"] == "local" and Path(result["path"]).exists()
-    verify.assert_not_called()
+    verify.assert_called_once_with(result["name"])
     prune.assert_called_once_with(1)
     backups3.boto3.client.assert_not_called()
+
+
+@pytest.mark.parametrize("s3_enabled", [False, True])
+def test_local_receipt_failure_preserves_archive_and_retention(
+    backup_env, s3_client, monkeypatch, s3_enabled
+):
+    root, cfg = backup_env
+    cfg["backup_s3_enabled"] = s3_enabled
+    previous = root / "backups/previous.tar.gz"
+    previous.parent.mkdir()
+    previous.write_bytes(b"previous recovery copy")
+    monkeypatch.setattr(backupverify, "remember", Mock(side_effect=OSError("receipt disk full")))
+    prune = Mock()
+    monkeypatch.setattr(ops, "_prune_backups", prune)
+    with pytest.raises(ops.OpsErrorReported, match="результат проверки"):
+        ops.run_backup_job("manual", False)
+    prune.assert_not_called()
+    backups3.boto3.client.assert_not_called()
+    assert previous.read_bytes() == b"previous recovery copy"
+    (record,) = ops.get_backup_journal()
+    assert record["status"] == "error" and record["trigger"] == "manual"
+    assert Path(record["path"]).name == record["name"]
+    assert record["size"] == Path(record["path"]).stat().st_size
+    assert len([call for call in ops.log_event.call_args_list if call.args[0] == "error"]) == 1
+    assert not any("Бэкап создан" in call.args[1] for call in ops.log_event.call_args_list)
+
+
+@pytest.mark.parametrize("trigger", ["manual", "scheduled"])
+@pytest.mark.parametrize("stop_server", [False, True])
+def test_backup_of_off_server_preserves_off_state(backup_env, monkeypatch, trigger, stop_server):
+    _root, cfg = backup_env
+    cfg["backup_s3_enabled"] = False
+    callbacks = ["rcon", "rcon_warn_broadcast", "graceful_stop", "_start_container"]
+    for callback in callbacks:
+        monkeypatch.setattr(ops, callback, Mock())
+    result = ops.run_backup_job(trigger, stop_server)
+    assert result["storage"] == "local" and Path(result["path"]).exists()
+    for callback in callbacks:
+        getattr(ops, callback).assert_not_called()
+    (record,) = ops.get_backup_journal()
+    assert record["status"] == "success" and record["trigger"] == trigger
 
 
 @pytest.mark.parametrize(
@@ -395,23 +456,28 @@ def test_success_does_not_prune_failed_exports_and_object_keys_are_unique(backup
     assert previous.read_bytes() == b"keep"
 
 
-def test_stopped_backup_restarts_before_export(backup_env, s3_client, monkeypatch):
+@pytest.mark.parametrize("s3_enabled", [False, True])
+def test_stopped_backup_restarts_and_is_ready_before_verification(
+    backup_env, s3_client, monkeypatch, s3_enabled
+):
+    _root, cfg = backup_env
+    cfg["backup_s3_enabled"] = s3_enabled
     order = []
     monkeypatch.setattr(ops, "is_running", lambda: True)
     monkeypatch.setattr(ops, "rcon_warn_broadcast", lambda *args: None)
     monkeypatch.setattr(ops, "graceful_stop", lambda *args: "stopped")
     monkeypatch.setattr(ops, "_start_container", lambda: (order.append("restarted") or 0, "", ""))
     monkeypatch.setattr(ops, "wait_until_running", lambda *args: True)
-    monkeypatch.setattr(ops, "wait_until_ready", lambda: True)
+    monkeypatch.setattr(ops, "wait_until_ready", lambda: order.append("ready") or True)
     original = ops.verify_backup
 
     def verify(name):
-        assert order == ["restarted"]
+        assert order == ["restarted", "ready"]
         return original(name)
 
     monkeypatch.setattr(ops, "verify_backup", verify)
     ops.run_backup_job("manual", True)
-    assert s3_client.keys
+    assert bool(s3_client.keys) == s3_enabled
 
 
 def test_deadline_retains_local_archive(backup_env, s3_client, monkeypatch):
@@ -841,8 +907,6 @@ def test_local_receipt_survives_history_and_is_revoked_after_same_size_replaceme
     _, cfg = backup_env
     cfg["backup_s3_enabled"] = False
     exported = ops.run_backup_job("manual", False)
-    assert ops.list_backups()[0]["verification"] is None
-    ops.verify_backup(exported["name"])
     assert ops.list_backups()[0]["verification"]["files"] == 2
     original = Path(exported["path"])
     stat = original.stat()

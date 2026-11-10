@@ -353,3 +353,167 @@ def test_s3_error_preserves_local_actions_and_catalog_errors_do_not_resurrect_st
     expect(page.locator("#backupsBody [data-b]")).to_have_count(0)
     expect(page.locator('#backupsBody [data-load-retry="backups"]')).to_be_enabled()
     expect(page.locator("#backupsStorageError")).to_be_hidden()
+
+
+def _open_polished_backups(page, dashboard, language, width):
+    page.set_viewport_size({"width": width, "height": 900})
+    page.add_init_script(f"localStorage.setItem('pz-language', '{language}')")
+    page.goto(dashboard["url"] + "/#/backups")
+    expect(page.locator("#startupLoader")).to_be_hidden()
+    page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
+    page.wait_for_load_state("networkidle")
+
+
+def _capture_backup_polish(page, name):
+    if output := os.getenv("PZ_BACKUP_POLISH_EVIDENCE"):
+        capture_evidence(page, path=str(Path(output) / f"{name}.png"), full_page=True)
+
+
+@pytest.mark.parametrize("width", [320, 390, 1440])
+@pytest.mark.parametrize("language", ["ru", "en"])
+def test_backup_storage_errors_and_unlimited_retention_are_readable(
+    page, dashboard, width, language
+):
+    _open_polished_backups(page, dashboard, language, width)
+    problem = "S3: " + "VeryLongStorageProviderErrorWithoutSpaces" * 8
+    page.evaluate(
+        """error => renderBackups({ok:true,maxBackups:0,items:[
+          {name:'retained-local-with-a-very-long-name.tar.gz',size:7,storage:'local',
+           mtime:'2026-10-10T03:00:00Z'},
+          {name:'exported-remote-with-a-very-long-name.tar.gz',size:8,storage:'s3',
+           mtime:'2026-10-09T03:00:00Z'}],journal:[
+          {ts:'2026-10-10T03:00:00Z',trigger:'scheduled',status:'error',
+           name:'retained-local-with-a-very-long-name.tar.gz',error}]})""",
+        problem,
+    )
+    expect(page.locator(".b-storage")).to_have_text(
+        ["Локально" if language == "ru" else "Local", "S3"]
+    )
+    expect(page.locator(".j-error")).to_be_visible()
+    expect(page.locator(".j-error")).to_have_text(problem)
+    assert page.locator(".j-error").evaluate("el => el.scrollWidth <= el.clientWidth")
+    expect(page.locator("#bkAutoKeep")).to_have_value("0")
+    assert page.locator("#bkAutoKeep").evaluate("el => el.checkValidity()")
+    expect(page.locator("#bkKeepHint")).to_have_text(
+        "0 — без ограничения" if language == "ru" else "0 — no limit"
+    )
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    _capture_backup_polish(page, f"catalog-{language}-{width}")
+    page.evaluate("S.backupsItems[0].storage='s3';renderBackupsPage()")
+    expect(page.locator(".b-storage").first).to_have_text("S3")
+    assert dashboard["actions"] == []
+
+
+@pytest.mark.parametrize("width", [320, 390, 1440])
+@pytest.mark.parametrize("language", ["ru", "en"])
+def test_restore_reviews_selected_archive_and_requires_keyboard_acknowledgement(
+    page, dashboard, width, language
+):
+    _open_polished_backups(page, dashboard, language, width)
+    name = 'world-<img src=x onerror="window.unsafeBackup=true">-{{0}}-long-name.tar.gz'
+    item = {
+        "name": name,
+        "storage": "s3",
+        "size": 1048576,
+        "mtime": "2026-10-09T03:00:00Z",
+        "verification": {
+            "verifiedAt": "2026-10-10T03:00:00Z",
+            "files": 3,
+            "hasServerIni": False,
+            "hasMapData": False,
+        },
+    }
+    page.evaluate("item => renderBackups({ok:true,items:[item]})", item)
+    trigger = page.locator('[data-b="restore"]')
+    trigger.click()
+    expect(page.locator("#modalCancel")).to_be_focused()
+    expect(page.locator("#modalOk")).to_be_disabled()
+    expect(page.locator(".backup-selected")).to_have_text(name)
+    expect(page.locator(".backup-details dd").first).to_have_text("S3")
+    expect(page.locator(".backup-details dd").nth(1)).to_have_text(
+        "1,0 МБ" if language == "ru" else "1.0 MB"
+    )
+    expect(page.locator(".backup-details dd").nth(2)).to_have_text(
+        page.evaluate("date => fmtTime(date)", item["mtime"])
+    )
+    expect(page.locator(".backup-restore-verification")).to_contain_text(
+        "Нет данных мира" if language == "ru" else "Missing world data"
+    )
+    expect(page.locator(".backup-restore-verification")).to_contain_text("Server/*.ini")
+    body = page.locator("#modalBody")
+    expect(body).to_contain_text(
+        "заново проверит архив" if language == "ru" else "check the archive again"
+    )
+    expect(body).to_contain_text("60")
+    assert page.locator("#modalBody img").count() == 0
+    assert page.evaluate("window.unsafeBackup !== true")
+    assert dashboard["actions"] == []
+    assert body.evaluate("el => el.scrollWidth <= el.clientWidth")
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    _capture_backup_polish(page, f"restore-{language}-{width}")
+    page.keyboard.press("Escape")
+    expect(trigger).to_be_focused()
+    item.pop("verification")
+    page.evaluate("item => renderBackups({ok:true,items:[item]})", item)
+    page.evaluate("S.overview.containerInfo.running=false")
+    trigger.click()
+    expect(page.locator(".backup-restore-verification")).to_have_count(0)
+    expect(body).to_contain_text(
+        "После замены данных пульт запустит его"
+        if language == "ru"
+        else "will start it after replacing the data"
+    )
+    expect(page.locator("#modalCancel")).to_be_focused()
+    page.keyboard.press("Shift+Tab")
+    expect(page.locator("#restoreAck")).to_be_focused()
+    page.keyboard.press("Space")
+    expect(page.locator("#modalOk")).to_be_enabled()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
+    expect(page.locator("#modalOk")).to_be_focused()
+    assert dashboard["actions"] == []
+    page.keyboard.press("Enter")
+    expect(page.locator("#toasts")).to_contain_text("Тест: сервер занят")
+    assert dashboard["actions"][-1]["op"] == "restore"
+    assert dashboard["actions"][-1]["name"] == name
+    expect(page.locator("#restoreAck")).to_be_checked()
+
+
+@pytest.mark.parametrize("language", ["ru", "en"])
+@pytest.mark.parametrize("running", [True, False, None])
+@pytest.mark.parametrize("stop", [True, False])
+def test_backup_dialog_explains_running_stopped_and_unknown_state(
+    page, dashboard, language, running, stop
+):
+    _open_polished_backups(page, dashboard, language, 390)
+    page.evaluate("running => { S.overview.containerInfo={running}; }", running)
+    page.locator("#btnBackup").click()
+    body = page.locator("#modalBody")
+    if running is False:
+        expect(page.locator("#bkStop")).to_have_count(0)
+        expect(body).to_contain_text(
+            "оставит сервер выключенным" if language == "ru" else "leave the server off"
+        )
+    else:
+        expect(page.locator("#bkModeHint")).to_contain_text("RCON")
+        if running is None:
+            expect(body).to_contain_text(
+                "Состояние сервера неизвестно" if language == "ru" else "server state is unknown"
+            )
+        if stop:
+            page.locator("#bkStop").check()
+            expect(page.locator("#bkModeHint")).to_contain_text("60")
+            expect(page.locator("#bkModeHint")).to_contain_text(
+                "запустит его снова" if language == "ru" else "then restart it"
+            )
+            expect(page.locator("#bkModeHint")).to_contain_text(
+                "Остановленный сервер останется выключенным"
+                if language == "ru"
+                else "A stopped server will stay off"
+            )
+    assert dashboard["actions"] == []
+    assert body.evaluate("el => el.scrollWidth <= el.clientWidth")
+    page.locator("#modalOk").click()
+    expect(page.locator("#toasts")).to_contain_text("Тест: сервер занят")
+    assert dashboard["actions"][-1]["op"] == "backup"
+    assert dashboard["actions"][-1]["stopServer"] is (stop and running is not False)

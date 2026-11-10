@@ -90,19 +90,39 @@ inbox, while newly completed operations also show a toast.
 
 ## Backups and restore
 
-Manual backups request an RCON save and archive the data directory; logs are excluded.
-Choose a stopped-server backup when a fully stopped snapshot is required.
+Backups archive the data directory; logs are excluded. A running server receives
+an RCON save unless the stop-server option is selected for a fully stopped snapshot.
+If the server is already stopped, both backup modes leave it stopped and skip
+player warnings and RCON commands. This also applies to scheduled backups.
 Daily backups use container time (`TZ`), default to 03:00, and retain seven archives
 by default. A missed scheduled run is caught up when the panel starts.
 Configure the time, retention count, and stop-server option in Backups.
+A retention count of `0` keeps all archives.
+
+Every new local or S3 backup verifies the complete gzip stream and safely extracts
+the archive into a temporary directory before reporting success or deleting older
+copies. The result is saved as a verification receipt. Empty or damaged archives
+and receipt-write failures fail the operation, keep the new archive for inspection,
+and preserve previous backups. The failed journal entry identifies the created archive.
+When a backup stops a running server, the panel restarts it and waits for PZ/RCON
+readiness before verifying the archive or transferring it to S3.
 
 Runs are recorded in `dashboard-data/backups.jsonl`; events appear in
 `events.jsonl`. Failures are visible in the UI and can notify Telegram.
 Archive verification extracts into an isolated temporary directory without stopping
-the live server. Restore verifies and prepares the archive, warns players, stops the
-server, replaces the data, and starts it again. Explicit replacement confirmation is required.
+the live server. Restore validates the archive and copies its files, including
+ownership metadata, onto the data volume before warning players or stopping the
+server. Preparation also reserves the directory used to preserve the original world.
+A preparation failure cleans up temporary files and leaves a running server online.
+Only after Docker confirms the server is stopped does the panel replace the data
+and start the server. A successful restore starts the server even if it was stopped
+beforehand. Explicit replacement confirmation is required.
 
-Successful manual checks and automatic S3 export checks appear as an olive
+Publication failures attempt to restore the original world and leave the server
+stopped. If rollback fails, the error identifies the retained original and staged
+data directories for manual recovery; neither directory is removed automatically.
+
+Successful manual checks and automatic checks of new local and S3 backups appear as an olive
 "Verified" shield, with the check date, file count, and any missing world/configuration
 notes beside the archive. The check control is disabled for a verified archive.
 Receipts persist in `dashboard-data/backup-verifications.json`, independently of
@@ -130,9 +150,8 @@ extracts the tar into a temporary directory, uploads it, then reads the complete
 S3 object back and compares its size, SHA-256 bytes, and stored SHA-256 metadata
 with the local archive. It also confirms the local archive has not changed since
 verification and saves the verification receipt before deleting the local file. Only then
-is the local archive deleted. Verification cannot be disabled for S3. Backups using
-the stop-server option restart the game after archive creation, before verification
-and network transfer. Configuration application may keep the server stopped across
+is the local archive deleted. Verification cannot be disabled. Configuration
+application may keep the server stopped across
 its nested backup and subsequent file changes.
 
 Unique object keys prevent same-second backups or multiple panel instances from

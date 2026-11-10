@@ -127,6 +127,126 @@ def test_restore_failed_rollback_retains_original_files(audit_env, tmp_path, mon
     dockerlib.container_start.assert_not_called()
 
 
+@pytest.mark.parametrize("fault", ["copy", "ownership", "recovery-directory"])
+def test_restore_preparation_failure_keeps_running_world_untouched(
+    audit_env, tmp_path, monkeypatch, fault
+):
+    (audit_env / "world.bin").write_bytes(b"original world")
+    source = tmp_path / "prepared"
+    source.mkdir()
+    (source / "world.bin").write_bytes(b"replacement world")
+    monkeypatch.setattr(ops, "is_running", lambda: True)
+    warning, stop = Mock(), Mock(return_value="stopped")
+    monkeypatch.setattr(ops, "rcon_warn_broadcast", warning)
+    monkeypatch.setattr(ops, "graceful_stop", stop)
+    if fault == "copy":
+
+        def fail_copy(_source, target, **_kwargs):
+            Path(target, "partial.bin").write_bytes(b"partial")
+            raise OSError("data volume full")
+
+        monkeypatch.setattr(ops.shutil, "copytree", fail_copy)
+    elif fault == "ownership":
+        monkeypatch.setattr(ops.os, "geteuid", lambda: 0, raising=False)
+        monkeypatch.setattr(
+            ops.os, "chown", Mock(side_effect=OSError("ownership failed")), raising=False
+        )
+    else:
+        mkdtemp = ops.tempfile.mkdtemp
+
+        def fail_recovery_directory(*args, **kwargs):
+            if kwargs.get("prefix") == ".pz-previous-":
+                raise OSError("cannot reserve recovery directory")
+            return mkdtemp(*args, **kwargs)
+
+        monkeypatch.setattr(ops.tempfile, "mkdtemp", fail_recovery_directory)
+    with pytest.raises(OSError):
+        ops._restore_prepared(str(source), "recovery.tar.gz")
+    assert {path.name for path in audit_env.iterdir()} == {"world.bin"}
+    assert (audit_env / "world.bin").read_bytes() == b"original world"
+    warning.assert_not_called()
+    stop.assert_not_called()
+    dockerlib.container_start.assert_not_called()
+
+
+def test_restore_stages_before_warning_and_checks_stop_before_publication(
+    audit_env, tmp_path, monkeypatch
+):
+    (audit_env / "world.bin").write_bytes(b"original world")
+    source = tmp_path / "prepared"
+    source.mkdir()
+    (source / "world.bin").write_bytes(b"replacement world")
+    order = []
+    copytree, mkdtemp = ops.shutil.copytree, ops.tempfile.mkdtemp
+
+    def copy_files(*args, **kwargs):
+        result = copytree(*args, **kwargs)
+        order.append("copied")
+        return result
+
+    def reserve_directory(*args, **kwargs):
+        path = mkdtemp(*args, **kwargs)
+        if kwargs.get("prefix") == ".pz-previous-":
+            order.append("reserved")
+        return path
+
+    def warn(*_args):
+        assert order == ["copied", "reserved"]
+        staged = next(audit_env.glob(".pz-restore-*"))
+        assert (staged / "world.bin").read_bytes() == b"replacement world"
+        assert not list(next(audit_env.glob(".pz-previous-*")).iterdir())
+        assert (audit_env / "world.bin").read_bytes() == b"original world"
+        order.append("warned")
+
+    def confirmed():
+        assert order == ["copied", "reserved", "warned", "stopped"]
+        assert (audit_env / "world.bin").read_bytes() == b"original world"
+        order.append("confirmed")
+        return {"running": False}
+
+    def start(_name):
+        assert order[-1] == "confirmed"
+        assert (audit_env / "world.bin").read_bytes() == b"replacement world"
+        assert {path.name for path in audit_env.iterdir()} == {"world.bin"}
+        order.append("started")
+        return 0, "", ""
+
+    monkeypatch.setattr(ops.shutil, "copytree", copy_files)
+    monkeypatch.setattr(ops.tempfile, "mkdtemp", reserve_directory)
+    monkeypatch.setattr(ops, "is_running", lambda: True)
+    monkeypatch.setattr(ops, "rcon_warn_broadcast", warn)
+    monkeypatch.setattr(ops, "_begin_watchdog_grace", Mock())
+    monkeypatch.setattr(ops, "graceful_stop", lambda _hook: order.append("stopped") or "stopped")
+    monkeypatch.setattr(ops, "container_state", confirmed)
+    monkeypatch.setattr(dockerlib, "container_start", start)
+    monkeypatch.setattr(ops, "wait_until_running", lambda _timeout: True)
+    monkeypatch.setattr(ops, "wait_until_ready", lambda: order.append("ready") or True)
+    ops._restore_prepared(str(source), "recovery.tar.gz")
+    assert order == ["copied", "reserved", "warned", "stopped", "confirmed", "started", "ready"]
+
+
+@pytest.mark.parametrize("stop_result", ["resurrected", "error"])
+def test_restore_stop_failure_cleans_prepared_data_without_publication(
+    audit_env, tmp_path, monkeypatch, stop_result
+):
+    (audit_env / "world.bin").write_bytes(b"original world")
+    source = tmp_path / "prepared"
+    source.mkdir()
+    (source / "world.bin").write_bytes(b"replacement world")
+    monkeypatch.setattr(ops, "is_running", lambda: True)
+    monkeypatch.setattr(ops, "rcon_warn_broadcast", Mock())
+    monkeypatch.setattr(ops, "_begin_watchdog_grace", Mock())
+    stop = Mock(return_value=stop_result)
+    if stop_result == "error":
+        stop.side_effect = ops.OpsError("stop unavailable")
+    monkeypatch.setattr(ops, "graceful_stop", stop)
+    with pytest.raises(ops.OpsError):
+        ops._restore_prepared(str(source), "recovery.tar.gz")
+    assert {path.name for path in audit_env.iterdir()} == {"world.bin"}
+    assert (audit_env / "world.bin").read_bytes() == b"original world"
+    dockerlib.container_start.assert_not_called()
+
+
 def test_failed_settings_write_preserves_revision_memory_and_disk(audit_env, monkeypatch):
     ops._save_settings()
     settings = Path(config.CFG["settings_file"])
@@ -169,9 +289,14 @@ def test_restore_rechecks_stopped_container_before_writing(audit_env, tmp_path, 
     monkeypatch.setattr(ops, "container_state", Mock(return_value=state))
     replace = Mock()
     monkeypatch.setattr(ops, "_restore_files", replace)
+    source = tmp_path / "prepared"
+    source.mkdir()
+    (source / "world.bin").write_bytes(b"replacement world")
     with pytest.raises(ops.OpsError, match="не подтверждена"):
-        ops._restore_prepared(str(tmp_path), "test.tar.gz")
+        ops._restore_prepared(str(source), "test.tar.gz")
     replace.assert_not_called()
+    assert {path.name for path in audit_env.iterdir()} == {"world.bin"}
+    assert (audit_env / "world.bin").read_bytes() == b"original"
     dockerlib.container_start.assert_not_called()
 
 

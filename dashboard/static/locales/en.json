@@ -1622,5 +1622,17 @@
   "Не удалось загрузить профиль. Перезагрузите страницу, чтобы повторить попытку.": "Could not load the profile. Reload the page to try again.",
   "Профиль ещё загружается": "The profile is still loading",
   "Состав модов ещё не загружен": "Mod metadata has not loaded yet",
-  "Не удалось загрузить данные. Повторите попытку.": "Could not load data. Try again."
+  "Не удалось загрузить данные. Повторите попытку.": "Could not load data. Try again.",
+  "Локально": "Local",
+  "Хранилище": "Storage",
+  "0 — без ограничения": "0 — no limit",
+  "Подготовка файлов восстановления": "Preparing restore files",
+  "Сервер сейчас остановлен. После замены данных пульт запустит его.": "The server is currently stopped. The panel will start it after replacing the data.",
+  "Если сервер работает, игроки получат предупреждение за 60 секунд, затем пульт остановит сервер. После замены данных сервер будет запущен.": "If the server is running, players will receive a 60-second warning before the panel stops it. The server will start after the data is replaced.",
+  "содержимым этого архива.": "with the contents of this archive.",
+  "Перед остановкой и заменой данных пульт заново проверит архив и подготовит файлы восстановления.": "Before stopping the server and replacing data, the panel will check the archive again and prepare the restore files.",
+  "Если сервер работает, пульт запросит сохранение через RCON. Бэкап без остановки не гарантирует согласованность файлов.": "If the server is running, the panel will request a save through RCON. A backup without stopping cannot guarantee consistent files.",
+  "Если сервер работает, игроки получат предупреждение за 60 секунд. Пульт остановит сервер на время создания архива и запустит его снова. Остановленный сервер останется выключенным.": "If the server is running, players will receive a 60-second warning. The panel will stop the server while creating the archive, then restart it. A stopped server will stay off.",
+  "Сервер сейчас остановлен. Пульт создаст бэкап и оставит сервер выключенным.": "The server is currently stopped. The panel will create a backup and leave the server off.",
+  "Состояние сервера неизвестно. Пульт проверит его при запуске бэкапа.": "The server state is unknown. The panel will check it when the backup starts."
 }

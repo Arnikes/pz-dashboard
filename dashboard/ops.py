@@ -21,6 +21,7 @@ from collections import Counter, deque
 from contextvars import ContextVar
 from contextlib import contextmanager
 from copy import deepcopy
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from itertools import islice
 
@@ -1406,9 +1407,7 @@ def _do_backup(stop_server, trigger="manual", started=None):
     if not os.path.isdir(ddir) or not os.listdir(ddir):
         raise OpsError("Каталог данных PZ пуст или не смонтирован — бэкап невозможен")
     was_running = is_running()
-    if stop_server:
-        if not was_running:
-            raise OpsError("Сервер не запущен — «бэкап с остановкой» не нужен, снимите флажок")
+    if stop_server and was_running:
         _set_phase("Предупреждение игроков", "отсчёт 60 с")
         rcon_warn_broadcast(60, "Бэкап сервера")
         _begin_watchdog_grace()
@@ -1416,15 +1415,14 @@ def _do_backup(stop_server, trigger="manual", started=None):
             # docker сам поднял контейнер посреди остановки — архивировать
             # полуживой мир нельзя, файлы могут быть в записи
             raise OpsError("Docker сам перезапустил контейнер — бэкап прерван, повторите попытку")
-    else:
-        if was_running:
-            _set_phase("Сохранение мира", "RCON save")
-            try:
-                rcon("save", quiet=True)
-            except rconlib.RCONError:
-                log_event("warn", "Не удалось выполнить save через RCON — бэкап без сохранения")
-            _set_phase("Ожидание записи", "10 с на сохранение", countdown_seconds=10)
-            time.sleep(10)
+    elif was_running:
+        _set_phase("Сохранение мира", "RCON save")
+        try:
+            rcon("save", quiet=True)
+        except rconlib.RCONError:
+            log_event("warn", "Не удалось выполнить save через RCON — бэкап без сохранения")
+        _set_phase("Ожидание записи", "10 с на сохранение", countdown_seconds=10)
+        time.sleep(10)
     archive_error = None
     try:
         name, dest, size = _create_backup_archive(bdir, ddir)
@@ -1446,30 +1444,30 @@ def _do_backup(stop_server, trigger="manual", started=None):
                 message = f"{archive_error}. {restart_error}" if archive_error else restart_error
                 raise OpsError(message) from archive_error
     pruned = 0
-    if s3_cfg.get("backup_s3_enabled", False):
-        try:
-            verification = verify_backup(name)
+    try:
+        verification = verify_backup(name)
+        if s3_cfg.get("backup_s3_enabled", False):
             dest = backups3.upload_verified(dest, s3_cfg, _set_phase, verification=verification)
             name = dest.rsplit("/", 1)[-1]
             log_event("backup", f"Бэкап сохранён в S3: {dest}")
             pruned = _prune_s3_backups(get_settings()["backup"]["maxBackups"], s3_cfg, name)
-        except (OpsError, OSError) as error:
-            _journal_append(
-                {
-                    "trigger": trigger,
-                    "name": name,
-                    "size": size,
-                    "path": dest,
-                    "status": "error",
-                    "error": str(error)[:300],
-                    "duration": round(time.time() - started, 1),
-                }
-            )
-            label = "по расписанию" if trigger == "scheduled" else "вручную"
-            log_event("error", f"Бэкап ({label}) не удался: {error}")
-            raise OpsErrorReported(str(error)) from error
-    else:
-        pruned = _prune_backups(get_settings()["backup"]["maxBackups"])
+        else:
+            pruned = _prune_backups(get_settings()["backup"]["maxBackups"])
+    except (OpsError, OSError) as error:
+        _journal_append(
+            {
+                "trigger": trigger,
+                "name": name,
+                "size": size,
+                "path": dest,
+                "status": "error",
+                "error": str(error)[:300],
+                "duration": round(time.time() - started, 1),
+            }
+        )
+        label = "по расписанию" if trigger == "scheduled" else "вручную"
+        log_event("error", f"Бэкап ({label}) не удался: {error}")
+        raise OpsErrorReported(str(error)) from error
     label = "по расписанию" if trigger == "scheduled" else "вручную"
     log_event("backup", f"Бэкап создан ({label}): {name} ({fmt_size(size)})")
     _journal_append(
@@ -1591,13 +1589,21 @@ def _extract_backup(path, dest):
         raise OpsError(f"Архив повреждён или небезопасен: {error}") from error
 
 
-def _restore_files(dest):
-    """Stage on the data volume and retain the original world until publication succeeds."""
+@dataclass
+class _RestoreStaging:
+    data: str
+    staged: str
+    previous: str
+    retain: bool = False
+
+
+@contextmanager
+def _prepare_restore_files(dest):
+    """Prepare on the data volume before downtime; own cleanup and recovery retention."""
     data = config.CFG["data_dir"]
     staged = tempfile.mkdtemp(prefix=".pz-restore-", dir=data)
     previous = None
-    moved, installed = [], []
-    retain = False
+    prepared = None
     try:
         shutil.copytree(dest, staged, symlinks=True, dirs_exist_ok=True)
         if hasattr(os, "geteuid") and os.geteuid() == 0:
@@ -1608,31 +1614,10 @@ def _restore_files(dest):
                     stat = os.stat(source, follow_symlinks=False)
                     os.chown(target, stat.st_uid, stat.st_gid, follow_symlinks=False)
         previous = tempfile.mkdtemp(prefix=".pz-previous-", dir=data)
-        reserved = {os.path.basename(staged), os.path.basename(previous)}
-        try:
-            for entry in os.listdir(data):
-                if entry not in reserved:
-                    os.replace(os.path.join(data, entry), os.path.join(previous, entry))
-                    moved.append(entry)
-            for entry in os.listdir(staged):
-                os.replace(os.path.join(staged, entry), os.path.join(data, entry))
-                installed.append(entry)
-        except OSError as error:
-            try:
-                for entry in reversed(installed):
-                    os.replace(os.path.join(data, entry), os.path.join(staged, entry))
-                for entry in reversed(moved):
-                    os.replace(os.path.join(previous, entry), os.path.join(data, entry))
-            except OSError as rollback_error:
-                retain = True
-                raise OpsError(
-                    f"Восстановление прервано: {error}. Откат не завершён: {rollback_error}. "
-                    f"Исходные данные сохранены в {previous}; новые — в {staged}. "
-                    "Сервер оставлен остановленным"
-                ) from error
-            raise OpsError("Запись бэкапа не удалась. Исходный мир восстановлен") from error
+        prepared = _RestoreStaging(data, staged, previous)
+        yield prepared
     finally:
-        if not retain:
+        if prepared is None or not prepared.retain:
             for path in (staged, previous):
                 if path is not None:
                     try:
@@ -1641,22 +1626,52 @@ def _restore_files(dest):
                         log_event("warn", f"Не удалось удалить временные данные {path}: {error}")
 
 
-def _restore_prepared(dest, name):
-    if is_running():
-        _set_phase("Предупреждение игроков", "отсчёт 60 с")
-        rcon_warn_broadcast(60, "Восстановление из бэкапа")
-        _begin_watchdog_grace()
-        if graceful_stop(lambda m: _set_phase("Остановка сервера", m)) == "resurrected":
-            # docker сам поднял контейнер посреди остановки — стирать данные
-            # под живым сервером нельзя: мир будет в записи
+def _restore_files(prepared):
+    """Publish staged files, rolling back the original world on an I/O failure."""
+    data, staged, previous = prepared.data, prepared.staged, prepared.previous
+    moved, installed = [], []
+    reserved = {os.path.basename(staged), os.path.basename(previous)}
+    try:
+        for entry in os.listdir(data):
+            if entry not in reserved:
+                os.replace(os.path.join(data, entry), os.path.join(previous, entry))
+                moved.append(entry)
+        for entry in os.listdir(staged):
+            os.replace(os.path.join(staged, entry), os.path.join(data, entry))
+            installed.append(entry)
+    except OSError as error:
+        try:
+            for entry in reversed(installed):
+                os.replace(os.path.join(data, entry), os.path.join(staged, entry))
+            for entry in reversed(moved):
+                os.replace(os.path.join(previous, entry), os.path.join(data, entry))
+        except OSError as rollback_error:
+            prepared.retain = True
             raise OpsError(
-                "Docker сам перезапустил контейнер — восстановление прервано, повторите попытку"
-            )
-    state = container_state()
-    if not state or state.get("running") is not False:
-        raise OpsError("Остановка сервера не подтверждена Docker — восстановление отменено")
-    _set_phase("Восстановление файлов", name)
-    _restore_files(dest)
+                f"Восстановление прервано: {error}. Откат не завершён: {rollback_error}. "
+                f"Исходные данные сохранены в {previous}; новые — в {staged}. "
+                "Сервер оставлен остановленным"
+            ) from error
+        raise OpsError("Запись бэкапа не удалась. Исходный мир восстановлен") from error
+
+
+def _restore_prepared(dest, name):
+    _set_phase("Подготовка файлов восстановления", name)
+    with _prepare_restore_files(dest) as prepared:
+        if is_running():
+            _set_phase("Предупреждение игроков", "отсчёт 60 с")
+            rcon_warn_broadcast(60, "Восстановление из бэкапа")
+            _begin_watchdog_grace()
+            if graceful_stop(lambda m: _set_phase("Остановка сервера", m)) == "resurrected":
+                # Never publish while Docker has restarted the game container.
+                raise OpsError(
+                    "Docker сам перезапустил контейнер — восстановление прервано, повторите попытку"
+                )
+        state = container_state()
+        if not state or state.get("running") is not False:
+            raise OpsError("Остановка сервера не подтверждена Docker — восстановление отменено")
+        _set_phase("Восстановление файлов", name)
+        _restore_files(prepared)
     _set_phase("Запуск сервера", "docker start")
     code, out, err = _start_container()
     if code != 0:

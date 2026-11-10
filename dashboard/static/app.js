@@ -1808,6 +1808,18 @@ function setBar(id, pct) {
 const backupsPager = { page: 0, size: 10 };
 let backupsLoaded = false;
 
+function backupStorageLabel(storage) {
+  return storage === "s3" ? "S3" : I18n.t("Локально");
+}
+
+function backupVerificationText(verified) {
+  if (!verified) return "";
+  const notes = [I18n.msg`Проверен ${fmtTime(verified.verifiedAt)} · файлов: ${verified.files}`];
+  if (!verified.hasServerIni) notes.push(I18n.t("Нет конфигурации сервера (Server/*.ini)"));
+  if (!verified.hasMapData) notes.push(I18n.t("Нет данных мира"));
+  return notes.join(" · ");
+}
+
 function renderBackups(data) {
   const body = $("backupsBody");
   setDomProperty($("backupsStorageError"), "textContent", data.ok ? data.storageError || "" : "");
@@ -1843,7 +1855,7 @@ function renderBackupsPage() {
     const template = document.createElement("template");
     template.innerHTML = I18n.msg`
     <div class="backup-row">
-      <span class="b-name mono" title="${esc(b.name)} — создан ${esc(b.mtime)}">${esc(b.name)}</span>
+      <div class="b-identity"><span class="b-name mono" title="${esc(b.name)} — создан ${esc(b.mtime)}">${esc(b.name)}</span><span class="b-storage">${esc(backupStorageLabel(b.storage))}</span></div>
       <span class="b-size mono" title="размер архива">${esc(b.size != null ? fmtBytes(b.size) : b.sizeText || "—")}</span>
       <span class="b-age mono" title="создан ${esc(b.mtime)}">${esc(relTime(b.mtime))}</span>
       <div class="backup-actions"><button class="icon-btn backup-action" data-b="dl" data-name="${esc(b.name)}" title="Скачать" aria-label="Скачать ${esc(b.name)}">
@@ -1870,6 +1882,7 @@ function renderBackupsPage() {
     if (age.title !== dateTitle) age.title = dateTitle;
     const title = `${b.name} — ${dateTitle}`;
     if (name.title !== title) name.title = title;
+    setDomProperty(row.querySelector(".b-storage"), "textContent", backupStorageLabel(b.storage));
     const verified = b.verification;
     const verifyButton = row.querySelector('[data-b="verify"]');
     setDomAttribute(verifyButton, "data-verified", verified ? "true" : "false");
@@ -1878,10 +1891,7 @@ function renderBackupsPage() {
     setDomAttribute(verifyButton, "aria-label", verified ? `${I18n.t("Проверен")}: ${b.name}` : I18n.msg`Проверить ${b.name}`);
     const result = row.querySelector(".backup-result");
     setDomProperty(result, "hidden", !verified);
-    const notes = [];
-    if (verified && !verified.hasServerIni) notes.push(I18n.t("Нет конфигурации сервера (Server/*.ini)"));
-    if (verified && !verified.hasMapData) notes.push(I18n.t("Нет данных мира"));
-    setDomProperty(result, "textContent", verified ? [I18n.msg`Проверен ${fmtTime(verified.verifiedAt)} · файлов: ${verified.files}`, ...notes].join(" · ") : "");
+    setDomProperty(result, "textContent", backupVerificationText(verified));
   });
   updateButtons();
 }
@@ -1979,6 +1989,7 @@ function renderBkJournalPage(journal, hasMore) {
       <span class="j-name mono" title="${esc(j.name || j.error || "")}">${esc(j.name || "—")}</span>
       <span class="j-size mono">${j.status === "error" ? "—" : esc(fmtBytes(j.size))}</span>
       <span class="j-status" title="${esc(j.error || "")}">${j.status === "error" ? I18n.t("ошибка") : I18n.t("готово")}</span>
+      ${j.status === "error" && j.error ? `<p class="j-error">${esc(j.error)}</p>` : ""}
     </div>`).join(""));
 }
 
@@ -2031,14 +2042,22 @@ $("bkJournalRetry").addEventListener("click", () => {
 });
 
 function confirmRestore(name) {
+  const archive = S.backupsItems.find(item => item.name === name);
+  const running = S.overview?.containerInfo?.running;
+  const stopNotice = running === false
+    ? I18n.t("Сервер сейчас остановлен. После замены данных пульт запустит его.")
+    : I18n.t("Если сервер работает, игроки получат предупреждение за 60 секунд, затем пульт остановит сервер. После замены данных сервер будет запущен.");
   modal.open({
     title: I18n.t("Восстановление из бэкапа"),
     danger: true,
     okLabel: I18n.t("Восстановить"),
     bodyHTML: I18n.msg`
-      <p>Текущий мир и конфиги будут <b>полностью заменены</b> содержимым архива
-      <span class="mono">${esc(name)}</span>.</p>
-      <p>Сервер будет остановлен через RCON с предупреждением игрокам, затем запущен снова.</p>
+      <p class="backup-selected mono">${esc(name)}</p>
+      ${archive ? I18n.msg`<dl class="backup-details"><dt>Хранилище</dt><dd>${esc(backupStorageLabel(archive.storage))}</dd><dt>Размер</dt><dd>${esc(archive.size != null ? fmtBytes(archive.size) : archive.sizeText || "—")}</dd><dt>Создан</dt><dd>${esc(fmtTime(archive.mtime))}</dd></dl>` : ""}
+      ${archive?.verification ? `<p class="backup-restore-verification hint">${esc(backupVerificationText(archive.verification))}</p>` : ""}
+      <p class="backup-restore-copy">Текущий мир и конфиги будут <b>полностью заменены</b> содержимым этого архива.</p>
+      <p class="backup-restore-copy">Перед остановкой и заменой данных пульт заново проверит архив и подготовит файлы восстановления.</p>
+      <p class="backup-restore-copy">${esc(stopNotice)}</p>
       <label class="check"><input type="checkbox" id="restoreAck" /> Я понимаю, что текущее состояние мира будет потеряно</label>
     `,
     onConfirm: async () => {
@@ -2066,17 +2085,24 @@ function confirmDeleteBackup(name) {
 }
 
 function openBackupModal() {
+  const running = S.overview?.containerInfo?.running;
+  const liveHint = I18n.t("Если сервер работает, пульт запросит сохранение через RCON. Бэкап без остановки не гарантирует согласованность файлов.");
+  const stopHint = I18n.t("Если сервер работает, игроки получат предупреждение за 60 секунд. Пульт остановит сервер на время создания архива и запустит его снова. Остановленный сервер останется выключенным.");
   modal.open({
     title: I18n.t("Создать бэкап"),
     okLabel: I18n.t("Создать"),
     bodyHTML: I18n.msg`
       <p>Архив собирается из каталога данных сервера (мир, конфиги, whitelist). Логи в бэкап не входят.</p>
-      <label class="check"><input type="checkbox" id="bkStop" /> Остановить сервер на время бэкапа (надёжнее для целостности)</label>
-      <p>Без остановки пульт сначала отправит команду <span class="mono">save</span> через RCON.</p>
+      ${running === false ? I18n.html("<p>Сервер сейчас остановлен. Пульт создаст бэкап и оставит сервер выключенным.</p>") : I18n.html('<label class="check"><input type="checkbox" id="bkStop" aria-describedby="bkModeHint" /> Остановить сервер на время бэкапа (надёжнее для целостности)</label>')}
+      ${typeof running !== "boolean" ? I18n.html("<p>Состояние сервера неизвестно. Пульт проверит его при запуске бэкапа.</p>") : ""}
+      ${running !== false ? `<p id="bkModeHint">${esc(liveHint)}</p>` : ""}
     `,
     onConfirm: async () => {
       return action("backup", { stopServer: $("bkStop")?.checked || false });
     },
+  });
+  $("bkStop")?.addEventListener("change", () => {
+    $("bkModeHint").textContent = $("bkStop").checked ? stopHint : liveHint;
   });
 }
 

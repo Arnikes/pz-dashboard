@@ -1945,6 +1945,17 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--footer-heig
 .config-toggle:has(input:checked) .toggle-on { display:inline; }
 .config-toggle:has(input:checked) .toggle-off { display:none; }
 .backup-row { grid-template-columns:minmax(0,1fr) 9ch 15ch auto; }
+.b-identity { display:flex; align-items:baseline; gap:8px; min-width:0; }
+.b-identity .b-name { flex:1; }
+.b-storage { flex:none; color:var(--muted); font-size:12px; }
+.j-error { grid-column:1/-1; margin:4px 0 0; color:var(--danger-text); overflow-wrap:anywhere; white-space:pre-wrap; }
+.backup-selected { margin:0; overflow-wrap:anywhere; }
+.backup-details { display:grid; grid-template-columns:auto minmax(0,1fr); gap:6px 16px; margin:0; }
+.backup-details dt { color:var(--muted); }
+.backup-details dd { margin:0; color:var(--ink); overflow-wrap:anywhere; }
+.backup-restore-verification { margin:0; overflow-wrap:anywhere; }
+.backup-restore-copy { margin:0; }
+#bkKeepHint { margin:0; text-transform:none; letter-spacing:normal; }
 .archive-heading { display:grid; gap:10px; padding:0 0 10px; color:var(--muted); font-size:12.5px; border-bottom:1px solid var(--line); }
 .archive-heading > :nth-child(2), .archive-heading > :nth-child(3) { text-align:right; }
 .archive-heading > :last-child { text-align:right; }
@@ -1978,7 +1989,7 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--footer-heig
   #view-settings .config-label { min-height:0; }
   #view-settings .config-label .help-tip { align-self:center; }
   .backup-row { grid-template-columns:repeat(2,minmax(0,1fr)); }
-  .backup-row .b-name { grid-column:1/-1; }
+  .backup-row .b-identity { grid-column:1/-1; }
   .backup-row .b-size { grid-column:1; }
   .backup-row .b-age { grid-column:2; }
   .backup-row .b-age { display:block; }
