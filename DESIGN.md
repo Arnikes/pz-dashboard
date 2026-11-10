@@ -319,6 +319,8 @@ years; yesterday follows the local calendar across daylight-saving changes.
 Unknown timestamps get their own group. On mobile, time and severity sit above
 the full-width message, including in Overview's compact recent-events list,
 which keeps visible dates because it has no day headings.
+On desktop, severity shares the message's reading line beside a separate time
+column, so a short warning does not create an otherwise empty second line.
 Warning, Error and Critical error labels accompany their
 semantic colors; ordinary update and backup messages use the normal text color.
 Problems includes warning/error/critical severity as well as legacy problem types,

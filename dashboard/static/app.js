@@ -2220,8 +2220,8 @@ function renderEvents(data) {
       html += `<div class="event-day">${esc(label)}</div>`;
     }
     html += `<div class="event-row" data-kind="${esc(ev.type)}" data-level="${eventLevel(ev)}">
-      <div class="event-meta">${eventTime(ev.ts, true)}${eventSeverity(ev)}</div>
-      <span class="e-text"><b>${esc(EVENT_LABELS[ev.type] || ev.type)}.</b> ${esc(ev.text)}</span>
+      <div class="event-meta">${eventTime(ev.ts, true)}</div>
+      <div class="event-content">${eventSeverity(ev)} <span class="e-text"><b>${esc(EVENT_LABELS[ev.type] || ev.type)}.</b> ${esc(ev.text)}</span></div>
     </div>`;
   }
   setStaticMarkup(body, html);
@@ -2268,8 +2268,8 @@ function renderRecent(items) {
   setDomProperty(body.dataset, "state", "ok");
   setStaticMarkup(body, slice.map((ev) => `
     <div class="event-row" data-kind="${esc(ev.type)}" data-level="${eventLevel(ev)}">
-      <div class="event-meta">${eventTime(ev.ts)}${eventSeverity(ev)}</div>
-      <span class="e-text"><b>${esc(EVENT_LABELS[ev.type] || ev.type)}.</b> ${esc(ev.text)}</span>
+      <div class="event-meta">${eventTime(ev.ts)}</div>
+      <div class="event-content">${eventSeverity(ev)} <span class="e-text"><b>${esc(EVENT_LABELS[ev.type] || ev.type)}.</b> ${esc(ev.text)}</span></div>
     </div>`).join(""));
 }
 

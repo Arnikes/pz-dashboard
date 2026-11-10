@@ -1,5 +1,6 @@
 """Event history pagination with isolated snapshots and category filters."""
 
+import json
 import os
 from pathlib import Path
 
@@ -282,3 +283,108 @@ def test_recent_mobile_retains_dates_and_problem_labels(page, dashboard, languag
     out = Path(".tmp-events-polish")
     out.mkdir(exist_ok=True)
     capture_evidence(page.locator("#sec-recent"), path=str(out / f"recent-{language}-320.png"))
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+@pytest.mark.parametrize("width", [320, 390, 1440])
+def test_short_severity_rows_stay_compact_and_long_messages_wrap(page, dashboard, language, width):
+    page.add_init_script(f"localStorage.setItem('pz-language', '{language}')")
+    page.set_viewport_size({"width": width, "height": 1100})
+    page.goto(dashboard["url"] + "/#/events")
+    expect(page.locator("#startupLoader")).to_be_hidden()
+    page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
+    page.evaluate("document.fonts.ready")
+    entries = [
+        {"ts": "2026-11-10T12:00:00Z", "type": "start", "level": level, "text": "OK"}
+        for level in ("INFO", "WARNING", "ERROR", "CRITICAL")
+    ]
+    long_message = "Package " + "1234567890" * 16 + " — metadata unavailable"
+    extremes = [
+        {**entries[0], "text": long_message},
+        {**entries[2], "text": long_message},
+        {"type": "start", "level": "CRITICAL", "text": "OK"},
+    ]
+    evidence = []
+    out = Path(".tmp-pytest/events-density-after")
+    out.mkdir(parents=True, exist_ok=True)
+    for surface in ("events", "recent"):
+        if surface == "recent":
+            page.evaluate("location.hash = '#/overview'")
+            expect(page.locator("#view-overview")).to_be_visible()
+        render = "renderEvents({ok:true,items})" if surface == "events" else "renderRecent(items)"
+        page.evaluate(f"items => {render}", entries)
+        rows = page.locator(f"#{surface}Body .event-row")
+        expect(rows).to_have_count(4)
+        expect(rows.locator(".event-severity")).to_have_text(
+            ["Warning", "Error", "Critical error"]
+            if language == "en"
+            else ["Предупреждение", "Ошибка", "Критическая ошибка"]
+        )
+        # Compare the same content, removing only the final row's missing separator.
+        heights = rows.evaluate_all("""rows => rows.map(row => {
+            const style = getComputedStyle(row);
+            return row.getBoundingClientRect().height - parseFloat(style.borderTopWidth)
+              - parseFloat(style.borderBottomWidth);
+        })""")
+        for height in heights[1:]:
+            assert abs(height - heights[0]) <= (3 if width <= 740 else 1)
+        for row in rows.all():
+            time = row.locator(".e-time").bounding_box()
+            text = row.locator(".e-text").bounding_box()
+            if width <= 740:
+                assert text["width"] >= row.bounding_box()["width"] - 1
+                assert text["y"] >= time["y"] + time["height"]
+            else:
+                assert time["x"] + time["width"] <= text["x"]
+            severity = row.locator(".event-severity")
+            if severity.count():
+                expect(severity).to_be_visible()
+                mark = severity.bounding_box()
+                if width <= 740:
+                    assert time["x"] + time["width"] <= mark["x"]
+                    assert text["y"] >= mark["y"] + mark["height"]
+                else:
+                    assert mark["x"] + mark["width"] <= text["x"]
+        evidence.append({"surface": surface, "short_heights_without_borders": heights})
+        card = page.locator(f"#sec-{surface}")
+        page.evaluate(
+            "selector => document.querySelector(selector).scrollIntoView({block:'center'})",
+            f"#sec-{surface}",
+        )
+        capture_evidence(card, path=str(out / f"{surface}-{language}-{width}-short.png"))
+
+        page.evaluate(f"items => {render}", extremes)
+        for row in rows.all():
+            bounds = row.bounding_box()
+            time = row.locator(".e-time").bounding_box()
+            text = row.locator(".e-text").bounding_box()
+            assert text["x"] >= bounds["x"]
+            assert text["x"] + text["width"] <= bounds["x"] + bounds["width"] + 1
+            severity = row.locator(".event-severity")
+            if severity.count():
+                mark = severity.bounding_box()
+                assert mark["x"] >= bounds["x"]
+                assert mark["x"] + mark["width"] <= bounds["x"] + bounds["width"] + 1
+                if width <= 740:
+                    assert text["y"] >= max(time["y"] + time["height"], mark["y"] + mark["height"])
+        for row in rows.all()[:2]:
+            assert row.locator(".e-text").evaluate(
+                "el => el.getBoundingClientRect().height > parseFloat(getComputedStyle(el).lineHeight)"
+            )
+        expect(rows.last.locator("time")).to_have_count(0)
+        expect(rows.last.locator(".e-time")).to_have_text(
+            "Time unknown" if language == "en" else "Время неизвестно"
+        )
+        expect(rows.last.locator(".event-severity")).to_have_text(
+            "Critical error" if language == "en" else "Критическая ошибка"
+        )
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        page.evaluate(
+            "selector => document.querySelector(selector).scrollIntoView({block:'center'})",
+            f"#sec-{surface}",
+        )
+        capture_evidence(card, path=str(out / f"{surface}-{language}-{width}-long.png"))
+    if os.getenv("PZ_VISUAL_EVIDENCE") == "1":
+        (out / f"geometry-{language}-{width}.json").write_text(
+            json.dumps(evidence), encoding="utf-8"
+        )
