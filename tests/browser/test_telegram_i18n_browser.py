@@ -38,11 +38,10 @@ def test_language_selector_persists_and_test_waits_for_save(page, dashboard, lan
     page.goto(dashboard["url"] + "/#/maintenance")
     selector = page.get_by_role(
         "combobox",
-        name="Язык уведомлений" if language == "ru" else "Notification language",
+        name="Язык уведомлений Telegram" if language == "ru" else "Telegram notification language",
         exact=True,
     )
     expect(selector).to_have_value("en")
-    expect(selector).to_have_attribute("aria-describedby", "tgLanguageHint")
     selector.select_option(notification_language)
     expect(page.locator("#toasts")).to_contain_text("сохранено" if language == "ru" else "saved")
     assert requests[0][1]["telegram"]["language"] == notification_language

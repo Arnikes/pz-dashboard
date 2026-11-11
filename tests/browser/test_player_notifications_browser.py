@@ -32,7 +32,6 @@ def test_player_warning_language_is_independent_and_persistent(page, dashboard, 
     )
     expect(selector).to_have_value("en")
     expect(page.locator("#tgLanguage")).to_have_value("en")
-    expect(selector).to_have_attribute("aria-describedby", "playerLanguageHint")
     selector.select_option("ru")
     expect(page.locator("#toasts")).to_contain_text("saved" if language == "en" else "сохранено")
     assert requests == [{"playerNotifications": {"language": "ru"}}]

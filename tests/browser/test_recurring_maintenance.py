@@ -36,23 +36,21 @@ def test_schedules_save_as_separate_groups_and_survive_language_change(
 
     page.route("**/api/settings", save)
     page.goto(dashboard["url"] + "/#/maintenance")
-    chat = page.get_by_role(
-        "form",
-        name="In-game chat announcements" if language == "en" else "Объявления в игровом чате",
-    )
-    restart = page.get_by_role(
-        "form",
-        name="Scheduled server restart" if language == "en" else "Плановый перезапуск сервера",
-    )
+    chat_names = {"en": "In-game chat announcements", "ru": "Объявления в игровом чате"}
+    restart_names = {"en": "Scheduled server restart", "ru": "Плановый перезапуск сервера"}
+    chat = page.get_by_role("form", name=chat_names[language])
+    restart = page.get_by_role("form", name=restart_names[language])
     chat_status = chat.locator("#chatAnnouncementsStatus")
     disabled = "Schedule disabled" if language == "en" else "Расписание выключено"
     next_run = "Next run" if language == "en" else "Следующий запуск"
     message = chat.get_by_role("textbox")
-    chat_switch = chat.get_by_role("switch")
+    chat_switch = chat.get_by_role("switch", name=chat_names[language], exact=True)
+    restart_switch = restart.get_by_role("switch", name=restart_names[language], exact=True)
     chat_save = chat.get_by_role(
         "button", name="Save schedule" if language == "en" else "Сохранить расписание"
     )
     expect(chat_switch).not_to_be_checked()
+    expect(restart_switch).not_to_be_checked()
     expect(chat.get_by_role("spinbutton")).to_have_value("30")
     expect(chat_status).to_have_text(disabled)
     expect(restart.get_by_role("spinbutton")).to_have_value("24")
@@ -107,6 +105,10 @@ def test_schedules_save_as_separate_groups_and_survive_language_change(
     expect(page.locator("html")).to_have_attribute("lang", next_language)
     expect(page.locator("#chatAnnouncementMessage")).to_have_value("Сервер остановлен")
     expect(page.locator("#scheduledRestartInterval")).to_have_value("48")
+    expect(page.get_by_role("switch", name=chat_names[next_language], exact=True)).to_be_checked()
+    expect(
+        page.get_by_role("switch", name=restart_names[next_language], exact=True)
+    ).to_be_checked()
 
     page.locator("#chatAnnouncementsForm label.switch").click()
     page.locator('#chatAnnouncementsForm button[type="submit"]').click()

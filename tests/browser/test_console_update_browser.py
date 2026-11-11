@@ -43,7 +43,13 @@ def test_console_update_flow_and_mod_timestamp(page, dashboard, language, width)
         "gitea.arnike.ru/arnike/pz-console:latest"
     )
     expect(page.locator("#dashboardUpdLocalCopy")).to_have_text("c" * 12)
-    expect(page.locator("#modsCheckNote")).to_be_hidden()
+    mods = page.locator("#sec-mods-update")
+    mods_check = mods.get_by_role(
+        "button", name="Check mods" if language == "en" else "Проверить моды", exact=True
+    )
+    expect(mods_check).to_have_text("Check" if language == "en" else "Проверить")
+    note = mods.locator("#modsCheckNote")
+    expect(note).to_be_hidden()
     page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
     requests = []
 
@@ -106,15 +112,25 @@ def test_console_update_flow_and_mod_timestamp(page, dashboard, language, width)
     # Keep completion refreshes and polling consistent with the asserted snapshot.
     dashboard["overview"]["modsCheck"]["state"] = "needs-update"
     page.evaluate("refreshOverview()")
-    expect(page.locator("#modsCheckNote")).to_have_text(
-        "Restart required to download updates."
-        if language == "en"
-        else "Для загрузки обновлений нужен рестарт."
-    )
+    apply_mods = mods.locator("#btnApplyMods")
+    expect(apply_mods).to_be_visible()
+    expect(note).to_be_hidden()
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     target = Path(__file__).resolve().parents[2] / ".tmp-console-update-evidence"
     target.mkdir(exist_ok=True)
     capture_evidence(page, path=str(target / f"maintenance-{language}-{width}.png"), full_page=True)
+    dashboard["overview"]["modsCheck"]["state"] = "inconclusive"
+    page.evaluate("refreshOverview()")
+    expect(note).to_be_visible()
+    expect(note).to_have_text(
+        "Server did not return a result in time. Check again later."
+        if language == "en"
+        else "Сервер не вернул результат вовремя. Повторите проверку позже."
+    )
+    expect(apply_mods).to_be_hidden()
+    dashboard["overview"]["modsCheck"]["state"] = "up-to-date"
+    page.evaluate("refreshOverview()")
+    expect(note).to_be_hidden()
     page.evaluate(
         "state => renderOp(state)",
         operation_state(

@@ -738,6 +738,7 @@ input:disabled, select:disabled, textarea:disabled { opacity: 0.55; cursor: not-
 #view-maintenance .auto-grid { grid-template-columns:1fr; }
 #view-maintenance .c-notify .check-row { gap:6px 16px; }
 .schedule-form { display:grid; gap:var(--space-group); }
+#view-maintenance .schedule-form > .card-head { flex-wrap:nowrap; margin-bottom:0; }
 .schedule-form .hint { margin:0; }
 .schedule-form .field + .hint { margin-top:calc(-1 * var(--space-inline)); }
 .schedule-actions { align-items:center; column-gap:var(--space-group); }

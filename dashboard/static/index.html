@@ -489,7 +489,7 @@
           </header>
           <p class="upd-note" id="modsCheckNote" hidden></p>
           <div class="actions">
-            <button class="btn" id="btnCheckMods">Проверить моды</button>
+            <button class="btn" id="btnCheckMods" aria-label="Проверить моды">Проверить</button>
             <button class="btn primary" id="btnApplyMods" hidden>Перезапустить для обновления</button>
           </div>
           <div id="modsNeedList" class="list mods-need" hidden></div>
@@ -498,7 +498,7 @@
               <label class="switch">
                 <input type="checkbox" id="modsAutoSwitch" role="switch" />
                 <span class="switch-track" aria-hidden="true"></span>
-                <span class="switch-label">Автообновление модов</span>
+                <span class="switch-label">Автообновление</span>
               </label>
             </div>
             <div class="auto-grid">
@@ -529,19 +529,18 @@
         </section>
 
         <section class="card" id="sec-scheduled-restart" aria-labelledby="hScheduledRestart">
-          <header class="card-head">
-            <h2 id="hScheduledRestart">Плановый перезапуск сервера</h2>
-          </header>
           <form class="schedule-form" id="scheduledRestartForm" aria-labelledby="hScheduledRestart" novalidate>
-            <label class="switch">
-              <input type="checkbox" id="scheduledRestartEnabled" role="switch" />
-              <span class="switch-track" aria-hidden="true"></span>
-              <span class="switch-label">Перезапускать по расписанию</span>
-            </label>
+            <header class="card-head">
+              <h2 id="hScheduledRestart">Плановый перезапуск сервера</h2>
+              <label class="switch">
+                <input type="checkbox" id="scheduledRestartEnabled" role="switch" aria-labelledby="hScheduledRestart" />
+                <span class="switch-track" aria-hidden="true"></span>
+              </label>
+            </header>
             <label class="field">Интервал перезапуска, ч
               <input type="number" id="scheduledRestartInterval" min="1" max="168" step="1" value="24" required />
             </label>
-            <p class="hint">Настройка «Предупреждать игроков» в карточке «Обновления образа» действует и для планового перезапуска.</p>
+            <p class="hint">Плановый перезапуск использует «Предупреждать игроков» из «Обновлений образа».</p>
             <div class="actions schedule-actions">
               <button class="btn" type="submit" aria-describedby="scheduledRestartStatus">Сохранить расписание</button>
               <p class="hint" id="scheduledRestartStatus">Расписание выключено</p>
@@ -581,15 +580,14 @@
         </section>
 
         <section class="card" id="sec-chat-announcements" aria-labelledby="hChatAnnouncements">
-          <header class="card-head">
-            <h2 id="hChatAnnouncements">Объявления в игровом чате</h2>
-          </header>
           <form class="schedule-form" id="chatAnnouncementsForm" aria-labelledby="hChatAnnouncements" novalidate>
-            <label class="switch">
-              <input type="checkbox" id="chatAnnouncementsEnabled" role="switch" />
-              <span class="switch-track" aria-hidden="true"></span>
-              <span class="switch-label">Отправлять по расписанию</span>
-            </label>
+            <header class="card-head">
+              <h2 id="hChatAnnouncements">Объявления в игровом чате</h2>
+              <label class="switch">
+                <input type="checkbox" id="chatAnnouncementsEnabled" role="switch" aria-labelledby="hChatAnnouncements" />
+                <span class="switch-track" aria-hidden="true"></span>
+              </label>
+            </header>
             <label class="field">Текст объявления
               <input type="text" id="chatAnnouncementMessage" aria-describedby="chatAnnouncementHint" />
             </label>
@@ -612,12 +610,11 @@
           </header>
           <div class="auto-block" id="playerNotifications">
             <label class="field">Язык предупреждений игрокам
-              <select id="playerLanguage" aria-describedby="playerLanguageHint">
+              <select id="playerLanguage">
                 <option value="en" lang="en" selected>English</option>
                 <option value="ru" lang="ru">Русский</option>
               </select>
             </label>
-            <p class="hint" id="playerLanguageHint">Для ручных и автоматических операций на сервере. Не зависит от языка интерфейса и Telegram.</p>
           </div>
           <div class="auto-block">
             <div class="auto-row">
@@ -646,7 +643,7 @@
                 <span class="switch-label">Подключаться через MTProxy</span>
               </label>
             </div>
-            <p class="hint" id="tgMtproxyHint">MTProxy используется для всех отправок Telegram. При ошибке прямое соединение не используется.</p>
+            <p class="hint" id="tgMtproxyHint">При сбое MTProxy прямое соединение не используется.</p>
             <p class="hint" id="tgMtproxyConfigHint" role="status" hidden>Неверное значение настройки MTProxy. Проверьте параметры подключения.</p>
             <div id="tgMtproxyFields" class="auto-grid" hidden>
               <label class="field">Сервер MTProxy
@@ -674,13 +671,12 @@
               </div>
               <p class="hint" id="tgApiCredentialsHint">API ID и API hash приложения можно получить на my.telegram.org. Они нужны дополнительно к токену бота.</p>
             </div>
-            <label class="field">Язык уведомлений
-              <select id="tgLanguage" aria-describedby="tgLanguageHint">
+            <label class="field">Язык уведомлений Telegram
+              <select id="tgLanguage">
                 <option value="en" lang="en" selected>English</option>
                 <option value="ru" lang="ru">Русский</option>
               </select>
             </label>
-            <p class="hint" id="tgLanguageHint">Применяется ко всем сообщениям в Telegram, независимо от языка интерфейса.</p>
             <div class="check-row">
               <label class="check"><input type="checkbox" id="tgOps" checked /> Сервер</label>
               <label class="check"><input type="checkbox" id="tgBackup" checked /> Бэкапы</label>

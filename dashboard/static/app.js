@@ -1265,19 +1265,17 @@ function renderOverview(o) {
   const mc = o.modsCheck || {};
   if (mc.state === "up-to-date") {
     setPill("modsPill", "ok", I18n.t("актуальны"));
-    $("modsCheckNote").textContent = "";
   } else if (mc.state === "needs-update") {
     const n = (mc.items || []).length;
     setPill("modsPill", "warn", n ? I18n.msg`обновить: ${n}` : I18n.t("есть обновления"));
-    $("modsCheckNote").textContent = I18n.t("Для загрузки обновлений нужен рестарт.");
   } else if (mc.state === "inconclusive") {
     setPill("modsPill", "warn", I18n.t("нет ответа"));
-    $("modsCheckNote").textContent = I18n.t("Сервер не вернул результат вовремя. Повторите проверку позже.");
   } else {
     setPill("modsPill", "unknown", I18n.t("не проверялись"));
-    $("modsCheckNote").textContent = "";
   }
-  $("modsCheckNote").hidden = !$("modsCheckNote").textContent;
+  const modsCheckNote = $("modsCheckNote");
+  modsCheckNote.hidden = mc.state !== "inconclusive";
+  modsCheckNote.textContent = modsCheckNote.hidden ? "" : I18n.t("Сервер не вернул результат вовремя. Повторите проверку позже.");
   const items = mc.items || [];
   const needList = $("modsNeedList");
   needList.hidden = !(mc.state === "needs-update" && items.length);
