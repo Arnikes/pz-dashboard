@@ -11,6 +11,7 @@ window.ConfigEditor = (() => {
   let profileLoad = Promise.resolve();
   let pendingRequests = 0;
   let resolvingWorkshop = false;
+  let importing = false;
   let updateGuardState = "";
   let workshopResult = null;
   const compositionPager = { page: 0, size: 25 };
@@ -31,7 +32,7 @@ window.ConfigEditor = (() => {
   }
   const statuses = { draft: I18n.t("Есть черновик"), saved: I18n.t("Сохранено, требуется запуск"), applying: I18n.t("Применение"), applied: I18n.t("Применено"), error: I18n.t("Ошибка"), unconfirmed: I18n.t("Применение не подтверждено"), "select-mods": I18n.t("Пакеты загружены; выберите ModID") };
   function updateLoading() {
-    const active = initialPending || loading || pendingRequests > 0 || document.body.classList.contains("is-booting");
+    const active = initialPending || loading || importing || pendingRequests > 0 || document.body.classList.contains("is-booting");
     for (const view of ["settings", "mods"]) {
       setDomProperty($(view + "Loading"), "hidden", !active);
       setDomAttribute($("view-" + view), "aria-busy", String(active));
@@ -63,12 +64,15 @@ window.ConfigEditor = (() => {
   }
   function reviewedDraft() { return { file, revision: draft?.draftRevision }; }
   function checkReviewed(review, patching = false) {
-    if (file !== review.file || draft?.draftRevision !== review.revision || loading || sourceDirty || pendingFields.size || unsaved.length || pendingPatches > (patching ? 1 : 0) || !patching && fieldDirty) {
+    if (file !== review.file || draft?.draftRevision !== review.revision || loading || importing || sourceDirty || pendingFields.size || unsaved.length || pendingPatches > (patching ? 1 : 0) || !patching && fieldDirty) {
       throw new Error(I18n.t("Черновик изменился после просмотра. Проверьте изменения заново"));
     }
   }
+  function requireNoImport() {
+    if (importing) throw new Error(I18n.t("Дождитесь завершения операции; редактор временно недоступен"));
+  }
   function updateBar() {
-    const guardState = JSON.stringify([sourceDirty, fieldDirty, !!pendingFields.size, !!unsaved.length, !!pendingPatches, loading, initialPending, resolvingWorkshop]);
+    const guardState = JSON.stringify([sourceDirty, fieldDirty, !!pendingFields.size, !!unsaved.length, !!pendingPatches, loading, initialPending, resolvingWorkshop, importing]);
     if (guardState !== updateGuardState) {
       updateGuardState = guardState;
       document.dispatchEvent(new Event("pz:update-guard-changed"));
@@ -81,13 +85,14 @@ window.ConfigEditor = (() => {
     renderWorkshopResult();
     setDomProperty($("configStartup"), "hidden", !editorView || !initialPending && !initialError);
     setDomProperty($("configStartupMessage"), "textContent", initialError || I18n.t("Профиль ещё загружается. Можно открыть другие разделы или перезагрузить страницу."));
-    setDomProperty($("configProfile"), "disabled", busy || loading || initialPending || opening);
+    setDomProperty($("configProfile"), "disabled", busy || loading || importing || initialPending || opening);
     for (const id of ["configSearch", "modQuery", "orderQuery", "modFilter", "modSortNew", "modCompositionPageSize"]) setDomProperty($(id), "disabled", opening);
-    const settingsUnavailable = initialPending || loading || !draft || opening;
+    const settingsUnavailable = initialPending || loading || importing || !draft || opening;
     setDomAttribute($("modSettingsLink"), "aria-disabled", String(settingsUnavailable));
     setDomProperty($("modSettingsLink"), "tabIndex", settingsUnavailable ? -1 : 0);
-    for (const view of ["settings", "mods"]) setDomProperty($("view-" + view).querySelector(".editor-card"), "inert", initialPending || view === "mods" && loading);
-    for (const id of ["configFlow", "draftBar"]) setDomProperty($(id), "inert", initialPending);
+    // Inert editors still validate their pending inputs while the import flushes them.
+    for (const view of ["settings", "mods"]) setDomProperty($("view-" + view).querySelector(".editor-card"), "inert", importing || initialPending || view === "mods" && loading);
+    for (const id of ["configFlow", "draftBar"]) setDomProperty($(id), "inert", initialPending || importing);
     if (!draft) { setDomProperty($("draftBar"), "hidden", true); setDomProperty($("configFlow"), "hidden", true); setDomProperty($("navDraftCount"), "hidden", true); attention(); return; }
     const locked = busy || loading || S.demo || opening;
     const modsLocked = locked || !modsReady;
@@ -143,9 +148,9 @@ window.ConfigEditor = (() => {
     $("modPackages").querySelectorAll("[data-modid]").forEach(el => { setDomProperty(el, "disabled", modsLocked || incompatible.has(el.dataset.modid) && !el.checked); });
     document.querySelectorAll("#modPackages button, #modMapEditor input, #modMapEditor button, #modProblems button, #legacyMods button, #installNotice button").forEach(el => { setDomProperty(el, "disabled", modsLocked); });
     document.querySelectorAll("#configFields [data-remove-option], #configHistory button").forEach(el => { setDomProperty(el, "disabled", locked); });
-    for (const id of ["modImport", "modExport"]) setDomProperty($(id), "disabled", modsLocked);
+    for (const id of ["modImport", "modExport"]) setDomProperty($(id), "disabled", modsLocked || importing);
     for (const id of ["modRescan", "sourceSave", "draftRetry"]) setDomProperty($(id), "disabled", locked);
-    setDomAttribute($("modImport").closest("label"), "aria-disabled", String(modsLocked));
+    setDomAttribute($("modImport").closest("label"), "aria-disabled", String(modsLocked || importing));
     setDomProperty($("workshopInput"), "disabled", modsLocked || resolvingWorkshop);
     setDomProperty($("workshopAdd").querySelector("button"), "disabled", modsLocked || resolvingWorkshop);
     $("modOrderList").querySelectorAll("button").forEach(el => { setDomProperty(el, "disabled", modsLocked || el.dataset.edge === "true"); });
@@ -218,6 +223,7 @@ window.ConfigEditor = (() => {
     return profileLoad;
   }
   async function loadProfileSnapshot(next) {
+    requireNoImport();
     endDrag();
     const startedContext = serverContext(), generation = contextGeneration;
     profileContext = null;
@@ -549,6 +555,7 @@ window.ConfigEditor = (() => {
   }
   async function addWorkshopItems(ids, profile, submittedInput) {
     await chain;
+    requireNoImport();
     if (file !== profile) throw new Error(I18n.t("Профиль изменился. Проверьте коллекцию заново."));
     if (operationBusy() || loading || S.demo) throw new Error(I18n.t("Дождитесь завершения операции; редактор временно недоступен"));
     if (!currentModMetadata()) throw new Error(I18n.t("Перечитайте метаданные модов перед изменением состава."));
@@ -556,7 +563,9 @@ window.ConfigEditor = (() => {
     let added = requested.filter(id => !mods.workshop.some(w => w.workshopId === id));
     if (added.length) {
       await flushFields();
+      requireNoImport();
       await flushSources();
+      requireNoImport();
       if (file !== profile) throw new Error(I18n.t("Профиль изменился. Проверьте коллекцию заново."));
       added = requested.filter(id => !mods.workshop.some(w => w.workshopId === id));
       if (added.length) await patch(() => ({ mods: { items: [...new Set([...mods.workshop.map(w => w.workshopId), ...added])] } }));
@@ -642,7 +651,9 @@ window.ConfigEditor = (() => {
   }
   async function validate(prepare = false) {
     await chain;
+    requireNoImport();
     await flushFields();
+    requireNoImport();
     if (unsaved.length) throw new Error(I18n.t("Сначала повторите сохранение черновика после восстановления связи"));
     await flushSources();
     await chain;
@@ -706,12 +717,15 @@ window.ConfigEditor = (() => {
   }
   $("configProfile").addEventListener("change", async () => {
     const next = $("configProfile").value;
-    if (!next) { $("configProfile").value = file; return; }
+    if (!next || importing) { $("configProfile").value = file; return; }
     try {
       await chain;
+      requireNoImport();
       await flushFields();
+      requireNoImport();
       if (unsaved.length) throw new Error(I18n.t("Нет связи: сначала повторите сохранение черновика или отмените изменения"));
       await flushSources();
+      if (loading) { $("configProfile").value = file; return; }
       await loadProfile(next);
       try { localStorage.setItem("pz-config-profile", next); } catch (_) { /* optional preference */ }
     } catch (e) { $("configProfile").value = file; error(e.message); }
@@ -720,7 +734,14 @@ window.ConfigEditor = (() => {
     const button = e.target.closest("[data-tab]");
     if (!button) return;
     try {
-      await chain; await flushFields(); if (unsaved.length) throw new Error(I18n.t("Нет связи: сначала повторите сохранение черновика или отмените изменения")); await flushSources(); configTab = button.dataset.tab;
+      await chain;
+      requireNoImport();
+      await flushFields();
+      requireNoImport();
+      if (unsaved.length) throw new Error(I18n.t("Нет связи: сначала повторите сохранение черновика или отмените изменения"));
+      await flushSources();
+      requireNoImport();
+      configTab = button.dataset.tab;
       $("configTabs").querySelectorAll("[role=tab]").forEach(b => b.setAttribute("aria-selected", String(b === button)));
       renderFields(); renderSources(); if (configTab === "history") await history();
     } catch (err) { error(err.message); }
@@ -799,12 +820,13 @@ window.ConfigEditor = (() => {
     updateCandidates(); $("collectionQuery").focus();
   }
   $("workshopAdd").addEventListener("submit", async e => {
-    e.preventDefault(); if (!draft || !mods || resolvingWorkshop || operationBusy() || loading || S.demo) return;
+    e.preventDefault(); if (!draft || !mods || resolvingWorkshop || operationBusy() || loading || importing || S.demo) return;
     const profile = file;
     const submittedInput = $("workshopInput").value;
     resolvingWorkshop = true; updateBar();
     try {
       const result = await call("/api/workshop-resolve", { input: submittedInput });
+      requireNoImport();
       if (file !== profile) throw new Error(I18n.t("Профиль изменился во время проверки Steam. Добавьте пакет в нужном профиле заново."));
       if (operationBusy() || loading) throw new Error(I18n.t("Дождитесь завершения операции и проверьте Steam-пакет заново"));
       if (result.source?.kind === "collection" || result.items.length > 1) { selectWorkshopCandidates(result, profile, submittedInput); return; }
@@ -1144,24 +1166,55 @@ window.ConfigEditor = (() => {
   });
   $("modExport").addEventListener("click", async () => {
     try {
-      await chain; await flushFields(); await flushSources();
+      await chain;
+      requireNoImport();
+      await flushFields();
+      requireNoImport();
+      await flushSources();
+      requireNoImport();
       const result = await call("/api/modpack", { file });
       const url = URL.createObjectURL(new Blob([JSON.stringify(result.pack, null, 2)], { type: "application/json" }));
       const link = document.createElement("a"); link.href = url; link.download = `${file.replace(/\.ini$/, "")}-mods.json`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) { error(e.message); }
   });
   $("modImport").addEventListener("change", async e => {
+    const input = e.currentTarget, uploaded = input.files[0], profile = file;
+    if (!uploaded || importing || loading || resolvingWorkshop || operationBusy() || S.demo || !draft || !$("modalRoot").hidden || $("configProfile").value !== profile) {
+      input.value = "";
+      return;
+    }
+    importing = true;
+    let saving = false;
+    updateBar();
     try {
-      const uploaded = e.target.files[0]; if (!uploaded) return;
       if (uploaded.size > 1_000_000) throw new Error(I18n.t("Набор больше 1 МБ"));
       const pack = JSON.parse(await uploaded.text());
       await chain;
+      if (operationBusy()) throw new Error(operationAvailabilityReason());
       await flushFields();
       if (unsaved.length) throw new Error(I18n.t("Нет связи: сначала повторите сохранение черновика или отмените изменения"));
       await flushSources();
-      draft = await call("/api/modpack", { file, draftRevision: draft.draftRevision, pack });
-      renderFields(); renderSources(); await loadMods(); updateBar();
-    } catch (err) { error(err.message); } finally { e.target.value = ""; }
+      await chain;
+      if (profile !== file || loading || pendingFields.size || sourceDirty || unsaved.length || pendingPatches) {
+        throw new Error(I18n.t("Черновик изменился после просмотра. Проверьте изменения заново"));
+      }
+      const revision = draft.draftRevision;
+      // After flushing, reject any late draft write until the import settles.
+      loading = saving = true;
+      const result = await call("/api/modpack", { file: profile, draftRevision: revision, pack });
+      if (result.file !== profile || file !== profile || draft.draftRevision !== revision) {
+        throw new Error(I18n.t("Черновик изменился после просмотра. Проверьте изменения заново"));
+      }
+      draft = result;
+      clearError();
+      renderFields(); renderSources(); await loadMods();
+    } catch (err) { error(err.message); }
+    finally {
+      input.value = "";
+      if (saving) loading = false;
+      importing = false;
+      updateBar();
+    }
   });
   $("configDiff").addEventListener("click", async () => {
     try {
@@ -1171,7 +1224,7 @@ window.ConfigEditor = (() => {
     } catch (e) { error(e.message); }
   });
   $("draftRetry").addEventListener("click", () => flushFields().then(() => patch({})).catch(e => error(e.message)));
-  function canDiscardChanges() { return !!draft && !operationBusy() && !S.demo && !loading; }
+  function canDiscardChanges() { return !!draft && !operationBusy() && !S.demo && !loading && !importing; }
   function confirmDiscard(review) {
     if (!canDiscardChanges()) return;
     try { checkReviewed(review); } catch (failure) { error(failure.message); return; }
@@ -1184,18 +1237,26 @@ window.ConfigEditor = (() => {
   }
   $("configApply").addEventListener("click", () => confirmApply(null, true));
   async function verifyRunning() {
-    if (S.demo || operationBusy() || loading) return;
+    if (S.demo || operationBusy() || loading || importing) return;
+    let verifying = false;
     try {
-      await chain; await flushFields(); await flushSources();
+      await chain;
+      requireNoImport();
+      await flushFields();
+      requireNoImport();
+      await flushSources();
+      requireNoImport();
       if (unsaved.length) throw new Error(I18n.t("Сначала сохраните черновик после восстановления связи"));
-      loading = true; updateBar();
+      if (loading || operationBusy()) return;
+      loading = verifying = true;
+      updateBar();
       const current = await call(`/api/config-draft?file=${encodeURIComponent(file)}`);
       if (current.draftRevision !== draft.draftRevision) throw new Error(I18n.t("Черновик изменён другой вкладкой. Загрузите профиль заново"));
       draft = await call("/api/config-verify", { file, draftRevision: draft.draftRevision, currentRevision: current.currentRevision });
       clearError(); renderFields(); renderSources(); await loadMods(); updateBar();
       toast(draft.state?.installation ? I18n.t("Пакеты загружены. Выберите ModID для второго этапа.") : I18n.t("Записанная конфигурация и готовность сервера подтверждены."), "ok");
     } catch (failure) { error(failure.message); }
-    finally { loading = false; updateBar(); }
+    finally { if (verifying) { loading = false; updateBar(); } }
   }
   $("configVerify").addEventListener("click", verifyRunning);
   $("installNotice").addEventListener("click", e => { if (e.target.closest("[data-verify-running]")) verifyRunning(); });
@@ -1203,18 +1264,23 @@ window.ConfigEditor = (() => {
     const profile = file;
     modal.open({ title: I18n.t("Восстановить версию в черновик?"), bodyHTML: I18n.msg`Профиль <strong>${esc(profile)}</strong>. Текущий черновик будет заменён. После загрузки просмотрите различия и отдельно примените изменения.`, onConfirm: async () => {
       await chain;
+      requireNoImport();
       if (file !== profile || loading || operationBusy()) throw new Error(I18n.t("Профиль или состояние сервера изменились. Откройте восстановление заново."));
-      draft = await call("/api/config-history", { file: profile, historyId: id, draftRevision: draft.draftRevision });
-      pendingFields.clear();
-      unsaved = []; sourceDirty = fieldDirty = false;
-      renderFields(); renderSources(); await loadMods(); updateBar();
+      loading = true;
+      updateBar();
+      try {
+        draft = await call("/api/config-history", { file: profile, historyId: id, draftRevision: draft.draftRevision });
+        pendingFields.clear();
+        unsaved = []; sourceDirty = fieldDirty = false;
+        renderFields(); renderSources(); await loadMods();
+      } finally { loading = false; updateBar(); }
       const result = await validate();
       setTimeout(() => modal.open({ title: I18n.t("Изменения при восстановлении"), bodyHTML: diffHtml(result), onConfirm: async () => {} }), 0);
     } });
   }
   $("configHistory").addEventListener("click", e => {
     const button = e.target.closest("[data-restore-config]"); if (!button) return;
-    if (button.dataset.profile !== file || loading || operationBusy()) return;
+    if (button.dataset.profile !== file || loading || importing || operationBusy()) return;
     restoreHistory(button.dataset.restoreConfig);
   });
   $("navMore").addEventListener("click", () => {
@@ -1234,14 +1300,14 @@ window.ConfigEditor = (() => {
   document.addEventListener("click", e => { if (!e.target.closest("#moreMenu, #navMore")) { $("moreMenu").hidden = true; $("navMore").setAttribute("aria-expanded", "false"); } });
   document.addEventListener("pz:before-update", e => {
     const reasons = [];
-    if (pendingPatches || loading || initialPending || resolvingWorkshop) reasons.push("operation");
+    if (pendingPatches || loading || initialPending || resolvingWorkshop || importing) reasons.push("operation");
     if (sourceDirty || fieldDirty || pendingFields.size || unsaved.length || $("workshopInput").value.trim()) reasons.push("unsaved");
     if (reasons.length) {
       e.preventDefault();
       e.detail?.reasons?.push(...reasons);
     }
   });
-  window.addEventListener("beforeunload", e => { if (sourceDirty || fieldDirty || pendingFields.size || unsaved.length) { e.preventDefault(); e.returnValue = ""; } });
+  window.addEventListener("beforeunload", e => { if (importing || sourceDirty || fieldDirty || pendingFields.size || unsaved.length) { e.preventDefault(); e.returnValue = ""; } });
   window.addEventListener("hashchange", updateBar);
   const ready = init();
   return {
@@ -1250,14 +1316,19 @@ window.ConfigEditor = (() => {
     get modsReady() { return modsReady; },
     get file() { return file; },
     async prepareLanguageChange() {
+      requireNoImport();
       if (!draft) return;
       await chain;
+      requireNoImport();
       await flushFields();
+      requireNoImport();
       await flushSources();
       await chain;
+      requireNoImport();
       if (unsaved.length || pendingFields.size || sourceDirty || fieldDirty) throw new Error(I18n.t("Сначала сохраните черновик после восстановления связи"));
     },
     async focusSettings(tab = "server") {
+      requireNoImport();
       if (initialPending) throw new Error(I18n.t("Профиль ещё загружается"));
       try { await profileLoad; }
       catch (failure) {
@@ -1265,17 +1336,23 @@ window.ConfigEditor = (() => {
         if (!file || !draft) throw failure;
       }
       if (!file || !draft) throw new Error(I18n.t("Сначала выберите доступный профиль конфигурации"));
-      await chain; await flushFields();
+      await chain;
+      requireNoImport();
+      await flushFields();
+      requireNoImport();
       if (unsaved.length) throw new Error(I18n.t("Сначала повторите сохранение черновика после восстановления связи"));
       await flushSources();
+      requireNoImport();
       configTab = tab;
       $("configTabs").querySelectorAll("[role=tab]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
       renderFields(); renderSources(); $("configSearch").focus();
     },
     async focusModOrder() {
+      requireNoImport();
       if (initialPending || !modsReady) throw new Error(I18n.t("Состав модов ещё не загружен"));
       try { await profileLoad; }
       catch (failure) { if (!file || !draft || !modsReady) throw failure; }
+      requireNoImport();
       modTab = "order";
       $("modTabs").querySelectorAll("[role=tab]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === modTab)));
       updateModTab(); $("orderQuery").focus();
@@ -1288,7 +1365,7 @@ window.ConfigEditor = (() => {
       previousOp = active;
       updateBar();
       // A single reload finishes this editor's explicit save/apply action.
-      if (completed && file && !loading && !sourceDirty && !fieldDirty && !pendingFields.size && !unsaved.length && !pendingPatches) {
+      if (completed && file && !loading && !importing && !sourceDirty && !fieldDirty && !pendingFields.size && !unsaved.length && !pendingPatches) {
         loadProfile(file).catch(e => error(e.message));
       }
     },
@@ -1299,7 +1376,7 @@ window.ConfigEditor = (() => {
       const cached = direct && modsReady && mods?.file === file && mods.draftRevision === draft?.draftRevision && profileContext !== null && profileContext === serverContext();
       editorRoute = view;
       updateBar(); if (view === "mods") updateModTab();
-      if (entering && !cached && draft && !loading && !operationBusy() && !sourceDirty && !fieldDirty && !pendingFields.size && !unsaved.length && !pendingPatches) {
+      if (entering && !cached && draft && !loading && !importing && !operationBusy() && !sourceDirty && !fieldDirty && !pendingFields.size && !unsaved.length && !pendingPatches) {
         loadProfile(file).catch(e => error(e.message));
       }
     },

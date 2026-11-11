@@ -1,7 +1,9 @@
 """Periodic chat and restarts use persisted schedules and the operation gate."""
 
 import json
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from datetime import datetime, timezone
 from unittest.mock import Mock
@@ -248,6 +250,180 @@ def test_disabled_chat_is_not_dispatched_from_a_stale_snapshot(settings_file, mo
 
     send.assert_not_called()
     assert ops.get_settings()["nextChatAnnouncement"] is None
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+def test_due_backup_uses_current_settings(settings_file, monkeypatch, enabled):
+    assert ops.patch_settings({"autoBackup": {"enabled": True, "stopServer": True}}) is None
+    ops._set_schedule("nextBackupRun", NOW - 10)
+    stale = ops.get_settings()
+    assert ops.patch_settings({"autoBackup": {"stopServer": False}}) is None
+    if not enabled:
+        assert ops.patch_settings({"autoBackup": {"enabled": False}}) is None
+    start = Mock()
+    backup = Mock()
+    monkeypatch.setattr(ops, "start_op", start)
+    monkeypatch.setattr(ops, "run_backup_job", backup)
+    ops._auto_backup_tick(stale, NOW)
+    if enabled:
+        start.assert_called_once()
+        op, worker = start.call_args.args
+        assert op == "backup"
+        worker()
+        backup.assert_called_once_with("scheduled", False)
+        assert ops.get_settings()["nextBackupRun"] > NOW
+    else:
+        start.assert_not_called()
+        assert ops.get_settings()["nextBackupRun"] is None
+
+
+@pytest.mark.parametrize("mods", [False, True])
+@pytest.mark.parametrize("change", ["disable", "new-occurrence", "interval"])
+def test_update_probe_does_not_hold_gate_and_rechecks_schedule(
+    settings_file, monkeypatch, mods, change
+):
+    section, deadline, check, result = (
+        ("modsUpdate", "nextModsCheck", "check_mods_update", {"state": "needs-update"})
+        if mods
+        else ("autoUpdate", "nextCheck", "check_update", {"available": True})
+    )
+    assert ops.patch_settings({section: {"enabled": True}}) is None
+    due = NOW - HOUR
+    ops._set_schedule(deadline, due)
+    snapshot = ops.get_settings()
+    entered, release = threading.Event(), threading.Event()
+
+    def probe(**kwargs):
+        entered.set()
+        assert release.wait(5)
+        return result
+
+    start = Mock()
+    monkeypatch.setattr(ops, "start_op", start)
+    monkeypatch.setattr(ops, "container_state", lambda: container_state(NOW - 300))
+    monkeypatch.setattr(ops, check, probe)
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        tick = executor.submit(ops._scheduled_update_tick, snapshot, NOW, mods=mods)
+        try:
+            assert entered.wait(5)
+            if change == "disable":
+                assert ops.patch_settings({section: {"enabled": False}}) is None
+                next_run = due
+            elif change == "new-occurrence":
+                next_run = NOW + HOUR
+                with ops.mutation_guard():
+                    ops._set_schedule(deadline, next_run)
+            else:
+                options = {"intervalHours": 2, "warnSeconds": 30}
+                if mods:
+                    options["restartOnUpdate"] = False
+                assert ops.patch_settings({section: options}) is None
+                next_run = NOW + 2 * HOUR
+        finally:
+            release.set()
+        tick.result(timeout=5)
+    if not mods and change == "interval":
+        start.assert_called_once()
+        assert start.call_args.args[0] == "apply-update"
+        assert start.call_args.args[1].args[0] == 30
+    else:
+        start.assert_not_called()
+    assert ops.get_settings()[deadline] == next_run
+    assert json.loads(settings_file.read_text(encoding="utf-8"))[deadline] == next_run
+
+
+def test_failed_scheduled_worker_launch_releases_slot_and_preserves_due(settings_file, monkeypatch):
+    assert ops.patch_settings({"autoUpdate": {"enabled": True}}) is None
+    due = NOW - HOUR
+    ops._set_schedule("nextCheck", due)
+    active = dict(ops._ACTIVE, op=None)
+    monkeypatch.setattr(ops, "_ACTIVE", active)
+    monkeypatch.setattr(ops, "check_update", Mock(return_value={"available": True}))
+    thread = Mock()
+    thread.start.side_effect = RuntimeError("thread unavailable")
+    monkeypatch.setattr(ops.threading, "Thread", Mock(return_value=thread))
+    ops._scheduled_update_tick(ops.get_settings(), NOW)
+    thread.start.assert_called_once()
+    assert active["op"] is None
+    assert ops.get_settings()["nextCheck"] == due
+    assert json.loads(settings_file.read_text(encoding="utf-8"))["nextCheck"] == due
+
+
+def test_scheduled_mod_probe_discards_update_detected_before_replacement(
+    settings_file, monkeypatch
+):
+    assert ops.patch_settings({"modsUpdate": {"enabled": True}}) is None
+    due = NOW - HOUR
+    ops._set_schedule("nextModsCheck", due)
+    original = container_state(NOW - 300)
+    replacement = container_state(NOW - 10, container_id="b" * 64)
+    live = original.copy()
+
+    def workshop_titles():
+        live.update(replacement)
+        return {}
+
+    monkeypatch.setattr(ops, "container_state", lambda: live.copy())
+    monkeypatch.setattr(ops, "docker_ok_cached", lambda: True)
+    monkeypatch.setattr(ops, "rcon", Mock())
+    monkeypatch.setattr(ops.time, "sleep", Mock())
+    monkeypatch.setattr(
+        ops.dockerlib,
+        "container_logs",
+        Mock(side_effect=[("", None), ("CheckModsNeedUpdate: 123456 needs update", None)]),
+    )
+    monkeypatch.setattr(ops, "_LAST_MODS_CHECK", {})
+    monkeypatch.setattr(ops, "_mods_registry", workshop_titles)
+    start = Mock()
+    monkeypatch.setattr(ops, "start_op", start)
+
+    ops._scheduled_update_tick(ops.get_settings(), NOW, mods=True)
+
+    assert live == replacement
+    assert ops.mods_check_state()["state"] == "needs-update"
+    start.assert_not_called()
+    assert ops.get_settings()["nextModsCheck"] == due
+
+
+def test_mod_rescan_cannot_move_deadline_after_a_second_restart(settings_file, monkeypatch):
+    assert ops.patch_settings({"modsUpdate": {"enabled": True}}) is None
+    ops._set_schedule("nextModsCheck", NOW + HOUR)
+    original = container_state(NOW - 300)
+    restarted = container_state(NOW - 30)
+    monkeypatch.setattr(
+        ops, "_POST_RESTART", {"startedAt": original["startedAt"], "dueAt": NOW - 10, "tries": 0}
+    )
+    monkeypatch.setattr(ops, "docker_ok_cached", lambda: True)
+    monkeypatch.setattr(ops, "is_running", lambda: True)
+    monkeypatch.setattr(ops, "container_state", Mock(side_effect=[original, restarted]))
+    monkeypatch.setattr(ops, "check_mods_update", Mock(return_value={"state": "up-to-date"}))
+    ops._post_restart_rescan_tick(ops.get_settings())
+    assert ops.get_settings()["nextModsCheck"] == NOW + HOUR
+
+
+def test_mod_rescan_retries_when_mutation_admission_is_busy(settings_file, monkeypatch):
+    assert ops.patch_settings({"modsUpdate": {"enabled": True, "intervalHours": 2}}) is None
+    ops._set_schedule("nextModsCheck", NOW + HOUR)
+    running = container_state(NOW - 300)
+    due = NOW - 10
+    monkeypatch.setattr(
+        ops, "_POST_RESTART", {"startedAt": running["startedAt"], "dueAt": due, "tries": 0}
+    )
+    monkeypatch.setattr(ops, "docker_ok_cached", lambda: True)
+    monkeypatch.setattr(ops, "container_state", lambda: running)
+    busy = Mock(side_effect=[False, True, False, False])
+    monkeypatch.setattr(ops, "op_busy", busy)
+    probe = Mock(return_value={"state": "up-to-date"})
+    monkeypatch.setattr(ops, "check_mods_update", probe)
+
+    ops._post_restart_rescan_tick(ops.get_settings())
+    assert ops._POST_RESTART["dueAt"] == due
+    assert ops.get_settings()["nextModsCheck"] == NOW + HOUR
+
+    ops._post_restart_rescan_tick(ops.get_settings())
+    assert probe.call_count == 2
+    assert ops._POST_RESTART["dueAt"] is None
+    assert ops.get_settings()["nextModsCheck"] == NOW + 2 * HOUR
 
 
 def test_due_schedules_wait_for_active_operations(settings_file, monkeypatch):

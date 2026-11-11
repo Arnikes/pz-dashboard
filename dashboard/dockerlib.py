@@ -24,6 +24,26 @@ def normalize_image(image):
     return image
 
 
+def read_compose_model(rendered):
+    # `compose config` escapes the entire serialized output for reuse as a file.
+    return json.loads(rendered.replace("$$", "$"))
+
+
+def _escape_compose_values(value):
+    if isinstance(value, dict):
+        return {key: _escape_compose_values(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_escape_compose_values(item) for item in value]
+    if isinstance(value, str):
+        return value.replace("$", "$$")
+    return value
+
+
+def compose_snapshot_json(model):
+    # Compose applies interpolation to values in a mapping and leaves its keys literal.
+    return json.dumps(_escape_compose_values(model))
+
+
 def host_bind_source(source, mounts):
     """Translate paths visible inside the panel into the Docker host's paths."""
     for mount in sorted(mounts, key=lambda item: len(item["Destination"]), reverse=True):
@@ -42,13 +62,15 @@ def preserve_mounts(container, model, service):
     """
     definition = model["services"][service]
     expected = {volume["target"]: volume for volume in definition.get("volumes", [])}
+    copied_configs = set()
     for kind, prefix in (("configs", "/"), ("secrets", "/run/secrets/")):
         for reference in definition.get(kind, []):
             source = reference["source"]
             target = posixpath.join(prefix, reference.get("target") or source)
             record = model.get(kind, {}).get(source, {})
-            # Inline/environment-backed files have generated host paths. Their
-            # declared targets are retained without treating them as world storage.
+            if kind == "configs" and record.get("content") is not None:
+                copied_configs.add(target)
+                continue
             expected.setdefault(
                 target,
                 {
@@ -59,6 +81,10 @@ def preserve_mounts(container, model, service):
                 },
             )
     mounts = {mount["Destination"]: mount for mount in container.get("Mounts", [])}
+    if copied_configs and (
+        definition.get("read_only") or copied_configs & (mounts.keys() | expected.keys())
+    ):
+        return False
     for target, live in mounts.items():
         if live["Type"] not in ("bind", "volume") or target in expected:
             continue

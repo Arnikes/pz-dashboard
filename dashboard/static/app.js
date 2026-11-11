@@ -2943,9 +2943,11 @@ function pushSettings(eventOrGroup) {
   });
 }
 
-Object.values(SETTING_GROUPS).forEach(({ ids }) => ids.forEach((id) => {
-  $(id).addEventListener("input", () => {
-    const state = settingState(settingGroup(id));
+Object.entries(SETTING_GROUPS).forEach(([group, { ids }]) => ids.forEach((id) => {
+  const input = $(id);
+  input.dataset.settingsGroup = group;
+  input.addEventListener("input", () => {
+    const state = settingState(group);
     state.dirty = true;
     state.generation++;
   });

@@ -90,6 +90,41 @@ def test_blocked_language_switch_keeps_unsaved_console_input(page, dashboard):
     assert page.evaluate("localStorage.getItem('pz-language')") is None
 
 
+def test_backup_schedule_edit_allows_language_switch_after_successful_retry(page, dashboard):
+    backups = {"ok": True, "items": [], "autoBackup": {"time": "03:00"}, "maxBackups": 7}
+    pending = []
+    page.route("**/api/backups", lambda route: route.fulfill(json=backups))
+    page.route("**/api/settings", lambda route: pending.append(route))
+    page.goto(dashboard["url"] + "/#/backups")
+    keep = page.locator("#bkAutoKeep")
+    language = page.locator("#languageSwitch")
+    expect(keep).to_be_enabled()
+    with page.expect_request("**/api/settings"):
+        keep.fill("9")
+        keep.press("Tab")
+    language.select_option("en")
+    expect(page.locator("#languageStatus")).to_be_visible()
+    expect(language).to_have_value("ru")
+
+    pending.pop().fulfill(status=503, json={"ok": False, "error": "Settings unavailable"})
+    retry = page.locator("#sec-bksched .settings-feedback button")
+    expect(retry).to_be_visible()
+    language.select_option("en")
+    expect(language).to_have_value("ru")
+    expect(keep).to_have_value("9")
+    with page.expect_request("**/api/settings") as request:
+        retry.click()
+    backups["maxBackups"] = request.value.post_data_json["backup"]["maxBackups"]
+    pending.pop().fulfill(json={"ok": True})
+    expect(retry).to_have_count(0)
+
+    with page.expect_navigation(wait_until="load"):
+        language.select_option("en")
+    expect(page.locator("html")).to_have_attribute("lang", "en")
+    expect(keep).to_have_value("9")
+    assert page.url.endswith("#/backups")
+
+
 @pytest.mark.browser_context_args(locale="en-US")
 def test_browser_language_login_help_offline_and_formatting(page, dashboard):
     page.goto(dashboard["url"] + "/login.html")

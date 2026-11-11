@@ -1,6 +1,5 @@
 """Validate a game image update before stopping the server."""
 
-import json
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -41,7 +40,7 @@ def prepare():
             "Не удалось прочитать Compose. Проверьте файлы, .env и переменные окружения."
         )
     try:
-        model = json.loads(out)
+        model = dockerlib.read_compose_model(out)
         definition = model["services"][service]
         image = definition["image"]
         running_image = container["Config"]["Image"]
@@ -83,7 +82,7 @@ def compose_snapshot(model):
     # Freeze interpolation (including literal dollars in secrets) and host paths.
     with tempfile.TemporaryDirectory(prefix="server-compose-") as directory:
         snapshot = Path(directory) / "compose.json"
-        snapshot.write_text(json.dumps(model).replace("$", "$$"), encoding="utf-8")
+        snapshot.write_text(dockerlib.compose_snapshot_json(model), encoding="utf-8")
         yield snapshot
 
 

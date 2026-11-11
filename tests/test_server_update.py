@@ -58,7 +58,9 @@ def deployment(monkeypatch):
         lambda name: copy.deepcopy(container if name == "game" else panel),
     )
     monkeypatch.setattr(
-        dockerlib, "sh", Mock(side_effect=lambda args, **kw: (0, json.dumps(model), ""))
+        dockerlib,
+        "sh",
+        Mock(side_effect=lambda args, **kw: (0, json.dumps(model).replace("$", "$$"), "")),
     )
     return container, model
 
@@ -73,6 +75,22 @@ def test_prepare_preserves_project_and_maps_world_mount(deployment):
 def test_prepare_rejects_world_bind_replaced_by_tmpfs_before_pull(deployment, monkeypatch):
     _, model = deployment
     model["services"]["game"]["volumes"] = [{"type": "tmpfs", "target": "/data"}]
+    monkeypatch.setattr(dockerlib, "image_pull", Mock())
+    monkeypatch.setattr(dockerlib, "compose_version", lambda: True)
+    monkeypatch.setattr(ops, "graceful_stop", Mock())
+    with pytest.raises(ops.OpsError, match="Пути данных"):
+        ops._do_apply_update(0)
+    dockerlib.image_pull.assert_not_called()
+    ops.graceful_stop.assert_not_called()
+
+
+def test_prepare_rejects_inline_config_for_read_only_game_before_pull(deployment, monkeypatch):
+    _, model = deployment
+    definition = model["services"]["game"]
+    definition["configs"] = [{"source": "settings"}]
+    model["configs"] = {"settings": {"content": "inline settings"}}
+    assert serverupdate.prepare()[1]["configs"] == model["configs"]
+    definition["read_only"] = True
     monkeypatch.setattr(dockerlib, "image_pull", Mock())
     monkeypatch.setattr(dockerlib, "compose_version", lambda: True)
     monkeypatch.setattr(ops, "graceful_stop", Mock())

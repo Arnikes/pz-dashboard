@@ -1,5 +1,7 @@
 """Draft edits, review identity and direct editor navigation survive failures."""
 
+import json
+
 import pytest
 from playwright.sync_api import expect
 
@@ -23,6 +25,85 @@ def stale_review(language):
         if language == "ru"
         else "Draft changed since review. Check changes again"
     )
+
+
+def test_mod_import_waits_for_draft_save_and_keeps_profile_locked(page, dashboard, editing):  # noqa: F811
+    data, _ = editing
+    (data / "Server/another.ini").write_bytes(
+        INI.replace("PublicName=Сервер", "PublicName=Profile B").encode()
+    )
+    pack = editor.modpack({"file": "world.ini"})["pack"]
+    pack["selected"] = ["library"]
+    open_editor(page, dashboard, "en", 1440)
+    pending_save, pending_import = [], []
+    page.route("**/api/config-draft", lambda route: pending_save.append(route))
+    page.route("**/api/modpack", lambda route: pending_import.append(route))
+    profile = page.locator("#configProfile")
+    field = page.locator('[data-key="PublicName"]')
+    with page.expect_request("**/api/config-draft"):
+        field.fill("Saved before import")
+        field.press("Tab")
+    navigate(page, "mods")
+    page.locator("#modImport").set_input_files(
+        {"name": "mods.json", "mimeType": "application/json", "buffer": json.dumps(pack).encode()}
+    )
+    expect(profile).to_be_disabled()
+    assert pending_import == []
+    with page.expect_request("**/api/modpack") as sent:
+        pending_save.pop().fallback()
+    saved = editor.draft("world.ini")
+    assert "PublicName=Saved before import" in saved["texts"]["ini"]
+    assert sent.value.post_data_json["draftRevision"] == saved["draftRevision"]
+    assert sent.value.post_data_json["file"] == "world.ini"
+
+    navigate(page, "settings")
+    expect(profile).to_be_disabled()
+    expect(page.locator("#view-settings .editor-card")).to_have_attribute("inert", "")
+    profile.evaluate("""el => {
+      el.value = 'another.ini'; el.dispatchEvent(new Event('change', {bubbles: true}));
+    }""")
+    expect(profile).to_have_value("world.ini")
+    pending_import.pop().fallback()
+    expect(profile).to_be_enabled()
+    expect(field).to_have_value("Saved before import")
+    assert editor.mod_response("world.ini", draft_mode=True)["mods"] == ["library"]
+
+    page.unroute("**/api/config-draft")
+    profile.select_option("another.ini")
+    expect(field).to_have_value("Profile B")
+    field.fill("Edited profile B")
+    field.press("Tab")
+    expect(page.locator("#draftSaved")).to_have_text("Draft saved")
+    assert "PublicName=Edited profile B" in editor.draft("another.ini")["texts"]["ini"]
+    assert "PublicName=Saved before import" in editor.draft("world.ini")["texts"]["ini"]
+
+
+def test_mod_import_does_not_save_over_invalid_pending_number(page, dashboard, editing):  # noqa: F811
+    data, _ = editing
+    (data / "Server/world.ini").write_bytes((INI + "SaveWorldEveryMinutes=15\r\n").encode())
+    pack = editor.modpack({"file": "world.ini"})["pack"]
+    open_editor(page, dashboard, "en", 1440)
+    posts = []
+
+    def record(route):
+        posts.append(route.request.url)
+        route.fallback()
+
+    page.route("**/api/config-draft", record)
+    page.route("**/api/modpack", record)
+    field = page.locator('[data-key="SaveWorldEveryMinutes"]')
+    field.fill("")
+    field.press("Tab")
+    navigate(page, "mods")
+    page.locator("#modImport").set_input_files(
+        {"name": "mods.json", "mimeType": "application/json", "buffer": json.dumps(pack).encode()}
+    )
+    expect(page.locator("#configError")).to_contain_text("SaveWorldEveryMinutes")
+    expect(page.locator("#configProfile")).to_be_enabled()
+    assert posts == []
+    navigate(page, "settings")
+    expect(field).to_have_value("")
+    assert "SaveWorldEveryMinutes=15" in editor.draft("world.ini")["texts"]["ini"]
 
 
 @pytest.mark.parametrize("language", ["ru", "en"])

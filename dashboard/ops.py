@@ -94,6 +94,8 @@ def fmt_size(n):
 
 _EV_LOCK = threading.Lock()
 _EV_MEM = deque(maxlen=300)
+_EV_UNSAVED = deque(maxlen=300)
+_EV_FILE_SIGNATURE = None
 _CONSOLE_EVENT_TEXT = "Команда консоли отправлена"
 
 _EVENT_TYPES = {
@@ -132,12 +134,12 @@ def log_event(kind, text, detail=None, notify=True, *, level=None):
         rec["detail"] = str(detail)[:400]
     _redact_console_event(rec)
     text = rec["text"]
+    path = config.CFG["events_file"]
     with _EV_LOCK:
-        _load_events()
-        _EV_MEM.appendleft(rec)
         try:
-            fileio.append_jsonl(config.CFG["events_file"], rec)
+            fileio.append_jsonl(path, rec)
         except OSError as error:
+            _EV_UNSAVED.appendleft((path, rec))
             logging_utils.get_logger("events").warning(
                 "Event persistence unavailable (%s)", type(error).__name__
             )
@@ -167,24 +169,56 @@ def _reverse_lines(path, chunk_size=65536):
             yield pending.decode("utf-8", errors="replace")
 
 
-def _load_events():
-    if not _EV_MEM:
-        # Load before the first new event, including the startup event.
-        try:
-            for line in islice(_reverse_lines(config.CFG["events_file"]), 200):
-                try:
-                    entry = json.loads(line)
-                    if isinstance(entry, dict):
-                        _EV_MEM.append(_redact_console_event(entry))
-                except (ValueError, RecursionError):
-                    pass
-        except OSError:
-            pass
+def _event_file_signature(path):
+    info = os.stat(path)
+    return path, info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns
+
+
+def _load_events(path):
+    global _EV_FILE_SIGNATURE
+    if _EV_FILE_SIGNATURE is not None and _EV_FILE_SIGNATURE[0] != path:
+        _EV_MEM.clear()
+        _EV_FILE_SIGNATURE = None
+    try:
+        signature = _event_file_signature(path)
+        if signature == _EV_FILE_SIGNATURE:
+            return
+        records = []
+        for line in islice(_reverse_lines(path), _EV_MEM.maxlen):
+            try:
+                entry = json.loads(line)
+                if isinstance(entry, dict):
+                    records.append(_redact_console_event(entry))
+            except (ValueError, RecursionError):
+                pass
+        # The detached update helper can append while this process reads the tail.
+        stable = _event_file_signature(path) == signature
+    except FileNotFoundError:
+        _EV_MEM.clear()
+        _EV_FILE_SIGNATURE = None
+        return
+    except OSError:
+        return
+    _EV_MEM.clear()
+    _EV_MEM.extend(records)
+    _EV_FILE_SIGNATURE = signature if stable else (path,)
+
+
+def _event_timestamp(record):
+    try:
+        return datetime.fromisoformat(record.get("ts")).timestamp()
+    except (TypeError, ValueError, OverflowError, OSError):
+        return float("-inf")
 
 
 def get_events(limit=100):
     with _EV_LOCK:
-        _load_events()
+        path = config.CFG["events_file"]
+        _load_events(path)
+        unsaved = [record for source, record in _EV_UNSAVED if source == path]
+        if unsaved:
+            records = sorted([*unsaved, *_EV_MEM], key=_event_timestamp, reverse=True)
+            return records[: max(0, min(limit, _EV_MEM.maxlen))]
         return list(islice(_EV_MEM, max(0, limit)))
 
 
@@ -1516,6 +1550,12 @@ def _create_backup_archive(bdir, ddir):
                 log_event("warn", f"Не удалось удалить временный архив: {error}")
 
 
+def _backup_stopped(state):
+    return bool(
+        state and state.get("running") is False and state.get("status") in {"created", "exited"}
+    )
+
+
 def _do_backup(stop_server, trigger="manual", started=None):
     s3_cfg = dict(config.CFG)
     backups3.validate(s3_cfg)
@@ -1524,15 +1564,29 @@ def _do_backup(stop_server, trigger="manual", started=None):
     os.makedirs(bdir, exist_ok=True)
     if not os.path.isdir(ddir) or not os.listdir(ddir):
         raise OpsError("Каталог данных PZ пуст или не смонтирован — бэкап невозможен")
-    was_running = is_running()
+    state = container_state()
+    unknown_state = "Состояние сервера неизвестно: проверьте доступ к Docker"
+    if not state or not (state.get("running") is True or _backup_stopped(state)):
+        raise OpsError(unknown_state)
+    was_running = state["running"]
+    run = None
+    if stop_server:
+        if not state.get("containerId") or not state.get("startedAt"):
+            raise OpsError(unknown_state)
+        run = _ContainerRun(state["containerId"], state["startedAt"])
     if stop_server and was_running:
+        if not run.matches(state, "running"):
+            raise OpsError(unknown_state)
         _set_phase("Предупреждение игроков", "отсчёт 60 с")
         rcon_warn_broadcast(60, "Бэкап сервера")
         _begin_watchdog_grace()
-        if graceful_stop(lambda m: _set_phase("Остановка для бэкапа", m)) == "resurrected":
+        stop = graceful_stop(lambda m: _set_phase("Остановка для бэкапа", m), expected_run=run)
+        if stop == "resurrected":
             # docker сам поднял контейнер посреди остановки — архивировать
             # полуживой мир нельзя, файлы могут быть в записи
             raise OpsError("Docker сам перезапустил контейнер — бэкап прерван, повторите попытку")
+        if stop != "stopped":
+            raise OpsError("Остановка сервера не подтверждена Docker — бэкап отменён")
     elif was_running:
         _set_phase("Сохранение мира", "RCON save")
         try:
@@ -1542,15 +1596,36 @@ def _do_backup(stop_server, trigger="manual", started=None):
         _set_phase("Ожидание записи", "10 с на сохранение", countdown_seconds=10)
         time.sleep(10)
     archive_error = None
+    restart = stop_server and was_running
     try:
+        if stop_server:
+            state = container_state()
+            changed = state and any(
+                state.get(key) and state[key] != original
+                for key, original in (
+                    ("containerId", run.container_id),
+                    ("startedAt", run.started_at),
+                )
+            )
+            if (
+                changed
+                or state
+                and (
+                    state.get("running") is True
+                    or state.get("status") in {"running", "restarting", "paused"}
+                )
+            ):
+                restart = False
+            if not (run.matches(state, "created") or run.matches(state, "exited")):
+                raise OpsError("Остановка сервера не подтверждена Docker — бэкап отменён")
         name, dest, size = _create_backup_archive(bdir, ddir)
     except OpsError as error:
         archive_error = error
         raise
     finally:
-        if stop_server and was_running:
+        if restart:
             _set_phase("Запуск сервера", "docker start", interrupted=archive_error is not None)
-            code, out, err = _start_container()
+            code, out, err = _start_container(run.container_id)
             restart_error = None
             if code != 0:
                 restart_error = f"Не удалось запустить сервер после бэкапа: {err or out}"
@@ -1922,28 +1997,45 @@ def _verify_backup_path(name, path):
 # ─────────────────────────── планировщик ───────────────────────────
 
 
-def _auto_backup_tick(s, now):
-    """Тик автобэкапа: когда наступило nextBackupRun и пульт свободен — запуск."""
-    ab = s.get("autoBackup") or {}
-    if not ab.get("enabled"):
-        return
-    t = ab.get("time") or "03:00"
-    nxt = s.get("nextBackupRun")
-    if not nxt:
-        nxt = _next_daily_run(t, now)
-        _set_schedule("nextBackupRun", nxt)
-    if now < nxt or op_busy():
-        return
-    late = (now - nxt) / 60
-    note = " (навёрстывание)" if late > 15 else ""
-    _set_schedule("nextBackupRun", _next_daily_run(t, now))
-    log_event("auto", f"Автобэкап по расписанию{note}: запуск ({t})")
+def _start_scheduled_operation(deadline, previous, next_run, operation, worker):
+    """Persist a schedule advance and roll it back if worker admission fails."""
+    _set_schedule(deadline, next_run)
     try:
-        start_op("backup", lambda: run_backup_job("scheduled", bool(ab.get("stopServer"))))
-    except OpsError:
-        # гонка: между проверкой и стартом началась другая операция —
-        # откатываем время, попытка повторится на следующем тике (20 с)
-        _set_schedule("nextBackupRun", nxt)
+        start_op(operation, worker)
+    except Exception:
+        _set_schedule(deadline, previous)
+        raise
+
+
+def _auto_backup_tick(snapshot, now):
+    """Тик автобэкапа: когда наступило nextBackupRun и пульт свободен — запуск."""
+    if not (snapshot.get("autoBackup") or {}).get("enabled"):
+        return
+    if snapshot.get("nextBackupRun") and snapshot["nextBackupRun"] > now:
+        return
+    try:
+        with mutation_guard():
+            settings = get_settings()
+            backup = settings["autoBackup"]
+            due = settings["nextBackupRun"]
+            if not backup["enabled"] or due and due > now:
+                return
+            schedule_time = backup["time"]
+            next_run = _next_daily_run(schedule_time, now)
+            if not due:
+                _set_schedule("nextBackupRun", next_run)
+                return
+            note = " (навёрстывание)" if now - due > 15 * 60 else ""
+            _start_scheduled_operation(
+                "nextBackupRun",
+                due,
+                next_run,
+                "backup",
+                partial(run_backup_job, "scheduled", backup["stopServer"]),
+            )
+            log_event("auto", f"Автобэкап по расписанию{note}: запуск ({schedule_time})")
+    except OpsBusyError:
+        pass
 
 
 def _periodic_tick(snapshot, now, section, dispatch):
@@ -2026,6 +2118,85 @@ def _chat_announcement_tick(settings, now):
     _periodic_tick(settings, now, "chatAnnouncements", _dispatch_chat_announcement)
 
 
+def _scheduled_update_available(mods):
+    if not mods:
+        return check_update(force_event=False).get("available") is True
+    state = container_state()
+    if not state or state.get("running") is not True:
+        log_event("warn", "Автопроверка модов: сервер не запущен — пропуск")
+        return False
+    if (
+        not state.get("containerId")
+        or not state.get("startedAt")
+        or state.get("status") != "running"
+    ):
+        return None
+    run = _ContainerRun(state["containerId"], state["startedAt"])
+    available = check_mods_update(source="auto")["state"] == "needs-update"
+    if available and not run.matches(container_state(), "running"):
+        return None
+    return available
+
+
+def _scheduled_update_worker(mods, settings):
+    if not mods:
+        return "apply-update", partial(
+            _do_apply_update, settings["warnSeconds"], "Автообновление сервера"
+        )
+    if not settings.get("restartOnUpdate", True):
+        log_event("auto", "Автопроверка модов: найдены обновления (рестарт отключён)")
+        return None
+    return "mods-restart", partial(
+        _do_restart,
+        settings.get("warnSeconds", 600),
+        reason="Обновление модов",
+        guard_restarted=True,
+        cancellable=True,
+    )
+
+
+def _scheduled_update_tick(snapshot, now, *, mods=False):
+    section, deadline, label = (
+        ("modsUpdate", "nextModsCheck", "Автопроверка модов:")
+        if mods
+        else ("autoUpdate", "nextCheck", "Автообновление:")
+    )
+    due = snapshot.get(deadline)
+    if not (snapshot.get(section) or {}).get("enabled") or due and due > now or op_busy():
+        return
+    available = False
+    if due:
+        # Registry and RCON probes can outlast a settings save or another operation.
+        try:
+            available = _scheduled_update_available(mods)
+        except OpsError as error:
+            log_event("error", f"{label} {error}")
+        if available is None:
+            # A new run needs its own probe before this occurrence can be consumed.
+            return
+    try:
+        with mutation_guard():
+            current = get_settings()
+            settings = current[section]
+            if not settings["enabled"] or current.get(deadline) != due:
+                return
+            next_run = time.time() + settings["intervalHours"] * 3600
+            work = _scheduled_update_worker(mods, settings) if available else None
+            if work is None:
+                _set_schedule(deadline, next_run)
+                return
+            operation, worker = work
+            _start_scheduled_operation(deadline, due, next_run, operation, worker)
+            log_event(
+                "auto",
+                "Автообновление модов: рестарт для загрузки обновлений"
+                if mods
+                else "Автообновление: найдена новая версия",
+            )
+    except OpsError as error:
+        log_event("error", f"{label} {error}")
+
+
 def _scheduler_loop():
     # Local import avoids the editor/operations module initialization cycle.
     import configeditor
@@ -2033,66 +2204,9 @@ def _scheduler_loop():
     while True:
         try:
             configeditor.auto_verify_running()
+            _scheduled_update_tick(get_settings(), time.time())
+            _scheduled_update_tick(get_settings(), time.time(), mods=True)
             s = get_settings()
-            au = s["autoUpdate"]
-            if au["enabled"]:
-                nxt = s.get("nextCheck")
-                now = time.time()
-                if not nxt:
-                    nxt = now + au["intervalHours"] * 3600
-                    _set_schedule("nextCheck", nxt)
-                if now >= nxt and not op_busy():
-                    try:
-                        check_update(force_event=False)
-                        st = update_state()
-                        if st.get("available"):
-                            log_event("auto", "Автообновление: найдена новая версия")
-                            start_op(
-                                "apply-update",
-                                lambda w=au["warnSeconds"]: _do_apply_update(
-                                    w, "Автообновление сервера"
-                                ),
-                            )
-                    except OpsError as e:
-                        log_event("error", "Автообновление: " + str(e))
-                    _set_schedule("nextCheck", time.time() + au["intervalHours"] * 3600)
-            mu = s.get("modsUpdate") or {}
-            if mu.get("enabled"):
-                nxt_m = s.get("nextModsCheck")
-                now = time.time()
-                if not nxt_m:
-                    nxt_m = now + mu["intervalHours"] * 3600
-                    _set_schedule("nextModsCheck", nxt_m)
-                if now >= nxt_m and not op_busy():
-                    try:
-                        if is_running():
-                            res = check_mods_update(source="auto")
-                            if res["state"] == "needs-update":
-                                if mu.get("restartOnUpdate", True):
-                                    log_event(
-                                        "auto",
-                                        "Автообновление модов: рестарт для загрузки обновлений",
-                                    )
-                                    warn_s = mu.get("warnSeconds", 600)
-                                    start_op(
-                                        "mods-restart",
-                                        lambda w=warn_s: _do_restart(
-                                            w,
-                                            reason="Обновление модов",
-                                            guard_restarted=True,
-                                            cancellable=True,
-                                        ),
-                                    )
-                                else:
-                                    log_event(
-                                        "auto",
-                                        "Автопроверка модов: найдены обновления (рестарт отключён)",
-                                    )
-                        else:
-                            log_event("warn", "Автопроверка модов: сервер не запущен — пропуск")
-                    except OpsError as e:
-                        log_event("error", "Автопроверка модов: " + str(e))
-                    _set_schedule("nextModsCheck", time.time() + mu["intervalHours"] * 3600)
             _post_restart_rescan_tick(s)
             _auto_backup_tick(s, time.time())
             _scheduled_restart_tick(s, time.time())
@@ -2436,20 +2550,39 @@ def _post_restart_rescan_tick(s):
     due = _POST_RESTART.get("dueAt")
     if not due or time.time() < due or op_busy():
         return
-    if not is_running():
+    if not st or not st["running"] or not started:
         _reset_post_restart_state()
         return
     try:
         res = check_mods_update(source="post-restart")
-        _POST_RESTART["dueAt"] = None
         if res["state"] == "up-to-date":
-            _set_schedule("nextModsCheck", time.time() + (mu.get("intervalHours") or 6) * 3600)
-            log_event("mods", "После рестарта моды актуальны — таймер автопроверки сброшен")
+            current_run = container_state()
+            if (
+                current_run
+                and current_run["running"]
+                and current_run.get("startedAt") == started
+                and current_run.get("containerId") == st.get("containerId")
+            ):
+                with mutation_guard():
+                    current = get_settings()
+                    settings = current["modsUpdate"]
+                    if settings["enabled"] and current.get("nextModsCheck") == s.get(
+                        "nextModsCheck"
+                    ):
+                        _set_schedule(
+                            "nextModsCheck", time.time() + settings["intervalHours"] * 3600
+                        )
+                        log_event(
+                            "mods", "После рестарта моды актуальны — таймер автопроверки сброшен"
+                        )
         elif res["state"] == "needs-update":
             log_event(
                 "mods",
                 "После рестарта моды всё ещё требуют обновления — таймер автопроверки сохранён",
             )
+        _POST_RESTART["dueAt"] = None
+    except OpsBusyError:
+        return
     except Exception as e:  # noqa: BLE001 — RCON мог ещё не подняться после старта
         _POST_RESTART["tries"] += 1
         if _POST_RESTART["tries"] <= _RESCAN_RETRIES:
@@ -2701,20 +2834,26 @@ def _watchdog_probe(wd):
         _WD["lastError"] = error
         _WD["consecutiveFailures"] += 1
         silent_min = _WD["consecutiveFailures"] * 30 / 60
-        if silent_min >= wd["thresholdMin"] and not _WD["alerted"]:
+        if silent_min < wd["thresholdMin"]:
+            return
+        first_alert = not _WD["alerted"]
+        if first_alert:
             _WD["alerted"] = True
             log_event("warn", f"Watchdog: RCON не отвечает {silent_min:.0f} мин — {error}")
-            cooldown = max(15, int(wd["thresholdMin"]) * 3) * 60
-            cooled = not _WD["lastRestartAt"] or time.time() - _WD["lastRestartAt"] >= cooldown
-            if wd["autoRestart"] and not cooled:
+        if not wd["autoRestart"]:
+            return
+        cooldown = max(15, int(wd["thresholdMin"]) * 3) * 60
+        if _WD["lastRestartAt"] and time.time() - _WD["lastRestartAt"] < cooldown:
+            if first_alert:
                 log_event("warn", "Watchdog: рестарт недавно был — ждём кулдауна")
-            elif wd["autoRestart"] and docker_ok_cached() and is_running() and not op_busy():
-                log_event("warn", "Watchdog: авторестарт зависшего сервера")
-                _WD["lastRestartAt"] = time.time()
-                try:
-                    start_op("restart", lambda: _do_restart(0))
-                except OpsError:
-                    pass
+            return
+        if docker_ok_cached() and is_running() and not op_busy():
+            try:
+                start_op("restart", lambda: _do_restart(0))
+            except OpsError:
+                return
+            _WD["lastRestartAt"] = time.time()
+            log_event("warn", "Watchdog: авторестарт зависшего сервера")
 
 
 def _watchdog_loop():

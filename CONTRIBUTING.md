@@ -252,7 +252,9 @@ probe it with the shipped health check, and collect logs and remove it afterward
 No published host port, fixed container name, or extra Docker network is needed.
 
 Gitea CD publishes `latest`, `sha-<commit>`, and version tags with `REGISTRY_TOKEN`
-(scope `write:package`). SSH deployment is enabled only with `DEPLOY_ENABLED=true`
+(scope `write:package`). Gitea release tags must also be valid Docker tags and
+must be distinct from `latest` and the `sha-<commit>` tags. SSH deployment is
+enabled only with `DEPLOY_ENABLED=true`
 and `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PATH`, `DEPLOY_SSH_KEY`.
 Use a registry token belonging to the actor publishing the image.
 A deployed panel must use `image:` instead of a local `build:` to pull that image.

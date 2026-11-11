@@ -17,6 +17,9 @@ import config  # noqa: E402
 import dockerlib  # noqa: E402
 import ops  # noqa: E402
 
+RUNNING = {"status": "running", "running": True, "startedAt": "S1", "containerId": "game"}
+STOPPED = dict(RUNNING, status="exited", running=False)
+
 
 @pytest.fixture
 def sandbox(tmp_path, monkeypatch):
@@ -31,7 +34,7 @@ def sandbox(tmp_path, monkeypatch):
     monkeypatch.setattr(ops, "log_event", Mock())
     monkeypatch.setattr(ops, "_set_phase", Mock())
     monkeypatch.setattr(ops, "is_running", lambda: False)
-    monkeypatch.setattr(ops, "container_state", lambda: {"running": False})
+    monkeypatch.setattr(ops, "container_state", lambda: STOPPED.copy())
     world = Path(cfg["data_dir"]) / "world.bin"
     world.write_bytes(b"original world")
     return world
@@ -78,7 +81,7 @@ def test_bad_archive_does_not_stop_or_wipe_server(sandbox, monkeypatch, kind, op
 
 @pytest.mark.parametrize("failure", ["exit", "timeout", "oserror"])
 def test_failed_backup_restarts_server_and_removes_partial_archive(sandbox, monkeypatch, failure):
-    monkeypatch.setattr(ops, "is_running", lambda: True)
+    monkeypatch.setattr(ops, "container_state", Mock(side_effect=[RUNNING, STOPPED]))
     monkeypatch.setattr(ops, "rcon_warn_broadcast", Mock())
     monkeypatch.setattr(ops, "graceful_stop", Mock(return_value="stopped"))
     start = Mock(return_value=(0, "", ""))
@@ -97,7 +100,7 @@ def test_failed_backup_restarts_server_and_removes_partial_archive(sandbox, monk
     monkeypatch.setattr(ops.subprocess, "run", fail)
     with pytest.raises(ops.OpsErrorReported):
         ops.run_backup_job("scheduled", True)
-    start.assert_called_once_with(config.CFG["pz_container"])
+    start.assert_called_once_with(RUNNING["containerId"])
     assert not list(Path(config.CFG["backup_dir"]).iterdir())
     assert ops.get_backup_journal()[0]["status"] == "error"
 
@@ -230,7 +233,7 @@ def test_loaded_settings_validate_switches_and_telegram_types(sandbox):
 
 @pytest.mark.parametrize("restart", ["exit", "timeout"])
 def test_backup_restart_failure_is_reported(sandbox, monkeypatch, restart):
-    monkeypatch.setattr(ops, "is_running", lambda: True)
+    monkeypatch.setattr(ops, "container_state", Mock(side_effect=[RUNNING, STOPPED]))
     monkeypatch.setattr(ops, "rcon_warn_broadcast", Mock())
     monkeypatch.setattr(ops, "graceful_stop", Mock(return_value="stopped"))
     monkeypatch.setattr(
@@ -241,6 +244,65 @@ def test_backup_restart_failure_is_reported(sandbox, monkeypatch, restart):
         ops.run_backup_job("manual", True)
     assert len(ops.list_backups()) == 1
     assert ops.get_backup_journal()[0]["status"] == "error"
+
+
+@pytest.mark.parametrize("stop_server", [False, True])
+@pytest.mark.parametrize("state", [None, dict(STOPPED, status="restarting")])
+def test_backup_refuses_unconfirmed_initial_state(sandbox, monkeypatch, stop_server, state):
+    monkeypatch.setattr(ops, "container_state", Mock(return_value=state))
+    warn = Mock()
+    archive = Mock()
+    monkeypatch.setattr(ops, "rcon_warn_broadcast", warn)
+    monkeypatch.setattr(ops, "_create_backup_archive", archive)
+    with pytest.raises(ops.OpsErrorReported, match="Состояние сервера неизвестно"):
+        ops.run_backup_job("manual", stop_server)
+    warn.assert_not_called()
+    archive.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "state, recover",
+    [
+        (None, True),
+        (dict(RUNNING, startedAt="S2"), False),
+        (dict(STOPPED, status="restarting"), False),
+        (dict(STOPPED, containerId="replacement"), False),
+    ],
+)
+def test_stopped_backup_rechecks_same_run_before_archive(sandbox, monkeypatch, state, recover):
+    monkeypatch.setattr(ops, "container_state", Mock(side_effect=[RUNNING, state]))
+    monkeypatch.setattr(ops, "rcon_warn_broadcast", Mock())
+    monkeypatch.setattr(ops, "graceful_stop", Mock(return_value="stopped"))
+    start = Mock(return_value=(0, "", ""))
+    archive = Mock()
+    monkeypatch.setattr(ops, "_start_container", start)
+    monkeypatch.setattr(ops, "wait_until_running", Mock(return_value=True))
+    monkeypatch.setattr(ops, "wait_until_ready", Mock(return_value=True))
+    monkeypatch.setattr(ops, "_create_backup_archive", archive)
+    with pytest.raises(ops.OpsErrorReported, match="Остановка сервера не подтверждена Docker"):
+        ops.run_backup_job("scheduled", True)
+    archive.assert_not_called()
+    if recover:
+        start.assert_called_once_with(RUNNING["containerId"])
+    else:
+        start.assert_not_called()
+
+
+def test_stopped_backup_leaves_replacement_running_during_warning(sandbox, monkeypatch):
+    replacement = dict(RUNNING, containerId="replacement", startedAt="S2")
+    monkeypatch.setattr(ops, "container_state", Mock(side_effect=[RUNNING, replacement]))
+    monkeypatch.setattr(ops, "rcon_warn_broadcast", Mock())
+    policy = Mock()
+    archive = Mock()
+    start = Mock()
+    monkeypatch.setattr(dockerlib, "get_restart_policy", policy)
+    monkeypatch.setattr(ops, "_create_backup_archive", archive)
+    monkeypatch.setattr(ops, "_start_container", start)
+    with pytest.raises(ops.OpsErrorReported, match="Остановка сервера не подтверждена Docker"):
+        ops.run_backup_job("manual", True)
+    policy.assert_not_called()
+    archive.assert_not_called()
+    start.assert_not_called()
 
 
 def test_restore_start_timeout_is_reported(sandbox, monkeypatch):
@@ -263,8 +325,7 @@ def test_scheduler_dispatches_image_update_through_operation_lock(sandbox, monke
     ops._SETTINGS["autoUpdate"].update({"enabled": True, "warnSeconds": 30})
     ops._SETTINGS["nextCheck"] = 1
     monkeypatch.setattr(ops, "op_busy", lambda: False)
-    monkeypatch.setattr(ops, "check_update", Mock())
-    monkeypatch.setattr(ops, "update_state", lambda: {"available": True})
+    monkeypatch.setattr(ops, "check_update", Mock(return_value={"available": True}))
     update = Mock()
     start = Mock()
     monkeypatch.setattr(ops, "_do_apply_update", update)
@@ -289,9 +350,9 @@ def test_scheduler_does_not_update_if_another_operation_starts_during_check(sand
 
     def check(**kwargs):
         active["op"] = "restart"
+        return {"available": True}
 
     monkeypatch.setattr(ops, "check_update", check)
-    monkeypatch.setattr(ops, "update_state", lambda: {"available": True})
     update = Mock()
     monkeypatch.setattr(ops, "_do_apply_update", update)
     monkeypatch.setattr(ops, "_post_restart_rescan_tick", Mock())
@@ -300,4 +361,5 @@ def test_scheduler_does_not_update_if_another_operation_starts_during_check(sand
         ops._scheduler_loop()
     update.assert_not_called()
     assert active["op"] == "restart"
+    assert ops.get_settings()["nextCheck"] == 1
     assert any(call.args[0] == "error" for call in ops.log_event.call_args_list)

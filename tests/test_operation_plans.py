@@ -36,7 +36,15 @@ def workers(tmp_path, monkeypatch):
     monkeypatch.setattr(ops, "is_running", lambda: True)
     monkeypatch.setattr(ops, "wait_until_running", lambda timeout: True)
     monkeypatch.setattr(dockerlib, "container_start", lambda name: (0, "", ""))
-    monkeypatch.setattr(ops, "graceful_stop", lambda hook: (hook("stopped"), "stopped")[1])
+    server = {"status": "running", "running": True, "startedAt": "S1", "containerId": "game"}
+    monkeypatch.setattr(ops, "container_state", lambda: server.copy())
+
+    def stop(hook, *, expected_run=None):
+        hook("stopped")
+        server.update(status="exited", running=False)
+        return "stopped"
+
+    monkeypatch.setattr(ops, "graceful_stop", stop)
     settings = deepcopy(ops._DEFAULTS)
     monkeypatch.setattr(ops, "get_settings", lambda: settings)
     monkeypatch.setattr(ops, "_journal_append", Mock())

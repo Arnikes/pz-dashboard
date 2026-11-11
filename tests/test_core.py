@@ -514,7 +514,7 @@ def mods_restart_env(monkeypatch):
     monkeypatch.setattr(ops, "_OP_CANCEL", threading.Event())
     monkeypatch.setattr(ops, "_OP_HISTORY", deque())
     monkeypatch.setattr(ops, "is_running", lambda: True)
-    monkeypatch.setattr(ops, "container_state", lambda: {"running": True, "startedAt": "S1"})
+    monkeypatch.setattr(ops, "container_state", lambda: _run_state(containerId="game"))
     monkeypatch.setattr(ops, "log_event", Mock())
     monkeypatch.setattr(ops, "rcon", Mock(return_value=""))
     stop = Mock(return_value="stopped")
@@ -1206,12 +1206,13 @@ def test_backup_with_stop_aborts_on_resurrect(tmp_path, monkeypatch):
     data = tmp_path / "data"
     data.mkdir()
     (data / "world").mkdir()
+    monkeypatch.setitem(config.CFG, "data_dir", str(data))
     monkeypatch.setattr(ops, "log_event", lambda *a, **k: None)
     monkeypatch.setattr(ops, "_set_phase", lambda *a, **k: None)
-    monkeypatch.setattr(ops, "is_running", lambda: True)
+    monkeypatch.setattr(ops, "container_state", lambda: _run_state(containerId="game"))
     monkeypatch.setattr(ops, "rcon_warn_broadcast", lambda s, r: True)
-    monkeypatch.setattr(ops, "graceful_stop", lambda hook=None: "resurrected")
-    with pytest.raises(ops.OpsError):
+    monkeypatch.setattr(ops, "graceful_stop", lambda hook, *, expected_run: "resurrected")
+    with pytest.raises(ops.OpsError, match="Docker сам перезапустил контейнер"):
         ops._do_backup(True)
 
 
@@ -1626,7 +1627,7 @@ def test_backup_tar_timeout_readable(tmp_path, monkeypatch):
     (data / "w").mkdir(parents=True)
     config.CFG["data_dir"] = str(data)
     monkeypatch.setattr(ops, "_set_phase", lambda *a, **k: None)
-    monkeypatch.setattr(ops, "is_running", lambda: False)
+    monkeypatch.setattr(ops, "container_state", lambda: _run_state(status="exited", running=False))
 
     def boom(*a, **k):
         raise sp.TimeoutExpired(cmd="tar", timeout=2400)
@@ -1717,7 +1718,11 @@ def _bk_fixture(tmp_path, monkeypatch):
     monkeypatch.setattr(ops, "log_event", lambda *a, **k: None)
     monkeypatch.setattr(ops, "_set_phase", lambda *a, **k: None)
     monkeypatch.setattr(ops, "is_running", lambda: False)
-    monkeypatch.setattr(ops, "container_state", lambda: {"running": False})
+    monkeypatch.setattr(
+        ops,
+        "container_state",
+        lambda: _run_state(status="exited", running=False, containerId="game"),
+    )
     return data
 
 

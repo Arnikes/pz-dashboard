@@ -39,7 +39,11 @@ def audit_env(tmp_path, monkeypatch):
     monkeypatch.setattr(ops, "_EV_MEM", deque(maxlen=300))
     monkeypatch.setattr(ops, "_set_phase", Mock())
     monkeypatch.setattr(ops, "is_running", lambda: False)
-    monkeypatch.setattr(ops, "container_state", lambda: {"running": False})
+    monkeypatch.setattr(
+        ops,
+        "container_state",
+        lambda: {"status": "exited", "running": False, "startedAt": "S1", "containerId": "game"},
+    )
     monkeypatch.setattr(dockerlib, "container_start", Mock(return_value=(0, "", "")))
     return Path(cfg["data_dir"])
 

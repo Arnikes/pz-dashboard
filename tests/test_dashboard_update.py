@@ -158,7 +158,7 @@ def deployment(monkeypatch, tmp_path, request):
 
     def command(args, **kwargs):
         if "config" in args:
-            return 0, json.dumps(model), ""
+            return 0, json.dumps(model).replace("$", "$$"), ""
         if "image" in args and "--format" in args:
             return 0, NEW, ""
         return 0, "helper-id", ""
@@ -191,6 +191,60 @@ def test_detached_handoff_preserves_host_paths_and_secrets(deployment):
         ("dashboard-recreate", "current"),
         ("dashboard-ready", "pending"),
     ]
+
+
+def test_detached_snapshot_preserves_literal_dollars_and_inline_config(deployment):
+    container, model, command = deployment
+    container["Mounts"][0]["Source"] = "/srv/$panel"
+    definition = model["services"]["pz-dashboard"]
+    definition["environment"]["TOKEN"] = "literal$secret$$tail"
+    definition["labels"] = {"test.$key": "value$key"}
+    definition["configs"] = [{"source": "settings", "target": "/settings"}]
+    model["configs"] = {"settings": {"content": "literal$secret$$tail"}}
+
+    assert updater.apply(Mock()) == "handoff"
+    launch = command.call_args.args[0]
+    snapshot = Path(launch[launch.index("/app/dashboardupdate.py") + 1])
+    frozen = json.loads(snapshot.read_text(encoding="utf-8"))
+    console = frozen["services"]["pz-dashboard"]
+    assert console["environment"]["TOKEN"] == "literal$$secret$$$$tail"
+    assert console["labels"] == {"test.$key": "value$$key"}
+    assert console["volumes"][0]["source"] == "/srv/$$panel"
+    assert frozen["configs"]["settings"]["content"] == "literal$$secret$$$$tail"
+
+
+@pytest.mark.parametrize("kind", ["configs", "secrets"])
+def test_environment_file_preflight_only_checks_target_service(deployment, kind):
+    container, model, _ = deployment
+    model[kind] = {"settings": {"environment": "EXAMPLE_SOURCE"}}
+    references = [{"source": "settings"}]
+    model["services"]["pzserver"][kind] = references
+    assert updater.prepare(container)[kind] == model[kind]
+
+    model["services"]["pz-dashboard"][kind] = references
+    with pytest.raises(ops.OpsError, match="из переменной окружения"):
+        updater.apply(Mock())
+    dockerlib.image_pull.assert_not_called()
+
+
+@pytest.mark.parametrize("conflict", ["read-only", "anonymous volume"])
+def test_inline_config_cannot_be_copied_to_conflicting_target(deployment, conflict):
+    container, model, _ = deployment
+    definition = model["services"]["pz-dashboard"]
+    definition["configs"] = [{"source": "settings", "target": "/settings"}]
+    model["configs"] = {"settings": {"content": "inline settings"}}
+    if conflict == "read-only":
+        definition["read_only"] = True
+        match = "только для чтения"
+    else:
+        container["Config"]["Volumes"] = {"/settings": {}}
+        container["Mounts"].append(
+            {"Type": "volume", "Name": "a" * 64, "Destination": "/settings", "RW": True}
+        )
+        match = "подключения пульта"
+    with pytest.raises(ops.OpsError, match=match):
+        updater.apply(Mock())
+    dockerlib.image_pull.assert_not_called()
 
 
 def test_console_update_rejects_changed_bind_inside_mapped_host_mount(deployment):

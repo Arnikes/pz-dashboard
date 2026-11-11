@@ -126,7 +126,7 @@ def prepare(container):
             "Не удалось прочитать Compose. Проверьте файлы, .env и переменные окружения."
         )
     try:
-        model = json.loads(out)
+        model = dockerlib.read_compose_model(out)
         definition = model["services"][service]
         if definition.get("image") != container["Config"]["Image"]:
             raise OpsError(
@@ -146,7 +146,24 @@ def prepare(container):
                     continue
                 volume["source"] = dockerlib.host_bind_source(volume["source"], mounts)
         for kind in ("configs", "secrets"):
-            for record in model.get(kind, {}).values():
+            records = model.get(kind, {})
+            for reference in definition.get(kind, []):
+                record = records[reference["source"]]
+                if record.get("environment"):
+                    raise OpsError(
+                        "Пульт использует конфигурацию или секрет из переменной окружения. "
+                        "Обновите пульт на хосте."
+                    )
+                if (
+                    kind == "configs"
+                    and record.get("content") is not None
+                    and definition.get("read_only")
+                ):
+                    raise OpsError(
+                        "Встроенную конфигурацию нельзя скопировать в пульт с файловой системой "
+                        "только для чтения. Обновите пульт на хосте."
+                    )
+            for record in records.values():
                 if record.get("file"):
                     record["file"] = dockerlib.host_bind_source(record["file"], mounts)
         state_mount = next(
@@ -212,7 +229,7 @@ def apply(phase):
         phase("Готово", "Образ пульта уже актуален")
         return
     snapshot = _path().with_name(f"dashboard-compose-{uuid.uuid4().hex}.json")
-    _write(snapshot, model)
+    fileio.atomic_write(snapshot, dockerlib.compose_snapshot_json(model).encode("utf-8"))
     record = {
         "id": uuid.uuid4().hex,
         "op": "apply-dashboard-update",

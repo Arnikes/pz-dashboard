@@ -249,6 +249,64 @@ def test_console_commands_are_not_copied_into_any_event_sink(event_log):
     assert "fictional-password" not in saved + output.getvalue() + repr(enqueue.call_args)
 
 
+def test_event_log_refreshes_after_detached_writes_and_replacement(event_log):
+    path = Path(config.CFG["events_file"])
+    ops.log_event("docker", "panel startup")
+    assert [row["text"] for row in ops.get_events()] == ["panel startup"]
+
+    completed = {"type": "update", "text": "helper finished"}
+    ops.fileio.append_jsonl(path, completed)
+    ops.fileio.append_jsonl(path, completed)
+    with path.open("a", encoding="utf-8") as journal:
+        journal.write("incomplete record\n")
+    ops.fileio.append_jsonl(path, {"type": "console", "text": "private", "detail": "private"})
+
+    assert ops.get_events()[:3] == [
+        {"type": "console", "text": "Команда консоли отправлена"},
+        completed,
+        completed,
+    ]
+    ops.log_event("docker", "local event")
+    assert [row["text"] for row in ops.get_events()].count("local event") == 1
+
+    replacement = path.with_suffix(".new")
+    ops.fileio.append_jsonl(replacement, completed)
+    replacement.replace(path)
+    assert ops.get_events() == [completed]
+    path.unlink()
+    assert ops.get_events() == []
+
+
+def test_event_log_retains_unsaved_records_through_persisted_refresh(event_log, monkeypatch):
+    stamps = iter(["2026-01-01T00:00:00+00:00", "2026-01-01T00:00:01+00:00"])
+    monkeypatch.setattr(ops, "now_iso", lambda: next(stamps))
+    ops.log_event("docker", "panel startup")
+    assert [row["text"] for row in ops.get_events()] == ["panel startup"]
+    with monkeypatch.context() as patch:
+        patch.setattr(ops.fileio, "append_jsonl", Mock(side_effect=OSError("disk full")))
+        ops.log_event("error", "memory only")
+    assert [row["text"] for row in ops.get_events()] == ["memory only", "panel startup"]
+
+    ops.fileio.append_jsonl(
+        config.CFG["events_file"],
+        {"ts": "2026-01-01T00:00:02+00:00", "type": "update", "text": "helper finished"},
+    )
+    assert [row["text"] for row in ops.get_events()] == [
+        "helper finished",
+        "memory only",
+        "panel startup",
+    ]
+
+
+def test_event_log_does_not_reuse_cache_for_a_different_unreadable_path(event_log, monkeypatch):
+    ops.log_event("docker", "initial journal")
+    assert [row["text"] for row in ops.get_events()] == ["initial journal"]
+    new_path = Path(config.CFG["events_file"]).with_suffix(".other")
+    monkeypatch.setitem(config.CFG, "events_file", str(new_path))
+    monkeypatch.setattr(ops, "_event_file_signature", Mock(side_effect=PermissionError))
+    assert ops.get_events() == []
+
+
 def test_console_command_reaches_transport_unchanged_without_persisting_arguments(
     event_log, monkeypatch
 ):

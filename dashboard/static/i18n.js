@@ -125,8 +125,7 @@ window.I18n = (() => {
     const el = event.target;
     if (!el.matches('input:not([type="checkbox"]):not([type="radio"]),textarea') ||
         el.closest("#configFields") || /^(ini|sandbox)Source$/.test(el.id) ||
-        el.type === "search" || el.readOnly ||
-        el.closest("#sec-updates,#sec-watchdog,#sec-notify,#sec-bkauto,#sec-modscheck,.schedule-form")) return;
+        el.type === "search" || el.readOnly || el.hasAttribute("data-settings-group")) return;
     el.setAttribute("data-language-dirty", "");
   });
 

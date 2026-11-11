@@ -195,7 +195,7 @@ Recreate the panel after editing its environment (include both `-f` arguments fo
 an overlay):
 
 ```bash
-docker compose up -d --build pz-dashboard
+docker compose up -d --no-deps --build pz-dashboard
 ```
 
 S3 failures are returned as a structured error in the backup catalog. The server
@@ -216,7 +216,7 @@ for both the compressed archive and temporary verification extraction. See
 Rebuild the panel after changing code:
 
 ```bash
-docker compose up -d --build pz-dashboard
+docker compose up -d --no-deps --build pz-dashboard
 ```
 
 For an overlay, include both `-f` arguments. Recreate the panel after changing its
@@ -242,9 +242,10 @@ the check reports an error and leaves availability unknown.
 Self-update requires a published image with a tag, the Compose plugin and mounted
 Compose files, and a persistent writable `DASHBOARD_DIR`. Set
 `PZ_DASHBOARD_CONTAINER` and `PZ_DASHBOARD_SERVICE` when using names other than
-`pz-dashboard`. Local builds and digest-pinned deployments are updated from the
-host. The console downloads the image before a detached helper recreates only
-its Compose service and confirms that it is running and healthy.
+`pz-dashboard`. Update local builds, digest-pinned deployments, and consoles
+with environment-backed Compose configs or secrets from the host. During a
+self-update, the console downloads the image before a detached helper recreates
+only its Compose service and confirms that it is running and healthy.
 
 ### Released images from GHCR
 

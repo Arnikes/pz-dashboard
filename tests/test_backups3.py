@@ -46,6 +46,11 @@ def backup_env(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(config, "CFG", cfg)
     monkeypatch.setattr(ops, "is_running", lambda: False)
+    monkeypatch.setattr(
+        ops,
+        "container_state",
+        lambda: {"status": "exited", "running": False, "startedAt": "S1", "containerId": "game"},
+    )
     monkeypatch.setattr(ops, "_set_phase", Mock())
     monkeypatch.setattr(ops, "log_event", Mock())
     monkeypatch.setattr(
@@ -436,7 +441,7 @@ def test_bad_configuration_fails_before_server_operations(backup_env, monkeypatc
     root, cfg = backup_env
     cfg[field] = value
     running = Mock()
-    monkeypatch.setattr(ops, "is_running", running)
+    monkeypatch.setattr(ops, "container_state", running)
     with pytest.raises(ops.OpsErrorReported):
         ops.run_backup_job("manual", True)
     running.assert_not_called()
@@ -463,10 +468,14 @@ def test_stopped_backup_restarts_and_is_ready_before_verification(
     _root, cfg = backup_env
     cfg["backup_s3_enabled"] = s3_enabled
     order = []
-    monkeypatch.setattr(ops, "is_running", lambda: True)
+    stopped = ops.container_state()
+    running = dict(stopped, status="running", running=True)
+    monkeypatch.setattr(ops, "container_state", Mock(side_effect=[running, stopped]))
     monkeypatch.setattr(ops, "rcon_warn_broadcast", lambda *args: None)
-    monkeypatch.setattr(ops, "graceful_stop", lambda *args: "stopped")
-    monkeypatch.setattr(ops, "_start_container", lambda: (order.append("restarted") or 0, "", ""))
+    monkeypatch.setattr(ops, "graceful_stop", Mock(return_value="stopped"))
+    monkeypatch.setattr(
+        ops, "_start_container", lambda name: (order.append("restarted") or 0, "", "")
+    )
     monkeypatch.setattr(ops, "wait_until_running", lambda *args: True)
     monkeypatch.setattr(ops, "wait_until_ready", lambda: order.append("ready") or True)
     original = ops.verify_backup

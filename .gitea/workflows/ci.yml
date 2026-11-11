@@ -72,15 +72,26 @@ jobs:
           registry="${registry#https://}"
           image="$registry/${GITHUB_REPOSITORY,,}"
           sha_tag="$image:sha-${GITHUB_SHA:0:7}"
+          if [[ "$GITHUB_REF_TYPE" == 'tag' ]]; then
+            export LC_ALL=C
+            if [[ ! "$GITHUB_REF_NAME" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}$ ]]; then
+              echo "::error::Use a Git release tag that is also a valid Docker tag."
+              exit 1
+            fi
+            if [[ "$GITHUB_REF_NAME" == 'latest' || "$GITHUB_REF_NAME" =~ ^sha-[0-9a-f]{7}$ ]]; then
+              echo "::error::Use a Git release tag distinct from the latest and commit image tags."
+              exit 1
+            fi
+          fi
           printf '%s' "$REGISTRY_TOKEN" | docker login "$registry" -u "$GITHUB_ACTOR" --password-stdin
-          docker tag "$PANEL_IMAGE_ID" "$image:latest"
           docker tag "$PANEL_IMAGE_ID" "$sha_tag"
-          docker push "$image:latest"
-          docker push "$sha_tag"
           if [[ "$GITHUB_REF_TYPE" == 'tag' ]]; then
             docker tag "$PANEL_IMAGE_ID" "$image:$GITHUB_REF_NAME"
             docker push "$image:$GITHUB_REF_NAME"
           fi
+          docker push "$sha_tag"
+          docker tag "$PANEL_IMAGE_ID" "$image:latest"
+          docker push "$image:latest"
 
       - name: Log out of Gitea registry
         if: >-
@@ -117,4 +128,4 @@ jobs:
           ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
           ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes \
             "$DEPLOY_USER@$DEPLOY_HOST" \
-            "cd '$DEPLOY_PATH' && docker compose pull pz-dashboard && docker compose up -d pz-dashboard && docker image prune -f"
+            "cd '$DEPLOY_PATH' && docker compose pull pz-dashboard && docker compose up -d --no-deps pz-dashboard && docker image prune -f"

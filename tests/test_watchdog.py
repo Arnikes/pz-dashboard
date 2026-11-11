@@ -59,6 +59,35 @@ def test_grace_discards_old_failures_and_restarts_threshold_after_expiry(watchdo
     assert ops.start_op.call_args.args[0] == "restart"
 
 
+def test_watchdog_restarts_after_cooldown_without_repeating_alert(watchdog):
+    wd = {"thresholdMin": 1, "autoRestart": True}
+    ops._WD["lastRestartAt"] = ops.time.time()
+    ops._watchdog_probe(wd)
+    watchdog[0] += 30
+    ops._watchdog_probe(wd)
+    ops.start_op.assert_not_called()
+    assert ops.log_event.call_count == 2
+    watchdog[0] += 870
+    ops._watchdog_probe(wd)
+    ops.start_op.assert_called_once()
+    assert ops._WD["lastRestartAt"] == ops.time.time()
+    assert ops.log_event.call_count == 3
+
+
+def test_rejected_watchdog_restart_does_not_start_cooldown(watchdog):
+    wd = {"thresholdMin": 1, "autoRestart": True}
+    ops.start_op.side_effect = [ops.OpsError("busy"), "accepted"]
+    ops._watchdog_probe(wd)
+    ops._watchdog_probe(wd)
+    assert ops._WD["lastRestartAt"] is None
+    assert ops.log_event.call_count == 1
+    watchdog[0] += 30
+    ops._watchdog_probe(wd)
+    assert ops.start_op.call_count == 2
+    assert ops._WD["lastRestartAt"] == ops.time.time()
+    assert ops.log_event.call_count == 2
+
+
 @pytest.mark.parametrize("minutes", [0, 1, 12, 60])
 def test_configured_grace_and_repeated_launch(watchdog, minutes):
     ops._SETTINGS["watchdog"]["gracePeriodMin"] = minutes

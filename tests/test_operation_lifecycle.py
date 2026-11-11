@@ -256,6 +256,10 @@ def test_launch_keeps_lock_and_history_pending_until_game_readiness(
     if operation == "resurrected":
         monkeypatch.setattr(ops, "graceful_stop", lambda hook: "resurrected")
     if operation == "backup":
+        running = {"status": "running", "running": True, "startedAt": "S1", "containerId": "game"}
+        stopped = dict(running, status="exited", running=False)
+        monkeypatch.setattr(ops, "container_state", Mock(side_effect=[running, stopped]))
+        monkeypatch.setattr(ops, "graceful_stop", Mock(return_value="stopped"))
         data = tmp_path / "data"
         data.mkdir()
         (data / "world.bin").write_bytes(b"world")
