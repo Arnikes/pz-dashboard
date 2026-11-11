@@ -3,6 +3,7 @@
 import math
 import ipaddress
 import re
+import unicodedata
 from copy import deepcopy
 
 from telegram_proxy_secret import parse_secret
@@ -10,6 +11,8 @@ from telegram_proxy_secret import parse_secret
 
 DEFAULTS = {
     "playerNotifications": {"language": "en"},
+    "chatAnnouncements": {"enabled": False, "message": "", "intervalMinutes": 30},
+    "scheduledRestart": {"enabled": False, "intervalHours": 24},
     "autoUpdate": {
         "enabled": False,
         "intervalHours": 6,
@@ -41,12 +44,30 @@ DEFAULTS = {
     "nextCheck": None,
     "nextModsCheck": None,
     "nextBackupRun": None,
+    "nextChatAnnouncement": None,
+    "nextScheduledRestart": None,
     "modsDisabled": {},  # workshop id -> {title, modIds, at} — выключенные из конфига
 }
+
+# Settings section -> (deadline key, interval key, seconds per unit).
+PERIODIC_SCHEDULES = {
+    "chatAnnouncements": ("nextChatAnnouncement", "intervalMinutes", 60),
+    "scheduledRestart": ("nextScheduledRestart", "intervalHours", 3600),
+}
+PERIODIC_DEADLINES = {deadline for deadline, _, _ in PERIODIC_SCHEDULES.values()}
 
 # Field order preserves the API's first validation error for each section.
 RULES = {
     "playerNotifications": {"language": "language"},
+    "chatAnnouncements": {
+        "enabled": "chatAnnouncements.enabled",
+        "intervalMinutes": (1, 1440),
+        "message": "announcement",
+    },
+    "scheduledRestart": {
+        "enabled": "scheduledRestart.enabled",
+        "intervalHours": (1, 168),
+    },
     "autoUpdate": {
         "enabled": "enabled",
         "intervalHours": (1, 168),
@@ -175,15 +196,31 @@ def norm_hhmm(value):
     return f"{int(match[1]):02d}:{int(match[2]):02d}"
 
 
+def _valid_periodic_interval(value, lo, hi):
+    return type(value) is int and lo <= value <= hi
+
+
+def _valid_announcement(value):
+    return (
+        isinstance(value, str)
+        and len(value) <= 200
+        and not any(unicodedata.category(char) in {"Cc", "Cs", "Zl", "Zp"} for char in value)
+    )
+
+
 def _validate_section(section, values):
     for key, rule in RULES[section].items():
         if key not in values:
             continue
         if isinstance(rule, tuple):
-            normalized = clamp_int(values[key], *rule)
-            if normalized is None:
-                return f"{key} должен быть числом {rule[0]}–{rule[1]}"
-            values[key] = normalized
+            if section in PERIODIC_SCHEDULES:
+                if not _valid_periodic_interval(values[key], *rule):
+                    return f"{key} должен быть целым числом от {rule[0]} до {rule[1]}"
+            else:
+                normalized = clamp_int(values[key], *rule)
+                if normalized is None:
+                    return f"{key} должен быть числом {rule[0]}–{rule[1]}"
+                values[key] = normalized
         elif rule is None:
             if not valid_hhmm(values[key]):
                 return "time должен быть временем в формате ЧЧ:ММ"
@@ -191,6 +228,12 @@ def _validate_section(section, values):
         elif key == "language":
             if values[key] not in ("en", "ru"):
                 return f"{section}.language должен быть ru или en"
+        elif rule == "announcement":
+            if not _valid_announcement(values[key]):
+                return (
+                    "Объявление должно содержать не более 200 символов в одной строке "
+                    "без управляющих символов"
+                )
         elif not isinstance(values[key], bool):
             return f"{rule} должен быть true/false"
     return None
@@ -231,11 +274,15 @@ def _validate_telegram(values):
     return _validate_mtproxy(values)
 
 
+def _periodic_fields(section, values):
+    return {key: value for key, value in values.items() if key in RULES[section]}
+
+
 def prepare_patch(current, patch, next_daily_run):
     """Return a detached candidate and error; never mutate either input.
 
     Scheduling is supplied by the caller so the model does not own a clock.
-    Unknown section fields retain the existing forward-compatible behavior.
+    Older sections retain their existing handling of unknown fields.
     """
     if not isinstance(patch, dict):
         return None, "неверный формат настроек"
@@ -247,6 +294,8 @@ def prepare_patch(current, patch, next_daily_run):
             continue
         if not isinstance(values, dict):
             return None, f"неверный формат {section}"
+        if section in PERIODIC_SCHEDULES:
+            values = _periodic_fields(section, values)
         error = (
             _validate_telegram(values)
             if section == "telegram"
@@ -255,6 +304,12 @@ def prepare_patch(current, patch, next_daily_run):
         if error:
             return None, error
         updated[section].update(values)
+        if (
+            section == "chatAnnouncements"
+            and updated[section]["enabled"]
+            and not updated[section]["message"].strip()
+        ):
+            return None, "Введите текст объявления"
         if section == "autoBackup" and ("enabled" in values or "time" in values):
             updated["nextBackupRun"] = (
                 next_daily_run(updated[section]["time"]) if updated[section]["enabled"] else None
@@ -265,10 +320,15 @@ def prepare_patch(current, patch, next_daily_run):
 def merge_loaded(settings, data):
     """Merge persisted data with the current settings before normalization."""
     for k, v in data.items():
-        if isinstance(DEFAULTS.get(k), dict) and isinstance(v, dict) and k != "modsDisabled":
+        if k in PERIODIC_SCHEDULES and isinstance(v, dict):
+            settings[k].update(_periodic_fields(k, v))
+        elif isinstance(DEFAULTS.get(k), dict) and isinstance(v, dict) and k != "modsDisabled":
             settings[k].update(v)
         elif k == "modsDisabled" and isinstance(v, dict):
             settings["modsDisabled"] = v
+        elif k in PERIODIC_DEADLINES:
+            # A finite positive Unix timestamp representable by the UI.
+            settings[k] = v if type(v) in (int, float) and 0 < v <= 253402300799 else None
         elif k in ("nextCheck", "nextModsCheck", "nextBackupRun"):
             # метка планировщика — только число; строка/список из рук
             # иначе роняли бы планировщик TypeError'ом каждые 20 с
@@ -287,7 +347,7 @@ def normalize_loaded(settings):
     # интервал 0 превратил бы планировщик в цикл проверок каждые 20 с
     for section, fields in RULES.items():
         for key, rule in fields.items():
-            if not isinstance(rule, tuple):
+            if not isinstance(rule, tuple) or section in PERIODIC_SCHEDULES:
                 continue
             value = settings[section].get(key)
             normalized = clamp_int(value, *rule) if isinstance(value, (int, float)) else None
@@ -310,6 +370,18 @@ def normalize_loaded(settings):
                 settings[section][key] = default
             elif isinstance(default, str) and not isinstance(settings[section].get(key), str):
                 settings[section][key] = default
+    announcement = settings["chatAnnouncements"]
+    if not _valid_announcement(announcement["message"]):
+        announcement["message"] = DEFAULTS["chatAnnouncements"]["message"]
+    if not announcement["message"].strip():
+        announcement["enabled"] = False
+    for section, (deadline, interval, _) in PERIODIC_SCHEDULES.items():
+        values = settings[section]
+        if not _valid_periodic_interval(values[interval], *RULES[section][interval]):
+            values[interval] = DEFAULTS[section][interval]
+            settings[deadline] = None
+        if not values["enabled"]:
+            settings[deadline] = None
     groups = settings["telegram"].get("groups")
     for section in ("telegram", "playerNotifications"):
         if settings[section].get("language") not in ("ru", "en"):

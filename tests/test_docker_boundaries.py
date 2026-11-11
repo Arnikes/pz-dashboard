@@ -103,3 +103,27 @@ def test_valid_snapshot_keeps_units_zeros_and_multicore_cpu(monkeypatch, fields,
 @pytest.mark.parametrize("raw", ["мусор", "", None, "1..2B", "-1B", "9" * 400 + "GiB"])
 def test_public_byte_parser_keeps_unknown_size_fallback(raw):
     assert dockerlib.parse_bytes(raw) == 0
+
+
+@pytest.mark.parametrize(
+    "inspect_output, expected",
+    [
+        ("on-failure|3", "on-failure:3"),
+        ("on-failure|0", "on-failure"),
+        ("on-failure|invalid", None),
+        ("on-failure", None),
+        ("always|0", "always"),
+        ("unless-stopped", "unless-stopped"),
+        ("|0", "no"),
+        ("", "no"),
+        ("unknown|0", None),
+    ],
+)
+def test_restart_policy_preserves_docker_retry_limit(monkeypatch, inspect_output, expected):
+    def inspect(args, *, timeout):
+        assert args[:4] == ["docker", "inspect", "container-id", "--format"]
+        assert ".RestartPolicy.MaximumRetryCount" in args[4]
+        return 0, inspect_output, ""
+
+    monkeypatch.setattr(dockerlib, "sh", inspect)
+    assert dockerlib.get_restart_policy("container-id") == expected

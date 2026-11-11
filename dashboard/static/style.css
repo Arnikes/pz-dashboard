@@ -722,7 +722,7 @@ input:disabled, select:disabled, textarea:disabled { opacity: 0.55; cursor: not-
 .c-notify .auto-block { display:grid; gap:var(--space-group); margin-top:0; padding-top:0; border-top:none; }
 .c-notify .auto-row, .c-notify .check-row, .c-notify .check { margin:0; }
 
-/* Обслуживание: обновления слева, Watchdog и Telegram в правой колонке. */
+/* Обслуживание */
 #view-maintenance { grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; }
 #view-maintenance .maintenance-column { display:grid; gap:var(--layout-gap); min-width:0; }
 #view-maintenance .maintenance-column > .card { grid-column:auto; padding:22px; }
@@ -737,6 +737,10 @@ input:disabled, select:disabled, textarea:disabled { opacity: 0.55; cursor: not-
 #view-maintenance .c-updates .auto-block { margin-top:24px; padding-top:20px; border-top:1px solid var(--line); }
 #view-maintenance .auto-grid { grid-template-columns:1fr; }
 #view-maintenance .c-notify .check-row { gap:6px 16px; }
+.schedule-form { display:grid; gap:var(--space-group); }
+.schedule-form .hint { margin:0; }
+.schedule-form .field + .hint { margin-top:calc(-1 * var(--space-inline)); }
+.schedule-actions { align-items:center; column-gap:var(--space-group); }
 @media (max-width:1000px) {
   #view-maintenance { grid-template-columns:1fr; }
 }

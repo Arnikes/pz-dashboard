@@ -463,20 +463,26 @@ def container_exec(name, command, timeout=60):
 
 
 def get_restart_policy(name):
-    """Имя политики рестарта ("no", "always", "unless-stopped", "on-failure") или None."""
+    """Return the Docker CLI policy, including any on-failure retry limit."""
     code, out, err = sh(
         [
             "docker",
             "inspect",
             name,
             "--format",
-            "{{.HostConfig.RestartPolicy.Name}}",
+            "{{.HostConfig.RestartPolicy.Name}}|{{.HostConfig.RestartPolicy.MaximumRetryCount}}",
         ],
         timeout=30,
     )
     if code != 0:
         return None
-    return (out or "").strip() or "no"
+    policy, _, retries = (out or "").strip().partition("|")
+    policy = policy or "no"
+    if policy in ("no", "always", "unless-stopped"):
+        return policy
+    if policy != "on-failure" or not retries.isascii() or not retries.isdecimal():
+        return None
+    return policy if retries == "0" else f"{policy}:{retries}"
 
 
 def set_restart_policy(name, policy):

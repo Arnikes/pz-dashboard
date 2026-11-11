@@ -1691,5 +1691,20 @@
   "Мод карты игроков недоступен": "Player map integration is unavailable",
   "Наложение мод-карт не проверено. Геометрия может перекрываться.": "Mod map layering is unverified. Geometry may overlap.",
   "Ожидается": "Pending",
-  "Пропущено": "Skipped"
+  "Пропущено": "Skipped",
+  "Объявления в игровом чате": "In-game chat announcements",
+  "Отправлять по расписанию": "Send on a schedule",
+  "До 200 символов в одной строке.": "Up to 200 characters on one line.",
+  "Интервал отправки, мин": "Send interval, min",
+  "Плановый перезапуск сервера": "Scheduled server restart",
+  "Перезапускать по расписанию": "Restart on a schedule",
+  "Интервал перезапуска, ч": "Restart interval, h",
+  "Настройка «Предупреждать игроков» в карточке «Обновления образа» действует и для планового перезапуска.": "The Warn players setting under Image updates also applies to scheduled restarts.",
+  "Сохранить расписание": "Save schedule",
+  "chatAnnouncements.enabled должен быть true/false": "chatAnnouncements.enabled must be true/false",
+  "scheduledRestart.enabled должен быть true/false": "scheduledRestart.enabled must be true/false",
+  "{{0}} должен быть целым числом от {{1}} до {{2}}": "{{0}} must be an integer from {{1}} to {{2}}",
+  "Объявление должно содержать не более 200 символов в одной строке без управляющих символов": "The announcement must be a single line of up to 200 characters without control characters",
+  "Не удалось отправить объявление по расписанию": "Could not send the scheduled announcement",
+  "Состояние сервера изменилось — плановый перезапуск отменён": "The server state changed. The scheduled restart was cancelled."
 }

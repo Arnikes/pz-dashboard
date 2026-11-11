@@ -42,6 +42,7 @@ an extra inbox entry.
 | Operations | Progress and completion |
 | --- | --- |
 | Start, stop, restart | Player warning when requested, stopping, launching, game/RCON readiness |
+| Scheduled restart | Restart stages and game/RCON readiness, with the automatic update warning period |
 | Check server/console image | Image comparison; unavailable or inconclusive comparison fails |
 | Update server image | Pull, optional backup, warning, container recreation, game readiness |
 | Update console image | Pull, console recreation, console health; progress survives replacement |
@@ -234,6 +235,30 @@ prevents the pending stop and recreation. Players receive a cancellation message
 if they have already been warned. The `cancel-update` action returns HTTP 409
 for an unrelated operation or once stopping has begun.
 
+## Periodic chat announcements and server restarts
+
+In Maintenance, open **In-game chat announcements** or **Scheduled server restart**.
+Both schedules start disabled. Choose whether to enable the schedule, set its interval,
+and select **Save schedule**. The console runs the schedules in the background and
+saves their next due times across console restarts. Enabling a schedule or changing
+its interval starts a new interval. A due task waits for any active operation to finish,
+and multiple missed intervals result in at most one attempt.
+
+- **Chat announcements** use RCON to broadcast a single line of up to 200 characters
+  to the game chat. The interval is 1–1,440 minutes and defaults to 30. Changing the
+  text keeps the current due time. As with a one-time announcement, double quotes
+  appear as apostrophes in chat. Announcements also work with an RCON-only connection.
+- **Scheduled restart** requires Docker access to a running game container. The
+  interval is 1–168 hours and defaults to 24. The server runs for at least that interval
+  after its most recent start, including when it restarts outside the schedule. The
+  restart uses the configured image-update warning period and player warning language,
+  saves the world through the regular graceful stop, and checks PZ/RCON readiness
+  after startup. Progress and the result appear in the operation history.
+
+If the local game container is stopped at the due time, the console advances the
+schedule to its next interval. If RCON fails during an announcement, the next attempt
+is at the next regular interval.
+
 ## Player warning language
 
 Maintenance → Console update checks the running console image against its registry
@@ -362,4 +387,9 @@ Example operation body: `{"op":"backup","stopServer":false}`.
 Restarts can include `warnSeconds`; archive actions include `name`.
 Backup settings use `autoBackup.enabled`, `autoBackup.time`,
 `autoBackup.stopServer`, and `backup.maxBackups`.
+Periodic chat settings use `chatAnnouncements.enabled`, `chatAnnouncements.message`,
+and `chatAnnouncements.intervalMinutes`. Periodic restart settings use
+`scheduledRestart.enabled` and `scheduledRestart.intervalHours`. In the returned
+settings, `nextChatAnnouncement` and `nextScheduledRestart` contain Unix timestamps in
+seconds or `null` when a schedule is inactive.
 See [editor endpoints](config-editor.md#editor-api) for draft/Workshop operations.

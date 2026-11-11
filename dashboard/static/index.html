@@ -527,6 +527,27 @@
             </div>
           </div>
         </section>
+
+        <section class="card" id="sec-scheduled-restart" aria-labelledby="hScheduledRestart">
+          <header class="card-head">
+            <h2 id="hScheduledRestart">Плановый перезапуск сервера</h2>
+          </header>
+          <form class="schedule-form" id="scheduledRestartForm" aria-labelledby="hScheduledRestart" novalidate>
+            <label class="switch">
+              <input type="checkbox" id="scheduledRestartEnabled" role="switch" />
+              <span class="switch-track" aria-hidden="true"></span>
+              <span class="switch-label">Перезапускать по расписанию</span>
+            </label>
+            <label class="field">Интервал перезапуска, ч
+              <input type="number" id="scheduledRestartInterval" min="1" max="168" step="1" value="24" required />
+            </label>
+            <p class="hint">Настройка «Предупреждать игроков» в карточке «Обновления образа» действует и для планового перезапуска.</p>
+            <div class="actions schedule-actions">
+              <button class="btn" type="submit" aria-describedby="scheduledRestartStatus">Сохранить расписание</button>
+              <p class="hint" id="scheduledRestartStatus">Расписание выключено</p>
+            </div>
+          </form>
+        </section>
       </div>
 
       <div class="maintenance-column">
@@ -557,6 +578,30 @@
               <input type="checkbox" id="wdRestart" /> авто-рестарт при зависании
             </label>
           </div>
+        </section>
+
+        <section class="card" id="sec-chat-announcements" aria-labelledby="hChatAnnouncements">
+          <header class="card-head">
+            <h2 id="hChatAnnouncements">Объявления в игровом чате</h2>
+          </header>
+          <form class="schedule-form" id="chatAnnouncementsForm" aria-labelledby="hChatAnnouncements" novalidate>
+            <label class="switch">
+              <input type="checkbox" id="chatAnnouncementsEnabled" role="switch" />
+              <span class="switch-track" aria-hidden="true"></span>
+              <span class="switch-label">Отправлять по расписанию</span>
+            </label>
+            <label class="field">Текст объявления
+              <input type="text" id="chatAnnouncementMessage" aria-describedby="chatAnnouncementHint" />
+            </label>
+            <p class="hint" id="chatAnnouncementHint">До 200 символов в одной строке.</p>
+            <label class="field">Интервал отправки, мин
+              <input type="number" id="chatAnnouncementsInterval" min="1" max="1440" step="1" value="30" required />
+            </label>
+            <div class="actions schedule-actions">
+              <button class="btn" type="submit" aria-describedby="chatAnnouncementsStatus">Сохранить расписание</button>
+              <p class="hint" id="chatAnnouncementsStatus">Расписание выключено</p>
+            </div>
+          </form>
         </section>
 
         <!-- УВЕДОМЛЕНИЯ TELEGRAM -->

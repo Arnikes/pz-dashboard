@@ -1213,6 +1213,7 @@ function renderOverview(o) {
   if (settingsCanRender("wdThreshold")) $("wdThreshold").value = String(wdCfg.thresholdMin ?? 5);
   if (settingsCanRender("wdGracePeriod")) $("wdGracePeriod").value = String(wdCfg.gracePeriodMin ?? 5);
   if (settingsCanRender("wdRestart")) $("wdRestart").checked = !!wdCfg.autoRestart;
+  renderSchedules(o.settings, remote);
   const wds = o.watchdog || {};
   if (wdCfg.enabled) {
     const fails = wds.consecutiveFailures || 0;
@@ -1363,7 +1364,7 @@ function updateOperationWidgets() {
       else control.removeAttribute("aria-describedby");
     });
   }
-  document.querySelectorAll("#sec-status, #sec-players, #view-settings .editor-card, #view-mods .editor-card, #sec-updates, #sec-dashboard-update, #sec-mods-update, #sec-watchdog, #sec-notify, #sec-bksched, #sec-backups, #sec-console").forEach(widget => {
+  document.querySelectorAll("#sec-status, #sec-players, #view-settings .editor-card, #view-mods .editor-card, #sec-updates, #sec-dashboard-update, #sec-mods-update, #sec-watchdog, #sec-notify, #sec-chat-announcements, #sec-scheduled-restart, #sec-bksched, #sec-backups, #sec-console").forEach(widget => {
     widget.classList.toggle("operation-loading", busy);
     setDomAttribute(widget, "aria-busy", String(busy));
     let loader = widget.querySelector(":scope > .operation-loader");
@@ -1416,17 +1417,20 @@ function updateButtons() {
     $(id).disabled = remote || S.demo || cancelPending || !S.op?.active?.cancellable;
     $(id).textContent = cancelPending ? I18n.t("Отмена…") : I18n.t(label);
   }
-  // автонастройки и watchdog пишут в настройки и работают только с хоста —
-  // в remote-режиме они тихо ничего не делают, честно их глушим
-  const hostOnly = busy || S.demo || remote;
   for (const [group, definition] of Object.entries(SETTING_GROUPS)) {
-    const disabled = ["telegram", "playerNotifications"].includes(group) ? busy : hostOnly;
+    const hostOnly = !["telegram", "playerNotifications", "chatAnnouncements"].includes(group);
+    const savingForm = definition.form && settingState(group).pending > 0;
+    const disabled = busy || (remote && hostOnly) || !!savingForm;
     for (const id of definition.ids) setDomProperty($(id), "disabled", disabled);
+    const submit = definition.form && $(definition.form).querySelector('[type="submit"]');
+    if (submit) setDomProperty(submit, "disabled", disabled);
+    const retry = $(definition.card).querySelector(":scope > .settings-feedback button");
+    if (retry) setDomProperty(retry, "disabled", disabled);
   }
   setDomProperty($("btnTgChats"), "disabled", busy || !!S.telegramChatsPending || $("tgMtproxySwitch").checked);
   setDomProperty($("btnTgTest"), "disabled", busy || !!S.telegramTestPending);
-  document.querySelectorAll(".settings-feedback button, #tgChatsBody .chat-chip").forEach(button => {
-    setDomProperty(button, "disabled", busy || remote && !button.closest("#sec-notify, #playerNotifications"));
+  document.querySelectorAll("#tgChatsBody .chat-chip").forEach(button => {
+    setDomProperty(button, "disabled", busy);
   });
   for (const id of ["btnStart", "btnStop", "btnRestart", "btnCheckUpd", "btnApplyUpd", "btnBackup", "btnCheckMods", "btnApplyMods",
                     "autoSwitch", "autoInterval", "autoWarn", "buBackup", "wdSwitch", "wdThreshold", "wdGracePeriod", "wdRestart",
@@ -2717,9 +2721,11 @@ const SETTING_GROUPS = {
   playerNotifications: { ids: ["playerLanguage"], card: "playerNotifications", title: I18n.t("Предупреждения игрокам") },
   autoUpdate: { ids: ["autoSwitch", "autoInterval", "autoWarn", "buBackup"], card: "sec-updates", title: I18n.t("Автообновление образа") },
   watchdog: { ids: ["wdSwitch", "wdThreshold", "wdGracePeriod", "wdRestart"], card: "sec-watchdog", title: "Watchdog RCON" },
+  chatAnnouncements: { ids: ["chatAnnouncementsEnabled", "chatAnnouncementMessage", "chatAnnouncementsInterval"], form: "chatAnnouncementsForm", card: "sec-chat-announcements", title: I18n.t("Объявления в игровом чате") },
+  scheduledRestart: { ids: ["scheduledRestartEnabled", "scheduledRestartInterval"], form: "scheduledRestartForm", card: "sec-scheduled-restart", title: I18n.t("Плановый перезапуск сервера") },
   modsUpdate: { ids: ["modsAutoSwitch", "modsAutoInterval", "modsAutoAction", "modsAutoWarn"], card: "sec-mods-update", title: I18n.t("Автообновление модов") },
   telegram: { ids: ["tgSwitch", "tgToken", "tgChat", "tgMtproxySwitch", "tgMtproxyHost", "tgMtproxyPort", "tgMtproxySecret", "tgApiId", "tgApiHash", "tgLanguage", "tgOps", "tgBackup", "tgUpdate", "tgProblems"], card: "sec-notify", title: "Telegram" },
-  autoBackup: { ids: ["bkAutoSwitch", "bkAutoTime", "bkAutoKeep", "bkAutoStop"], card: "sec-bkauto", title: I18n.t("Расписание бэкапов") },
+  autoBackup: { ids: ["bkAutoSwitch", "bkAutoTime", "bkAutoKeep", "bkAutoStop"], card: "sec-bksched", title: I18n.t("Расписание бэкапов") },
 };
 const settingStates = new Map();
 document.addEventListener("pz:before-update", (event) => {
@@ -2747,6 +2753,28 @@ function settingState(group) {
 function settingsCanRender(id) {
   const state = settingState(settingGroup(id));
   return !state.pending && !state.dirty && !$(id).matches(":focus");
+}
+
+function renderSchedules(settings, remote) {
+  const chat = settings?.chatAnnouncements || {};
+  const restart = settings?.scheduledRestart || {};
+  if (settingsCanRender("chatAnnouncementsEnabled")) $("chatAnnouncementsEnabled").checked = !!chat.enabled;
+  if (settingsCanRender("chatAnnouncementMessage")) $("chatAnnouncementMessage").value = chat.message ?? "";
+  if (settingsCanRender("chatAnnouncementsInterval")) $("chatAnnouncementsInterval").value = String(chat.intervalMinutes ?? 30);
+  if (settingsCanRender("scheduledRestartEnabled")) $("scheduledRestartEnabled").checked = !!restart.enabled;
+  if (settingsCanRender("scheduledRestartInterval")) $("scheduledRestartInterval").value = String(restart.intervalHours ?? 24);
+  setDomProperty($("chatAnnouncementsStatus"), "textContent", scheduleStatus(chat.enabled, settings?.nextChatAnnouncement));
+  setDomProperty($("scheduledRestartStatus"), "textContent", remote
+    ? I18n.t("Доступно только при запуске пульта на хосте сервера")
+    : scheduleStatus(restart.enabled, settings?.nextScheduledRestart));
+}
+
+function scheduleStatus(enabled, nextRun) {
+  if (!enabled) return I18n.t("Расписание выключено");
+  const date = Number.isFinite(nextRun) ? new Date(nextRun * 1000) : null;
+  return date && !Number.isNaN(date.getTime())
+    ? I18n.msg`Следующий запуск: ${fmtTime(date)} · ваше время`
+    : I18n.t("Следующий запуск рассчитывается");
 }
 
 function secretDescription(hasValue) {
@@ -2822,6 +2850,7 @@ function saveSettingsGroup(group, body) {
         if (res.settings) {
           const settings = acceptSettings(res.settings);
           if (group === "telegram") renderTelegramSecrets(settings.telegram || {});
+          if (SETTING_GROUPS[group].form) renderSchedules(settings, S.overview?.mode === "remote");
         }
         settingsFeedback(group, "ok", group === "telegram" && body.telegram.botToken
           ? I18n.t("Токен сохранён. Введите новый, чтобы заменить.")
@@ -2835,6 +2864,7 @@ function saveSettingsGroup(group, body) {
       return false;
     } finally {
       state.pending--;
+      if (SETTING_GROUPS[group].form) updateButtons();
       document.dispatchEvent(new Event("pz:update-guard-changed"));
     }
   };
@@ -2845,6 +2875,18 @@ function saveSettingsGroup(group, body) {
 
 function pushSettings(eventOrGroup) {
   const group = typeof eventOrGroup === "string" ? eventOrGroup : settingGroup(eventOrGroup?.target?.id) || "telegram";
+  if (group === "chatAnnouncements") {
+    const text = $("chatAnnouncementMessage");
+    let error = "";
+    if ([...text.value].length > 200 || /[\p{Cc}\p{Cs}\p{Zl}\p{Zp}]/u.test(text.value)) {
+      error = I18n.t("Объявление должно содержать не более 200 символов в одной строке без управляющих символов");
+    } else if ($("chatAnnouncementsEnabled").checked && !text.value.trim()) {
+      error = I18n.t("Введите текст объявления");
+    }
+    text.setCustomValidity(error);
+  }
+  const form = SETTING_GROUPS[group].form;
+  if (form && !$(form).reportValidity()) return Promise.resolve(false);
   if (group === "watchdog" && !$("wdGracePeriod").reportValidity()) return Promise.resolve(false);
   if (group === "telegram" && ["tgMtproxyPort", "tgApiId"].some(id => !$(id).reportValidity())) return Promise.resolve(false);
   const body = {
@@ -2860,6 +2902,15 @@ function pushSettings(eventOrGroup) {
       thresholdMin: Number($("wdThreshold").value),
       gracePeriodMin: Number($("wdGracePeriod").value),
       autoRestart: $("wdRestart").checked,
+    },
+    chatAnnouncements: {
+      enabled: $("chatAnnouncementsEnabled").checked,
+      message: $("chatAnnouncementMessage").value,
+      intervalMinutes: $("chatAnnouncementsInterval").valueAsNumber,
+    },
+    scheduledRestart: {
+      enabled: $("scheduledRestartEnabled").checked,
+      intervalHours: $("scheduledRestartInterval").valueAsNumber,
     },
     modsUpdate: {
       enabled: $("modsAutoSwitch").checked,
@@ -2899,6 +2950,14 @@ Object.values(SETTING_GROUPS).forEach(({ ids }) => ids.forEach((id) => {
     state.generation++;
   });
 }));
+
+for (const [group, { form }] of Object.entries(SETTING_GROUPS)) {
+  if (!form) continue;
+  $(form).addEventListener("submit", event => {
+    event.preventDefault();
+    if (!$(form).querySelector('[type="submit"]').disabled) pushSettings(group);
+  });
+}
 
 $("autoSwitch").addEventListener("change", pushSettings);
 

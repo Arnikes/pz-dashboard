@@ -23,6 +23,7 @@ from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from functools import partial
 from itertools import islice
 
 import config
@@ -281,6 +282,12 @@ def patch_settings(patch):
         updated, error = settingsmodel.prepare_patch(_SETTINGS, patch, _next_daily_run)
         if error:
             return error
+        for section, (deadline, interval, unit) in settingsmodel.PERIODIC_SCHEDULES.items():
+            before, after = _SETTINGS[section], updated[section]
+            if not after["enabled"]:
+                updated[deadline] = None
+            elif not before["enabled"] or before[interval] != after[interval]:
+                updated[deadline] = time.time() + after[interval] * unit
         previous = _SETTINGS.copy()
         _SETTINGS.update(updated)
         try:
@@ -425,6 +432,29 @@ def container_state():
     return dockerlib.inspect_container(config.CFG["pz_container"])
 
 
+@dataclass(frozen=True)
+class _ContainerRun:
+    container_id: str
+    started_at: str
+
+    def matches(self, state, status):
+        return bool(
+            state
+            and state.get("containerId") == self.container_id
+            and state.get("startedAt") == self.started_at
+            and state.get("status") == status
+            and state.get("running") is (status == "running")
+        )
+
+
+def _running_container_run():
+    state = container_state()
+    if not state or not state.get("containerId") or not state.get("startedAt"):
+        return None
+    run = _ContainerRun(state["containerId"], state["startedAt"])
+    return run if run.matches(state, "running") else None
+
+
 def is_running():
     st = container_state()
     return bool(st and st["running"])
@@ -483,7 +513,7 @@ def _require_ready():
         )
 
 
-def graceful_stop(phase_hook=None):
+def graceful_stop(phase_hook=None, *, expected_run=None):
     """Правильная остановка PZ: RCON quit (сохранение мира), затем docker stop.
 
     Контейнер PZ обычно живёт с restart: unless-stopped/always — тогда через
@@ -494,16 +524,23 @@ def graceful_stop(phase_hook=None):
     после (docker update не запускает контейнер, так что это безопасно).
 
     Возвращает "stopped" или "resurrected" — docker сам перезапустил контейнер,
-    т.е. рестарт уже произошёл без нас."""
+    т.е. рестарт уже произошёл без нас. Для планового рестарта возвращает
+    "aborted", если больше не подтверждён тот же запуск контейнера."""
 
     def hook(msg):
         if phase_hook:
             phase_hook(msg)
 
-    if not is_running():
-        return "stopped"
-    container = config.CFG["pz_container"]
-    started_at = (container_state() or {}).get("startedAt")
+    if expected_run is not None:
+        if not expected_run.matches(container_state(), "running"):
+            return "aborted"
+        started_at = expected_run.started_at
+        container = expected_run.container_id
+    else:
+        if not is_running():
+            return "stopped"
+        started_at = (container_state() or {}).get("startedAt")
+        container = config.CFG["pz_container"]
     orig_policy = dockerlib.get_restart_policy(container)
     policy_off = False
     if orig_policy and orig_policy != "no":
@@ -518,6 +555,8 @@ def graceful_stop(phase_hook=None):
             )
     try:
         hook("Команда quit через RCON (сохранение мира)")
+        if expected_run is not None and not expected_run.matches(container_state(), "running"):
+            return "aborted"
         try:
             rcon("quit", quiet=True)
         except rconlib.RCONError:
@@ -528,12 +567,21 @@ def graceful_stop(phase_hook=None):
             return "resurrected"
         if first == "running":
             hook("Принудительная остановка контейнера")
+            if expected_run is not None:
+                state = container_state()
+                if expected_run.matches(state, "exited"):
+                    first = "stopped"
+                elif not expected_run.matches(state, "running"):
+                    return "aborted"
+        if first == "running":
             dockerlib.container_stop(container, seconds=180)
             second = wait_until_stopped(60, started_at=started_at)
             if second == "resurrected":
                 return "resurrected"
             if second == "running":
                 raise OpsError("Контейнер не остановился — смотрите docker logs " + container)
+        if expected_run is not None and not expected_run.matches(container_state(), "exited"):
+            return "aborted"
         log_event("stop", "Сервер остановлен")
         return "stopped"
     finally:
@@ -833,10 +881,10 @@ def start_op(op, fn):
 # ─── старт / стоп / рестарт ───
 
 
-def _start_container():
+def _start_container(container=None):
     """Give controlled launches time to initialize PZ and RCON."""
     _begin_watchdog_grace()
-    return dockerlib.container_start(config.CFG["pz_container"])
+    return dockerlib.container_start(container or config.CFG["pz_container"])
 
 
 def _do_start():
@@ -877,20 +925,40 @@ def _restarted_since(started_at):
     return None
 
 
+def _abort_scheduled_restart():
+    message = "Состояние сервера изменилось — плановый перезапуск отменён"
+    log_event("auto", message)
+    _set_phase("Отменено", message)
+    return "aborted"
+
+
 def _do_restart(
-    warn_seconds, reason="Перезапуск сервера", guard_restarted=False, cancellable=False
+    warn_seconds,
+    reason="Перезапуск сервера",
+    guard_restarted=False,
+    cancellable=False,
+    *,
+    expected_run=None,
 ):
-    if not is_running():
+    if expected_run is None and not is_running():
         raise OpsError("Сервер не запущен — сначала запустите его")
     # guard_restarted: авторестарт (моды) не должен дублировать ручной рестарт
     # админа — если за время отсчёта контейнер уже перезапустили, отменяемся
-    guard_at = (container_state() or {}).get("startedAt") if guard_restarted else None
+    guard_at = (
+        (container_state() or {}).get("startedAt")
+        if guard_restarted and expected_run is None
+        else None
+    )
 
     def _guard_tripped():
         if cancellable and _OP_CANCEL.is_set():
             return True
+        if expected_run is not None:
+            return not expected_run.matches(container_state(), "running")
         return _restarted_since(guard_at) if guard_restarted else None
 
+    if expected_run is not None and _guard_tripped():
+        return _abort_scheduled_restart()
     if warn_seconds > 0:
         _set_phase("Предупреждение игроков", f"отсчёт {warn_seconds} с")
         wait_options = {"abort_wait": _OP_CANCEL.wait} if cancellable else {}
@@ -919,7 +987,9 @@ def _do_restart(
                     pass
             _set_phase("Отменено", msg)
             return "cancelled"
-    if guard_restarted:
+    if expected_run is not None and _guard_tripped():
+        return _abort_scheduled_restart()
+    if guard_restarted and expected_run is None:
         verdict = _restarted_since(guard_at)
         if verdict:
             msg = (
@@ -933,7 +1003,19 @@ def _do_restart(
             _set_phase("Отменено", msg)
             return "aborted"
     _begin_watchdog_grace()
-    if graceful_stop(lambda m: _set_phase("Остановка", m)) == "resurrected":
+    stop_options = {"expected_run": expected_run} if expected_run is not None else {}
+    stop_result = graceful_stop(lambda m: _set_phase("Остановка", m), **stop_options)
+    if stop_result == "aborted":
+        return _abort_scheduled_restart()
+    if stop_result == "resurrected":
+        if expected_run is not None:
+            current_run = _running_container_run()
+            if (
+                current_run is None
+                or current_run.container_id != expected_run.container_id
+                or current_run.started_at == expected_run.started_at
+            ):
+                return _abort_scheduled_restart()
         # docker сам поднял контейнер (restart policy) — рестарт уже случился,
         # остаётся дождаться запуска сервера
         _begin_watchdog_grace()
@@ -944,7 +1026,15 @@ def _do_restart(
         _set_phase("Готово", "Сервер перезапущен")
         return
     _set_phase("Запуск", "docker start")
-    code, out, err = _start_container()
+    if expected_run is None:
+        code, out, err = _start_container()
+    else:
+        # Policy cleanup and external Docker actions can change the named
+        # container after graceful_stop observes it. Recheck the stopped run
+        # and address Docker by ID so name reuse cannot redirect the start.
+        if not expected_run.matches(container_state(), "exited"):
+            return _abort_scheduled_restart()
+        code, out, err = _start_container(expected_run.container_id)
     if code != 0:
         raise OpsError(f"Не удалось запустить после рестарта: {err or out}")
     if not wait_until_running(150):
@@ -1829,7 +1919,7 @@ def _verify_backup_path(name, path):
         return res
 
 
-# ─────────────────────────── планировщик автообновления ───────────────────────────
+# ─────────────────────────── планировщик ───────────────────────────
 
 
 def _auto_backup_tick(s, now):
@@ -1854,6 +1944,86 @@ def _auto_backup_tick(s, now):
         # гонка: между проверкой и стартом началась другая операция —
         # откатываем время, попытка повторится на следующем тике (20 с)
         _set_schedule("nextBackupRun", nxt)
+
+
+def _periodic_tick(snapshot, now, section, dispatch):
+    deadline, interval, unit = settingsmodel.PERIODIC_SCHEDULES[section]
+
+    def due(settings):
+        next_run = settings[deadline]
+        return settings[section]["enabled"] and (next_run is None or next_run <= now)
+
+    if not due(snapshot):
+        return
+    try:
+        with mutation_guard():
+            # The snapshot can predate a settings save or another operation.
+            settings = get_settings()
+            if not due(settings):
+                return
+            seconds = settings[section][interval] * unit
+            if settings[deadline] is None:
+                _set_schedule(deadline, now + seconds)
+            else:
+                dispatch(settings, now, seconds)
+    except OpsBusyError:
+        # Leave the occurrence due until the operation slot becomes available.
+        pass
+
+
+def _dispatch_scheduled_restart(settings, now, seconds):
+    run = _running_container_run() if docker_ok_cached() else None
+    started_ts = _parse_ts(run.started_at) if run is not None else 0
+    deadline = settings["nextScheduledRestart"]
+    if started_ts:
+        earliest = max(deadline, started_ts + seconds)
+        if now < earliest:
+            _set_schedule("nextScheduledRestart", earliest)
+            return
+
+    # Persist the next interval before dispatch. A missing, stopped or unknown
+    # container consumes the occurrence too.
+    _set_schedule("nextScheduledRestart", now + seconds)
+    if not started_ts:
+        return
+
+    warning = settings["autoUpdate"]["warnSeconds"]
+    worker = operationprogress.planned(
+        partial(
+            _do_restart,
+            warning,
+            reason="Плановый перезапуск сервера",
+            expected_run=run,
+        ),
+        "restart",
+        {"warnSeconds": warning},
+    )
+    try:
+        start_op("restart", worker)
+    except OpsError:
+        # The operation was never admitted, so retry on another scheduler tick.
+        _set_schedule("nextScheduledRestart", deadline)
+        raise
+
+
+def _scheduled_restart_tick(settings, now):
+    _periodic_tick(settings, now, "scheduledRestart", _dispatch_scheduled_restart)
+
+
+def _dispatch_chat_announcement(settings, now, seconds):
+    # Consume before sending so a lost response does not cause a duplicate.
+    _set_schedule("nextChatAnnouncement", now + seconds)
+    if docker_ok_cached() and not is_running():
+        return
+    message = settings["chatAnnouncements"]["message"].replace('"', "'")
+    try:
+        rcon(f'servermsg "{message}"', quiet=True)
+    except rconlib.RCONError:
+        log_event("warn", "Не удалось отправить объявление по расписанию", notify=False)
+
+
+def _chat_announcement_tick(settings, now):
+    _periodic_tick(settings, now, "chatAnnouncements", _dispatch_chat_announcement)
 
 
 def _scheduler_loop():
@@ -1925,6 +2095,8 @@ def _scheduler_loop():
                     _set_schedule("nextModsCheck", time.time() + mu["intervalHours"] * 3600)
             _post_restart_rescan_tick(s)
             _auto_backup_tick(s, time.time())
+            _scheduled_restart_tick(s, time.time())
+            _chat_announcement_tick(s, time.time())
         except Exception as e:  # noqa: BLE001
             log_event("error", "Планировщик: " + str(e))
         time.sleep(20)
