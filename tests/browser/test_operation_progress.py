@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+from operationprogress import build
 from playwright.sync_api import expect
 
 from browser_evidence import capture_evidence
@@ -382,55 +383,35 @@ def test_planned_route_keeps_future_and_skipped_steps_distinct(page, dashboard, 
     expect(page.locator("#btnRestart")).to_be_enabled()
 
 
-@pytest.mark.parametrize(
-    "language,width", [("ru", 390), ("en", 541), ("ru", 768), ("en", 1440), ("ru", 2560)]
-)
-@pytest.mark.parametrize("count", [1, 2, 3, 5, 8, 12])
-def test_planned_route_markers_fill_the_available_lane(page, dashboard, language, width, count):
-    page.set_viewport_size({"width": width, "height": 900})
-    page.add_init_script(f"localStorage.setItem('pz-language','{language}')")
-    page.goto(dashboard["url"] + "/#/maintenance")
-    expect(page.locator("#startupLoader")).to_be_hidden()
-    page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
-    labels = [
-        "Подготовка…",
-        "Проверка актуального образа",
-        "Скачивание нового образа",
-        "Страховочный бэкап",
-        "Предупреждение игроков",
-        "Остановка сервера",
-        "Пересоздание контейнера",
-        "Запуск сервера",
-        "Загрузка сервера",
-        "Проверка конфигурации",
-        "Проверка и распаковка в песочницу",
-        "Проверка готовности пульта",
-    ][:count]
-    active = {
-        "op": "apply-update",
-        "phase": labels[0],
-        "message": "Preparing the operation" if language == "en" else "Подготовка операции",
-        "plan": [
-            {"id": f"step-{index}", "label": label, "status": "pending" if index else "current"}
-            for index, label in enumerate(labels)
-        ],
-    }
-    page.evaluate("active=>renderOp({active,history:[]})", active)
-    page.evaluate("document.fonts.ready")
-    expect(page.locator("#opStages li")).to_have_count(count)
-    metrics = page.locator("#opStages").evaluate("""flow=>{
-        const box = el => {const r=el.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height};};
+def route_geometry(page):
+    return page.locator("#opStages").evaluate("""flow=>{
+        const edges = ({left,right,top,bottom,width})=>({left,right,top,bottom,width});
+        const box = el=>el ? edges(el.getBoundingClientRect()) : null;
+        const lines = el=>{
+            if (!el) return [];
+            const range=document.createRange();
+            range.selectNodeContents(el);
+            return [...range.getClientRects()].map(edges);
+        };
         const style=getComputedStyle(flow), bounds=box(flow);
-        return {layout:flow.dataset.layout,left:bounds.left+parseFloat(style.paddingLeft),right:bounds.right-parseFloat(style.paddingRight),
-            steps:[...flow.children].map(step=>({marker:box(step.querySelector('.route-marker')),copy:box(step.querySelector('.route-copy')),
-                labelLines:(()=>{const range=document.createRange();range.selectNodeContents(step.querySelector('.op-stage-label'));return [...range.getClientRects()].map(r=>({left:r.left,right:r.right,top:r.top,width:r.width}));})(),
-                connector:step.querySelector('.route-connector')?box(step.querySelector('.route-connector')):null}))};
+        return {
+            left:bounds.left+parseFloat(style.paddingLeft),
+            right:bounds.right-parseFloat(style.paddingRight),
+            steps:[...flow.children].map(step=>({
+                marker:box(step.querySelector('.route-marker')),
+                copy:box(step.querySelector('.route-copy')),
+                labelLines:lines(step.querySelector('.op-stage-label')),
+                statusLines:lines(step.querySelector('.op-stage-state:not(.sr-only)')),
+                connector:box(step.querySelector('.route-connector')),
+            })),
+        };
     }""")
+
+
+def assert_horizontal_route(metrics):
     steps = metrics["steps"]
     assert abs(steps[0]["marker"]["left"] - metrics["left"]) <= 1
-    if width >= 1440:
-        assert metrics["layout"] == "horizontal", "Wide routes must also fit more than five steps"
-    if metrics["layout"] == "horizontal" and count > 1:
+    if len(steps) > 1:
         assert abs(steps[-1]["marker"]["right"] - metrics["right"]) <= 1
         intervals = [
             steps[index + 1]["marker"]["left"] - step["marker"]["left"]
@@ -443,16 +424,85 @@ def test_planned_route_markers_fill_the_available_lane(page, dashboard, language
             assert abs(following["left"] - connector["right"] - 12) <= 1
             assert connector["width"] > 0
         for index, step in enumerate(steps[:-1]):
-            for line in step["labelLines"]:
-                for following in steps[index + 1]["labelLines"]:
-                    if abs(line["top"] - following["top"]) <= 1:
-                        assert following["left"] - line["right"] >= 4
-        for step in steps:
-            if len(step["labelLines"]) > 1:
-                assert step["labelLines"][-1]["width"] >= 14, "Avoid a lone-letter final line"
-    elif metrics["layout"] == "vertical":
+            following = steps[index + 1]
+            for line in step["labelLines"] + step["statusLines"]:
+                for next_line in following["labelLines"] + following["statusLines"]:
+                    if line["top"] < next_line["bottom"] and next_line["top"] < line["bottom"]:
+                        assert next_line["left"] - line["right"] >= 3.9
+    for index, step in enumerate(steps):
+        assert len(step["statusLines"]) <= 1
+        if len(step["labelLines"]) > 1:
+            assert step["labelLines"][-1]["width"] >= 14, "Avoid a lone-letter final line"
+        for line in step["labelLines"] + step["statusLines"]:
+            assert (
+                step["copy"]["left"] - 1
+                <= line["left"]
+                <= line["right"]
+                <= step["copy"]["right"] + 1
+            )
+            if index == 0:
+                assert abs(line["left"] - metrics["left"]) <= 1
+            elif index == len(steps) - 1:
+                assert abs(line["right"] - metrics["right"]) <= 1
+            else:
+                marker = step["marker"]
+                assert (
+                    abs((line["left"] + line["right"] - marker["left"] - marker["right"]) / 2) <= 1
+                )
+
+
+@pytest.mark.parametrize(
+    "language,width",
+    [("ru", 390), ("en", 541), ("ru", 768), ("en", 1440), ("en", 2560), ("ru", 2560)],
+)
+@pytest.mark.parametrize(
+    "operation,options,count",
+    [
+        ("apply-update", None, 1),
+        ("check-update", {}, 2),
+        ("check-mods-update", {}, 3),
+        ("restart", {}, 5),
+        ("apply-update", {}, 8),
+        ("backup", {"s3": True}, 12),
+    ],
+)
+def test_planned_route_fits_the_available_lane(
+    page, dashboard, language, width, operation, options, count
+):
+    page.set_viewport_size({"width": width, "height": 900})
+    page.add_init_script(f"localStorage.setItem('pz-language','{language}')")
+    page.goto(dashboard["url"] + "/#/maintenance")
+    expect(page.locator("#startupLoader")).to_be_hidden()
+    page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
+    active = {
+        "op": operation,
+        "phase": "Подготовка…",
+        "message": "Preparing the operation" if language == "en" else "Подготовка операции",
+        "plan": build(operation, options) if options is not None else [],
+    }
+    page.evaluate("active=>renderOp({active,history:[]})", active)
+    page.evaluate("document.fonts.ready")
+    flow = page.locator("#opStages")
+    expect(flow.locator("li")).to_have_count(count)
+    horizontal = (
+        width == 541
+        and count <= 3
+        or width == 768
+        and count <= 5
+        or width == 1440
+        and count <= 8
+        or width == 2560
+        and (count < 12 or language == "en")
+    )
+    expect(flow).to_have_attribute("data-layout", "horizontal" if horizontal else "vertical")
+    metrics = route_geometry(page)
+    steps = metrics["steps"]
+    if horizontal:
+        assert_horizontal_route(metrics)
+    else:
         for index, step in enumerate(steps):
             assert abs(step["marker"]["left"] - metrics["left"]) <= 1
+            assert abs(step["copy"]["left"] - step["marker"]["right"] - 12) <= 1
             if step["connector"]:
                 assert step["marker"]["bottom"] < step["connector"]["top"]
                 assert step["connector"]["bottom"] < steps[index + 1]["marker"]["top"]
@@ -482,3 +532,61 @@ def test_planned_route_markers_fill_the_available_lane(page, dashboard, language
     page.emulate_media(reduced_motion="reduce", forced_colors="active")
     expect(page.locator('#opStages [aria-current="step"]')).to_be_visible()
     expect(page.locator('#opStages [data-status="pending"]')).to_have_count(count - 1)
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_route_label_fit_when_resizing_through_horizontal_threshold(page, dashboard, language):
+    width, height = 610, 900
+    page.set_viewport_size({"width": width, "height": height})
+    page.add_init_script(f"localStorage.setItem('pz-language','{language}')")
+    page.goto(dashboard["url"] + "/#/maintenance")
+    expect(page.locator("#startupLoader")).to_be_hidden()
+    page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
+    plan = build("backup", {"stopServer": False})
+    active = {"op": "backup", "phase": plan[0]["label"], "plan": plan}
+    page.evaluate("active=>renderOp({active,history:[]})", active)
+    page.evaluate("document.fonts.ready")
+    flow = page.locator("#opStages")
+    expect(flow).to_have_attribute("data-layout", "horizontal")
+    initial = route_geometry(page)
+    # Resize using the measured lane rather than depending on shell gutters.
+    min_lane = 504  # A 32px marker and four 118px intervals.
+    cutoff = width - round(initial["right"] - initial["left"]) + min_lane
+    page.set_viewport_size({"width": cutoff - 1, "height": height})
+    expect(flow).to_have_attribute("data-layout", "vertical")
+    page.set_viewport_size({"width": cutoff, "height": height})
+    expect(flow).to_have_attribute("data-layout", "horizontal")
+    metrics = route_geometry(page)
+    assert abs(metrics["right"] - metrics["left"] - min_lane) <= 1
+    assert_horizontal_route(metrics)
+    assert len(metrics["steps"][0]["labelLines"]) == 1
+
+    plan[0]["status"], plan[1]["status"] = "completed", "current"
+    active["phase"] = plan[1]["label"]
+    page.evaluate("active=>renderOp({active,history:[]})", active)
+    assert_horizontal_route(route_geometry(page))
+
+
+def test_long_localized_words_can_require_more_than_minimum_marker_spacing(page, dashboard):
+    width, height = 1100, 900
+    page.set_viewport_size({"width": width, "height": height})
+    page.add_init_script("localStorage.setItem('pz-language','ru')")
+    page.goto(dashboard["url"] + "/#/maintenance")
+    expect(page.locator("#startupLoader")).to_be_hidden()
+    page.evaluate("liveSource?.close();liveSource=null;clearTimeout(sseStartupTimer)")
+    plan = build("apply-update")
+    active = {"op": "apply-update", "phase": plan[0]["label"], "plan": plan}
+    page.evaluate("active=>renderOp({active,history:[]})", active)
+    page.evaluate("document.fonts.ready")
+    flow = page.locator("#opStages")
+    expect(flow).to_have_attribute("data-layout", "horizontal")
+    initial = route_geometry(page)
+    min_lane = 858  # A 32px marker and seven 118px intervals.
+    cutoff = width - round(initial["right"] - initial["left"]) + min_lane
+    page.set_viewport_size({"width": cutoff, "height": height})
+    expect(flow).to_have_attribute("data-layout", "vertical")
+    metrics = route_geometry(page)
+    assert abs(metrics["right"] - metrics["left"] - min_lane) <= 1
+    page.set_viewport_size({"width": width, "height": height})
+    expect(flow).to_have_attribute("data-layout", "horizontal")
+    assert_horizontal_route(route_geometry(page))

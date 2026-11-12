@@ -1494,11 +1494,27 @@ function updateOperationStageLayout() {
   const count = stages.children.length;
   const style = getComputedStyle(stages);
   const width = stages.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-  // Long routes remain horizontal whenever the lane has room for readable labels.
-  setDomProperty(stages.dataset, "layout", innerWidth <= 540 || width < (count - 1) * 88 + 32 ? "vertical" : "horizontal");
+  if (!count || width <= 0) return;
+  // Leave room for localized status text in the narrowest horizontal label columns.
+  const markerDiameter = 32, minMarkerInterval = 118;
+  if (innerWidth <= 540 || width < (count - 1) * minMarkerInterval + markerDiameter) {
+    setDomProperty(stages.dataset, "layout", "vertical");
+    return;
+  }
+  setDomProperty(stages.dataset, "layout", "horizontal");
+  // Use the connected vertical route when normal wrapping cannot fit a whole word.
+  const text = document.createRange();
+  for (const label of stages.querySelectorAll(".route-copy > :not(.sr-only)")) {
+    text.selectNodeContents(label);
+    if (text.getBoundingClientRect().width > label.getBoundingClientRect().width + 0.5) {
+      stages.dataset.layout = "vertical";
+      break;
+    }
+  }
 }
 
-new ResizeObserver(updateOperationStageLayout).observe($("opStages"));
+new ResizeObserver(() => requestAnimationFrame(updateOperationStageLayout)).observe($("opStages"));
+document.fonts.addEventListener("loadingdone", updateOperationStageLayout);
 
 function renderActiveOperation() {
   const active = S.op?.active || (S.actionPending ? { op: S.pendingOperation, phase: I18n.t("Подготовка…"), plan: S.pendingPlan } : null);
@@ -1523,14 +1539,15 @@ function renderActiveOperation() {
       const title = I18n.t(step.label), status = statuses[step.status];
       const marker = completed ? '<svg class="op-stage-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>'
         : step.status === "skipped" ? '<svg viewBox="0 0 24 24"><path d="M7 12h10"/></svg>' : index + 1;
-      const position = plan.length > 1 ? index / (plan.length - 1) : 0;
-      const next = plan.length > 1 ? (index + 1) / (plan.length - 1) : 0;
-      return `<li class="route-step" data-step-id="${esc(step.id)}" data-status="${step.status}" data-state="${completed ? "ok" : step.status}" style="--op-position:${position};--op-next-position:${next}"${current ? ' aria-current="step"' : completed ? ' data-complete="true"' : ""} aria-label="${esc(`${title}: ${status}`)}"><div class="route-step-body"><span class="route-marker" aria-hidden="true">${marker}</span><span class="route-copy"><strong class="op-stage-label">${esc(title)}</strong><span class="op-stage-state${completed ? " sr-only" : ""}">${esc(status)}</span></span></div>${index < plan.length - 1 ? '<span class="route-connector" aria-hidden="true"></span>' : ""}</li>`;
+      return `<li class="route-step" data-step-id="${esc(step.id)}" data-status="${step.status}" data-state="${completed ? "ok" : step.status}"${current ? ' aria-current="step"' : completed ? ' data-complete="true"' : ""} aria-label="${esc(`${title}: ${status}`)}"><div class="route-step-body"><span class="route-marker" aria-hidden="true">${marker}</span><span class="route-copy"><strong class="op-stage-label">${esc(title)}</strong><span class="op-stage-state${completed ? " sr-only" : ""}">${esc(status)}</span></span></div>${index < plan.length - 1 ? '<span class="route-connector" aria-hidden="true"></span>' : ""}</li>`;
     }).join("");
     const title = OP_TITLES[active.op] || active.op;
     setDomProperty($("opPhase"), "textContent", title);
-    if ($("opStages").innerHTML !== markup) $("opStages").innerHTML = markup;
-    updateOperationStageLayout();
+    const route = $("opStages");
+    if (route.innerHTML !== markup) {
+      route.innerHTML = markup;
+      updateOperationStageLayout();
+    }
   } else {
     setDomProperty($("opbar"), "hidden", true);
   }

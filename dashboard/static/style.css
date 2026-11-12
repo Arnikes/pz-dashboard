@@ -1806,13 +1806,22 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--footer-heig
 .op-stages [data-status=pending] .op-stage-label, .op-stages [data-status=skipped] .op-stage-label { color:var(--muted); }
 .op-stages [data-status=skipped] .route-marker { border-style:dashed; }
 @media (min-width:541px) {
-  .op-stages[data-layout=horizontal] { column-gap:0; }
-  .op-stages[data-layout=horizontal] .route-step-body { align-items:stretch; }
-  .op-stages[data-layout=horizontal] .route-marker { margin-left:calc((100% - 32px) * var(--op-position)); }
-  .op-stages[data-layout=horizontal] .route-copy { padding-inline:2px; text-align:center; }
+  .op-stages[data-layout=horizontal] { --op-edge-copy-min:92px; display:flex; gap:0; }
+  .op-stages[data-layout=horizontal] .route-step { flex:1 1 0; }
+  /* End steps get half an interval plus the marker radius. */
+  .op-stages[data-layout=horizontal] .route-step:is(:first-child,:last-child):not(:only-child) { flex:.5 1 16px; }
+  .op-stages[data-layout=horizontal] .route-step-body { align-items:center; }
+  .op-stages[data-layout=horizontal] .route-copy { grid-template-columns:minmax(0,1fr); width:100%; padding-inline:2px; text-align:center; }
+  .op-stages[data-layout=horizontal] .route-copy > * { overflow-wrap:normal; }
+  /* Reserve room for edge labels and narrow their neighbors symmetrically to keep them centered. */
+  .op-stages[data-layout=horizontal] .route-step:is(:first-child,:last-child):not(:only-child) .route-copy { width:max(100%, var(--op-edge-copy-min)); }
+  .op-stages[data-layout=horizontal] .route-step:is(:nth-child(2),:nth-last-child(2)):not(:first-child,:last-child) .route-copy { max-width:calc(200% + 32px - 2 * var(--op-edge-copy-min)); }
+  .op-stages[data-layout=horizontal] .route-step:first-child .route-step-body { align-items:flex-start; }
   .op-stages[data-layout=horizontal] .route-step:first-child .route-copy { padding-left:0; text-align:left; }
+  .op-stages[data-layout=horizontal] .route-step:last-child:not(:only-child) .route-step-body { align-items:flex-end; }
   .op-stages[data-layout=horizontal] .route-step:last-child:not(:only-child) .route-copy { padding-right:0; text-align:right; }
-  .op-stages[data-layout=horizontal] .route-connector { left:calc(44px + (100% - 32px) * var(--op-position)); right:calc(12px - (100% - 32px) * var(--op-next-position)); }
+  .op-stages[data-layout=horizontal] .route-connector { left:calc(50% + 28px); right:calc(28px - 50%); }
+  .op-stages[data-layout=horizontal] .route-step:first-child .route-connector { left:44px; right:calc(44px - 100%); }
 }
 .config-flow { width:100%; min-width:0; padding:8px 0; margin:14px 0 20px; }
 .config-flow button { width:100%; min-height:44px; padding:0; border:0; border-radius:var(--r-control); background:transparent; color:var(--muted); text-align:left; font:inherit; cursor:pointer; }
