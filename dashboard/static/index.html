@@ -540,7 +540,6 @@
             <label class="field">Интервал перезапуска, ч
               <input type="number" id="scheduledRestartInterval" min="1" max="168" step="1" value="24" required />
             </label>
-            <p class="hint">Плановый перезапуск использует «Предупреждать игроков» из «Обновлений образа».</p>
             <div class="actions schedule-actions">
               <button class="btn" type="submit" aria-describedby="scheduledRestartStatus">Сохранить расписание</button>
               <p class="hint" id="scheduledRestartStatus">Расписание выключено</p>
@@ -573,7 +572,7 @@
                 <input type="number" id="wdGracePeriod" min="0" max="60" step="1" value="5" required />
               </label>
             </div>
-            <label class="check" title="Только при запуске пульта на хосте сервера">
+            <label class="check">
               <input type="checkbox" id="wdRestart" /> авто-рестарт при зависании
             </label>
           </div>
@@ -589,9 +588,8 @@
               </label>
             </header>
             <label class="field">Текст объявления
-              <input type="text" id="chatAnnouncementMessage" aria-describedby="chatAnnouncementHint" />
+              <input type="text" id="chatAnnouncementMessage" />
             </label>
-            <p class="hint" id="chatAnnouncementHint">До 200 символов в одной строке.</p>
             <label class="field">Интервал отправки, мин
               <input type="number" id="chatAnnouncementsInterval" min="1" max="1440" step="1" value="30" required />
             </label>
@@ -627,10 +625,9 @@
             <div class="auto-grid">
               <div class="secret-field">
                 <label class="field">Bot token
-                  <input type="password" id="tgToken" placeholder="Введите новое значение" autocomplete="off" data-secret-description="tgTokenDescription" aria-describedby="tgTokenDescription tgTokenHint" />
+                  <input type="password" id="tgToken" placeholder="Введите новое значение" autocomplete="off" data-secret-description="tgTokenDescription" aria-describedby="tgTokenDescription" />
                 </label>
                 <span class="sr-only" id="tgTokenDescription"></span>
-                <p class="hint" id="tgTokenHint">Пустое поле сохраняет текущий токен.</p>
               </div>
               <label class="field">Chat ID
                 <input type="text" id="tgChat" inputmode="numeric" placeholder="123456789 или -100…" autocomplete="off" />
@@ -638,12 +635,11 @@
             </div>
             <div class="auto-row">
               <label class="switch">
-                <input type="checkbox" id="tgMtproxySwitch" role="switch" aria-controls="tgMtproxyFields" aria-describedby="tgMtproxyHint" />
+                <input type="checkbox" id="tgMtproxySwitch" role="switch" aria-controls="tgMtproxyFields" />
                 <span class="switch-track" aria-hidden="true"></span>
                 <span class="switch-label">Подключаться через MTProxy</span>
               </label>
             </div>
-            <p class="hint" id="tgMtproxyHint">При сбое MTProxy прямое соединение не используется.</p>
             <p class="hint" id="tgMtproxyConfigHint" role="status" hidden>Неверное значение настройки MTProxy. Проверьте параметры подключения.</p>
             <div id="tgMtproxyFields" class="auto-grid" hidden>
               <label class="field">Сервер MTProxy
@@ -654,22 +650,19 @@
               </label>
               <div class="secret-field">
                 <label class="field">Секрет MTProxy
-                  <input type="password" id="tgMtproxySecret" placeholder="Введите новое значение" autocomplete="off" data-secret-description="tgMtproxySecretDescription" aria-describedby="tgMtproxySecretDescription tgMtproxySecretHint" />
+                  <input type="password" id="tgMtproxySecret" placeholder="Введите новое значение" autocomplete="off" data-secret-description="tgMtproxySecretDescription" aria-describedby="tgMtproxySecretDescription" />
                 </label>
                 <span class="sr-only" id="tgMtproxySecretDescription"></span>
-                <p class="hint" id="tgMtproxySecretHint">32 шестнадцатеричных символа, dd + 32 символа или ee + 32 символа + DNS-имя в hex. Вставьте секрет целиком. Пустое поле сохраняет текущий секрет.</p>
               </div>
               <label class="field">Telegram API ID
-                <input type="number" id="tgApiId" min="1" max="2147483647" step="1" aria-describedby="tgApiCredentialsHint" />
+                <input type="number" id="tgApiId" min="1" max="2147483647" step="1" />
               </label>
               <div class="secret-field">
                 <label class="field">Telegram API hash
-                  <input type="password" id="tgApiHash" placeholder="Введите новое значение" autocomplete="off" data-secret-description="tgApiHashDescription" aria-describedby="tgApiHashDescription tgApiCredentialsHint tgApiHashHint" />
+                  <input type="password" id="tgApiHash" placeholder="Введите новое значение" autocomplete="off" data-secret-description="tgApiHashDescription" aria-describedby="tgApiHashDescription" />
                 </label>
                 <span class="sr-only" id="tgApiHashDescription"></span>
-                <p class="hint" id="tgApiHashHint">32 шестнадцатеричных символа. Пустое поле сохраняет текущий API hash.</p>
               </div>
-              <p class="hint" id="tgApiCredentialsHint">API ID и API hash приложения можно получить на my.telegram.org. Они нужны дополнительно к токену бота.</p>
             </div>
             <label class="field">Язык уведомлений Telegram
               <select id="tgLanguage">
@@ -684,10 +677,10 @@
               <label class="check"><input type="checkbox" id="tgProblems" checked /> Проблемы</label>
             </div>
             <div class="actions">
-              <button class="btn small" id="btnTgChats" type="button" aria-describedby="tgMtproxyChatsHint">Найти чаты бота</button>
+              <button class="btn small" id="btnTgChats" type="button">Найти чаты бота</button>
               <button class="btn" id="btnTgTest">Проверить</button>
             </div>
-            <p class="hint" id="tgMtproxyChatsHint" hidden>Через MTProxy поиск чатов недоступен. Введите Chat ID вручную.</p>
+            <p class="hint" id="tgMtproxyChatsHint" hidden>Поиск чатов недоступен через MTProxy.</p>
             <div id="tgChatsBody" class="tg-chats" hidden></div>
           </div>
         </section>

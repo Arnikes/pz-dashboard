@@ -740,7 +740,6 @@ input:disabled, select:disabled, textarea:disabled { opacity: 0.55; cursor: not-
 .schedule-form { display:grid; gap:var(--space-group); }
 #view-maintenance .schedule-form > .card-head { flex-wrap:nowrap; margin-bottom:0; }
 .schedule-form .hint { margin:0; }
-.schedule-form .field + .hint { margin-top:calc(-1 * var(--space-inline)); }
 .schedule-actions { align-items:center; column-gap:var(--space-group); }
 @media (max-width:1000px) {
   #view-maintenance { grid-template-columns:1fr; }
@@ -1555,7 +1554,6 @@ select { cursor: pointer; }
 .config-field code { color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
 .config-field input:not([type=checkbox]), .config-field select, .config-field textarea { width:100%; min-width:0; }
 .secret-field { min-width:0; }
-.secret-field > .hint { margin:6px 0 0; }
 .config-field textarea { resize:vertical; min-height:80px; white-space:pre-wrap; background:var(--bg-deep); border:1px solid var(--line-strong); border-radius:8px; color:var(--ink); padding:10px; font:inherit; }
 .config-field input[type=checkbox] { width:22px; height:22px; accent-color:var(--ok); }
 .config-field .hint { margin:8px 0; white-space:pre-line; overflow-wrap:anywhere; }

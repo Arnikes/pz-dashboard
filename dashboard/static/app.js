@@ -3000,9 +3000,15 @@ $("tgToken").addEventListener("change", pushSettings);
 ["tgMtproxyHost", "tgMtproxyPort", "tgMtproxySecret", "tgApiId", "tgApiHash"].forEach((id) => $(id).addEventListener("change", pushSettings));
 function updateTelegramProxyFields() {
   const enabled = $("tgMtproxySwitch").checked;
+  const chatsButton = $("btnTgChats");
   $("tgMtproxyFields").hidden = !enabled;
   $("tgMtproxyChatsHint").hidden = !enabled;
-  if (enabled) $("tgChatsBody").hidden = true;
+  if (enabled) {
+    setDomAttribute(chatsButton, "aria-describedby", "tgMtproxyChatsHint");
+    $("tgChatsBody").hidden = true;
+  } else {
+    chatsButton.removeAttribute("aria-describedby");
+  }
 }
 $("tgMtproxySwitch").addEventListener("change", (event) => {
   updateTelegramProxyFields();
