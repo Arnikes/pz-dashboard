@@ -844,12 +844,12 @@ def test_env_owned_invalid_numeric_and_version_are_blocked(env):
 
 def test_b42_index_uses_id_and_effective_version_only():
     files = {
+        "111/mods/Other/42/mod.info": "id=second\n",
         "111/mods/Folder/mod.info": "id=b41\n",
         "111/mods/Folder/42/mod.info": "id=base\n",
         "111/mods/Folder/42.14/mod.info": "id=chosen\nname=Different\n",
         "111/mods/Folder/42.20/mod.info": "id=future\n",
         "111/mods/Folder/common/media/sandbox-options.txt": "option Mod.Count { type = integer, min = 1, max = 10, default = 2, }",
-        "111/mods/Other/42/mod.info": "id=second\n",
         "222/mods/Bad/42/mod.info": "name=NotAnID\nmodID=wrong\n",
     }
     index = workshop.build_index(files, ["111", "222"], "42.15.1")

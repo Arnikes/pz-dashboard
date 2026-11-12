@@ -370,6 +370,8 @@ def build_index(files, items, version):
                 "options": options(effective.get("media/sandbox-options.txt", ""), translations),
             }
         )
+    # Scans can discover folders in different orders. List usable records first.
+    records.sort(key=lambda record: (bool(record.get("error")), record["path"]))
     return {wid: [r for r in records if r["workshopId"] == wid] for wid in items}
 
 

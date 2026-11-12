@@ -248,7 +248,7 @@ def test_custom_collector_concurrent_subscribers_share_one_snapshot():
 
 @pytest.mark.parametrize("phase", ["prepare", "before_start", "worker"])
 def test_extension_action_unexpected_failures_hide_secrets_and_release_admission(
-    extension_servers, worker_state, caplog, phase
+    extension_servers, worker_state, caplog, monkeypatch, phase
 ):
     secret = "token=private-plugin-value"
     completed = []
@@ -275,7 +275,18 @@ def test_extension_action_unexpected_failures_hide_secrets_and_release_admission
         "requestId": f"failing-{phase}",
         "requestEpoch": ops.op_state()["snapshot"]["epoch"],
     }
+    pending_at_reply = []
+    send_json = app.Handler._send_json
+
+    def observe_first_reply(handler, *args, **kwargs):
+        if not pending_at_reply:
+            resolution = ops.resolve_operation_request(body["requestId"], body["requestEpoch"])
+            pending_at_reply.append(resolution["requestPending"])
+        return send_json(handler, *args, **kwargs)
+
+    monkeypatch.setattr(app.Handler, "_send_json", observe_first_reply)
     status, _, result = request(server, headers, "POST", "/api/action", body)
+    assert pending_at_reply == [False]
     if phase == "worker":
         assert status == 200
         wait_worker("failing-probe")

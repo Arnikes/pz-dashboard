@@ -1760,7 +1760,8 @@ body:has(.draft-bar:not([hidden])) .main { padding-bottom:calc(var(--footer-heig
   .op-stages[data-layout=horizontal] .route-step:is(:first-child,:last-child):not(:only-child) { flex:.5 1 16px; }
   .op-stages[data-layout=horizontal] .route-step-body { align-items:center; }
   .op-stages[data-layout=horizontal] .route-copy { grid-template-columns:minmax(0,1fr); width:100%; padding-inline:2px; text-align:center; }
-  .op-stages[data-layout=horizontal] .route-copy > * { overflow-wrap:normal; }
+  /* Keep fractional glyph widths for the label fit check across platforms. */
+  .op-stages[data-layout=horizontal] .route-copy > * { overflow-wrap:normal; text-rendering:geometricPrecision; }
   /* Reserve room for edge labels and narrow their neighbors symmetrically to keep them centered. */
   .op-stages[data-layout=horizontal] .route-step:is(:first-child,:last-child):not(:only-child) .route-copy { width:max(100%, var(--op-edge-copy-min)); }
   .op-stages[data-layout=horizontal] .route-step:is(:nth-child(2),:nth-last-child(2)):not(:first-child,:last-child) .route-copy { max-width:calc(200% + 32px - 2 * var(--op-edge-copy-min)); }

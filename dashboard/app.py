@@ -706,24 +706,21 @@ class Handler(BaseHTTPRequestHandler):
                 if "requestId" in data or "requestEpoch" in data
                 else {}
             )
-            try:
-                with ops.operation_request(**request_options):
-                    if data.get("op") in ("prepare-workshop", "apply-config"):
-                        self._editor_request(
-                            lambda: configeditor.queue(
-                                data, prepare=data["op"] == "prepare-workshop"
-                            )
-                        )
-                    else:
-                        self._handle_action(data)
-            except ops.OpsError as error:
-                self._send_error_json(409, str(error))
+            if data.get("op") in ("prepare-workshop", "apply-config"):
+                self._editor_request(
+                    lambda: configeditor.queue(data, prepare=data["op"] == "prepare-workshop"),
+                    **request_options,
+                )
+            else:
+                self._handle_action(data, **request_options)
         else:
             self._send_error_json(404, "Нет такого маршрута")
 
-    def _editor_request(self, callback):
+    def _editor_request(self, callback, **request_options):
         try:
-            self._send_json(callback())
+            with ops.operation_request(**request_options):
+                result = callback()
+            self._send_json(result)
         except configeditor.EditorError as error:
             self._send_error_json(error.status, str(error))
         except (FormatError, ValueError, TypeError) as error:
@@ -753,11 +750,15 @@ class Handler(BaseHTTPRequestHandler):
             self._send_error_json(404, "Нет такого маршрута")
 
     # ── операции ──
-    def _handle_action(self, data):
+    def _handle_action(self, data, **request_options):
         try:
-            result = actions.dispatch(data, registry=self._extensions())
+            with ops.operation_request(**request_options):
+                result = actions.dispatch(data, registry=self._extensions())
         except actions.ActionError as error:
             self._send_error_json(error.status, str(error))
+            return
+        except ops.OpsError as error:
+            self._send_error_json(409, str(error))
             return
         self._send_json(result)
 
