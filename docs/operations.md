@@ -1,395 +1,203 @@
 # Server operations and API
 
-The panel serializes heavy operations and shows their progress in the operation bar.
-Lifecycle and world archive actions require local Docker/data access.
-
-## Shared operation progress
-
-Manual maintenance actions started by `POST /api/action` use the same serialized
-worker, operation bar, and result history; cancellation acts on the current worker.
-The bar appears while the request is being sent,
-then displays the server's complete planned route, including pending stages.
-Each planned step has a stable ID and a pending, current, completed, or skipped
-state. Conditional branches remain pending until resolved; skipped work is never
-reported as completed. The phase history remains separate from the plan, including
-retries and nested work. Custom workers without a plan retain the visited-stage
-fallback. Wide layouts distribute markers across the whole operation bar; narrow
-layouts keep all labels readable in a vertical route. Only timed waits show a
-countdown; reaching zero does not release the operation lock. Phase diagnostics
-remain available through the operation heading's tooltip and accessible status.
-Editable widgets show the localized operation name while their controls are locked.
-Operation snapshots carry a process epoch and an increasing sequence number, so
-delayed polling responses or cached SSE frames cannot overwrite newer progress.
-A stream frame from an unfamiliar process epoch waits for direct API confirmation;
-buffered frames from an old connection cannot declare a restart or release a lock.
-Accepted requests include the operation ID and a snapshot captured after admission;
-the same ID identifies its final history entry. Failed or incomplete state responses
-never release the lock. If submission times out or loses its connection, the browser
-keeps mutations blocked and reconciles the launch request ID with the server. A request
-still in validation remains pending even if no worker is active. Resolving a request
-that has not arrived fences its ID against later admission; requests from an earlier
-console process are rejected. Only a resolved submission and a valid fresh snapshot
-can restore idle controls. A delayed acceptance cannot revive a completion
-already received through the live stream. Cancellation remains disabled while its
-request is pending and after acceptance until that operation ends.
-Cancellation requests from the interface carry the active operation ID; the server
-rejects a stale ID rather than cancelling a later operation of the same type.
-Navigation, logs, events, and mod-update cancellation during its warning period
-remain available. Completion, failure, or cancellation restores the normal controls
-and records one result notification. Request acceptance appears in the bar without
-an extra inbox entry.
-
-| Operations | Progress and completion |
-| --- | --- |
-| Start, stop, restart | Player warning when requested, stopping, launching, game/RCON readiness |
-| Scheduled restart | Restart stages and game/RCON readiness, with the automatic update warning period |
-| Check server/console image | Image comparison; unavailable or inconclusive comparison fails |
-| Update server image | Pull, optional backup, warning, container recreation, game readiness |
-| Update console image | Pull, console recreation, console health; progress survives replacement |
-| Check mods | RCON check, timed wait for fresh log results; an inconclusive result fails |
-| Manual/scheduled mod update | Restart stages and game readiness; scheduled warnings allow cancellation |
-| Manual/scheduled backup | Save/wait or warning/stop, archive, game readiness when restarted |
-| Verify/restore archive | Archive validation; restore also replaces files and verifies game readiness |
-| Apply configuration/prepare Workshop | Optional backup, file write, launch/download, game readiness, configuration verification |
-
-Nested backup completion is not a completed operation stage. Configuration writes
-and post-start verification have explicit stages. An automatic mod restart skipped
-because the server was already stopped or restarted is recorded as cancelled.
-Read-only monitoring, automatic freshness probes, and editor draft/metadata requests
-retain their ordinary local loading feedback; they do not launch a maintenance worker.
-The API admits direct console commands, archive deletions, settings writes, and draft
-mutations through the same atomic admission gate as operation starts. Concurrent
-mutations are rejected with HTTP 409, including requests sent from another tab or
-directly to the API; the worker's own lifecycle steps retain access to these services.
-Automatic verification of a saved configuration performs Docker, RCON, and Workshop
-probes outside this admission gate. Its short metadata commit rechecks the captured
-revisions, container identity, and admission generation. Starting an operation during
-the probe invalidates its result, even if that operation finishes before the probe.
-Read-only verification therefore does not make an idle operation bar reject actions.
-
-Image check actions now return `{"ok":true,"started":"check-update"}` or
-`{"ok":true,"started":"check-dashboard-update"}`, like other worker actions,
-instead of an inline `check` result. Read progress/results from `GET /api/ops` and
-updated image status from `GET /api/overview` or SSE.
-
-Launch clients can attach a unique `requestId` and the latest snapshot's
-`snapshot.epoch` as `requestEpoch`. To reconcile a lost reply, send
-`POST /api/action` with `op: "resolve-request"` and those same identifiers.
-The reply contains `requestPending` and `operationState`. A pending request retains
-the submission lock; a resolved request permits the ordinary worker state to decide
-availability. The browser also keeps newer live progress when reconciliation arrives
-late. Clients omitting both tracking fields retain the existing action API.
-
-## Dashboard notifications
-
-The bell in the header opens a shared inbox for operation results and toast feedback.
-Filter by all, unread, errors, or successful results. Operation entries link to the
-console and event journal. Cancelled operations have a warning status.
-
-Opening the inbox or selecting a filter marks its displayed entries as read.
-Notifications received while it is open remain unread until acknowledged; use the
-individual read control or **Mark all as read**. Closing a toast also marks that
-entry as read; letting its timer expire keeps it available as unread in the inbox.
-Toast timers pause while the window is hidden or unfocused and while reading the
-stack with a pointer, keyboard, or touch.
-
-**Clear all** removes the inbox and its visible toasts. Read receipts survive
-reloads and clearing, so replayed operation history does not recreate old results.
-The browser retains the latest 100 entries and synchronizes reads and clearing
-between tabs on the same origin. This history belongs to the browser; it does not
-replace the server's event journal. Initial server history appears silently in the
-inbox, while newly completed operations also show a toast.
+Use **Overview** for server controls and **Maintenance** for updates and schedules.
+The operation bar shows planned stages, the current step, and any timed wait.
+While a worker is active, the panel locks other changes and leaves navigation,
+events, and logs available. Completion, failure, and cancellation appear in the
+header's notification inbox. The **Events** workspace keeps the server journal.
+The browser keeps up to 100 inbox entries and synchronizes read state across
+tabs on the same origin.
 
 ## Backups and restore
 
-Backups archive the data directory; logs are excluded. A running server receives
-an RCON save unless the stop-server option is selected for a fully stopped snapshot.
-If the server is already stopped, both backup modes leave it stopped and skip
-player warnings and RCON commands. This also applies to scheduled backups.
-Daily backups use container time (`TZ`), default to 03:00, and retain seven archives
-by default. A missed scheduled run is caught up when the panel starts.
-Configure the time, retention count, and stop-server option in Backups.
-A retention count of `0` keeps all archives.
+The **Backups** workspace lists archives, verification status, and the run
+journal. Daily backups are disabled initially. When enabled, the default time
+is 03:00 in the container's time zone (`TZ`). An overdue run is caught up when
+the panel returns and the operation slot is free. The default retention count
+is seven. Set it to `0` to keep every archive.
 
-Every new local or S3 backup verifies the complete gzip stream and safely extracts
-the archive into a temporary directory before reporting success or deleting older
-copies. The result is saved as a verification receipt. Empty or damaged archives
-and receipt-write failures fail the operation, keep the new archive for inspection,
-and preserve previous backups. The failed journal entry identifies the created archive.
-When a backup stops a running server, the panel restarts it and waits for PZ/RCON
-readiness before verifying the archive or transferring it to S3.
+Backups include the world and configuration data and exclude logs. A live
+backup requests a world save through RCON. The stop-server option creates an
+archive with the game stopped, then restarts it and waits for PZ/RCON readiness
+before verification or export. A backup of an already stopped server leaves
+it stopped.
 
-Runs are recorded in `dashboard-data/backups.jsonl`; events appear in
-`events.jsonl`. Failures are visible in the UI and can notify Telegram.
-Archive verification extracts into an isolated temporary directory without stopping
-the live server. Restore validates the archive and copies its files, including
-ownership metadata, onto the data volume before warning players or stopping the
-server. Preparation also reserves the directory used to preserve the original world.
-A preparation failure cleans up temporary files and leaves a running server online.
-Only after Docker confirms the server is stopped does the panel replace the data
-and start the server. A successful restore starts the server even if it was stopped
-beforehand. Explicit replacement confirmation is required.
+The panel validates the full gzip stream and safely extracts every new archive
+into temporary storage before rotating older archives. An invalid archive or a
+verification receipt failure leaves the new archive and prior copies available.
+The run journal records the failure. You can also verify an existing archive
+while the server runs. The **Verified** shield shows the check time, file count,
+and any missing world or configuration paths. Replaced or changed archives must
+be checked again. The receipt is stored in
+`DASHBOARD_DIR/backup-verifications.json`. In-game recovery requires a separate
+restore rehearsal.
 
-Publication failures attempt to restore the original world and leave the server
-stopped. If rollback fails, the error identifies the retained original and staged
-data directories for manual recovery; neither directory is removed automatically.
+Restore requires explicit confirmation of world replacement. It always validates
+the archive again, stages its files with ownership metadata on the data volume,
+and reserves room for the original world before stopping the game. A preparation
+failure leaves the running server online. Once Docker
+confirms the server is stopped, the panel replaces the files and starts the
+server, even if it was previously stopped. If replacement fails, the panel
+attempts rollback and leaves the server stopped. If rollback fails, the error
+identifies the retained original and staged directories for recovery.
 
-Successful manual checks and automatic checks of new local and S3 backups appear as an olive
-"Verified" shield, with the check date, file count, and any missing world/configuration
-notes beside the archive. The check control is disabled for a verified archive.
-Receipts persist in `dashboard-data/backup-verifications.json`, independently of
-operation history. Local receipts match file size, modification/change times, and
-file identity; S3 receipts match the endpoint, bucket, region, prefix, ETag, size,
-and modification time returned by the provider. Changed or unknown archives remain
-checkable. Providers that omit ETag or modification time cannot retain verified status.
-Archives exported before receipts were introduced need one manual check.
-Restore always downloads and validates the current bytes, even with a receipt.
-
-Keep a separate copy of important backups. For a recovery rehearsal, restore into
-a separate game instance with its own volumes and confirm that the world and configuration
-load. Archive verification alone does not prove the world behaves correctly in-game.
+Keep a separate copy of important archives. Rehearse on an isolated game
+instance and confirm that the world and its configuration load there.
 
 ### Optional S3 export
 
-Set `BACKUP_S3_ENABLED=true` and `BACKUP_S3_BUCKET` in the panel environment.
-The supplied Compose examples forward these variables from `.env`; recreate the
-panel after changing them. See [S3 configuration](installation.md#optional-s3-backup-export).
-Local storage remains the default. Export applies to every newly created world
-backup, including manual, scheduled, pre-update, and pre-configuration backups.
+[S3 configuration](installation.md#optional-s3-backup-export) applies to every
+new backup, including backups created before applying a configuration or update.
+Existing local archives stay local. The panel deletes the temporary local copy
+only after verifying the archive, uploading to a unique object key, reading the
+complete object back to check size and SHA-256, and saving a verification receipt.
+A failed export retains the local archive and blocks any dependent operation.
+Read-back transfers the entire archive. Plan for the provider's transfer charges
+and a shared 40-minute upload and read-back deadline.
 
-Each export creates the local archive, verifies the entire gzip stream and safely
-extracts the tar into a temporary directory, uploads it, then reads the complete
-S3 object back and compares its size, SHA-256 bytes, and stored SHA-256 metadata
-with the local archive. It also confirms the local archive has not changed since
-verification and saves the verification receipt before deleting the local file. Only then
-is the local archive deleted. Verification cannot be disabled. Configuration
-application may keep the server stopped across
-its nested backup and subsequent file changes.
+While S3 is enabled, the catalog shows remote and retained local archives.
+A storage listing failure leaves local archives available. Remote listings are
+cached for up to 30 seconds. Overview shows an unknown count until it has a
+fresh listing. Count-based retention runs in the configured S3
+prefix after a successful export. Local retention is suspended so failed exports
+remain available. If remote retention fails, the new S3 object remains and any
+dependent operation stops. The journal records the object's location.
 
-Unique object keys prevent same-second backups or multiple panel instances from
-overwriting previous exports. Successful journal entries contain the `s3://` object
-location. Verification, upload, read-back, or local-deletion failures fail the backup
-operation and retain the local archive; dependent updates/configuration changes
-do not proceed. S3 diagnostics omit SDK error details that could expose credentials.
-Transfer and read-back share a 2400-second deadline, checked between chunks, with
-10-second connection and 60-second read timeouts and up to three request attempts.
-Read-back downloads the full archive and incurs storage-provider bandwidth charges.
-
-When S3 is enabled, the archive list combines local archives and exported objects
-in the configured bucket/prefix. Remote listings are cached for 30 seconds and
-invalidated after panel uploads/deletions. Download, verification, restore, and
-deletion work directly from the panel. If S3 listing fails, any retained local
-archives stay accessible with the storage error displayed beside the catalog.
-Before restore, the panel downloads the
-selected S3 object into a private temporary directory, checks its size and stored
-SHA-256, then validates and extracts the gzip/tar before stopping the game or
-replacing world files. Any download or validation failure leaves the live world
-untouched. Temporary downloads are removed after success or failure; local source
-archives and remote objects remain available after restore. Remote object names
-include their UUID, so same-second backups are independently selectable. Only
-panel-generated archive names directly under the configured prefix are listed;
-unrelated objects and nested prefixes are excluded. Existing local archives are not
-exported automatically. If S3 is disabled, only local backups are accessible.
-While S3 is enabled, local retention is skipped so failed exports remain available;
-monitor disk space and retry or remove them manually. After each successful export,
-the panel applies `backup.maxBackups` to the exported archives in the configured
-bucket/prefix, keeping the new export and the newest remaining objects. A value
-of `0` disables count-based retention. This remote limit does not count or delete
-retained local archives. If listing or deleting old objects fails, the operation
-fails and the journal records the saved S3 archive's name and location; the new
-export remains available, and dependent updates/configuration changes do not
-proceed. Further deletion stops at the first error.
-Configure a lifecycle rule to abort incomplete multipart uploads after a suitable
-interval to clean up transfers interrupted by process termination.
+The panel downloads a remote archive into temporary storage and checks its size
+and checksum before staging a restore. Use a bucket lifecycle rule to remove
+incomplete multipart uploads left by a stopped panel.
 
 ## Image and Workshop updates
 
-Image checks use Docker's registry client for the running image reference, including
-private registries, and compare matching platform manifests or configuration digests.
-Applying an update validates the live Compose project, image and data mounts before
-pulling. It compares immutable image IDs, recreates only the game service from a
-frozen Compose snapshot without building or pulling again, and confirms the pulled
-image and PZ/RCON readiness before reporting success. A Compose/image mismatch
-fails before stopping the server; check the mounted files and interpolation environment.
-A configured pre-update world backup must succeed before the update proceeds.
+**Maintenance** has separate game image, console image, and Workshop update
+controls. See [console self-update requirements](installation.md#update-the-console-from-maintenance)
+for the panel itself.
 
-On every console start or restart, mod freshness is checked in the background
-when the game container is running, RCON responds, and no maintenance operation
-is active. This initial check populates the mod status even when scheduled mod
-checks are disabled. Applying updates still follows the existing manual or
-scheduled restart workflow.
+A game image update validates the running service's Compose and data mappings
+before pulling. It uses the pulled image to recreate only the game service and
+checks PZ/RCON readiness. When enabled, the pre-update backup must succeed
+before the update continues. Check the mounted Compose files and their
+interpolation inputs if the panel reports a mismatch.
 
-Automatic checks, warning periods, backups, and mod restart behavior are configured
-in Maintenance and Mods. Scheduled restarts warn players through RCON.
-After any server restart, mod freshness is rechecked so an already completed update
-does not trigger another restart.
+The console checks mod freshness in the background on startup when the game
+container is running, RCON responds, and the operation slot is free. This check
+also runs with scheduled checks disabled. With scheduled mod checks enabled, the
+console checks freshness again after a game restart.
 
-During a mod update's player-warning phase, “Cancel mod update” cancels the pending
-restart and notifies players. Once stopping starts, cancellation is unavailable.
-The API action `cancel-mods-update` returns HTTP 409 if there is no cancellable operation.
-
-During a server image update, “Cancel server update” accepts cancellation until
-stopping begins, including manual and scheduled updates. Downloads or backups
-already in progress finish before the worker releases the operation; cancellation
-prevents the pending stop and recreation. Players receive a cancellation message
-if they have already been warned. The `cancel-update` action returns HTTP 409
-for an unrelated operation or once stopping has begun.
+Configure automatic checks, player warnings, backup choices, and mod restart
+behavior in Maintenance. Use **Cancel server update** before the game begins
+stopping. A pull or backup already in progress finishes before the operation
+slot is free. Use **Cancel mod update** during the warning period for an
+automatic Workshop restart. The panel notifies players if it has already
+warned them about the update.
 
 ## Periodic chat announcements and server restarts
 
-In Maintenance, open **In-game chat announcements** or **Scheduled server restart**.
-Both schedules start disabled. Choose whether to enable the schedule, set its interval,
-and select **Save schedule**. The console runs the schedules in the background and
-saves their next due times across console restarts. Enabling a schedule or changing
-its interval starts a new interval. A due task waits for any active operation to finish,
-and multiple missed intervals result in at most one attempt.
+In **Maintenance**, enable **In-game chat announcements** or **Scheduled server
+restart**, choose an interval, and select **Save schedule**. Both start disabled.
+The panel saves the next due times across its own restarts. Enabling a schedule
+or changing its interval starts a new interval. Active operations defer due
+work, and multiple missed intervals result in at most one attempt.
 
-- **Chat announcements** use RCON to broadcast a single line of up to 200 characters
-  to the game chat. The interval is 1–1,440 minutes and defaults to 30. Changing the
-  text keeps the current due time. As with a one-time announcement, double quotes
-  appear as apostrophes in chat. Announcements also work with an RCON-only connection.
-- **Scheduled restart** requires Docker access to a running game container. The
-  interval is 1–168 hours and defaults to 24. The server runs for at least that interval
-  after its most recent start, including when it restarts outside the schedule. The
-  restart uses the configured image-update warning period and player warning language,
-  saves the world through the regular graceful stop, and checks PZ/RCON readiness
-  after startup. Progress and the result appear in the operation history.
+- **Chat announcements** send a single line of up to 200 characters through RCON,
+  including in RCON-only mode. The interval is 1–1,440 minutes (default 30).
+  Editing the text keeps the existing due time. Double quotes appear as
+  apostrophes in chat. After an RCON error, the next attempt is at the next
+  interval.
+- **Scheduled server restart** requires a running local game container. The
+  interval is 1–168 hours (default 24). The server runs for at least this
+  interval after its latest start, including a start outside the schedule.
+  A scheduled restart uses the game image update warning period and the
+  regular graceful stop and readiness checks.
 
-If the local game container is stopped at the due time, the console advances the
-schedule to its next interval. If RCON fails during an announcement, the next attempt
-is at the next regular interval.
+If the local game container is stopped at the due time, the schedule advances
+to its next interval.
 
 ## Player warning language
 
-Maintenance → Console update checks the running console image against its registry
-and updates only the console service. The check also runs automatically in the
-background after every console start or restart, independently of game image checks.
-The game server stays running. Confirm the
-update to download the image and recreate the console through a temporary helper;
-the browser reconnects automatically. The operation result survives the restart.
-The helper uses the current console image and shared mounts, freezes Compose
-interpolation, preserves host bind paths, and removes its temporary configuration
-after completion. Failed recreation or health checks appear in the operation history.
-
-This requires a published image with a mutable tag in Compose (see
-[released images](installation.md#released-images-from-ghcr)), Docker/Compose access,
-mounted Compose files and `.env`, and a persistent writable `DASHBOARD_DIR`.
-Local builds and images pinned by digest must be updated on the host.
-`PZ_DASHBOARD_CONTAINER` and `PZ_DASHBOARD_SERVICE` default to `pz-dashboard`;
-set them in the console environment when using different names. Changes to the
-image reference in Compose must first be applied on the host.
-
-In Maintenance → Notifications, choose the player warning language (English or Русский).
-Changes save automatically as `playerNotifications.language` (`en` or `ru`) in
-`dashboard-data/settings.json`. English is the default for new and legacy settings
-without a valid preference. The setting applies to RCON countdowns for stop, restart,
-image/mod updates, stopped backups, restore and configuration application, including
-automatic operations and mod-update cancellation. EN/RU countdowns use singular and
-plural time units. Each operation keeps the language selected when it starts.
-The preference is independent of the interface language and Telegram language.
-Free-text RCON commands remain as entered by the administrator.
+In **Maintenance → Notifications**, choose English or Russian for in-game RCON
+warnings. English is the default. The preference applies to countdowns for
+lifecycle operations, updates, stopped backups, restore, and configuration
+application. It also applies to cancellation notices. Each operation uses the
+language selected when it starts. Free-text RCON commands stay as entered.
 
 ## Telegram notifications
 
-In Maintenance → Notifications, configure the bot token, chat ID, event groups,
-and notification language (Русский or English). Changes save automatically.
-The language applies to events and the “Test” message in the configured chat,
-independently of the interface language and of the administrator who starts an operation.
-New and existing installations without a valid preference default to English.
-Explicitly saved Russian preferences are preserved. The preference persists in
-`dashboard-data/settings.json` as `telegram.language` (`ru` or `en`).
-Server names, archive filenames, Workshop IDs, and upstream diagnostics retain
-their original values. The local event journal also retains its source text.
+Set the destination, event groups, and message language in
+**Maintenance → Notifications**. Changes save automatically. The language of
+Telegram messages and tests defaults to English and is independent of the panel
+and player warnings. See [Telegram and MTProxy setup](installation.md#telegram-and-mtproxy).
 
 ## RCON watchdog
 
-The watchdog probes RCON every 30 seconds. It records prolonged silence and can
-optionally restart an unresponsive local server. Such a recovery cannot warn players
-when RCON is unavailable.
+Enable the watchdog in **Maintenance** to probe RCON every 30 seconds. Its
+silence threshold defaults to five minutes. Optional recovery can restart
+an unresponsive local server. Player warnings require a working RCON connection.
 
-The post-restart grace period defaults to five minutes, accepts 0–60 minutes,
-and uses `watchdog.gracePeriodMin` in settings. Controlled stops and restarts reset
-the grace period, including configuration application, updates, restore, and stopped
-backups. During operations/grace, the watchdog does not accumulate failures, alert,
-or auto-restart. Operation failures are still recorded. Set zero to disable the grace period.
+The watchdog suspends failure counting and recovery during operations and its
+post-restart grace period. The grace period defaults to five minutes and
+accepts 0–60 minutes. Set it to zero to disable the grace period.
 
 ## Live data and resources
 
-A shared SSE snapshot gathers each monitoring channel once per interval across
-English and Russian subscribers, then localizes/encodes once per language.
-Overview, players and stats share one container inspection for up to three seconds.
-Ordinary API reads remain direct; lifecycle actions, watchdog checks and stop/start
-waits do not use the monitoring cache.
-The browser requests Workshop metadata when the configuration editor opens or is
-explicitly refreshed, without background polling or SSE mod snapshots. Server-side
-startup verification and mod-update operations still inspect metadata as needed.
-Hidden tabs close SSE and suspend polling; server schedulers and operations continue.
-Returning to the tab reconnects. Fallback polling avoids overlapping requests.
-The browser connects to `/api/stream?logs=0` and polls container logs only on a
-visible Console, including when SSE is working. Opening Console or returning to
-its tab refreshes immediately; slow log requests do not overlap. Plain
-`/api/stream` retains log events for existing API clients. Stream threads sleep
-until the next update is due and recheck session revocation at least once per
-second between collections.
+The browser receives shared monitoring updates over server-sent events (SSE),
+with polling as a fallback. Hidden tabs suspend updates and reconnect when
+visible. Container logs refresh only while **Console** is visible. Settings and
+Mods load Workshop metadata on entry and on explicit refresh. Server schedulers
+and operations continue independently of the browser.
 
-Event/backup journals are read from the end in 64 KiB blocks. Workshop and translation
-metadata caches hold up to eight sets. Full-log downloads spool to a temporary file
-and stream in 256 KiB blocks. Run `python scripts/benchmark_resources.py` to inspect
-synthetic algorithm-level measurements; these are not production server benchmarks.
-Run `python scripts/benchmark_cpu.py` for repeatable monitoring-call counts and
-SSE localization CPU comparisons with the previous algorithm. The Compose panel
-CPU budget is documented in [installation](installation.md#panel-cpu-budget).
-
-The isolated 60-second monitoring model (eight clients, Console closed, normal
-channel intervals, immediate mocked Docker/RCON responses) produced these counts:
-
-| Clients | Docker CLI calls before / after | RCON player queries before / after |
-| --- | --- | --- |
-| Russian only | 68 / 32 | 12 / 12 |
-| Mixed English/Russian | 136 / 32 | 24 / 12 |
-
-This counts container inspections, stats, log tails and RCON player reads only,
-excluding availability/digest probes, scheduler, watchdog and manual work.
-Real collector latency changes exact rates.
-The reduction in command count is not a measured reduction in total host CPU.
-Monitoring can briefly show cached state; control checks always read fresh state.
+Monitoring uses short-lived snapshots. Lifecycle operations and watchdog probes
+read live container state. See [the panel CPU budget](installation.md#panel-cpu-budget)
+for resource settings.
 
 ## API
 
-All API endpoints except `GET /api/health` require a session cookie.
-Login with `POST /api/auth/login`, JSON `{"login":"…","password":"…","remember":true}`,
-and save its `Set-Cookie`. The optional `remember` defaults to false.
-Every POST/DELETE, including login/logout, requires `X-PZ-Request: 1`.
-Browser mutations also validate `Origin`; CORS is not enabled.
-
-`GET /api/auth/session` returns the current login.
-`POST /api/auth/logout` revokes the session.
-Unauthenticated protected requests return HTTP 401.
-Health reports HTTP server liveness, not game readiness.
+`GET /api/health` reports panel HTTP liveness. Start a session with
+`POST /api/auth/login` and JSON `{"login":"…","password":"…","remember":true}`.
+The optional `remember` defaults to false. Save the returned session cookie for
+all other API requests. Protected requests without a session return HTTP 401.
+Every POST and DELETE, including login and logout, requires
+`X-PZ-Request: 1`. Browser mutations must be same-origin.
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /api/overview` | Server, updates, settings, watchdog state |
-| `GET /api/players`, `/api/players/history` | Players and 24-hour activity |
+| `GET /api/auth/session` | Current administrator login |
+| `POST /api/auth/logout` | Revoke the current session |
+| `GET /api/overview` | Server, settings, updates, and watchdog state |
+| `GET /api/players`, `/api/players/history` | Online players and 24-hour activity |
+| `GET /api/players/map/geometry`, `/api/players/map/integration.zip` | Active map geometry and downloadable position exporter |
 | `GET /api/stats`, `/api/stats/history` | Container usage and recent history |
-| `GET /api/stream` | Shared SSE updates |
-| `GET /api/logs?tail=250`, `/api/logs/full` | Log tail and full download |
-| `GET /api/backups`, `/api/backups/journal` | Archives, schedule, run journal |
-| `GET /api/events`, `/api/ops` | Events and operation progress |
-| `GET /api/backup/download?name=…` | Archive download |
-| `DELETE /api/backup?name=…` | Delete an archive |
-| `POST /api/rcon` | Execute a `command` |
-| `POST /api/settings` | Update scheduling, backup, watchdog, notifications |
-| `POST /api/action` | Start, stop, restart, check/apply update, backup, restore, verification |
-| `GET /api/telegram-chats` | Discover chats recently seen by the configured bot |
+| `GET /api/stream` | Live events. Use `?logs=0` to omit log events. |
+| `GET /api/logs?tail=250`, `/api/logs/full` | Log tail and full download. The tail accepts `since` and `until` as ISO timestamps with time zones. |
+| `GET /api/backups`, `/api/backups/journal` | Archives, schedule, and run journal |
+| `GET /api/backup/download?name=…`, `DELETE /api/backup?name=…` | Download or delete an archive |
+| `GET /api/events`, `/api/ops` | Event journal and operation state |
+| `POST /api/rcon` | Run a `command` |
+| `POST /api/settings` | Update schedules, backup, watchdog, and notification preferences |
+| `POST /api/action` | Start a worker or send a worker control action |
+| `GET /api/telegram-chats`, `POST /api/notify-test` | Discover direct Bot API chats or send a test notification |
 
-Example operation body: `{"op":"backup","stopServer":false}`.
-Restarts can include `warnSeconds`; archive actions include `name`.
+For example, send `{"op":"backup","stopServer":false}` to `POST /api/action`.
+Restart actions can include `warnSeconds`. Archive actions include `name`.
+An accepted worker returns its operation ID and an admission snapshot. Follow
+`GET /api/ops` or the `ops` SSE event for progress and the final result. For image
+check workers, read the updated image status through Overview or SSE.
+
+Concurrent mutations return HTTP 409. During the cancellable stage, send
+`cancel-update` or `cancel-mods-update` as the action with the active
+`operationId`. A stale ID or a worker past the cancellation point returns 409.
+
+Clients can include a unique `requestId` and the latest operation
+`snapshot.epoch` as `requestEpoch`. After losing a launch response, send
+`op: "resolve-request"` with the same identifiers. Read `requestPending`
+and `operationState` before attempting a new mutation. Track
+`snapshot.epoch` and `snapshot.sequence` to order snapshots from polling and SSE.
+
 Backup settings use `autoBackup.enabled`, `autoBackup.time`,
-`autoBackup.stopServer`, and `backup.maxBackups`.
-Periodic chat settings use `chatAnnouncements.enabled`, `chatAnnouncements.message`,
-and `chatAnnouncements.intervalMinutes`. Periodic restart settings use
-`scheduledRestart.enabled` and `scheduledRestart.intervalHours`. In the returned
-settings, `nextChatAnnouncement` and `nextScheduledRestart` contain Unix timestamps in
-seconds or `null` when a schedule is inactive.
-See [editor endpoints](config-editor.md#editor-api) for draft/Workshop operations.
+`autoBackup.stopServer`, and `backup.maxBackups`. Recurring settings use
+`chatAnnouncements.enabled`, `chatAnnouncements.message`,
+`chatAnnouncements.intervalMinutes`, `scheduledRestart.enabled`, and
+`scheduledRestart.intervalHours`. Returned `nextChatAnnouncement` and
+`nextScheduledRestart` values are Unix timestamps in seconds or `null` for an
+inactive schedule. Player warning language uses `playerNotifications.language`.
+See [editor endpoints](config-editor.md#editor-api) for draft and Workshop actions.

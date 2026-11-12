@@ -1,94 +1,58 @@
 # Player world map
 
-The Players workspace links the online roster to a world map, with search,
-selection, pan/zoom, player/world fitting, coordinates, and a separate activity
-history. Kick and Ban keep the existing confirmation and operation checks.
+In **Players**, select an online player to see their location. Use search,
+pan and zoom, or fit the map to the roster or world. Player activity history
+and RCON kick and ban controls remain available from the same workspace.
 
 ## Enable real positions
 
-Download the integration from **Players** while signed in. The same package is
-included in release images under `/app/integrations/PZConsoleMap` and in source
-under `dashboard/integrations/PZConsoleMap`. Follow its
-[installation instructions](../dashboard/integrations/PZConsoleMap/README.md):
-copy the intact local mod into the game's cachedir `mods` directory, append
-`\PZConsoleMap` to the active Build 42 `Mods` list, and restart through the usual
-server maintenance flow. Preserve other mods; no Workshop item is required.
-The panel does not install mods or restart the game automatically.
+1. Sign in and download the integration from **Players**.
+2. Copy the intact `PZConsoleMap` mod directory to the game server's cachedir
+   `mods` directory. Append `\PZConsoleMap` to the active Build 42 `Mods` list,
+   preserving other entries. It is a local mod.
+3. Restart the game server. Follow the
+   [bundled mod installation instructions](../dashboard/integrations/PZConsoleMap/README.md)
+   for volume paths and troubleshooting.
 
-The canonical mod source and Workshop preparation live in the separate
-`pz-console-map` repository, version `v1.0.0`. This checkout retains a generated
-snapshot so Docker images and the authenticated download remain self-contained.
-`dashboard/integrations/PZConsoleMap.bundle.json` records its source commit and
-SHA-256 hashes; the download includes that record as `BUNDLE_SOURCE.json`, along
-with the original MIT license and mod artwork. No Workshop item has been
-published by this preparation.
+The game and panel must share the cachedir. The supplied Compose project mounts
+it at `/project-zomboid-config` in the game container and `/data` in the panel.
+Base map geometry also requires the game installation at `/server-files:ro`.
+The dashboard overlay can mount it from the existing game volume or host path.
+Active map mods are resolved from the locally installed game and Workshop files.
 
-For maintainers, edit the canonical repository and run its explicit sync command
-from a clean, reviewed commit:
+XML with a declared `cellSize` provides its own scale. For XML without it, set
+`PZ_MAP_CELL_SIZE` to the exporter's confirmed value (`256` or `300`) and
+[recreate the panel](installation.md#updates). The map labels incomplete
+coverage and warns about overlapping source extents. Check overlapping map
+mods in the running game to confirm their final layering.
+
+## Freshness and availability
+
+The integration records online coordinates every five seconds. The panel uses
+the active server profile and matches coordinates to the RCON roster by exact
+player name. A capture expires after 15 seconds. The map marks any retained
+coordinates as stale and shows their capture time. Players without valid
+coordinates stay in the roster with an unavailable location.
+
+RCON-only connections retain the roster but need accessible snapshot files for
+coordinates. Demo mode shows illustrative players and geometry. The panel
+serves map geometry separately from the live player stream. See
+[map and player endpoints](operations.md#api).
+
+## Bundle maintenance
+
+The canonical mod is maintained in the separate `pz-console-map` repository.
+This checkout ships the `v1.0.0` snapshot with its license and artwork.
+`dashboard/integrations/PZConsoleMap.bundle.json` records its source commit
+and file hashes. Downloads include it as `BUNDLE_SOURCE.json`.
+
+Update the canonical repository first. From its clean, reviewed commit, use
+its release helper to sync the generated snapshot into this checkout.
 
 ```powershell
 .\.venv\Scripts\python.exe tools/release.py sync --dashboard C:\git\pz-console
 ```
 
-The helper checks the previous bundle hashes before replacing files and writes
-the new provenance last. Do not edit the generated bundle directly. The panel
-does not import code or read files from a sibling repository at runtime.
-
-Both processes need the same game cachedir: `/project-zomboid-config` in the
-supplied game image and `/data` in the panel. Base map geometry additionally
-needs the game installation at `/server-files:ro`; this mount is already present
-in `docker-compose.yml` and optional in the dashboard overlay. Installed active
-map mods are resolved from local game/Workshop files. No remote map service or
-external UI dependency is used.
-
-XML `cellSize` is honored. For XML without a declared scale, explicitly set the
-panel's `PZ_MAP_CELL_SIZE` to `256` or `300`, according to the vector map exporter,
-and recreate the panel. Compiled map dimensions do not determine vector scale.
-Missing or unsupported geometry remains an explicit setup/partial state; the
-panel does not invent a geographic background.
-
-## Data contract and limits
-
-The server-only script captures online coordinates every five seconds using
-the game's Lua APIs. Two alternating bounded JSON files tolerate a concurrent
-read or failed write without treating partial JSON as a valid capture. The
-dashboard reads them without modifying the game files. Snapshot limits are
-64 players, 128 KiB, and a 96-byte UTF-8 server profile name.
-
-RCON `players` remains the source of online membership. Names match exactly,
-including spaces and Unicode. A player with no valid coordinate remains in the
-roster with an unavailable location. Captures expire after 15 seconds even if
-no new SSE event arrives; stale data is dated and never presented as current.
-Wrong-profile, future, invalid, ambiguous, and pre-current-server-start captures
-are rejected. Monitoring follows the active server profile, independent of an
-inactive profile selected in the configuration editor.
-
-Geometry is served through a separate authenticated request and cached against
-the active files' identities. It is not repeated in five-second player SSE
-frames. Streaming parsing, input/output limits, and a bounded cache keep large
-or malformed map files from monopolizing player polling. A constrained or
-partially installed map is identified explicitly.
-
-Overlapping active XML sources keep their real geometry and show an explicit
-unverified-layering warning. The preview does not guarantee that replacement map
-mods compose exactly as the running game does. Detection conservatively compares
-each source's world extents, so the warning can also cover disjoint cells inside
-overlapping extents. Non-overlapping sources have no such warning.
-
-RCON-only remote connections cannot supply coordinates without accessible
-snapshot files. Existing online lists remain usable without the integration.
-Demo positions and map geometry are illustrative and labeled as demo data.
-
-## Verification
-
-Isolated backend tests cover identity, freshness, invalid files, XML coordinate
-scales and cache/budget behavior. A Lua 5.1 harness executes the shipped exporter
-against deterministic game API doubles. Chromium fixtures exercise the map and
-roster in English/Russian on desktop and mobile. These checks do not replace
-acceptance against the administrator's running game server and map files.
-
-API references: the game's [Lua global API](https://projectzomboid.com/modding/zombie/Lua/LuaManager.GlobalObject.html)
-and [IsoPlayer API](https://projectzomboid.com/modding/zombie/characters/IsoPlayer.html).
-The XML coordinate schema is independently documented by the maintained
-[WorldEd map reader](https://github.com/Unjammer/PZ_Mapping_Tools/blob/main/WorldEd/src/editor/InGameMap/ingamemapreader.cpp);
-no implementation code or game artwork is bundled from those sources.
+The helper verifies the previous bundle before replacing it. Backend tests and
+a Lua 5.1 harness cover geometry and exporter behavior. Chromium tests cover
+the map and roster on desktop and mobile in English and Russian.

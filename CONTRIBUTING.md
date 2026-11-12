@@ -1,11 +1,8 @@
 # Contributing
 
-Use Python **3.12** (matching `.python-version` and the Docker image) and Node.js **24**
-for JavaScript syntax checks. Install **Lua 5.1** with `lua5.1` or `lua` on `PATH`
-for the executable player-map integration checks (`sudo apt-get install lua5.1`
-on Ubuntu; the Windows Lua 5.1 interpreter also works). CI installs this interpreter.
-The UI uses plain HTML/CSS/JavaScript; no frontend build
-step is required. Runtime and development dependencies are pinned.
+Use Python 3.12, Node.js 24 and Lua 5.1. Put `lua5.1` or `lua` on `PATH` for
+the player-map tests (`sudo apt-get install lua5.1` on Ubuntu). The frontend is
+served directly as HTML, CSS and JavaScript.
 
 ## Setup and checks
 
@@ -15,7 +12,6 @@ Windows / PowerShell:
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 .\.venv\Scripts\python.exe -m playwright install chromium
-.\.venv\Scripts\python.exe scripts/check.py
 ```
 
 Linux / WSL (use a separate environment from Windows):
@@ -24,248 +20,149 @@ Linux / WSL (use a separate environment from Windows):
 python3.12 -m venv .venv-linux
 .venv-linux/bin/python -m pip install -r requirements-dev.txt
 .venv-linux/bin/python -m playwright install --with-deps chromium
-.venv-linux/bin/python scripts/check.py
 ```
 
-With the environment activated, `python scripts/check.py` is the shared local/CI entrypoint.
-It checks dependency consistency, Ruff lint/format, generated i18n catalogs,
-JavaScript syntax, backend tests, and Chromium browser tests.
-JavaScript checks discover every `.js` file under `dashboard/static/`, including
-nested scripts. Each full run also writes a JUnit report in its artifact directory.
-
-The full suite runs in isolated pytest-xdist processes, using up to four CPUs.
-Each process has its own browser, loopback servers, and temporary test files;
-individual tests still get fresh browser contexts. Work stealing balances slow
-browser scenarios with shorter backend tests. Simultaneous `scripts/check.py`
-invocations in the same checkout queue their test stage to avoid oversubscribing
-CPU and browser memory; each active suite still uses its configured worker count.
-The slowest 20 test phases are
-printed after each run. The passing path avoids recording and compressing traces
-that would be discarded. Each check uses a private failure cache and a unique
-`test-results/check-*/` artifact directory, so concurrent checks cannot erase
-each other's evidence. After a failed suite, its cached failures are automatically
-replayed with traces and screenshots retained in that run's `diagnostic/`
-subdirectory, even if the replay passes.
-Direct pytest commands use `test-results/direct/`, so their startup cleanup cannot
-erase the full check's reports or diagnostics. An explicit `--output` still selects
-a different directory when needed.
-The original failure still fails the check. Use `python scripts/check.py --trace`
-to capture traces on the initial run, including intermittent failures.
-Use `python scripts/check.py --workers 2` to limit resource usage, or
-`python scripts/check.py --workers 0` for a serial run when debugging or comparing
-timings. Direct `python -m pytest` commands remain serial unless given `-n`.
-
-Successful browser scenarios skip optional review screenshots by default; layout
-and behavior assertions still run, and automatic failure screenshots are retained.
-Set `PZ_VISUAL_EVIDENCE=1` to capture the intermediate review images as well
-(`$env:PZ_VISUAL_EVIDENCE = '1'` in PowerShell). README screenshot generation keeps
-its existing separate opt-in. Font readiness and locator stability are checked even
-when optional captures are disabled.
-
-Before committing, format the whole repository with the same virtual environment:
-`python -m ruff format .`, then run `python scripts/check.py` after the final edit.
-Running only `ruff check` or selected tests is insufficient: Ruff lint and format
-are separate checks, and CI checks formatting across the entire repository.
-If you edit Python after a successful check, repeat the lint and format checks.
-
-Browser tests serve real static assets on loopback and intercept API/SSE with isolated
-fixtures. They do not need Docker, Steam, PZ, RCON, or Telegram.
-Temporary pytest files go in `.tmp-pytest/`; failed browser traces/screenshots go in
-`test-results/`. Both are ignored.
-
-## Useful commands
+Run the following from the repository root. Here `python` means the checkout's
+virtual-environment interpreter (`.venv/Scripts/python.exe` on Windows or
+`.venv-linux/bin/python` on Linux/WSL).
 
 ```bash
-python -m ruff check .
 python -m ruff format .
-python scripts/build_i18n.py --check
+python -m ruff check .
+python -m ruff format --check .
+python scripts/check.py
+```
+
+Run the three repository-wide Ruff commands after the final Python edit. Run
+`scripts/check.py` before committing. It checks installed dependencies, Ruff lint
+and formatting, generated catalogs, every JavaScript file in `dashboard/static/`,
+and all backend and Chromium tests.
+
+Browser tests use real static assets with loopback fixtures for API and SSE.
+Use the [isolated B42 stack](docs/acceptance-b42.md) for real game-server, Steam,
+and RCON checks. The full suite uses up to four isolated workers. Use
+`--workers 2` to limit parallelism or `--workers 0` to debug serially.
+Reports go to `test-results/check-*/results.xml`. A failed run replays its
+failures with traces and screenshots under that run's `diagnostic/` directory.
+Use `--trace` to capture the initial run. Direct pytest runs write to
+`test-results/direct/` by default.
+
+```bash
 python -m pytest -q tests/test_core.py
 python -m pytest -q tests/browser --headed
-python -m playwright show-trace test-results/<test-name>/trace.zip
+python -m playwright show-trace path/to/trace.zip
 ```
 
-When changing visible strings, update source-keyed English/Russian translations via
-`scripts/build_i18n.py` and check both languages. Keep UI assets local; see
-[font provenance](dashboard/static/fonts/README.md).
-When changing configuration or Workshop behavior, cover revisions, secret masking,
-and failed operations with isolated tests. Real integration uses the
-[separate acceptance stack](docs/acceptance-b42.md).
+Use English for repository documentation. When UI strings change, update both
+`dashboard/static/locales/en.json` and `ru.json`, run
+`python scripts/build_i18n.py`, and verify both languages. Keep UI assets local.
+Use `PZ_VISUAL_EVIDENCE=1` for optional browser-test review captures and follow
+the separate [README screenshot instructions](docs/screenshots/README.md) for
+publication. Keep credentials, live server data and local test output out of Git.
 
-## Graphify code audits
+## Graph and benchmarks
 
-Graphify is optional development tooling, installed separately from the pinned
-runtime/test environment. The project includes its Codex skill and navigation
-instructions. Install the version pinned in `requirements-graphify.txt`:
-
-```powershell
-uv tool install --python 3.12 --constraints requirements-graphify.txt graphifyy
-```
-
-The equivalent command works on Linux/WSL. Build a local code graph without an
-API key or semantic extraction of documents/images:
+Install the optional Graphify tool separately from the test environment:
 
 ```bash
+uv tool install --python 3.12 --constraints requirements-graphify.txt graphifyy
 graphify extract . --code-only --no-cluster --max-workers 4
 graphify diagnose multigraph
 graphify cluster-only . --no-label --no-viz
-graphify export html
 graphify query "StreamCache"
-graphify affected "dashboard_ops_list_mods"
+graphify export html
 ```
 
-Results are in ignored `graphify-out/`: `graph.json`, `GRAPH_REPORT.md`, and
-`graph.html`. `.graphifyignore` excludes bundled assistant skills; application,
-test, and maintenance code remains in scope. After code edits, run
-`graphify update . --force` when intentionally deleting code. This AST-only
-update makes no model API calls. Run `graphify export html` to refresh the view.
+Results are in the ignored `graphify-out/` directory. After code changes, run
+`graphify update .`. This uses local syntax trees. Use `--force` for intentional
+code deletions if the shrink guard blocks the update. Verify framework callbacks
+and dynamically registered entry points in source and tests. The clustered graph
+can merge distinct edges between the same nodes, so inspect the raw graph for
+individual call sites.
 
-Use graph findings to select candidates, then verify source references,
-framework callbacks, and tests before deleting anything. A missing incoming
-edge does not prove dead code. Clustering can collapse multiple relations
-between the same endpoints; diagnose the unclustered graph first when auditing
-individual call sites. See the [audit record](docs/code-audit.md).
+Run synthetic benchmarks from the checkout's virtual environment:
 
-## Gauntlet Loop
-
-The project bundles the Codex skill at `.agents/skills/gauntlet-loop/`, including
-its helper scripts, critic contract, and attribution notice. Invoke it in a Codex
-turn with an improvement goal and a concrete, accessible reference, for example:
-
-```text
-$gauntlet-loop Improve this deliverable against <reference>.
+```bash
+python scripts/benchmark_cpu.py
+python scripts/benchmark_resources.py
+python scripts/benchmark_filesystem.py --baseline HEAD
 ```
 
-The workflow uses separate builders and critics, frozen reference evidence,
-blind A/B comparisons, and mandatory checks. For code changes, use Python 3.12
-from this checkout's virtual environment and all repository checks above as
-gates. Run ledgers are stored outside the repository under
-`$CODEX_HOME/gauntlet-loop/runs/` (or `~/.codex/gauntlet-loop/runs/`).
-
-The helpers use only Python's standard library. Check the installed ledger helper
-without starting an improvement run:
-
-```powershell
-.\.venv\Scripts\python.exe .agents/skills/gauntlet-loop/scripts/gauntlet_state.py self-test
-```
-
-Preserve the [adaptation and license notice](.agents/skills/gauntlet-loop/references/attribution.md)
-when redistributing the skill.
+The filesystem benchmark uses the specified revision for Workshop scanning and
+backup listing. Replace `HEAD` with a trusted local commit to measure against
+an earlier implementation. The gzip check uses `tar` as its reference.
 
 ## Repository map
 
 | Path | Purpose |
 | --- | --- |
-| `dashboard/app.py`, `auth.py` | HTTP/API and administrator sessions |
-| `dashboard/ops.py`, `actions.py` | Operations, schedulers, action dispatch |
-| `dashboard/extensions.py`, `runtime.py` | Trusted extension contracts and explicit application composition |
-| `dashboard/config*.py`, `settingsmodel.py` | Profiles, revisions, parsing, recovery, validation |
-| `dashboard/workshop.py` | Workshop metadata and B42 resolution |
-| `dashboard/payloads.py`, `dockerlib.py`, `rcon.py` | Shared live data, Docker and RCON |
-| `dashboard/static/` | Frontend, translations, fonts, icons, PWA |
-| `tests/`, `tests/browser/` | Backend and browser fixtures/checks |
-| `scripts/` | Quality, catalogs, acceptance utilities, benchmarks |
-| `docs/` | Installation, workflows, acceptance, screenshot source |
-| `.github/workflows/ci.yml` | GitHub checks, Docker smoke test, GHCR and releases |
-| `.gitea/workflows/` | Existing Gitea checks and optional registry/deploy jobs |
+| `dashboard/app.py`, `auth.py` | HTTP API and administrator sessions |
+| `dashboard/ops.py`, `actions.py` | Operations, schedulers and action dispatch |
+| `dashboard/config*.py`, `settingsmodel.py`, `workshop.py` | Profiles, revisions, validation and Workshop metadata |
+| `dashboard/payloads.py`, `dockerlib.py`, `rcon.py` | Live data, Docker and RCON |
+| `dashboard/static/` | UI, translations and PWA |
+| `tests/`, `scripts/` | Tests, fixtures and maintenance commands |
 
-See [modules and trusted extensions](docs/extensions.md) for the architecture audit,
-extension contracts, a deployment example, and the remaining extraction roadmap.
+See the [extension contracts](docs/extensions.md) for explicit application
+composition and trusted extension examples. [PRODUCT.md](PRODUCT.md) and
+[DESIGN.md](DESIGN.md) record product scope and UI rules used by the bundled
+Impeccable frontend tooling. Local preview output goes in ignored
+`.impeccable/` paths and release artwork in `output/`. Preserve the
+[Impeccable license](.agents/skills/impeccable/LICENSE) and
+[notice](.agents/skills/impeccable/NOTICE.md) when redistributing the tooling.
+
+The [Gauntlet Loop skill](.agents/skills/gauntlet-loop/SKILL.md) runs
+reference-based reviews. Its helper can be checked with
+`python .agents/skills/gauntlet-loop/scripts/gauntlet_state.py self-test`.
+Preserve its [attribution](.agents/skills/gauntlet-loop/references/attribution.md).
 
 ## GitHub and Gitea CI
 
-GitHub CI runs on pushes to `main`/`master`, pull requests, manual runs, and pushed
-tags matching `v*`. It runs quality checks alongside the panel image build and checks
-`/api/health`. Browser failure artifacts are retained. Only a **tag push** publishes
-to GHCR and creates a GitHub Release; branch, pull-request, and manual runs perform checks.
-Publication requires both parallel jobs to succeed. Pip downloads are cached using
-both the development and runtime dependency files.
-New branch/PR runs cancel superseded checks for the same ref. Tag runs keep running
-so an in-progress release is not interrupted by a rerun.
-
-The GitHub image job first pulls the official `python:3.12-alpine` image from
-Docker Hub. If that pull fails or exceeds 120 seconds, it tries the
-[Amazon ECR Public mirror](https://gallery.ecr.aws/docker/library/python), also
-with a 120-second limit. Either registry can throttle anonymous pulls; the job
-does not depend on one registry being available and needs no additional secrets.
-If both pulls fail, image preparation fails and the build does not run.
-
-`scripts/prepare_image_base.py` tags the successful pull as the local
-`pz-console-python-base:ci` image. The existing daemon builder then builds the
-panel once with `--pull=false`, using that local image without another registry
-lookup. Application build errors do not trigger fallback or a second build.
-The startup smoke check and release gates still apply to the exact built image.
-Local builds continue to use Docker Hub by default; `PYTHON_BASE_IMAGE` remains
-available as a Docker build argument for selecting another trusted source.
-
-For tag pushes, the exact tested image is transferred to the release job instead of
-being rebuilt. The release job uses the automatic `GITHUB_TOKEN` with `packages: write`
-and `contents: write`; no registry password or personal access token is needed.
-Repository/organization policy must allow those permissions. The image's source
-label links the package to the GitHub repository. For an existing GHCR package,
-grant that repository Actions write access in the package settings. New packages
-default to private; set package visibility to public for anonymous pulls. See
-[GitHub's Container registry documentation](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
+Both workflows run the quality suite and smoke-test the panel image with its
+shipped health check on `main` and `master` pushes, pull requests, manual
+runs and `v*` tags. The [GitHub workflow](.github/workflows/ci.yml) runs the
+jobs in parallel and falls back to Amazon ECR Public if the Docker Hub base image
+pull fails or times out. The [Gitea workflow](.gitea/workflows/ci.yml) runs the
+image job after the quality suite. Both publish the image that passed the smoke test.
 
 ### Publish a GitHub release
 
-Commit the workflow, screenshots, and release changes before tagging. Push the
-commit and tag to **GitHub** (a tag pushed only to Gitea does not run GitHub Actions).
-Add curated release notes in English at `docs/releases/<tag>.md` (for example,
-`docs/releases/v1.9.0.md`) before creating the tag. When that file exists, the
-workflow includes it before the image details and generated change notes. Tags
-without a matching file keep the image details and generated change notes.
-If `origin` points to Gitea, first add your GitHub repository as a separate remote:
+Push a new `v*` tag to GitHub. Before tagging, commit optional English release
+notes in `docs/releases/<tag>.md`. The workflow adds the pinned image digest,
+generated change notes, source archives and SHA-256 checksums to the release.
+It keeps partial uploads in a draft for retry.
+
+If `origin` points to Gitea, add the project's GitHub remote if needed:
 
 ```bash
-git remote add github https://github.com/YOUR-OWNER/pz-console.git
-git push github HEAD:main
-git tag -a v1.0.0 -m "PZ Console v1.0.0"
-git push github v1.0.0
+git remote add github https://github.com/Arnikes/pz-dashboard.git
 ```
 
-If `origin` already points to GitHub, use `origin` instead of `github`.
+Point local `main` at the verified release commit. Use an unused version and
+the GitHub remote's name:
 
-After all checks pass, the workflow publishes the `linux/amd64` panel image as
-`ghcr.io/<owner>/<repository>:v1.0.0` and `:sha-<full-commit>` (the repository path
-is lowercased). A stable `vMAJOR.MINOR.PATCH` tag also updates `:latest`.
-Tags such as `v1.1.0-rc.1` create prereleases and leave `latest` unchanged.
-Other `v*` tags also publish; characters unsupported by Docker are replaced by
-hyphens and image tags are limited to 128 characters. Release notes include the
-versioned image and its immutable digest, so deployments can pin the exact image.
+```bash
+git push github main
+git tag -a v1.10.0 main -m "PZ Console v1.10.0"
+git push github v1.10.0
+```
 
-The GitHub Release includes generated change notes, `pz-console-source.tar.gz`,
-`pz-console-source.zip`, and `SHA256SUMS`, built from the tagged commit's tracked
-files. It remains a draft until all assets are uploaded. Failed uploads can be
-retried by rerunning the workflow; an already published release is left intact.
-Use a new version tag for each release rather than moving published tags.
-The workflow does not restart a running server; see
-[using a released image](docs/installation.md#released-images-from-ghcr).
+The GitHub release job publishes `linux/amd64` images to
+`ghcr.io/<owner>/<repository>` with a version tag and `sha-<full-commit>`.
+Stable `vMAJOR.MINOR.PATCH` tags also update `latest`. Version suffixes such as
+`-rc.1` mark prereleases. The workflow uses `GITHUB_TOKEN` with
+`contents: write` and `packages: write`; allow those permissions for Actions
+and grant the repository access to the GHCR package. Set package visibility to
+public for anonymous pulls. See [deploying a release image](docs/installation.md#released-images-from-ghcr).
 
-The Gitea workflow combines CI and optional publication/deployment. Every publication
-first passes the full quality checks and container smoke test; the exact tested image
-ID is published without rebuilding. Pull requests and pushes to `master` only check.
-Main pushes, `v*` tags, and manual runs may publish. The former independent
-`deploy.yml` is replaced by this dependency chain.
+### Publish and deploy with Gitea
 
-Both forges use `scripts/smoke_image.py` to start one uniquely identified container,
-probe it with the shipped health check, and collect logs and remove it afterward.
-No published host port, fixed container name, or extra Docker network is needed.
+Pushes to `main`, `v*` tags and manual runs publish `latest` and
+`sha-<7-character-commit>`, plus the version tag for tag runs. Use a
+Docker-compatible release tag and configure the actor's `REGISTRY_TOKEN` secret
+with `write:package`.
 
-Gitea CD publishes `latest`, `sha-<commit>`, and version tags with `REGISTRY_TOKEN`
-(scope `write:package`). Gitea release tags must also be valid Docker tags and
-must be distinct from `latest` and the `sha-<commit>` tags. SSH deployment is
-enabled only with `DEPLOY_ENABLED=true`
-and `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PATH`, `DEPLOY_SSH_KEY`.
-Use a registry token belonging to the actor publishing the image.
-A deployed panel must use `image:` instead of a local `build:` to pull that image.
-
-## Publication hygiene
-
-Never commit environment files, world saves, archives, session files, tokens, or
-local test output. Keep fixtures fictional and screenshot regeneration isolated.
-Historical prototypes and superseded UI evidence are available through Git history.
-The bundled Impeccable skill and Codex hooks are development tools; they are not
-part of the runtime image. Preserve their license and notice when redistributing.
-
-Use English for repository documentation. The interface continues to support both languages.
-Describe the behavior changed and checks run in pull requests.
+To enable SSH deployment after publication, set `DEPLOY_ENABLED=true` and
+the variables `DEPLOY_HOST`, `DEPLOY_USER` and `DEPLOY_PATH`, then add the
+`DEPLOY_SSH_KEY` secret. The target Compose service `pz-dashboard` must use
+`image:` pointing to the registry image.

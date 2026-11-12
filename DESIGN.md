@@ -136,331 +136,128 @@ components:
 
 # PZ Console design system
 
-The current UI uses warm near-black surfaces, beige text, olive success states,
-amber warnings, and brick-red destructive actions. The frontmatter records tokens;
-`dashboard/static/style.css` is the implementation source of truth.
+Use warm near-black surfaces, beige text, olive success states, amber warnings,
+and brick-red destructive actions. The frontmatter records the shared tokens.
+The CSS in `dashboard/static/` defines their implementation.
 
 ## Typography and surfaces
 
-Golos Text serves navigation, forms, and headings. JetBrains Mono serves source,
-IDs, and metrics. Fonts are bundled locally. Use the existing spacing, radii,
-and surface layers. Keep permanent workspaces flat; use elevation for temporary
-menus, dialogs, and tooltips. Status text accompanies color.
-Destructive text and icon buttons share the danger-text color and a quiet red
-outline before hover, with the shared visible keyboard focus. Ordinary RCON
-prompts use muted text; danger colors retain their action and error meanings.
-Shared CSS roles are `--type-button` (Golos Text, 13.5px/500), `--type-code`
-(JetBrains Mono, 13px), and `--type-source` (13px with 22px source lines).
-Text-bearing icon buttons use the button role. Technical IDs and map names use
-the code role; form keys remain 12px and guide code follows its reading size.
-`--r-control` maps to the 8px control radius. Text inputs, including inputs
-without an explicit type, share the 44px field component; map-list editing uses
-an explicit text input.
-Panel and dialog headings share `--type-title` (18px/600) and
-`--tracking-title` (-.015em). Modal and command-search windows use the shared
-16px `--r-dialog`; nested diff previews use the 8px control radius and deep
-source background.
+Use bundled Golos Text for navigation, forms and headings, and JetBrains Mono
+for source, IDs and metrics. Use `--type-button` for text-bearing buttons,
+`--type-code` for technical values, and `--type-source` for editor text. Panel and
+dialog titles share `--type-title` and `--tracking-title`. Keep permanent
+workspaces flat and reserve elevation for dialogs, menus and tooltips.
+Use `--r-control` for fields and nested previews, `--r-dialog` for dialogs,
+and the shared 44-pixel field height. Pair status colors with readable text.
 
-## Navigation and responsive behavior
+## Navigation and responsive layout
 
-Desktop uses a collapsible sidebar (204 pixels expanded, 72 pixels collapsed)
-with a page gutter (28 pixels). Tablet widths (741–1180 pixels) start collapsed;
-desktop starts expanded. The sidebar toggle retains keyboard focus and exposes
-its expanded state; collapsed links retain accessible names and native tooltips.
-Desktop and tablet preferences are stored separately in the browser.
-The workspace remains bounded to 1450 pixels and centers in the available space
-beside either sidebar state on wide and ultrawide screens. Banners, draft actions
-(including the in-flow bar in short windows), and footer content align with its
-28-pixel inner gutters.
-Mobile uses Overview, Settings, Mods, and More in the bottom bar. All four items
-share the same-size icon and label treatment. More
-remains a button that exposes its expanded and current-section states.
-Its overflow opens as a 248px popover, eight pixels above the bottom bar and
-aligned to its trailing gutter. It temporarily overlays the footer and draft
-actions rather than moving away from its trigger. The links reuse sidebar icons,
-provide 48px touch targets, and highlight the current section. The menu scrolls
-in short viewports and closes when crossing the mobile breakpoint.
-The independent offline shell groups its 36px brand icon and name in a header
-beside the same globe-and-language control used by login and the dashboard,
-with 24px separation before the page title. Shared language-control styling
-lives in `pwa.css` so it also works from the offline cache.
-The top bar contains the active profile, language selector, quick commands,
-notification toggle, and sign-out action. The notification toggle uses the same
-borderless muted treatment as the session tools, with a surface background on
-hover or while open and the shared visible keyboard focus. Activating it again
-closes the notification center; Escape and clicking outside also dismiss it.
-The profile's status remains available through its
-accessible description and selector color in every state, without a visible
-status label or adjacent help control. Settings navigation shows a count
-of changed draft lines when a draft has changes.
+Desktop uses a collapsible sidebar and a centered, bounded workspace. Tablet
+starts with the icon rail. Keep separate desktop and tablet preferences,
+keyboard focus on the sidebar toggle, and accessible names for collapsed links.
+Mobile uses Overview, Settings, Mods and More in a fixed bottom bar.
+More opens a scrollable popover above its trigger. Keep page gutters aligned
+with the footer, banners and draft actions. Very short viewports place draft
+actions in the document flow.
 
-A separate PWA update alert floats below the top bar at the trailing edge. It
-uses a compact pill, olive border and beige update action with an arrow, without
-a status dot or dismiss control. It never shifts the workspace or steals focus.
-Input-protection, offline and retry explanations expand within the same alert.
-Applying an update has a bounded busy state; a failure restores an explicit retry.
-Late activation offers a reload action without reloading automatically. Messages
-distinguish sign-in, pending input, operations and dialogs without clearing input.
-On mobile it is centered horizontally above the footer, bottom navigation and draft actions, with
-ordinary notifications stacked above it. The update button has a short visible
-label and retains its full accessible name.
-Connection loss uses the same floating alert component with an amber border and
-a Retry action. A ten-second countdown sits inside a filling circular track;
-Retry starts a fresh connection check immediately. A failed silent attempt must
-precede the notice, including when returning from a hidden window. Fresh data
-hides it and cancels pending retries. Concurrent alerts stack without overlapping
-each other, draft controls or ordinary notifications.
+The top bar contains profile selection, quick commands, language, notifications
+and sign-out. Convey active profile status with color and an accessible
+description. Settings shows the count of changed draft lines. Ctrl/Cmd+K opens
+section, setting and mod search. One SSE connection serves route navigation.
 
-Mods put search and filtering first and disclose package/collection addition
-separately; search has a visible label, and the page heading links to custom mod
-settings while preserving the shared draft. Export, import and metadata refresh
-remain available. Ctrl/Cmd+K opens section, setting, and mod search.
-Composition shows Workshop packages in 25/50/100-item pages, defaulting to 25.
-Search, filtering and sorting apply before pagination and reset to the first page;
-draft and metadata refreshes preserve the page, clamping it when the list shrinks.
-Changing profiles resets the page. Pagination uses the shared journal controls.
-An explicit package or collection addition reveals the first added package, opens
-it, and focuses its summary after confirmation closes. This clears search and
-status filtering while retaining sort and page size. Duplicate additions leave
-the draft unchanged and reveal the existing package. Persistent result text names
-the saved addition and next step; a failed metadata read keeps the saved result
-and offers the existing metadata refresh. Filtered-empty lists offer Clear search
-and filter, while an empty profile prompts package addition.
-Load-order search uses the editor's flat labeled field treatment; its opaque
-workspace background remains sticky without an additional enclosing border.
-Load-order dragging lifts a copy of the row while neighboring rows slide to open
-a full-height gap. Dragging uses the handle so touch scrolling remains available
-elsewhere; the visible list edges auto-scroll past the sticky search and fixed
-footer/draft controls. Wheel scrolling also works during a drag. Space/Enter grabs
-and drops, arrows move, Home/End reach the visible list edges, and Escape restores
-the order. Search preserves full-list positions. Only a completed move saves the
-draft; reduced motion skips the sibling animation.
-One SSE connection persists across route changes.
+## Startup, notifications and connection
 
-Desktop and mobile show Draft → Files → Startup inside the editor, below the
-page heading and above the tabs and editing fields. The editor and active operation
-use the same connected Route grammar: round numbered indicators, thin connecting
-lines, and a title for every stage. Editor descriptions and the active operation's
-current status remain visible. The current
-stage has a beige indicator; recorded stages use olive checkmarks and errors use a
-brick-red warning mark. Desktop labels sit below the indicators. The desktop
-configuration rail places its first and last markers at the content edges, with
-the middle marker centered; connectors span the gaps between adjacent rings.
-At widths up to 540 pixels the route becomes vertical, keeping every description
-visible. Editor stages remain interactive targets of at least 44 pixels and reflect
-persisted draft, file-write, and verified-startup evidence independently of an
-unrelated operation.
-On mobile, draft actions stay
-fixed above the bottom navigation. Viewports up to 600 pixels high keep the draft
-bar in the document flow. Stage selection reviews changes
-or focuses an action; it does not execute an operation.
+Start the initial route and shared data requests together. Translate the shell
+before showing it. Keep the boot wait bounded and expose pending profile work
+inside Settings and Mods. Keep a usable profile after metadata failure, provide
+retry or reload where applicable, and leave focus in place when a request
+finishes late.
 
-## Forms, source, and feedback
+PWA updates and connection loss use floating alerts that preserve the workspace
+layout and focus. Update retries keep current input intact. Connection retry
+starts a fresh check and fresh data clears the alert. On mobile, stack these
+above the fixed navigation and draft controls.
 
-Initial entry uses the existing brand and an indeterminate loading track. Reserve
-localized copy until the language catalog is ready, so a cold English entry does
-not show Russian text. Initial route and shared reads start together. The closed
-shell waits at most 15 seconds from boot entry; long profile and Workshop reads
-continue with their existing transport limits. An unfinished profile exposes an
-inline loading message and Reload in Settings and Mods while profile selection,
-editor controls, and profile commands remain locked until that original read settles.
-Metadata failures retain a valid profile snapshot and leave mod mutations locked
-until metadata is reread. First route failures show a retry action; later failures
-retain the last successful data. The inert workspace requests its fonts with a
-300ms cap, then the loading screen fades over 180ms before focus enters the current
-route. Reduced motion skips the fade. Late profile completion never moves focus.
+The notification center marks the current filter's messages as read on open.
+Keep focus and scroll when new messages arrive. Toasts pause while hovered,
+focused or in a background tab. Keep older messages reachable and focused
+controls visible when the stack grows. Escape closes the center or collapses
+the toast stack and returns focus to the relevant control.
 
-Preserve draft input after failed requests. Separate loading, stale data,
-pending operations, saved drafts, and verified startup results. Editors load snapshots
-on entry and explicit actions; live updates do not refresh their contents. External
-changes appear in diff review and are overwritten when the browser writes files.
-Use inline errors with a retry action and concise success notifications.
-Settings and Mods share persistent errors, availability reasons and startup
-verification controls above their lifecycle stages; these stay hidden elsewhere.
-The configuration diff review offers Close to keep the draft and a quiet destructive
-Discard changes action that opens the shared discard confirmation. A clean review
-only offers Close. Discard confirmation focuses Cancel and names its destructive action.
-The draft bar exposes View changes and Apply with restart, plus save retry when
-needed. Pending packages replace the primary action with Download packages with
-restart, retaining reviewed-revision confirmation and the separate download stage.
-After download, Choose ModID reveals only known newly installed packages and shows
-their count. Selection stays explicit before the final apply and restart.
-The bar has no overflow menu, operation-log shortcut, or separate Write files action.
-Mobile gives both actions equal-width columns; desktop keeps them beside the draft status.
-Toast reading time scales with message length from 5.2 to 20 seconds, unless a
-caller supplies an explicit duration. Hover, keyboard focus and background tabs
-pause the remaining time. Dismiss controls name their message. Notification
-stacks unfold upward from each card's rendered position over 240ms, with the
-newest card anchored at the bottom. Reversing direction keeps the current position;
-new cards enter over 180ms and dismissed cards fade out over 130ms while leaving
-focus and hit testing immediately. Interrupted arrivals and exits preserve the
-rendered opacity as well as position. Reduced motion skips spatial transitions
-and removes an active visual exit immediately when the preference changes.
-Overflowing stacks open at the newest end and scroll to older messages. New arrivals
-keep that end pinned unless the reader has scrolled to older messages or following
-the new card would clip the focused control. Keyboard focus stays visible throughout
-the transition, taking priority over the newest card in short windows. Touch
-toggles multi-card stacks; a single message keeps its reading timer. Escape
-collapses a focused stack and returns focus to its previous control. Notification
-updates preserve focus on the same action and keep the list's scroll position;
-unread rows use the second surface layer. Filters, read controls, links and toast
-dismiss controls share the visible focus outline. Long lists scroll independently
-of the center's heading, filters and footer.
-Opening the notification center marks the current filter's messages as read.
-Switching filters does not read incoming messages; their unread state remains
-until an explicit read action, a linked action, or the next matching opening.
-Generic warnings use the Warning label; cancelled operations name cancellation
-in their own titles.
+## Configuration and Workshop
 
-Events retain day groups and the shared 25/50/100-item journal pagination.
-Each row shows a compact local time with its complete localized timestamp
-available on the semantic time element. Day headings include the year for older
-years; yesterday follows the local calendar across daylight-saving changes.
-Unknown timestamps get their own group. On mobile, time and severity sit above
-the full-width message, including in Overview's compact recent-events list,
-which keeps visible dates because it has no day headings.
-On desktop, severity shares the message's reading line beside a separate time
-column, so a short warning does not create an otherwise empty second line.
-Warning, Error and Critical error labels accompany their
-semantic colors; ordinary update and backup messages use the normal text color.
-Problems includes warning/error/critical severity as well as legacy problem types,
-while the original operation, backup and update categories still include them.
-An empty category offers Reset filter, returning focus to All and page one.
-All editing routes lock mutations from request submission through completion.
-Busy widgets blur their existing contents and show a centered loading indicator
-labeled "Operation in progress: <operation name>" in the selected language;
-repeated operation availability blocks are hidden. The shared operation bar uses
-the connected Route stepper for the full planned operation, including request
-preparation and future stages. The server supplies stable step identities and
-pending, current, completed, or skipped states; completed stages represent actual
-work, while skipped branches remain distinct. Submission previews show the known
-route immediately and yield to the admitted worker's plan. Custom workers without
-a plan retain their recorded-stage fallback. No percentage is inferred from visits.
-Horizontal routes span the full inner lane: the first and last markers anchor its
-edges and intermediate markers are evenly spaced. Longer plans remain horizontal
-when their labels fit; narrow lanes and mobile use the connected vertical route.
-The current phase's detail is visible below the route on every input method.
-Countdown appears only for timed waits, uses tabular numerals, and stays separate
-from the stage sequence; there is no Elapsed row. Logs and the matching cancel
-action share a stable action row with touch targets of at least 44 pixels.
-The operation bar also covers manual image checks. Request acceptance uses the
-bar; after completion the bar hides and the inbox records the final result once.
-Completed stages carry olive checkmarks and accessible completion labels. Current
-stages use `aria-current="step"`; the operation route itself is passive and does
-not execute actions.
-Nested backup completion does not add a terminal stage; configuration writing and
-post-start verification remain explicit stages until the operation finishes.
-Game launches retain the lock until a valid PZ players response confirms RCON
-readiness, including restarts, updates, restore, stopped-server backups and
-configuration/Workshop application. A readiness timeout reports failure without
-automatically restarting again. This includes drafts, mod order, player
-actions, schedules, watchdog and notification settings. Route navigation, search,
-logs and events remain available, as do mod-update cancellation during countdown and server image update cancellation
-until stopping begins. The shared operation bar shows the matching cancel action,
-keeps an accepted cancellation disabled while pending, and removes it at completion.
-Pending input survives locking and failed requests; completion restores each
-control's ordinary profile, host/remote, demo and server-state restrictions.
-Source editing preserves native formats and masks secrets. Tabs expose linked
-panels and clear selected states. Field help opens on hover, focus, or tap,
-uses aria-describedby, stays within the viewport, and closes with Escape.
-Mobile help controls have 44-pixel touch targets. Desktop labels are bounded
-to 260 pixels; controls fill the remaining row. Setting search, the configuration
-stage rail, and Mods tools fill their available content lanes. Mobile labels stack
-above their controls. Source editors and scrollable tables retain their viewport
-boundaries. Boolean draft fields use one transparent clickable 44-pixel row.
-Setting search names its current section and links to matching neighboring sections.
-Saved secrets use an empty input value and a fixed eight-bullet placeholder,
-independent of their actual length. Unset secrets use a localized entry hint.
-Labels and existing hints stay in place; a localized, visually hidden description
-linked through `aria-describedby` conveys whether a value is set. There is no
-separate visible secret-status line.
-An empty Telegram field preserves its saved secret; explicitly clearing a
-configuration field clears that draft value.
-Technical keys, numeric bounds (including one-sided bounds), and input instructions
-sit below the controls. General lifecycle and stock-setting hints are omitted.
-Unique explanations, applicability details and absent defaults open on demand;
-metadata provenance accompanies substantive help. Fields without additional help
-have no help control, including fields with only metadata provenance. Exact
-applicability labels, environment ownership, errors and secret-marker instructions
-remain available beside their relevant controls. Descriptions reference only
-rendered elements. Settings keeps its lifecycle stages without a repeating page
-description. Settings and Mods omit the collapsible guide blocks.
-Page and section headings omit repeating descriptions and general instructional
-help, including draft, restart, mod composition, load-order and chart explanations. Keep substantive
-field help, operational diagnostics and action-specific confirmations.
-Changed-field labels remain visible, and changed text controls use the warning
-border. Help stays above the mobile navigation and draft actions.
+Settings and Mods share the Draft → Files → Startup stages and the same
+profile draft. Stages reflect saved draft, file write and startup evidence.
+The rail uses a vertical layout on narrow screens. Selecting a stage opens
+the appropriate review or focuses a control.
+
+Keep field and source input through failed saves. Edits use the loaded
+snapshot, and live updates leave the editor alone. Show external file changes
+in diff review before applying. Use View changes to review or discard the draft
+and Apply with restart to write it. Pending Workshop packages use Download
+packages with restart first, then explicit ModID selection and final application.
+
+Use linked tabs and panels. Keep field labels visible, group help around the
+field it describes and make it reachable by hover, focus and touch. Use visible
+keyboard focus, a warning border for changed values, and inline recovery actions.
+Mask saved secrets with a fixed placeholder and an accessible status. Preserve
+native editing behavior in source views. Empty Telegram credential fields retain
+saved values. Clearing a configuration field edits that value in the draft.
+
+Workshop composition puts search and filters above the package list and
+discloses import and addition separately. Preserve the page after draft or
+metadata refresh and reset it when filters or profile change. Reveal and focus
+newly added packages. Keep load-order search sticky. Use the drag handle for
+pointer and keyboard reordering, preserve full-list positions during search
+and save only completed moves.
+
+## Operations and events
+
+Use one progress bar across workspaces. Render the full planned route with
+pending, current, completed and skipped steps. Space horizontal markers across
+the lane and use the vertical route when labels need more room. Show current
+detail beneath the route, with a tabular countdown for timed waits. Keep logs
+and eligible cancellation in a stable action row. A busy operation preserves
+input and locks mutation controls through readiness verification. Navigation,
+search and diagnostics stay available.
+
+Events keep date groups and 25/50/100-item pagination. Use compact local time
+with the complete timestamp in the semantic time element. Pair warning and
+error severity with a label. On mobile place time and severity above the
+message. Keep Overview's compact feed readable without date-group headings.
 
 ## Workspace layout
 
-Maintenance includes a console image update section between server image updates
-and mod updates, using the same status, copy fields, and action controls. Its
-confirmation explains the console restart and automatic reconnection. Unsupported
-deployments show the required configuration beside disabled controls. Mod updates
-omit the check timestamp while retaining restart guidance and inconclusive errors.
-
-Overview groups server state/actions, player and backup summaries, container load,
-updates, and recent events. Maintenance stacks image and mod updates in the left
-column beside watchdog and Telegram settings, stacking both columns at narrow widths.
-Online players keeps full player names wrapped on mobile, with equal-width Kick
-and Ban controls beneath each name and 44px touch targets. The mobile list scrolls
-with the page so rows and actions are never clipped by a nested list viewport;
-desktop retains its compact scrollable list. Player history hides its empty plot
-and time labels until at least two samples are available, retaining the collection
-message and peak placeholder. Hover details use their measured width to stay
-within both chart edges; long localized values wrap within the chart width
-without creating horizontal page scrolling.
-Mods keeps composition, load order, and problems tabs. Digest fields share copy feedback.
-Desktop console panels share three rows for titles, compact filter/command tools,
-and aligned output windows. Log counts, download and auto-scroll controls, errors,
-and period feedback sit below the log output so their changes do not stretch the
-RCON command area or shift the aligned windows.
-RCON submits one command at a time through the same executor, including quick
-commands, announcements, world saves and player actions. Each command retains
-its matching response and pending or failed result. Form input survives failures;
-quick actions preserve the form's draft, and history navigation restores that
-draft. A missing or interrupted reply explicitly leaves execution uncertain and
-never retries automatically. RCON availability distinguishes an unavailable
-server from a failed last connection check that still permits a manual attempt.
-The mobile command field occupies its own input row with the send action below.
-Transcript and log windows are named, keyboard-focusable scroll regions; only
-the short, visually hidden command status is live. Command entries carry the
-visible pending and result messages, including requests refused before sending.
-The initial connection note leaves the transcript when the first command entry
-appears. A pending command does not insert a banner above the panels; actual
-connection and availability problems remain visible. Logs show their last successful refresh and
-offer Refresh and Latest. Latest and enabling auto-scroll resume following;
-scrolling to older lines pauses following. Late responses cannot replace newer
-log snapshots. Error filtering uses log prefixes and recognized Java stack frames,
-preserving literal player text and precise raw timestamps in row tooltips.
-Background log checks leave Refresh visually unchanged. Explicit refreshes own
-their disabled and busy state independently of automatic requests. Unchanged
-visible rows retain their DOM nodes, selection and scroll position even when
-filtered-out records arrive. Freshness is passive and uses tabular numerals;
-identical errors do not rewrite the alert. Log counts also use tabular numerals,
-with Reset filters anchored at the trailing edge of its in-flow metadata row.
-Backup archives use aligned name, size, date, and action columns, sharing desktop
-column widths with their headings; mobile places them on separate rows.
-Download, verify and restore actions have visible labels;
-delete retains a named icon and confirmation. Show verified archive results
-from persistent receipts bound to the current archive identity. A verified archive's
-shield control reads "Verified" in olive and is disabled; the date, file count,
-and missing server configuration or world data remain
-identified beside the archive. Show scheduled times with the server offset and
-the next run in browser-local time. Archive pages contain ten items. The run journal uses
-25/50/100-item pages and preserves the current page during refresh. Journal dates
-and triggers remain visible in the stacked mobile rows.
-The login form uses the red brand mark, login/password fields, and an opt-in
-Remember me checkbox with a 30-day explanation. Errors stay beside the login action.
+- **Overview** groups status and server controls, players, backups, resources,
+  updates and recent events into widgets. Customize Overview adds, removes and
+  reorders cards with named controls. Persist the order per browser, move
+  existing cards so reading and visual order agree, and retain focus after
+  edits. If Server Status is hidden, server controls can reveal it temporarily.
+- **Players** links the roster and its selected player to the world map. Keep
+  pan and zoom operable with touch and keyboard. Use a clear marker and text
+  for stale positions and explicit setup guidance when map data is unavailable.
+  Wrap names and stack the roster, map and history on mobile. Keep Kick and Ban
+  visible with their confirmation flow.
+- **Maintenance** groups game, console and Workshop updates, RCON recovery,
+  periodic announcements, scheduled restarts and notifications in responsive
+  columns. Keep action availability and each schedule's save and status together.
+- **Backups** aligns archive name, size, date and actions on desktop and stacks
+  them on mobile. Show archive verification receipts and missing contents beside
+  the archive. Use ten archives per page and the shared journal pagination.
+- **Console** aligns command and log output on desktop. Name both scroll regions
+  and make them keyboard focusable. Preserve command input on failure and pair
+  each command with its own result. Keep log controls and freshness below the
+  output. Preserve scroll and selection during polling, and let Latest restore
+  following.
+- **Login** keeps Remember me opt-in and errors next to the sign-in action.
 
 ## Accessibility and motion
 
-Keep visible keyboard focus, semantic headings, named controls, linked tabs,
-textual statuses, and explicit destructive confirmations. Respect reduced motion
-and forced colors. Check narrow screens for horizontal overflow. Browser tests
-provide regression coverage, not full assistive-technology certification.
+Preserve visible focus, named controls, semantic headings, explicit destructive
+confirmations, reduced motion and forced colors. Keep 44-pixel targets for key
+touch controls. Check narrow screens for overflow and focused controls hidden
+by fixed bars.
 
 ## Presentation assets
 
-Current README captures live in [docs/screenshots](docs/screenshots/README.md).
-Historical audits and prototype screenshots are available through Git history.
+See the [README captures and regeneration steps](docs/screenshots/README.md).

@@ -8,54 +8,52 @@ web
 
 ## Users
 
-Experienced Project Zomboid administrators managing a dedicated server.
-The main daily workflow is editing server settings and Workshop selections,
-with diagnostics, backups, and lifecycle operations close at hand.
+Project Zomboid administrators managing a dedicated server from a desktop or mobile browser.
 
 ## Product Purpose
 
-Inspect server state, prepare changes, review them, apply them safely, and verify
-the result. Configuration and mod selections pass through persistent drafts and
-review before reaching game files. The browser edits a snapshot loaded on entry;
-explicit saves overwrite external changes because parallel editing is unsupported.
+Inspect server state, prepare and review configuration changes, and verify the
+result after restart. Settings and Workshop changes share a persistent profile
+draft. Browser saves use the page's loaded snapshot. Applying a reviewed draft
+can overwrite external file edits, which appear in the review and are retained
+in configuration history.
 
 ## Operating Context
 
-Self-hosted on the game server's Docker host, with desktop and mobile browsers.
-English and Russian are supported. RCON-only connections provide reduced capabilities.
-Explicit demo mode uses illustrative data and does not execute operations.
+Self-hosted on the game server's Docker host. The interface supports English and
+Russian. Remote RCON connections provide a limited set of controls. Demo mode
+shows fictional data with operations disabled.
 
 ## Capabilities and Constraints
 
-Eight routes: overview, settings, mods, players, maintenance, backups, events, console.
-The stack is Python plus HTML/CSS/JavaScript. Keep runtime dependencies small.
-Drafts, diffs, history, secret masking, reviewed draft revisions, world-replacement confirmation,
-player warnings, and startup verification are part of the product contract.
-Workshop packages, ModIDs, maps, and profiles are distinct entities.
-The SSE lifecycle is shared across routes.
+Overview, Settings, Mods, Players, Maintenance, Backups, Events, and Console.
+Overview widgets can be reordered or hidden per browser. Players can show live
+world positions with the optional B42 integration. Maintenance includes
+scheduled announcements and restarts, image and mod updates, RCON recovery and
+Telegram notifications.
+
+Keep Workshop packages, ModIDs, maps and profiles distinct. Preserve review
+revisions, secret masking, configuration history, startup verification and
+explicit world-replacement confirmation.
 
 ## Brand Commitments
 
-The English interface name is PZ Console; the Russian interface uses PZ Пульт.
-Use warm near-black surfaces, beige text, olive success states, amber warnings,
-and brick-red destructive actions. Follow [DESIGN.md](DESIGN.md) and the current CSS.
+Use PZ Console in English and PZ Пульт in Russian. Follow the warm dark palette,
+locally served fonts and status colors in [DESIGN.md](DESIGN.md).
 
 ## Evidence on Hand
 
-Isolated backend/browser fixtures and reproducible screenshots in `docs/screenshots`.
-Real-server acceptance has a [separate record](docs/acceptance-b42.md).
-Do not claim measured administrator productivity or full accessibility certification.
+See the [fixture-based screenshots](docs/screenshots/README.md) and the
+[real-server acceptance procedure](docs/acceptance-b42.md).
 
 ## Product Principles
 
-- Keep settings and mods directly accessible.
-- Preserve user input after an error and show the next action.
+- Keep Settings and Mods directly accessible.
+- Preserve user input on failure and show the next available action.
 - Confirm destructive operations explicitly.
-- Distinguish freshness, pending operations, drafts, and verified results.
-- Support keyboard efficiency and usable mobile controls.
+- Distinguish data freshness, drafts, pending operations and verified results.
 
 ## Accessibility & Inclusion
 
-Maintain keyboard operation, focus visibility, text alongside status colors,
-named controls, linked tabs/panels, reduced-motion support, and touch targets.
-Browser checks do not replace assistive-technology testing or full WCAG certification.
+Preserve keyboard operation, visible focus, text alongside status colors,
+named controls, linked tabs and panels, reduced motion and usable touch targets.
