@@ -27,6 +27,15 @@
         "value": "text",
         "createdAt": "2026-10-06T10:49:57.438Z",
         "reason": "Codex review: HTML input type=text is a control type, not a font; this change keeps Golos Text and JetBrains Mono."
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "dashboard/static/index.html"
+        ],
+        "createdAt": "2026-11-12T08:47:08.871Z",
+        "reason": "Agent: the static detector cannot resolve the dashboard stylesheet from the HTML filesystem path. Chromium confirms the Overview H1 at 26px desktop and 24px mobile, widget and dialog H2 at 18px, and body at 14.5px."
       }
     ]
   }
