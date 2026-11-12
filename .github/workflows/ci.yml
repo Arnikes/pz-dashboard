@@ -133,9 +133,13 @@ jobs:
           docker tag pz-console:ci "$image:sha-$GITHUB_SHA"
           docker push "$image:$version"
           docker push "$image:sha-$GITHUB_SHA"
-          digest=$(docker image inspect "$image:$version" --format '{{index .RepoDigests 0}}')
+          manifest_digest=$(docker buildx imagetools inspect "$image:$version" --format '{{.Manifest.Digest}}')
+          if [[ ! "$manifest_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            printf 'Invalid SHA-256 manifest digest for %s\n' "$image:$version" >&2
+            exit 1
+          fi
           echo "image=$image:$version" >> "$GITHUB_OUTPUT"
-          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "digest=$image@$manifest_digest" >> "$GITHUB_OUTPUT"
           if [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             docker tag pz-console:ci "$image:latest"
             docker push "$image:latest"
