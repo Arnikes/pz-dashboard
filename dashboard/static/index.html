@@ -155,7 +155,6 @@
         <button class="btn" id="btnCancelMods" hidden>Отменить обновление модов</button>
       </div>
     </section>
-    <section id="editorAttention" class="card attention" hidden aria-label="Требуют внимания"></section>
     <div id="configStartup" class="editor-startup" role="status" hidden>
       <p id="configStartupMessage">Профиль ещё загружается. Можно открыть другие разделы или перезагрузить страницу.</p>
       <button id="configStartupReload" class="btn" type="button">Перезагрузить</button>
@@ -189,61 +188,55 @@
       </li>
     </ol>
 
-    <!-- ОБЗОР: показатели, состояние и нагрузка -->
     <div class="view" id="view-overview" tabindex="-1">
-
-      <section class="card c-status" id="sec-status" data-od-id="status" aria-labelledby="hStatus">
-        <h2 id="hStatus" class="sr-only">Состояние сервера</h2>
-        <div class="overview-state">
-          <div class="state-line">
-            <span class="lamp" id="stateLamp" data-state="unknown" aria-hidden="true"></span>
-            <span class="state-label" id="stateLabel">Подключение…</span>
-          </div>
-          <div class="overview-status-meta">
+      <section id="editorAttention" class="card attention" hidden aria-label="Требуют внимания"></section>
+      <div class="overview-widgets" id="overviewWidgets">
+        <section class="card c-status" id="sec-status" data-od-id="status" data-overview-widget="status" aria-labelledby="hStatus" tabindex="-1">
+          <div class="overview-state">
+            <h2 id="hStatus" data-widget-label>Состояние сервера</h2>
+            <div class="state-line">
+              <span class="lamp" id="stateLamp" data-state="unknown" aria-hidden="true"></span>
+              <span class="state-label" id="stateLabel">Подключение…</span>
+            </div>
             <div class="uptime" id="uptime" aria-label="Время работы">—</div>
           </div>
-        </div>
-        <div class="actions">
-          <button class="btn" id="btnStart">Запустить</button>
-          <button class="btn danger" id="btnStop">Остановить</button>
-          <button class="btn" id="btnRestart">Перезапустить</button>
-          <button class="btn ghost" id="btnSaveWorld" title="Команда save через RCON">Сохранить мир</button>
-        </div>
-        <p id="operationAvailability" class="hint availability" role="status" hidden></p>
-        <p class="hint" id="absentHint" hidden>
-          Контейнер не найден. Проверьте имя (переменная PZ_CONTAINER) и что compose-проект запущен.
-        </p>
-      </section>
-
-      <section class="card c-kpi" id="sec-kpi" data-od-id="kpi" aria-label="Ключевые показатели">
-        <div class="kpi-grid">
-          <a class="kpi" href="#/players">
-            <span class="k-label">Онлайн</span>
-            <span class="k-value mono" id="kpiOnline">–</span>
-            <span class="k-sub" id="kpiOnlineSub">…</span>
-          </a>
-          <a class="kpi" href="#/backups">
-            <span class="k-label">Бэкап</span>
-            <span class="k-value mono" id="kpiBackup">—</span>
-            <span class="k-sub" id="kpiBackupSub">…</span>
-          </a>
-        </div>
-      </section>
-
-      <div class="overview-content">
-        <!-- МЕТРИКИ -->
-        <section class="card c-metrics" id="sec-metrics" data-od-id="metrics" aria-labelledby="hMetrics">
-          <header class="card-head"><h2 id="hMetrics">Нагрузка контейнера</h2></header>
-          <div class="metric">
-            <div class="metric-row"><span>CPU</span><span class="mono" id="cpuVal">—</span></div>
-            <div class="bar"><i id="cpuBar" style="width:0%"></i></div>
-            <svg class="spark" id="cpuSpark" viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><polyline id="cpuSparkLine" fill="none" stroke="currentColor" stroke-width="1.6" points=""/></svg>
+          <div class="actions">
+            <button class="btn" id="btnStart">Запустить</button>
+            <button class="btn danger" id="btnStop">Остановить</button>
+            <button class="btn" id="btnRestart">Перезапустить</button>
+            <button class="btn ghost" id="btnSaveWorld" title="Команда save через RCON">Сохранить мир</button>
           </div>
-          <div class="metric">
-            <div class="metric-row"><span>RAM</span><span class="mono" id="ramVal">—</span></div>
-            <div class="bar"><i id="ramBar" style="width:0%"></i></div>
-            <svg class="spark ram" id="ramSpark" viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><polyline id="ramSparkLine" fill="none" stroke="currentColor" stroke-width="1.6" points=""/></svg>
-            <div class="metric-sub mono" id="ramSub">—</div>
+          <p id="operationAvailability" class="hint availability" role="status" hidden></p>
+          <p class="hint" id="absentHint" hidden>
+            Контейнер не найден. Проверьте имя (переменная PZ_CONTAINER) и что compose-проект запущен.
+          </p>
+        </section>
+
+        <a class="card overview-summary" data-overview-widget="online" href="#/players">
+          <span class="overview-summary-head"><span data-widget-label>Игроки онлайн</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></span>
+          <span class="overview-summary-value mono" id="kpiOnline">–</span>
+          <span class="overview-summary-note" id="kpiOnlineSub">…</span>
+        </a>
+        <a class="card overview-summary" data-overview-widget="backup" href="#/backups">
+          <span class="overview-summary-head"><span data-widget-label>Последний бэкап</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></span>
+          <span class="overview-summary-value mono" id="kpiBackup">—</span>
+          <span class="overview-summary-note" id="kpiBackupSub">…</span>
+        </a>
+
+        <section class="card" id="sec-metrics" data-od-id="metrics" data-overview-widget="load" aria-labelledby="hMetrics">
+          <header class="card-head"><h2 id="hMetrics" data-widget-label>Нагрузка контейнера</h2></header>
+          <div class="overview-metrics">
+            <div class="metric">
+              <div class="metric-row"><span>CPU</span><span class="mono" id="cpuVal">—</span></div>
+              <div class="bar"><i id="cpuBar" style="width:0%"></i></div>
+              <svg class="spark" id="cpuSpark" viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true" hidden><polyline id="cpuSparkLine" fill="none" stroke="currentColor" stroke-width="1.6" points=""/></svg>
+            </div>
+            <div class="metric">
+              <div class="metric-row"><span>RAM</span><span class="mono" id="ramVal">—</span></div>
+              <div class="bar"><i id="ramBar" style="width:0%"></i></div>
+              <svg class="spark ram" id="ramSpark" viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true" hidden><polyline id="ramSparkLine" fill="none" stroke="currentColor" stroke-width="1.6" points=""/></svg>
+              <div class="metric-sub mono" id="ramSub">—</div>
+            </div>
           </div>
           <dl class="net-row">
             <div><dt>Сеть ↓</dt><dd class="mono" id="netIn">—</dd></div>
@@ -252,40 +245,38 @@
           </dl>
         </section>
 
-        <div class="overview-secondary">
-          <!-- СВОДКА ОБНОВЛЕНИЙ -->
-          <section class="card c-sumupd" id="sec-sumupd" data-od-id="updates-summary" aria-labelledby="hSumUpd">
-            <header class="card-head">
-              <h2 id="hSumUpd">Обновления</h2>
-            </header>
-            <div class="sum-rows">
-              <div class="sum-row">
-                <a class="sum-name" href="#/maintenance">Образ Docker</a>
-                <span class="pill" id="sumImagePill" data-state="unknown">—</span>
-              </div>
-              <div class="sum-row">
-                <a class="sum-name" href="#/maintenance">Образ пульта</a>
-                <span class="pill" id="sumDashboardPill" data-state="unknown">—</span>
-              </div>
-              <div class="sum-row">
-                <a class="sum-name" href="#/maintenance">Моды Workshop</a>
-                <span class="pill" id="sumModsPill" data-state="unknown">—</span>
-              </div>
+        <section class="card" id="sec-sumupd" data-od-id="updates-summary" data-overview-widget="updates" aria-labelledby="hSumUpd">
+          <header class="card-head"><h2 id="hSumUpd" data-widget-label>Обновления</h2></header>
+          <div class="sum-rows">
+            <div class="sum-row">
+              <a class="sum-name" href="#/maintenance">Образ Docker</a>
+              <span class="pill" id="sumImagePill" data-state="unknown">—</span>
             </div>
-          </section>
+            <div class="sum-row">
+              <a class="sum-name" href="#/maintenance">Образ пульта</a>
+              <span class="pill" id="sumDashboardPill" data-state="unknown">—</span>
+            </div>
+            <div class="sum-row">
+              <a class="sum-name" href="#/maintenance">Моды Workshop</a>
+              <span class="pill" id="sumModsPill" data-state="unknown">—</span>
+            </div>
+          </div>
+        </section>
 
-          <!-- ПОСЛЕДНИЕ СОБЫТИЯ -->
-          <section class="card c-recent" id="sec-recent" data-od-id="recent" aria-labelledby="hRecent">
-            <header class="card-head">
-              <h2 id="hRecent">Последние события</h2>
-              <a class="head-link" href="#/events">Вся история</a>
-            </header>
-            <div id="recentBody" class="list" data-state="loading">
-              <p class="skeleton-line"></p><p class="skeleton-line short"></p>
-            </div>
-          </section>
-        </div>
+        <section class="card c-recent" id="sec-recent" data-od-id="recent" data-overview-widget="events" aria-labelledby="hRecent">
+          <header class="card-head">
+            <h2 id="hRecent" data-widget-label>Последние события</h2>
+            <a class="head-link" href="#/events">Вся история</a>
+          </header>
+          <div id="recentBody" class="list" data-state="loading">
+            <p class="skeleton-line"></p><p class="skeleton-line short"></p>
+          </div>
+        </section>
       </div>
+      <section class="card overview-empty" id="overviewEmpty" aria-labelledby="overviewEmptyTitle" hidden>
+        <h2 id="overviewEmptyTitle">Нет виджетов</h2>
+        <button class="btn" id="btnCustomizeOverviewEmpty" type="button" aria-haspopup="dialog" aria-controls="overviewCustomizeDialog">Добавить виджеты</button>
+      </section>
     </div>
 
     <!-- ИГРОКИ -->
@@ -907,6 +898,27 @@
     </div>
   </dialog>
 
+  <dialog id="overviewCustomizeDialog" class="overview-customize-dialog" aria-labelledby="overviewCustomizeTitle">
+    <header><h2 id="overviewCustomizeTitle" tabindex="-1" autofocus>Настроить обзор</h2></header>
+    <div class="overview-customize-content">
+      <section aria-labelledby="overviewVisibleTitle">
+        <h3 id="overviewVisibleTitle">Виджеты на странице</h3>
+        <ol id="overviewVisibleWidgets" class="overview-widget-list" role="list"></ol>
+        <p class="hint" id="overviewNoVisible" hidden>Нет виджетов</p>
+      </section>
+      <section aria-labelledby="overviewAvailableTitle" id="overviewAvailableSection" hidden>
+        <h3 id="overviewAvailableTitle">Доступные виджеты</h3>
+        <ul id="overviewAvailableWidgets" class="overview-widget-list" role="list"></ul>
+      </section>
+    </div>
+    <footer class="overview-customize-footer">
+      <p class="hint" id="overviewStorageNotice" hidden>Браузер не сохранил раскладку. Изменения действуют до перезагрузки страницы.</p>
+      <p class="sr-only" id="overviewLayoutAnnouncement" role="status" aria-atomic="true"></p>
+      <button type="button" class="btn ghost" id="btnResetOverviewLayout">Сбросить раскладку</button>
+      <button type="button" class="btn primary" id="btnDoneOverviewLayout">Готово</button>
+    </footer>
+  </dialog>
+
   </div>
   <script src="/static/catalogs.js"></script>
   <script src="/static/i18n.js"></script>
@@ -914,6 +926,7 @@
   <script src="/static/alerts.js"></script>
   <script src="/static/players-map.js"></script>
   <script src="/static/operation-plan.js"></script>
+  <script src="/static/overview-widgets.js"></script>
   <script src="static/app.js"></script>
   <script src="static/editor.js"></script>
   <script src="/static/pwa.js"></script>

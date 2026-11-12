@@ -1813,8 +1813,9 @@ async function refreshPlayersHistory() {
 
 function drawSpark(id, vals) {
   const el = $(id);
-  if (!el) return;
-  if (!vals || vals.length < 2) { el.setAttribute("points", ""); return; }
+  const enoughSamples = vals.length >= 2;
+  el.parentElement.toggleAttribute("hidden", !enoughSamples);
+  if (!enoughSamples) { el.setAttribute("points", ""); return; }
   const max = Math.max(10, ...vals);
   const pts = vals.map((v, i) => `${((i / (vals.length - 1)) * 120).toFixed(1)},${(26 - (Math.min(v, max) / max) * 24).toFixed(1)}`).join(" ");
   el.setAttribute("points", pts);
@@ -2748,7 +2749,7 @@ document.addEventListener("pz:before-update", (event) => {
   const reasons = [];
   if (S.op?.active || S.actionPending || pendingMutations || settings.some(state => state.pending)) reasons.push("operation");
   if (settings.some(state => state.dirty) || $('consoleInput').value.trim()) reasons.push("unsaved");
-  if (!$('modalRoot').hidden || $('commandDialog').open) reasons.push("dialog");
+  if (!$('modalRoot').hidden || document.querySelector("dialog[open]")) reasons.push("dialog");
   if (reasons.length) {
     event.preventDefault();
     event.detail?.reasons?.push(...reasons);
@@ -3438,11 +3439,19 @@ const VIEWS = {
   events: I18n.t("События"),
   console: I18n.t("Консоль"),
 };
-$("sec-status").after($("editorAttention"));
 for (const [route, label] of Object.entries(VIEWS)) {
   const view = $("view-" + route), heading = document.createElement("header");
   heading.className = "page-heading";
-  heading.innerHTML = `<h1 id="page-${route}">${esc(label)}</h1>` + (route === "overview" ? I18n.html('<div class="page-actions"><a id="overviewDraft" class="btn" href="#/settings" hidden>Черновик</a></div>') : "");
+  heading.innerHTML = `<h1 id="page-${route}">${esc(label)}</h1>`;
+  if (route === "overview") {
+    heading.insertAdjacentHTML("beforeend", I18n.html(`<div class="page-actions">
+      <button type="button" class="btn" id="btnCustomizeOverview" aria-haspopup="dialog" aria-controls="overviewCustomizeDialog">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 7h8m4 0h4M4 17h4m4 0h8"/><circle cx="14" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+        <span>Настроить</span>
+      </button>
+      <a id="overviewDraft" class="btn" href="#/settings" hidden>Черновик</a>
+    </div>`));
+  }
   view.prepend(heading);
   view.setAttribute("aria-labelledby", "page-" + route);
 }
@@ -3482,6 +3491,7 @@ function currentRoute() {
 function applyRoute() {
   const r = currentRoute();
   if (r === activeView) return;
+  if (activeView === "overview") window.OverviewWidgets.leave();
   activeView = r;
   document.querySelectorAll(".view").forEach((v) => { v.hidden = v.id !== "view-" + r; });
   window.PlayersMap?.route(r === "players");
@@ -3519,6 +3529,7 @@ const commands = (() => {
   const profileReason = () => window.ConfigEditor?.initialPending ? I18n.t("Профиль ещё загружается") : !window.ConfigEditor?.file ? I18n.t("Выберите доступный профиль") : "";
   const confirmedAction = id => async () => {
     await navigate("overview");
+    window.OverviewWidgets.revealStatus();
     const button = $(id);
     if (button.disabled) { toast(I18n.t("Действие сейчас недоступно. Проверьте состояние сервера."), "error"); button.closest("section").focus(); return; }
     button.focus(); button.click();
@@ -3557,7 +3568,7 @@ const commands = (() => {
     try { await item.run(); } catch (error) { toast(error.message, "error"); }
   }
   function open() {
-    if (document.body.classList.contains("is-booting") || !$("modalRoot").hidden || dialog.open) return;
+    if (document.body.classList.contains("is-booting") || !$("modalRoot").hidden || document.querySelector("dialog[open]")) return;
     opener = document.activeElement;
     search.value = ""; render(); dialog.showModal(); search.focus(); results.scrollTop = 0;
   }

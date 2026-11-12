@@ -1696,5 +1696,22 @@
   "{{0}} должен быть целым числом от {{1}} до {{2}}": "{{0}} must be an integer from {{1}} to {{2}}",
   "Объявление должно содержать не более 200 символов в одной строке без управляющих символов": "The announcement must be a single line of up to 200 characters without control characters",
   "Не удалось отправить объявление по расписанию": "Could not send the scheduled announcement",
-  "Состояние сервера изменилось — плановый перезапуск отменён": "The server state changed. The scheduled restart was cancelled."
+  "Состояние сервера изменилось — плановый перезапуск отменён": "The server state changed. The scheduled restart was cancelled.",
+  "Последний бэкап": "Latest backup",
+  "Настроить": "Customize",
+  "Настроить обзор": "Customize Overview",
+  "Нет виджетов": "No widgets",
+  "Добавить виджеты": "Add widgets",
+  "Виджеты на странице": "Visible widgets",
+  "Доступные виджеты": "Available widgets",
+  "Сбросить раскладку": "Reset layout",
+  "Браузер не сохранил раскладку. Изменения действуют до перезагрузки страницы.": "Your browser couldn't save the layout. Changes apply until you reload the page.",
+  "Добавить виджет «{{0}}»": "Add widget “{{0}}”",
+  "Убрать виджет «{{0}}»": "Remove widget “{{0}}”",
+  "Переместить «{{0}}» выше": "Move “{{0}}” earlier",
+  "Переместить «{{0}}» ниже": "Move “{{0}}” later",
+  "Виджет «{{0}}» добавлен": "Added “{{0}}”",
+  "Виджет «{{0}}» убран": "Removed “{{0}}”",
+  "«{{0}}» · место {{1}} из {{2}}": "“{{0}}” · position {{1}} of {{2}}",
+  "Восстановлена исходная раскладка": "Default layout restored"
 }

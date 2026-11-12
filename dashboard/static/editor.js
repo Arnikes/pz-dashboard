@@ -213,8 +213,8 @@ window.ConfigEditor = (() => {
   $("editorAttention").addEventListener("click", event => {
     if (event.target.closest('[data-attention-key="saved"]')) {
       event.preventDefault();
+      window.OverviewWidgets.revealStatus();
       const target = $("btnStart").disabled ? $("sec-status") : $("btnStart");
-      if (target.id === "sec-status") target.tabIndex = -1;
       target.focus(); target.scrollIntoView({ block: "nearest" });
     }
   });
